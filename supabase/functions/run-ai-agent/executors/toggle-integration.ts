@@ -5,7 +5,6 @@ type ToggleIntegrationArgs = {
   is_active: boolean;
 };
 
-/** Preserves the existing toggle_integration executor and side-effect order. */
 export async function executeToggleIntegration(
   args: ToggleIntegrationArgs,
   context: ToolExecutionContext,

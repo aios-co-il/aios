@@ -9,7 +9,6 @@ type SendWhatsappViaGatewayArgs = {
   message: string;
 };
 
-/** Preserves the existing send_whatsapp_via_gateway executor and side-effect order. */
 export async function executeSendWhatsappViaGateway(
   args: SendWhatsappViaGatewayArgs,
   context: ToolExecutionContext,

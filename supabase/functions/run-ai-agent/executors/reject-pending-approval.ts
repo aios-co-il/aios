@@ -7,7 +7,6 @@ type RejectPendingApprovalArgs = {
   reason?: string;
 };
 
-/** Preserves the existing reject_pending_approval executor and side-effect order. */
 export async function executeRejectPendingApproval(
   args: RejectPendingApprovalArgs,
   context: ToolExecutionContext,

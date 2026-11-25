@@ -2,7 +2,6 @@ import type { ToolExecutionContext } from "../tool-context.ts";
 
 type ListAgentsArgs = { only_active?: boolean };
 
-/** Preserves the existing list_agents executor and side-effect order. */
 export async function executeListAgents(
   args: ListAgentsArgs,
   context: ToolExecutionContext,

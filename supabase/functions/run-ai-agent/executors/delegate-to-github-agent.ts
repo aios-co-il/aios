@@ -6,7 +6,6 @@ type DelegateToGithubAgentArgs = {
   action?: "chat_support" | "analyze_error" | "fix_code" | "check_permissions";
 };
 
-/** Preserves the existing delegate_to_github_agent executor and side-effect order. */
 export async function executeDelegateToGithubAgent(
   args: DelegateToGithubAgentArgs,
   context: ToolExecutionContext,

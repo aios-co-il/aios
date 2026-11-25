@@ -12,7 +12,6 @@ type DelegateParallelArgs = {
   }>;
 };
 
-/** Preserves the existing delegate_parallel executor and side-effect order. */
 export async function executeDelegateParallel(
   args: DelegateParallelArgs,
   context: ToolExecutionContext,

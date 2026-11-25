@@ -6,7 +6,6 @@ type CreateWhatsappInstanceArgs = {
   countryCode?: string;
 };
 
-/** Preserves the existing create_whatsapp_instance executor and side-effect order. */
 export async function executeCreateWhatsappInstance(
   args: CreateWhatsappInstanceArgs,
   context: ToolExecutionContext,

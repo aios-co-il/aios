@@ -3,7 +3,6 @@ import { integrationTypesFor } from "../whatsapp-lines.ts";
 
 type ListIntegrationsArgs = { type?: string; only_active?: boolean };
 
-/** Preserves the existing list_integrations executor and side-effect order. */
 export async function executeListIntegrations(
   args: ListIntegrationsArgs,
   context: ToolExecutionContext,

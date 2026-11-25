@@ -4,7 +4,6 @@ import type { ToolExecutionContext } from "../tool-context.ts";
 
 type GetWhatsappQrLinkArgs = { integrationId: string };
 
-/** Preserves the existing get_whatsapp_qr_link executor and side-effect order. */
 export async function executeGetWhatsappQrLink(
   args: GetWhatsappQrLinkArgs,
   context: ToolExecutionContext,

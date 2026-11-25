@@ -17,7 +17,6 @@ type ProposeAutomationArgs = {
   }>;
 };
 
-/** Preserves the existing propose_automation executor and side-effect order. */
 export async function executeProposeAutomation(
   args: ProposeAutomationArgs,
   context: ToolExecutionContext,

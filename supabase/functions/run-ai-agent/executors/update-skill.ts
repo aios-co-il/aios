@@ -8,7 +8,6 @@ type UpdateSkillArgs = {
   change_note?: string;
 };
 
-/** Preserves the existing update_skill executor and side-effect order. */
 export async function executeUpdateSkill(
   args: UpdateSkillArgs,
   context: ToolExecutionContext,

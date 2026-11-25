@@ -6,7 +6,6 @@ type QuerySystemGraphArgs = {
   limit?: number;
 };
 
-/** Preserves the existing query_system_graph executor and side-effect order. */
 export async function executeQuerySystemGraph(
   args: QuerySystemGraphArgs,
   context: ToolExecutionContext,

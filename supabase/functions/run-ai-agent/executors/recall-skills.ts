@@ -2,7 +2,6 @@ import type { ToolExecutionContext } from "../tool-context.ts";
 
 type RecallSkillsArgs = { query: string; limit?: number };
 
-/** Preserves the existing recall_skills executor and side-effect order. */
 export async function executeRecallSkills(
   args: RecallSkillsArgs,
   context: ToolExecutionContext,

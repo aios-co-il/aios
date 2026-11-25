@@ -22,7 +22,6 @@ type CreateMetaLeadFormArgs = {
   confirmed: boolean;
 };
 
-/** Preserves the existing create_meta_lead_form executor and side-effect order. */
 export async function executeCreateMetaLeadForm(
   args: CreateMetaLeadFormArgs,
   context: ToolExecutionContext,

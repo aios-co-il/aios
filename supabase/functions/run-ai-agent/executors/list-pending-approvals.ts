@@ -4,7 +4,6 @@ import { approvalDisplayCode } from "../approvals/codes.ts";
 
 type ListPendingApprovalsArgs = { limit?: number };
 
-/** Preserves the existing list_pending_approvals executor and side-effect order. */
 export async function executeListPendingApprovals(
   args: ListPendingApprovalsArgs,
   context: ToolExecutionContext,

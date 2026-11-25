@@ -2,7 +2,6 @@ import type { Tables } from "../../_shared/database.types.ts";
 import type { DbClient } from "../../_shared/supabase-clients.ts";
 import { metaNameMatches } from "./meta-lead-name-match.ts";
 
-/** Preserves the existing findAutomationForMetaForm behavior at its extracted boundary. */
 export async function findAutomationForMetaForm(
   supabase: DbClient,
   tenantIds: Array<string>,

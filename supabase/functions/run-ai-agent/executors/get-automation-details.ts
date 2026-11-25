@@ -7,7 +7,6 @@ type GetAutomationDetailsArgs = {
   name_search?: string;
 };
 
-/** Preserves the existing get_automation_details executor and side-effect order. */
 export async function executeGetAutomationDetails(
   args: GetAutomationDetailsArgs,
   context: ToolExecutionContext,

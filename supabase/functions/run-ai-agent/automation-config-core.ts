@@ -1,6 +1,5 @@
 import { z } from "npm:zod@3.25.76";
 
-/** Preserves this portion of the automation editor configuration shape. */
 export const automationCoreFields = {
   status: z.string().optional(),
   status_field: z.string().nullish(),

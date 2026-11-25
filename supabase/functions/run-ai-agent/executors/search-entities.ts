@@ -9,7 +9,6 @@ type SearchEntitiesArgs = {
   include_inactive?: boolean;
 };
 
-/** Preserves the existing search_entities executor and side-effect order. */
 export async function executeSearchEntities(
   args: SearchEntitiesArgs,
   context: ToolExecutionContext,

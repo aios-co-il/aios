@@ -8,7 +8,6 @@ type CreateAgentArgs = {
   engine?: string;
 };
 
-/** Preserves the existing create_agent executor and side-effect order. */
 export async function executeCreateAgent(
   args: CreateAgentArgs,
   context: ToolExecutionContext,

@@ -9,7 +9,6 @@ type ExecutePendingApprovalArgs = {
   tool_name?: string;
 };
 
-/** Preserves the existing execute_pending_approval executor and side-effect order. */
 export async function executeExecutePendingApproval(
   args: ExecutePendingApprovalArgs,
   context: ToolExecutionContext,

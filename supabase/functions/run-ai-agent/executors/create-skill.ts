@@ -7,7 +7,6 @@ type CreateSkillArgs = {
   trigger_phrases?: Array<string>;
 };
 
-/** Preserves the existing create_skill executor and side-effect order. */
 export async function executeCreateSkill(
   args: CreateSkillArgs,
   context: ToolExecutionContext,

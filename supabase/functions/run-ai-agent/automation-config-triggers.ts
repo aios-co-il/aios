@@ -1,6 +1,5 @@
 import { z } from "npm:zod@3.25.76";
 
-/** Preserves this portion of the automation editor configuration shape. */
 export const automationTriggerFields = {
   input_count: z.number().nullish(),
   integration_id: z.string().nullish(),

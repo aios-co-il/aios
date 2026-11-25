@@ -16,7 +16,6 @@ type DelegateToSubagentArgs = {
   priority?: number;
 };
 
-/** Preserves the existing delegate_to_subagent executor and side-effect order. */
 export async function executeDelegateToSubagent(
   args: DelegateToSubagentArgs,
   context: ToolExecutionContext,

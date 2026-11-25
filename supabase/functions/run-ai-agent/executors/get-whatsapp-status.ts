@@ -4,7 +4,6 @@ import type { ToolExecutionContext } from "../tool-context.ts";
 
 type GetWhatsappStatusArgs = { integrationId: string };
 
-/** Preserves the existing get_whatsapp_status executor and side-effect order. */
 export async function executeGetWhatsappStatus(
   args: GetWhatsappStatusArgs,
   context: ToolExecutionContext,

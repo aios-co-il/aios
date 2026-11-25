@@ -11,7 +11,6 @@ type InspectMetaLeadFormsArgs = {
   form_name?: string;
 };
 
-/** Preserves the existing inspect_meta_lead_forms executor and side-effect order. */
 export async function executeInspectMetaLeadForms(
   args: InspectMetaLeadFormsArgs,
   context: ToolExecutionContext,

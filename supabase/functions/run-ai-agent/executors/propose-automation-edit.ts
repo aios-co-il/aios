@@ -10,7 +10,6 @@ type ProposeAutomationEditArgs = {
   steps?: Array<Json>;
 };
 
-/** Preserves the existing propose_automation_edit executor and side-effect order. */
 export async function executeProposeAutomationEdit(
   args: ProposeAutomationEditArgs & { active?: boolean },
   context: ToolExecutionContext,

@@ -6,7 +6,6 @@ type ListAutomationsArgs = {
   name_search?: string;
 };
 
-/** Preserves the existing list_automations executor and side-effect order. */
 export async function executeListAutomations(
   args: ListAutomationsArgs,
   context: ToolExecutionContext,

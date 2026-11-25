@@ -3,7 +3,6 @@ import { getSubagentResult } from "../../_shared/subagent.ts";
 
 type GetSubagentResultArgs = { sub_task_id: string };
 
-/** Preserves the existing get_subagent_result executor and side-effect order. */
 export async function executeGetSubagentResult(
   args: GetSubagentResultArgs,
   context: ToolExecutionContext,

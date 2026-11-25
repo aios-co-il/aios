@@ -3,7 +3,6 @@ import { getBatchResults } from "../../_shared/subagent.ts";
 
 type GetBatchResultsArgs = { batch_id: string };
 
-/** Preserves the existing get_batch_results executor and side-effect order. */
 export async function executeGetBatchResults(
   args: GetBatchResultsArgs,
   context: ToolExecutionContext,

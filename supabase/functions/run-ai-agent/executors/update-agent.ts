@@ -11,7 +11,6 @@ type UpdateAgentArgs = {
   active?: boolean;
 };
 
-/** Preserves the existing update_agent executor and side-effect order. */
 export async function executeUpdateAgent(
   args: UpdateAgentArgs,
   context: ToolExecutionContext,

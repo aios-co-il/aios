@@ -13,7 +13,6 @@ type SetAutomationMetaLeadFormArgs = {
   confirmed: boolean;
 };
 
-/** Preserves the existing set_automation_meta_lead_form executor and side-effect order. */
 export async function executeSetAutomationMetaLeadForm(
   args: SetAutomationMetaLeadFormArgs,
   context: ToolExecutionContext,

@@ -7,7 +7,6 @@ import type { MetaNode } from "../meta-response.ts";
 import { FB_GRAPH_VERSION } from "../executors/meta-api-version.ts";
 import { readMetaResponse } from "../meta-response.ts";
 
-/** Preserves the existing metaLeadPages behavior at its extracted boundary. */
 export async function metaLeadPages(
   supabase: DbClient,
   tenantId: string,

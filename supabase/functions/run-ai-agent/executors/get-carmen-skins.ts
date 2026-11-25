@@ -8,7 +8,6 @@ import { appOrigin } from "../../_shared/carmen/skin-gallery.ts";
 
 type GetCarmenSkinsArgs = unknown;
 
-/** Preserves the existing get_carmen_skins executor and side-effect order. */
 export async function executeGetCarmenSkins(
   args: GetCarmenSkinsArgs,
   context: ToolExecutionContext,
