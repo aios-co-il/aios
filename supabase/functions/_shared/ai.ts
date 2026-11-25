@@ -498,8 +498,9 @@ export async function aiVisionJSON(
 }
 
 // Diarized speech-to-text (ElevenLabs Scribe v2) — separates multiple speakers
-// in one audio file. Used for the system/tab channel of meeting recordings so
-// remote participants get individual labels. Requires ELEVENLABS_API_KEY;
+// in one audio file. Used for single-file recordings (manual uploads, calls)
+// and for the system/tab channel of meeting recordings, so each speaker gets a
+// label. Requires ELEVENLABS_API_KEY;
 // returns null when the key is missing or the request fails (callers fall
 // back to Whisper without diarization). Language is auto-detected (handles
 // mixed Hebrew/English meetings).
