@@ -1,10 +1,5 @@
 import { useMemo, useState } from "react";
 import { useContinentsReportView } from "@/components/dynamic-tables/CampaignContinents/useContinentsReportView";
-import { previousReportRecords } from "@/components/reports/PreviousPeriod/previousReportRecords";
-import {
-  type AdsEntityLevel,
-  filterRecordsByEntityLevel,
-} from "@/lib/adsEntityLevel";
 import type { SharedTableInfo, SharedTablePayload } from "./publicTableApi";
 import { SharedAdsSummary } from "./SharedAdsSummary";
 import { SharedAnalyticsDaily } from "./SharedAnalyticsDaily";
@@ -19,6 +14,7 @@ import { isAdsPlatform, isAnalyticsPlatform } from "./sharedIntegrationReport";
 import { SharedKpiCards } from "./SharedKpiCards";
 import { SharedReportHeader } from "./SharedReportHeader";
 import { useSharedKpiSummary } from "./useSharedKpiSummary";
+import { useSharedLevelRecords } from "./useSharedLevelRecords";
 import { useSharedPreviousPeriod } from "./useSharedPreviousPeriod";
 import type { SharedDateSelection } from "./useSharedTableData";
 
@@ -50,15 +46,10 @@ export function SharedDataReport({
   const integrationType = table.integration_type || "";
   const isAds = isAdsPlatform(integrationType);
   const isAnalytics = isAnalyticsPlatform(integrationType);
-  const [level, setLevel] = useState<AdsEntityLevel>("campaign");
   const [comparePrevious, setComparePrevious] = useState(false);
   const allRecords = useMemo(() => data.records || [], [data.records]);
-  // No pre-filter by report_type, like the internal report; the edge function
-  // applies the date window the internal report uses.
-  const levelRecords = useMemo(
-    () => (isAds ? filterRecordsByEntityLevel(allRecords, level) : allRecords),
-    [allRecords, isAds, level],
-  );
+  const { level, setLevel, levelRecords, campaignFilter, previousAtLevel } =
+    useSharedLevelRecords(allRecords, isAds);
   const views = useContinentsReportView({
     integrationType,
     records: allRecords,
@@ -71,13 +62,12 @@ export function SharedDataReport({
     dates,
     comparePrevious && showViews && showSummary,
   );
-  // Both windows must be loaded before they are compared.
+  // Both windows must be loaded before they are compared. The share has no
+  // search, so the previous window is only cut to the entity level and the
+  // picked campaign.
   const previousRecords =
     previousPeriod.records && ready
-      ? previousReportRecords(previousPeriod.records, level, {
-          searching: false,
-          shown: levelRecords,
-        })
+      ? previousAtLevel(previousPeriod.records)
       : undefined;
   const kpis = useSharedKpiSummary(table, allRecords, levelRecords, level);
   const formatCurrency = makeFormatCurrency(
@@ -93,6 +83,7 @@ export function SharedDataReport({
       <div className="w-full max-w-7xl mx-auto p-4 md:p-6 space-y-6">
         <SharedReportHeader
           table={table}
+          adAccountLinks={data.ad_account_links}
           dates={summaryOnly ? null : { value: dates, onChange: onDatesChange }}
           views={
             showViews
@@ -142,6 +133,7 @@ export function SharedDataReport({
             previousRecords={previousRecords}
             level={level}
             onLevelChange={setLevel}
+            campaignFilter={campaignFilter}
             summaryOnly={summaryOnly}
           />
         )}

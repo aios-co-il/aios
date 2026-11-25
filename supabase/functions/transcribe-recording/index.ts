@@ -7,6 +7,10 @@ import {
   aiTranscribeVerbose,
   aiVisionJSON,
 } from "../_shared/ai.ts";
+import {
+  formatClock,
+  formatDiarizedTranscript,
+} from "./diarized-transcript.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,8 +18,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Audio is transcribed via OpenAI Whisper (~25MB per request ceiling).
-// (above this we still try; failures bubble up clearly).
+// Single files go to ElevenLabs Scribe (diarized); the Whisper fallback has a
+// ~25MB per-request ceiling and splits larger MP3/WAV files into chunks.
 const MAX_INLINE_FILE_SIZE = 150 * 1024 * 1024;
 
 // Map content-type -> Gemini audio format name
@@ -245,8 +249,7 @@ serve(async (req) => {
       );
     }
 
-    // Transcribe — splitting oversized files into Whisper-sized chunks when the format allows
-    const text = await transcribeBlob(
+    const text = await transcribeSingleFile(
       supabase,
       recording_id,
       audioBlob,
@@ -351,16 +354,6 @@ function partChannel(path: string): {
     channel: m[1] === "audio" ? "mixed" : (m[1] as "mic" | "sys"),
     part: parseInt(m[2], 10),
   };
-}
-
-function formatClock(totalSeconds: number): string {
-  const s = Math.max(0, Math.floor(totalSeconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  const mm = String(m).padStart(2, "0");
-  const ss = String(sec).padStart(2, "0");
-  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
 async function transcribeChannelParts(
@@ -640,6 +633,34 @@ async function touchProcessing(supabase: any, recordingId: string) {
     .eq("id", recordingId);
 }
 
+/**
+ * Transcribes a single-file recording verbatim with Scribe speaker separation.
+ * Whisper (no speakers, weaker Hebrew) is only the fallback for a missing
+ * ELEVENLABS_API_KEY or a Scribe failure, so the recording still gets a text.
+ */
+async function transcribeSingleFile(
+  supabase: ReturnType<typeof createClient>,
+  recordingId: string,
+  audioBlob: Blob,
+  contentType: string,
+): Promise<string> {
+  console.log(
+    `🗣️ Transcribing ${(audioBlob.size / 1024 / 1024).toFixed(1)}MB via Scribe (diarized)`,
+  );
+  const segments = await aiDiarizeTranscribe(audioBlob, {
+    filename: `recording.${geminiAudioFormat(contentType)}`,
+  });
+  if (segments) {
+    return formatDiarizedTranscript(segments);
+  }
+
+  console.error(
+    "🗣️ Scribe unavailable (no ELEVENLABS_API_KEY or Scribe error) — falling back to Whisper without speakers",
+  );
+  return await transcribeBlob(supabase, recordingId, audioBlob, contentType);
+}
+
+/** Transcribes with Whisper, splitting oversized files into chunks when the format allows. */
 async function transcribeBlob(
   supabase: any,
   recordingId: string,

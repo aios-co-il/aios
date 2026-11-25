@@ -34,7 +34,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/contexts/TenantContext";
 import { useHasIntegrationAccess } from "@/hooks/useUserIntegrations";
-import { useGoogleConnectRedirect } from "./useGoogleConnectRedirect";
 
 interface IntegrationCardProps {
   icon: React.ReactNode;
@@ -99,7 +98,6 @@ function IntegrationCard({
 
 export default function Integrations() {
   const { currentTenantId } = useTenant();
-  useGoogleConnectRedirect();
 
   // Check Green API connection status
   const { data: greenApiIntegration } = useQuery({

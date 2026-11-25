@@ -1,47 +1,17 @@
-// The callback's answer once the state is verified: it hands the code to the
-// signed-in app instead of exchanging it (see connect-handoff.ts). Popup flows
-// post it to the window that opened the popup; full-page flows put it in the
-// URL fragment of the integrations page, which never reaches a server.
+// The answer of a full-page connect callback (Analytics, Search Console, Ads):
+// a redirect to the integrations page with the code, or the error, in the URL
+// fragment, which never reaches a server. The app completes the code with the
+// user's session (see connect-handoff.ts and src/lib/googleConnectFragment.ts).
 import { appReturnOrigin } from "./app-origin.ts";
 import {
-  CONNECT_CODE_MESSAGE,
   CONNECT_FRAGMENT_KEY,
+  type FragmentHandoff,
   type GoogleConnectFunction,
 } from "./handoff-contract.ts";
 import type { OAuthState } from "./oauth-state.ts";
 
-/** The popup's last page: posts the code and state to the app window that opened it, and closes. */
-export function popupHandoffPage(
-  provider: GoogleConnectFunction,
-  state: OAuthState,
-  code: string,
-  rawState: string,
-): Response {
-  const message = scriptJson({
-    type: CONNECT_CODE_MESSAGE,
-    provider,
-    code,
-    state: rawState,
-  });
-  const target = scriptJson(appReturnOrigin(state.origin));
-
-  return new Response(
-    `<!DOCTYPE html>
-<html>
-  <head>
-    <title>Google</title>
-    <script>
-      window.opener?.postMessage(${message}, ${target});
-      setTimeout(() => window.close(), 1000);
-    </script>
-  </head>
-  <body style="font-family: system-ui; text-align: center; padding: 50px;">
-    <p>מסיים את החיבור... החלון ייסגר אוטומטית.</p>
-  </body>
-</html>`,
-    { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } },
-  );
-}
+/** The slug for a callback whose tenant is unknown: a placeholder, since the page only shows the error. */
+export const UNKNOWN_TENANT_SLUG = "app";
 
 /** A 302 to the tenant's integrations page with the code and state in the fragment. */
 export function redirectHandoff(
@@ -51,23 +21,45 @@ export function redirectHandoff(
   code: string,
   rawState: string,
 ): Response {
-  const target = new URL(
-    `/t/${encodeURIComponent(tenantSlug)}/integrations`,
-    appReturnOrigin(state.origin),
-  );
-  target.hash = new URLSearchParams({
+  return integrationsRedirect(state.origin, tenantSlug, {
     [CONNECT_FRAGMENT_KEY]: provider,
     code,
     state: rawState,
-  }).toString();
+  });
+}
+
+/**
+ * A 302 to the integrations page with Google's error (or invalid_state) in
+ * the fragment, which the app shows. The origin is the one the connect started
+ * from when it is an AIOS app origin (an unverified state only claims one),
+ * else APP_URL.
+ */
+export function redirectHandoffError(
+  provider: GoogleConnectFunction,
+  origin: string | null,
+  tenantSlug: string | null,
+  error: string,
+): Response {
+  return integrationsRedirect(origin, tenantSlug ?? UNKNOWN_TENANT_SLUG, {
+    [CONNECT_FRAGMENT_KEY]: provider,
+    error,
+  });
+}
+
+/** A 302 to the integrations page on the app origin, carrying the values in the URL fragment. */
+function integrationsRedirect(
+  origin: string | null,
+  tenantSlug: string,
+  fragment: FragmentHandoff,
+): Response {
+  const target = new URL(
+    `/t/${encodeURIComponent(tenantSlug)}/integrations`,
+    appReturnOrigin(origin),
+  );
+  target.hash = new URLSearchParams(fragment).toString();
 
   return new Response(null, {
     status: 302,
     headers: { Location: target.toString() },
   });
-}
-
-/** JSON safe inside an inline <script>: `<` is escaped so a value cannot close the tag. */
-function scriptJson(value: unknown): string {
-  return JSON.stringify(value).replace(/</g, "\\u003c");
 }

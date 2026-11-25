@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -259,8 +260,7 @@ export function ShareTableDialog({
   };
 
   const copyLink = (token: string) => {
-    navigator.clipboard.writeText(getShareUrl(token));
-    toast.success("הקישור הועתק ללוח");
+    void copyToClipboard(getShareUrl(token), "הקישור הועתק ללוח");
   };
 
   const startEditing = (shareId: string, currentToken: string) => {

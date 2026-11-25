@@ -1,5 +1,5 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { Copy } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { DnsRecord } from "../../../../supabase/functions/_shared/workshop/landing/site-domain.ts";
 
@@ -42,13 +42,7 @@ export function LandingDnsRecords({ records }: { records: Array<DnsRecord> }) {
 function CopyValue({ value }: { value: string }) {
   /** Copies the value and says how it ended. */
   function copy() {
-    navigator.clipboard.writeText(value).then(
-      () => toast.success("הועתק"),
-      (error: unknown) => {
-        console.error("[LandingDnsRecords] copy failed", error);
-        toast.error("ההעתקה נכשלה");
-      },
-    );
+    void copyToClipboard(value, "הועתק");
   }
   return (
     <span className="inline-flex items-center gap-1">

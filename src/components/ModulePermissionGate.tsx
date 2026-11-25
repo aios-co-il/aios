@@ -18,7 +18,9 @@ interface ModulePermissionGateProps {
 
 function PermissionGateSkeleton() {
   return (
-    <CarmenLoadingScreen messages={["בודקת הרשאות…", "פותחת לך את המודול…"]} />
+    <CarmenLoadingScreen
+      messages={["{בודקת|בודק} הרשאות…", "{פותחת|פותח} לך את המודול…"]}
+    />
   );
 }
 

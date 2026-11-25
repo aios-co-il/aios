@@ -1,27 +1,7 @@
-import { Calendar as CalendarIcon, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { LeadTableLayout } from "@/lib/leadTableLayout";
 import { cn } from "@/lib/utils";
-
-const LAYOUTS: ReadonlyArray<{
-  value: LeadTableLayout;
-  label: string;
-  title: string;
-  icon: typeof Users;
-}> = [
-  {
-    value: "by_user",
-    label: "לפי משתמשים",
-    title: "לפי משתמשים במשטח",
-    icon: Users,
-  },
-  {
-    value: "by_date",
-    label: "לפי תאריך",
-    title: "טבלה אחת לפי תאריך",
-    icon: CalendarIcon,
-  },
-];
+import { LEAD_TABLE_LAYOUTS } from "./leadTableLayouts";
 
 /** Switches the table between one table per user and one table by date. */
 export function LeadTableLayoutToggle({
@@ -33,7 +13,7 @@ export function LeadTableLayoutToggle({
 }) {
   return (
     <div className="flex shrink-0 gap-0.5 rounded-xl bg-muted p-1">
-      {LAYOUTS.map((layout) => {
+      {LEAD_TABLE_LAYOUTS.map((layout) => {
         const active = value === layout.value;
         const Icon = layout.icon;
         return (

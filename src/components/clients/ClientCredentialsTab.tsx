@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -139,10 +140,8 @@ export function ClientCredentialsTab({
     setVisiblePasswords((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success(`${label} הועתק`);
-  };
+  const copyLabelled = (text: string, label: string) =>
+    void copyToClipboard(text, `${label} הועתק`);
 
   const handleAdd = async () => {
     if (!newCred.service_name.trim()) {
@@ -324,7 +323,7 @@ export function ClientCredentialsTab({
                       variant="ghost"
                       size="icon"
                       className="h-5 w-5"
-                      onClick={() => copyToClipboard(cred.username, "שם משתמש")}
+                      onClick={() => copyLabelled(cred.username, "שם משתמש")}
                     >
                       <Copy className="h-2.5 w-2.5" />
                     </Button>
@@ -340,7 +339,7 @@ export function ClientCredentialsTab({
                       variant="ghost"
                       size="icon"
                       className="h-5 w-5"
-                      onClick={() => copyToClipboard(cred.password, "סיסמה")}
+                      onClick={() => copyLabelled(cred.password, "סיסמה")}
                     >
                       <Copy className="h-2.5 w-2.5" />
                     </Button>
