@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react";
+import type { ReactNode } from "react";
 import {
   Dialog,
   DialogContent,
@@ -6,56 +6,40 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { AdPreviewSource } from "./AdPreviewContext";
-import { useAdPreview } from "./useAdPreview";
 
 type Props = {
-  source: AdPreviewSource;
-  /** The ad shown; null while the dialog is closed. */
-  adId: string | null;
+  open: boolean;
+  /** The ad's name. */
   adName: string;
+  /** What the preview shows, under the name. */
+  description: string;
   onClose: () => void;
+  /** The platform's preview; mounted only while the dialog is open. */
+  children: ReactNode;
 };
 
 /**
- * Meta's mobile feed preview of one ad, framed from Meta's own preview page.
- * The same dialog opens from the internal report and its share link.
+ * The one dialog an ad's preview opens in, on the internal report and its
+ * share link: Meta's preview frame for a Facebook ad, the drawn card for a
+ * Google ad.
  */
-export function AdPreviewDialog({ source, adId, adName, onClose }: Props) {
-  const preview = useAdPreview(source, adId);
-
+export function AdPreviewDialog({
+  open,
+  adName,
+  description,
+  onClose,
+  children,
+}: Props) {
   return (
-    <Dialog open={adId !== null} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="max-w-md" dir="rtl">
         <DialogHeader>
           <DialogTitle className="truncate" title={adName}>
             {adName}
           </DialogTitle>
-          <DialogDescription>
-            תצוגה מקדימה של המודעה בפיד במובייל
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <div className="flex min-h-[32rem] items-center justify-center">
-          {preview.isPending && (
-            <Loader2
-              className="h-6 w-6 animate-spin text-muted-foreground"
-              aria-label="טוען תצוגה מקדימה"
-            />
-          )}
-          {preview.isError && (
-            <p className="text-sm text-muted-foreground">
-              לא ניתן לטעון את התצוגה המקדימה של המודעה כרגע.
-            </p>
-          )}
-          {preview.data && (
-            <iframe
-              src={preview.data}
-              title={`תצוגה מקדימה: ${adName}`}
-              sandbox="allow-scripts allow-same-origin allow-popups"
-              className="h-[32rem] w-full max-w-[22rem] border-0"
-            />
-          )}
-        </div>
+        {children}
       </DialogContent>
     </Dialog>
   );

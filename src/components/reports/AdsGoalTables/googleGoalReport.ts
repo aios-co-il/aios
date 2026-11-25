@@ -2,6 +2,10 @@ import {
   googlePreviousPeriod,
   googleRecordMetrics,
 } from "@/components/dynamic-tables/GoogleAdsGoalTable/googlePreviousPeriod";
+import {
+  type GoogleAdContent,
+  storedGoogleAdContent,
+} from "@functions/sync-google-ads-data/ad-content.ts";
 import { googleGoalSections } from "@/components/dynamic-tables/googleGoalSections";
 import {
   type AdsEntityLevel,
@@ -31,6 +35,8 @@ type GoogleEntityRow = {
   all_conversions_value: number;
   /** A sales campaign's leads, apart from its purchases. */
   leads: number;
+  /** An ad's stored copy for its card; null on other levels and older rows. */
+  adContent: GoogleAdContent | null;
 };
 
 /** Spend, conversions and value over every goal, for the notes around the tables. */
@@ -117,8 +123,14 @@ function groupEntities(
       conversions_value: 0,
       all_conversions_value: 0,
       leads: 0,
+      adContent: null,
     };
     const group = groups[key];
+    // Every day of an ad carries the same copy; days synced before it was
+    // stored carry none.
+    if (level === "ad") {
+      group.adContent ??= storedGoogleAdContent(record.data);
+    }
     const metrics = googleRecordMetrics(record.data);
     group.impressions += metrics.impressions;
     group.clicks += metrics.clicks;
