@@ -6,6 +6,7 @@ import { CarmenLoadingScreen } from "@/components/shared/CarmenLoadingScreen";
 import { isQueryResolving } from "@/lib/queryUi";
 import {
   FileSpreadsheet,
+  Plus,
   Users,
   CheckCircle2,
   XCircle,
@@ -576,18 +577,13 @@ export default function Clients() {
             <AddClientForm />
           </ClientsToolbar>
         </div>
-        <div className="hidden shrink-0 items-center gap-2 md:flex">
-          {viewMode !== "chat" && (
-            <ClientsSearchInput
-              value={filters.search}
-              onChange={(value) => setFilter("search", value)}
-              className="w-72"
-            />
-          )}
-          <div className="ms-auto">
-            <AddClientForm />
-          </div>
-        </div>
+        {viewMode !== "chat" && (
+          <ClientsSearchInput
+            value={filters.search}
+            onChange={(value) => setFilter("search", value)}
+            className="hidden w-72 shrink-0 md:block"
+          />
+        )}
 
         {/* Import dialogs opened from the import / export menu */}
         {showImportCSV && (
@@ -811,6 +807,13 @@ export default function Clients() {
         campaigners={campaignerOptions}
         activeFilterCount={activeFilterCount}
         onOpenFilters={() => setShowFiltersDialog(true)}
+        primaryAction={
+          <AddClientForm
+            trigger={
+              <ModuleSidePanelItem primary icon={Plus} label="הוסף לקוח" />
+            }
+          />
+        }
         kpis={showKpis && <ClientsKpiList clients={filteredClients ?? []} />}
         footer={
           <ClientsImportExportMenu

@@ -27,6 +27,8 @@ interface ClientsSidePanelProps {
   campaigners: ReadonlyArray<CampaignerOption> | null;
   activeFilterCount: number;
   onOpenFilters: () => void;
+  /** The screen's main action, above the views: add a client. */
+  primaryAction: ReactNode;
   /** The headline figures as panel rows; omitted while there are none. */
   kpis?: ReactNode;
   /** Import / export and other secondary actions, at the bottom. */
@@ -35,7 +37,8 @@ interface ClientsSidePanelProps {
 
 /**
  * The desktop controls of the Clients screen as a side panel: title and
- * count, the views, the headline figures, the filters and import / export.
+ * count, add client, the views, the headline figures, the filters and
+ * import / export.
  */
 export function ClientsSidePanel({
   shownCount,
@@ -46,6 +49,7 @@ export function ClientsSidePanel({
   campaigners,
   activeFilterCount,
   onOpenFilters,
+  primaryAction,
   kpis,
   footer,
 }: ClientsSidePanelProps) {
@@ -59,6 +63,7 @@ export function ClientsSidePanel({
       subtitle={shownCount === undefined ? undefined : `${shownCount} מוצגים`}
       footer={footer}
     >
+      {primaryAction}
       <ModuleSidePanelSection label="תצוגה">
         {CLIENT_VIEW_OPTIONS.map(({ value, label, icon }) => (
           <ModuleSidePanelItem
