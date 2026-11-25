@@ -1,3 +1,17 @@
+import { resolveModelId } from "../_shared/models.ts";
+import { resolveLLMTarget } from "./llm/target.ts";
+
+import type { LLMTarget } from "./llm/contracts.ts";
+
+import { FAST_LANE_MODELS } from "./llm/fallback-models.ts";
+
+import { buildLLMChain } from "./llm/chain.ts";
+import { connectedBrainHint } from "./llm/connection-hint.ts";
+import { PRIORITY_TOOLS } from "./llm/tool-cap.ts";
+import { capToolsForTarget } from "./llm/tool-cap.ts";
+import { recordProviderFailover } from "./llm/failover.ts";
+import { estimateLLMCostUSD } from "./llm/cost.ts";
+import { executeGetOpenaiBillingStatus } from "./executors/get-openai-billing-status.ts";
 import { executeQuerySystemGraph } from "./executors/query-system-graph.ts";
 import { executeSetCampaignTableActive } from "./executors/set-campaign-table-active.ts";
 import { executeSearchEntities } from "./executors/search-entities.ts";
@@ -183,7 +197,6 @@ import {
   sanitizeCarmenInstructions,
 } from "../_shared/carmen-connection-role.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import { resolveModelId } from "../_shared/models.ts";
 
 import {
   canStreamCompletion,
@@ -279,7 +292,6 @@ import {
   isGroupChat,
 } from "./finding-draft/reply.ts";
 import {
-  WORKSHOP_TOOLS,
   executeWorkshopTool,
   isWorkshopTool,
 } from "../_shared/workshop-tools.ts";
@@ -343,10 +355,7 @@ import { isCarmenAgentRow } from "../_shared/carmen/carmen-agent.ts";
 import { loadCarmenAgent } from "../_shared/carmen/load-carmen-agent.ts";
 import { orgAssistantName } from "../_shared/carmen/assistant-name.ts";
 import { loadMcpTools } from "../_shared/mcp-tools.ts";
-import {
-  PULSE_TARGET_TOOL_NAMES,
-  isPulseTargetTool,
-} from "../_shared/carmen/pulse-targets/tool-defs.ts";
+import { isPulseTargetTool } from "../_shared/carmen/pulse-targets/tool-defs.ts";
 import { executePulseTargetTool } from "../_shared/carmen/pulse-targets/execute.ts";
 import { isSeoReadTool } from "../_shared/carmen/seo-read-tools.ts";
 import { executeSeoReadTool } from "./seo-read/execute.ts";
@@ -382,7 +391,6 @@ import {
   isDevEscalationTool,
   isDevEscalationToolAllowed,
   isBugfixEscalationSkill,
-  NATIVE_DEV_TASK_TOOLS,
 } from "../_shared/dev-escalation-auth.ts";
 import {
   formatApprovalExecutionReply,
@@ -423,129 +431,10 @@ import {
   workshopDevTaskRule,
 } from "./dev-task-send-rules.ts";
 
-import {
-  OPENAI_BILLING_REFUSAL_HE,
-  buildOpenAiBillingStatus,
-  formatOpenAiBillingWhatsApp,
-  isSuperAdminRole,
-  monthUtcBounds,
-  redactSecretsFromText,
-} from "../_shared/openai-billing.ts";
+import { isSuperAdminRole } from "../_shared/openai-billing.ts";
 import { pulseSurfacePrefersWhatsAppDigest } from "../_shared/campaign-pulse.ts";
 
-import { errorMessage } from "./error-message.ts";
-import { openaiAdminGet } from "./openai-admin-get.ts";
-
 import type { AgentDatabaseClient } from "./database-contracts.ts";
-
-/** Resolve OpenAI Admin API key (org costs/usage). Never log the value. */
-async function resolveOpenAiAdminKey(
-  supabase: AgentDatabaseClient,
-  tenantId: string,
-): Promise<{ key: string | null; source: string | null }> {
-  const fromEnv =
-    Deno.env.get("OPENAI_ADMIN_KEY") || Deno.env.get("OPENAI_ADMIN_API_KEY");
-  if (fromEnv && String(fromEnv).trim()) {
-    return { key: String(fromEnv).trim(), source: "env:OPENAI_ADMIN_KEY" };
-  }
-  try {
-    const { data } = await supabase
-      .from("tenant_integrations")
-      .select("settings")
-      .eq("tenant_id", tenantId)
-      .eq("integration_type", "llm")
-      .eq("is_active", true)
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const s = (data?.settings || {}) as Record<string, string>;
-    const fromSettings =
-      s.openai_admin_api_key ||
-      s.openai_admin_key ||
-      s.openai_organization_admin_key;
-    if (fromSettings && String(fromSettings).trim()) {
-      return {
-        key: String(fromSettings).trim(),
-        source: "tenant_integrations.llm.settings",
-      };
-    }
-  } catch {
-    /* ignore */
-  }
-  return { key: null, source: null };
-}
-
-async function fetchOpenAiBillingStatus(args: {
-  supabase: AgentDatabaseClient;
-  tenantId: string;
-  includeTokens?: boolean;
-}) {
-  const { supabase, tenantId } = args;
-  const includeTokens = args.includeTokens !== false;
-  const { key, source } = await resolveOpenAiAdminKey(supabase, tenantId);
-  if (!key) {
-    return {
-      ok: false,
-      error:
-        "חסר מפתח Admin של OpenAI. הגדירי את הסוד OPENAI_ADMIN_KEY ב-Supabase, או את openai_admin_api_key באינטגרציית llm. מפתח sk- רגיל לא מספיק ל-Costs/Usage Admin API.",
-      remaining_credit: null,
-      remaining_credit_available: false,
-      remaining_credit_reason: "Admin API key missing",
-      setup: {
-        dashboard_admin_keys:
-          "https://platform.openai.com/settings/organization/admin-keys",
-        billing_dashboard:
-          "https://platform.openai.com/settings/organization/billing",
-      },
-      summary_he:
-        "אין מפתח Admin — לא ניתן לשלוף שימוש/עלויות OpenAI מה-API. יתרת קרדיט ממילא לא זמינה ב-API הרשמי.",
-    };
-  }
-
-  const period = monthUtcBounds();
-  // Paginate costs for the whole month (limit 31 daily buckets).
-  const costsQs = `start_time=${period.start_time}&end_time=${period.end_time}&bucket_width=1d&limit=31`;
-  const costsRes = await openaiAdminGet(`/organization/costs?${costsQs}`, key);
-
-  let usageRes: {
-    ok: boolean;
-    status: number;
-    json: unknown;
-    error?: string;
-  } | null = null;
-  if (includeTokens) {
-    usageRes = await openaiAdminGet(
-      `/organization/usage/completions?${costsQs}`,
-      key,
-    );
-  }
-
-  // Best-effort spend limits (endpoint may 404 depending on account).
-  const limitsRes = await openaiAdminGet(`/organization/spend_limits`, key);
-  const limitsAlt = !limitsRes.ok
-    ? await openaiAdminGet(`/organization/spend_limit`, key)
-    : null;
-  const spend = limitsRes.ok
-    ? limitsRes
-    : limitsAlt?.ok
-      ? limitsAlt
-      : limitsRes;
-
-  const status = buildOpenAiBillingStatus({
-    costs: costsRes.ok ? costsRes.json : null,
-    usage: usageRes?.ok ? usageRes.json : null,
-    spendLimits: spend.ok ? spend.json : null,
-    costsError: costsRes.ok ? null : costsRes.error,
-    usageError: usageRes && !usageRes.ok ? usageRes.error : null,
-    spendLimitsError: spend.ok ? null : spend.error,
-    period,
-    authSource: source,
-  });
-
-  const summary_he = formatOpenAiBillingWhatsApp(status);
-  // Never echo key material
-  return { ...status, summary_he };
-}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -555,287 +444,6 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-// ai_memory.user_id is nullable — NULL means system/agent write (no real user).
-// The unique index uses COALESCE(user_id, '00000000-0000-0000-0000-000000000000') for dedup.
-const SYSTEM_USER_UUID = "00000000-0000-0000-0000-000000000000"; // kept for reference only
-
-function resolveModel(engine: string): string {
-  return resolveModelId(engine);
-}
-
-// ─── Tenant-owned LLM keys ───
-// Reads the org's own API keys from the "llm" integration and routes each
-// model to its provider's OpenAI-compatible endpoint.
-async function resolveLLMTarget(
-  supabase: AgentDatabaseClient,
-  tenantId: string,
-  model: string,
-): Promise<{ url: string; key: string; model: string }> {
-  const { data } = await supabase
-    .from("tenant_integrations")
-    .select("settings")
-    .eq("tenant_id", tenantId)
-    .eq("integration_type", "llm")
-    .eq("is_active", true)
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const s = (data?.settings || {}) as Record<string, string>;
-  const endpoint = llmEndpoint(model);
-  const key = s[endpoint.keyField];
-  if (!key) {
-    throw new Error(MISSING_KEY_TEXT[endpoint.provider]);
-  }
-  return {
-    url: endpoint.url,
-    key,
-    model: endpoint.model,
-  };
-}
-
-const MISSING_KEY_TEXT: Record<LLMProvider, string> = {
-  google: "Google (Gemini) API key חסר באינטגרציית מודלי AI",
-  anthropic: "Anthropic (Claude) API key חסר באינטגרציית מודלי AI",
-  openai: "OpenAI (GPT) API key חסר באינטגרציית מודלי AI",
-};
-
-// ─── Provider failover chain ───
-// When the agent's primary provider is out of quota/credit (Gemini spend cap,
-// OpenAI credit gone, Anthropic balance low), Carmen automatically retries the
-// SAME request against the next provider that has a configured key — so she keeps
-// working instead of failing the whole conversation. Only providers whose key
-// exists are included; the agent's own engine is always tried first.
-type LLMProvider = LlmProvider;
-interface LLMTarget {
-  url: string;
-  key: string;
-  model: string;
-  label: string;
-  provider: LLMProvider;
-  /** Set for a connected brain (carmen_brain_connections). */
-  connectionId?: string;
-  /** A connected brain's own settings. */
-  temperature?: number;
-  maxTokens?: number;
-}
-const LLM_FALLBACK_ORDER = [
-  "google/gemini-3-flash-preview",
-  "openai/gpt-5.4-mini",
-  "anthropic/claude-sonnet-4-6",
-];
-
-// The chat's fast lane: quick models that stream, first one the tenant has a key for.
-const FAST_LANE_MODELS = LLM_FALLBACK_ORDER.slice(0, 2);
-
-function providerOf(fullId: string): LLMProvider {
-  return llmEndpoint(fullId).provider;
-}
-
-async function buildLLMChain(
-  supabase: AgentDatabaseClient,
-  tenantId: string,
-  primaryFullId: string,
-): Promise<Array<LLMTarget>> {
-  const ordered: Array<string> = [];
-  const add = (id: string) => {
-    const full = resolveModelId(id);
-    if (!ordered.includes(full)) {
-      ordered.push(full);
-    }
-  };
-  add(primaryFullId);
-  for (const m of LLM_FALLBACK_ORDER) {
-    add(m);
-  }
-  // All models at once (each resolve is a key lookup); the order is kept, and a model whose
-  // provider key is missing is skipped (resolveLLMTarget throws for it).
-  const resolved = await Promise.all(
-    ordered.map(async (full) => {
-      try {
-        const t = await resolveLLMTarget(supabase, tenantId, full);
-        return { ...t, label: full, provider: providerOf(full) };
-      } catch {
-        return null;
-      }
-    }),
-  );
-  return resolved.filter((t): t is LLMTarget => t !== null);
-}
-
-// OpenAI's Chat Completions API hard-caps the tools array at 128 functions per
-// request; Google/Anthropic allow far more. When targeting OpenAI with a larger
-// toolset, drop low-priority niche tools first, then hard-slice as a last resort,
-// so Carmen keeps her full daily toolkit and only sheds rarely-used extras.
-/**
- * What to tell the user when a connected brain refuses Carmen's request. The
- * provider's own text is kept short; it never contains the key.
- */
-function connectedBrainHint(status: number, body: string): string {
-  const tooLarge =
-    status === 413 ||
-    /request too large|tokens per minute|context length|maximum context/i.test(
-      body,
-    );
-  if (tooLarge) {
-    return "הבקשה של כרמן (כלים, ידע והיסטוריה) גדולה מהמכסה של המוח הזה. מכסה חינמית קטנה מדי לכרמן; נסו מודל או חשבון עם מכסה גדולה יותר.";
-  }
-  if (status === 429) {
-    return "המוח הגיע למגבלת קצב. נסו שוב עוד רגע.";
-  }
-  if (status === 401 || status === 403) {
-    return "המפתח של המוח נדחה. בדקו אותו בהגדרות המוחות.";
-  }
-  if (status >= 300 && status < 400) {
-    return "כתובת המוח מפנה למקום אחר, וזה לא מותר.";
-  }
-  return body.replace(/\s+/g, " ").slice(0, 200);
-}
-
-const OPENAI_MAX_TOOLS = 128;
-const LOW_PRIORITY_TOOLS = new Set([
-  "send_message_to_manus",
-  "get_subagent_result",
-  "get_batch_results",
-  "delegate_parallel",
-  "duplicate_facebook_campaign",
-  "sync_maskyoo_cdr",
-  "create_supplier",
-  "create_product",
-  "create_sales_person",
-  "create_agency",
-  "prioritize_tasks",
-  "propose_automation",
-  "create_whatsapp_instance",
-  "get_whatsapp_qr_link",
-  "connect_google_ads_account",
-  "save_media_from_chat",
-]);
-function isEscalationMcpTool(name: string | undefined): boolean {
-  if (!name) {
-    return false;
-  }
-  return (
-    name.startsWith("mcp_Cursor__") ||
-    name.startsWith("mcp_Claude__") ||
-    name.startsWith("mcp_Manus__") ||
-    name.startsWith("mcp_Grok__")
-  );
-}
-
-/**
- * Tools that must survive OpenAI's 128-tool cap + the embedding router.
- * New Meta tools were previously defined near the end of ALL_TOOLS (~index 147)
- * and got sliced off whenever the router fell back to the full ~176-tool set.
- */
-const PRIORITY_TOOLS = new Set([
-  "analyze_facebook_campaign",
-  "list_facebook_ads",
-  "inspect_facebook_ad",
-  "fb_duplicate_ad_variants",
-  "duplicate_facebook_ad_variants",
-  "toggle_facebook_campaign",
-  "list_facebook_campaigns",
-  "get_facebook_campaign_data",
-  "update_facebook_budget",
-  "fb_pause",
-  "fb_resume",
-  "fb_update_budget",
-  "execute_pending_approval",
-  "reject_pending_approval",
-  "list_pending_approvals",
-  "join_meeting_for_client",
-  "get_meeting_bot_status",
-  // Staff WhatsApp — must survive the 128-tool cap (was late in ALL_TOOLS).
-  "send_whatsapp_to_staff",
-  "lookup_staff_whatsapp",
-  "send_message_to_campaigner",
-  "list_campaigners",
-  "list_sales_people",
-  "get_openai_billing_status",
-  "connect_client_meta_ad_account",
-  REFRESH_PULSE_TOOL_NAME,
-  ...PULSE_TARGET_TOOL_NAMES,
-  // Questions about Carmen herself: her personas and their portraits, on every surface.
-  "get_carmen_skins",
-  ...NATIVE_DEV_TASK_TOOLS,
-  // Offered only inside the workshop skin, where they are the main tools.
-  ...WORKSHOP_TOOLS.map((tool) => tool.name),
-]);
-
-function capToolsForTarget<T extends { function?: { name?: string } }>(
-  target: LLMTarget,
-  tools: Array<T>,
-): Array<T> {
-  if (target.provider !== "openai" || tools.length <= OPENAI_MAX_TOOLS) {
-    return tools;
-  }
-  // Escalation MCP + PRIORITY Meta/approval tools must never be truncated.
-  const mustKeepEscalation = tools.filter((t) =>
-    isEscalationMcpTool(t?.function?.name),
-  );
-  const mustKeepPriority = tools.filter((t) => {
-    const n = t?.function?.name;
-    return !!n && PRIORITY_TOOLS.has(n) && !isEscalationMcpTool(n);
-  });
-  const kept = tools.filter((t) => {
-    const n = t?.function?.name;
-    if (!n || isEscalationMcpTool(n) || PRIORITY_TOOLS.has(n)) {
-      return false;
-    }
-    return !LOW_PRIORITY_TOOLS.has(n);
-  });
-  const reserved = mustKeepEscalation.length + mustKeepPriority.length;
-  const room = Math.max(0, OPENAI_MAX_TOOLS - reserved);
-  const capped = [
-    ...mustKeepEscalation,
-    ...mustKeepPriority,
-    ...kept.slice(0, room),
-  ];
-  console.log(
-    `[AGENT] OpenAI tool cap: ${tools.length} → ${capped.length} (kept ${mustKeepEscalation.length} escalation MCP + ${mustKeepPriority.length} priority)`,
-  );
-  return capped;
-}
-
-// Surface an automatic provider switch so David sees it (intel feed + WhatsApp).
-// Deduped to once per 30 min so a sustained outage doesn't spam the channel.
-async function recordProviderFailover(
-  supabase: AgentDatabaseClient,
-  tenantId: string,
-  fromLabel: string,
-  toLabel: string,
-  reason: string,
-) {
-  try {
-    const since = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-    const { data: recent } = await supabase
-      .from("integration_alerts_log")
-      .select("id")
-      .eq("alert_type", "provider_failover")
-      .gte("fired_at", since)
-      .limit(1);
-    if (recent?.length) {
-      return;
-    }
-    await supabase.from("integration_alerts_log").insert({
-      tenant_id: tenantId,
-      provider: providerOf(toLabel),
-      alert_type: "provider_failover",
-      reason: `כרמן עברה אוטומטית מ-${fromLabel} ל-${toLabel} (${reason})`,
-    });
-    await supabase
-      .rpc("claude_notify_david", {
-        p_message: `♻️ כרמן המשיכה לעבוד ללא הפרעה: הספק ${fromLabel} נגמר/נחסם ועברתי אוטומטית ל-${toLabel}. כדאי לטעון קרדיט לספק המקורי.`,
-      })
-      .then(
-        () => {},
-        () => {},
-      );
-  } catch {
-    /* reporting must never break the reply */
-  }
-}
 
 // ─── Tool router (embedding-backed) ───
 // Carmen has ~140 tools; sending all of them every request wastes tokens,
@@ -889,38 +497,6 @@ const CORE_TOOLS = new Set([
   "get_meeting_bot_status",
   "get_latest_campaign_pulse",
 ]);
-
-// Rough per-model pricing (USD per 1M tokens in/out) for the usage panel.
-// Unknown models log tokens with a null cost rather than a wrong one.
-function estimateLLMCostUSD(
-  model: string,
-  tokensIn: number,
-  tokensOut: number,
-): number | null {
-  if (!tokensIn && !tokensOut) {
-    return null;
-  }
-  const m = (model || "").toLowerCase();
-  const price: [number, number] | null = m.includes("gpt-4o-mini")
-    ? [0.15, 0.6]
-    : m.includes("gpt-4o")
-      ? [2.5, 10]
-      : m.includes("gpt-4.1-mini")
-        ? [0.4, 1.6]
-        : m.includes("gpt-4.1")
-          ? [2, 8]
-          : m.includes("haiku")
-            ? [0.8, 4]
-            : m.includes("sonnet")
-              ? [3, 15]
-              : m.includes("gemini")
-                ? [0.1, 0.4]
-                : null;
-  if (!price) {
-    return null;
-  }
-  return +((tokensIn * price[0] + tokensOut * price[1]) / 1e6).toFixed(6);
-}
 
 async function getAccessibleTenantIds(
   supabase: AgentDatabaseClient,
@@ -2188,28 +1764,11 @@ async function executeTool(
       );
 
     // ============ OPENAI BILLING (super_admin) ============
-    case "get_openai_billing_status": {
-      if (!isSuperAdminRole(callerRole)) {
-        return { error: OPENAI_BILLING_REFUSAL_HE, allowed: false };
-      }
-      try {
-        return await fetchOpenAiBillingStatus({
-          supabase,
-          tenantId,
-          includeTokens: args.include_tokens !== false,
-        });
-      } catch (e) {
-        return {
-          ok: false,
-          error: redactSecretsFromText(
-            errorMessage(e) || "openai billing failed",
-          ),
-          remaining_credit: null,
-          remaining_credit_available: false,
-          summary_he: "שגיאה בשליפת סטטוס חיוב OpenAI.",
-        };
-      }
-    }
+    case "get_openai_billing_status":
+      return executeGetOpenaiBillingStatus(
+        args as Parameters<typeof executeGetOpenaiBillingStatus>[0],
+        toolContext,
+      );
 
     // ============ STAFF / CAMPAIGNER WHATSAPP ============
     case "lookup_staff_whatsapp":
@@ -2261,7 +1820,6 @@ import {
   type FastTarget,
 } from "./fast-lane/answer.ts";
 import { loadOrgBrief } from "../_shared/carmen/org-brief/brief.ts";
-import { llmEndpoint, type LlmProvider } from "../_shared/llm-endpoint.ts";
 import { type FastLaneCaller, fastLaneBriefScope } from "./fast-lane/scope.ts";
 
 // Emit function used by the streaming wrapper to push SSE events to the client.
@@ -3969,7 +3527,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     // 5. Run agent with tool loop
-    const model = resolveModel(
+    const model = resolveModelId(
       modelOverride || agent.engine || "gemini-3-flash",
     );
     // A workshop step needs a look at the project, the tools, and a reply: give it room for that
@@ -4276,7 +3834,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           success: true,
           output: finalOutput,
           agent_name: agent.name,
-          model: resolveModel(
+          model: resolveModelId(
             modelOverride || agent.engine || "gemini-3-flash",
           ),
           execution_time_ms: executionTime,
@@ -4355,7 +3913,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           success: !!execResult?.success,
           output: finalOutput,
           agent_name: agent.name,
-          model: resolveModel(
+          model: resolveModelId(
             modelOverride || agent.engine || "gemini-3-flash",
           ),
           execution_time_ms: executionTime,
@@ -4430,7 +3988,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           success: !!digest,
           output: finalOutput,
           agent_name: agent.name,
-          model: resolveModel(
+          model: resolveModelId(
             modelOverride || agent.engine || "gemini-3-flash",
           ),
           execution_time_ms: executionTime,
