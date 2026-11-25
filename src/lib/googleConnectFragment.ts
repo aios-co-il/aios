@@ -86,9 +86,9 @@ export function stashFragmentConnect(now: number = Date.now()): void {
 }
 
 /**
- * The stashed connect, removed so it is handled once. Null when there is none,
- * or when it is older than Google's code lifetime: completing it then would
- * only fail, long after the user left the connect.
+ * The stashed connect, removed so it is handled once. Null when there is none.
+ * A code older than Google's code lifetime is reported as expired: completing
+ * it then would only fail.
  */
 export function takeStashedConnect(
   now: number = Date.now(),
@@ -105,12 +105,9 @@ export function takeStashedConnect(
       return null;
     }
     const { connect, at } = pending.data;
-    if (now - at > CONNECT_CODE_TTL_MS) {
+    if ("code" in connect && now - at > CONNECT_CODE_TTL_MS) {
       console.warn("A pending Google connect is older than its code");
-      // An old code can no longer complete, so say so; an old error needs nothing from the user.
-      return "code" in connect
-        ? { provider: connect.code.provider, error: INVALID_STATE_ERROR }
-        : null;
+      return { provider: connect.code.provider, error: INVALID_STATE_ERROR };
     }
 
     return connect;

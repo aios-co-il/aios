@@ -1,4 +1,4 @@
-import { assertEquals, assertNotEquals } from "jsr:@std/assert@1";
+import { assertEquals } from "jsr:@std/assert@1";
 import {
   oauthStateKey,
   signOAuthState,
@@ -141,12 +141,10 @@ Deno.test({
             );
           },
         );
-        const { error } = await response.json();
-        assertNotEquals(error, "No tenant found");
-        assertEquals(
-          http.calls.some(({ url }) => url.pathname.endsWith("/tenant_users")),
-          true,
-        );
+        assertEquals(response.status, 403);
+        assertEquals(await response.json(), {
+          error: "You are not a member of this organization",
+        });
       },
     );
 

@@ -67,7 +67,7 @@ describe("stashFragmentConnect", () => {
     });
   });
 
-  it("drops an old error: there is nothing left to act on", () => {
+  it("keeps an old error, so a slow sign-in still shows why the connect failed", () => {
     window.history.replaceState(
       null,
       "",
@@ -75,7 +75,10 @@ describe("stashFragmentConnect", () => {
     );
     stashFragmentConnect(0);
 
-    expect(takeStashedConnect(60 * 60 * 1000)).toBeNull();
+    expect(takeStashedConnect(60 * 60 * 1000)).toEqual({
+      provider: "google-ads-auth",
+      error: "access_denied",
+    });
   });
 
   it("ignores a stored value that is not a connect", () => {
