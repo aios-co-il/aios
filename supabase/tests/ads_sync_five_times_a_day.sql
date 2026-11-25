@@ -1,4 +1,4 @@
--- Ads sync cadence (20261125100000_ads_sync_five_times_a_day): runs the
+-- Ads sync cadence (20261125110000_ads_sync_five_times_a_day): runs the
 -- migration file itself (\ir) against the three jobs at their old twice-a-day
 -- schedules, plus the Google Ads operational check, and expects five runs a day
 -- with each job's minute and command unchanged and the other job untouched.
@@ -20,7 +20,7 @@ BEGIN
 END;
 $setup$;
 
-\ir ../migrations/20261125100000_ads_sync_five_times_a_day.sql
+\ir ../migrations/20261125110000_ads_sync_five_times_a_day.sql
 
 DO $test$
 DECLARE

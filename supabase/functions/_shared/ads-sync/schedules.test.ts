@@ -6,7 +6,7 @@ import {
   dailyRunMinutes,
 } from "./schedules.ts";
 
-const MIGRATION = "20261125100000_ads_sync_five_times_a_day.sql";
+const MIGRATION = "20261125110000_ads_sync_five_times_a_day.sql";
 
 describe("ADS_SYNC_SCHEDULES", () => {
   it("matches the cadence migration, which carries no secret", async () => {

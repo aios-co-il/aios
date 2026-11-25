@@ -2,7 +2,7 @@
  * Scheduled ads syncs, UTC: every 3 hours from 05:00 to 17:00 (07:00 to 19:00
  * in Israel winter time, 08:00 to 20:00 in summer). Each job keeps its own
  * minute so the three chains do not start together. Migration
- * 20261125100000_ads_sync_five_times_a_day sets these schedules; the job names
+ * 20261125110000_ads_sync_five_times_a_day sets these schedules; the job names
  * predate the cadence. The cron catalog (src/lib/cronJobsCatalog.ts) re-exports
  * this list.
  */
