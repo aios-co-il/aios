@@ -1,12 +1,12 @@
 import { fetchOpenAiBillingStatus } from "../llm/billing-status.ts";
-import type { GetOpenaiBillingStatusArgs } from "./billing-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { isSuperAdminRole } from "../../_shared/openai-billing.ts";
 import { OPENAI_BILLING_REFUSAL_HE } from "../../_shared/openai-billing.ts";
 import { redactSecretsFromText } from "../../_shared/openai-billing.ts";
 import { errorMessage } from "../error-message.ts";
 
-/** Preserves the existing get_openai_billing_status executor and side-effect order. */
+type GetOpenaiBillingStatusArgs = { include_tokens?: boolean };
+
 export async function executeGetOpenaiBillingStatus(
   args: GetOpenaiBillingStatusArgs,
   context: ToolExecutionContext,

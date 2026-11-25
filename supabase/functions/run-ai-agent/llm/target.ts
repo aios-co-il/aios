@@ -1,14 +1,14 @@
-import type { AgentDatabaseClient } from "../database-contracts.ts";
+import type { DbClient } from "../../_shared/supabase-clients.ts";
 import { llmEndpoint } from "../../_shared/llm-endpoint.ts";
 import type { LLMProvider } from "./contracts.ts";
 
 /** Resolve the tenant-owned key for the selected provider endpoint. */
 export async function resolveLLMTarget(
-  supabase: AgentDatabaseClient,
+  supabase: DbClient,
   tenantId: string,
   model: string,
 ): Promise<{ url: string; key: string; model: string }> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("tenant_integrations")
     .select("settings")
     .eq("tenant_id", tenantId)
@@ -17,10 +17,20 @@ export async function resolveLLMTarget(
     .order("updated_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  const s = (data?.settings || {}) as Record<string, string>;
+  if (error) {
+    console.error("[AGENT] LLM key lookup failed");
+    throw new Error("LLM key lookup failed");
+  }
+
+  const settings = data?.settings;
+  const s =
+    settings && typeof settings === "object" && !Array.isArray(settings)
+      ? settings
+      : {};
+
   const endpoint = llmEndpoint(model);
   const key = s[endpoint.keyField];
-  if (!key) {
+  if (typeof key !== "string" || !key.trim()) {
     throw new Error(MISSING_KEY_TEXT[endpoint.provider]);
   }
   return {

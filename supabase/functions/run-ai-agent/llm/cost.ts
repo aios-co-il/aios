@@ -1,6 +1,5 @@
 // Rough per-model pricing (USD per 1M tokens in/out) for the usage panel.
 // Unknown models log tokens with a null cost rather than a wrong one.
-/** Preserves the existing estimateLLMCostUSD provider boundary. */
 export function estimateLLMCostUSD(
   model: string,
   tokensIn: number,

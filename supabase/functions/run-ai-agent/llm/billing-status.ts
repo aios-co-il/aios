@@ -1,13 +1,12 @@
-import type { AgentDatabaseClient } from "../database-contracts.ts";
+import type { DbClient } from "../../_shared/supabase-clients.ts";
 import { resolveOpenAiAdminKey } from "./billing-key.ts";
 import { monthUtcBounds } from "../../_shared/openai-billing.ts";
 import { openaiAdminGet } from "../openai-admin-get.ts";
 import { buildOpenAiBillingStatus } from "../../_shared/openai-billing.ts";
 import { formatOpenAiBillingWhatsApp } from "../../_shared/openai-billing.ts";
 
-/** Preserves the existing fetchOpenAiBillingStatus provider boundary. */
 export async function fetchOpenAiBillingStatus(args: {
-  supabase: AgentDatabaseClient;
+  supabase: DbClient;
   tenantId: string;
   includeTokens?: boolean;
 }) {

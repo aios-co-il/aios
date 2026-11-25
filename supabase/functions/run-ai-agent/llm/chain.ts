@@ -1,18 +1,16 @@
-import type { AgentDatabaseClient } from "../database-contracts.ts";
+import type { DbClient } from "../../_shared/supabase-clients.ts";
 import type { LLMTarget } from "./contracts.ts";
 import { resolveModelId } from "../../_shared/models.ts";
 import { LLM_FALLBACK_ORDER } from "./models.ts";
 import { resolveLLMTarget } from "./target.ts";
 import { providerOf } from "./provider.ts";
 
-/** Preserves the existing buildLLMChain provider boundary. */
 export async function buildLLMChain(
-  supabase: AgentDatabaseClient,
+  supabase: DbClient,
   tenantId: string,
   primaryFullId: string,
 ): Promise<Array<LLMTarget>> {
   const ordered: Array<string> = [];
-  /** Retains the original add helper. */
   function add(id: string) {
     const full = resolveModelId(id);
     if (!ordered.includes(full)) {
@@ -31,6 +29,7 @@ export async function buildLLMChain(
         const t = await resolveLLMTarget(supabase, tenantId, full);
         return { ...t, label: full, provider: providerOf(full) };
       } catch {
+        console.warn(`[AGENT] Skipping unavailable LLM target: ${full}`);
         return null;
       }
     }),

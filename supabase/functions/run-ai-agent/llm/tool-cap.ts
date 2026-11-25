@@ -25,7 +25,6 @@ export const LOW_PRIORITY_TOOLS = new Set([
   "save_media_from_chat",
 ]);
 
-/** Preserves the existing isEscalationMcpTool provider boundary. */
 export function isEscalationMcpTool(name: string | undefined): boolean {
   if (!name) {
     return false;
@@ -78,7 +77,6 @@ export const PRIORITY_TOOLS = new Set([
   ...WORKSHOP_TOOLS.map((tool) => tool.name),
 ]);
 
-/** Preserves the existing capToolsForTarget provider boundary. */
 export function capToolsForTarget<T extends { function?: { name?: string } }>(
   target: LLMTarget,
   tools: Array<T>,
