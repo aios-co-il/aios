@@ -21,7 +21,7 @@ import type { ClientFilters } from "./clientFilters";
 import {
   ClientServiceFilterItems,
   ClientStatusFilterItems,
-} from "./ClientsToolbar";
+} from "./ClientsFilterFields";
 import {
   CampaignerFilterSelect,
   type CampaignerOption,

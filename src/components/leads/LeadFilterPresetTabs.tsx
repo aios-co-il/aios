@@ -59,6 +59,8 @@ interface LeadFilterPresetTabsProps {
   /** The saved scope the screen opens on, or null when none is saved. */
   defaultStageScope?: LeadStageScope | null;
   onDefaultStageScopeChange?: (scope: LeadStageScope) => void;
+  /** Stacked fills the desktop side panel; inline is one scrolling row. */
+  layout?: "inline" | "stacked";
 }
 
 export function LeadFilterPresetTabs({
@@ -74,7 +76,9 @@ export function LeadFilterPresetTabs({
   stageCounts,
   defaultStageScope = null,
   onDefaultStageScopeChange,
+  layout = "inline",
 }: LeadFilterPresetTabsProps) {
+  const stacked = layout === "stacked";
   const { tenantId } = useCurrentTenant();
   const { userId } = useCurrentUser();
   const { toast } = useToast();
@@ -174,14 +178,20 @@ export function LeadFilterPresetTabs({
       : selectedStageCount;
 
   return (
-    <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto overflow-y-hidden">
+    <div
+      className={cn(
+        stacked
+          ? "flex w-full flex-col items-stretch gap-1.5"
+          : "flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto overflow-y-hidden",
+      )}
+    >
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             type="button"
             variant={activePresetId ? "default" : "outline"}
             size="sm"
-            className="h-9 shrink-0 gap-1.5"
+            className={cn("h-9 shrink-0 gap-1.5", stacked && "justify-between")}
           >
             {activePreset?.name ?? "פריסט"}
             <ChevronDown className="h-3.5 w-3.5 opacity-60" />
@@ -236,6 +246,7 @@ export function LeadFilterPresetTabs({
         onClick={onOpenFiltersDialog}
         className={cn(
           "h-9 shrink-0 gap-2",
+          stacked && "justify-start",
           hasActiveFilters && "border-primary text-primary",
         )}
       >
@@ -258,7 +269,10 @@ export function LeadFilterPresetTabs({
               type="button"
               variant="outline"
               size="sm"
-              className="h-9 shrink-0 gap-1.5"
+              className={cn(
+                "h-9 shrink-0 gap-1.5",
+                stacked && "justify-start overflow-hidden",
+              )}
               style={
                 activeStage?.hexColor
                   ? {
