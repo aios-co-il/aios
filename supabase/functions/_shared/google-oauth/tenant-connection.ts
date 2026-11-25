@@ -5,6 +5,7 @@ import { z } from "npm:zod@3.25.76";
 import type { Json } from "../database.types.ts";
 import { serviceClient } from "../supabase-clients.ts";
 import type { GoogleTokens } from "./exchange-code.ts";
+import { UserFacingError } from "./user-facing-error.ts";
 
 const jsonSchema: z.ZodType<Json> = z.lazy(() =>
   z.union([
@@ -16,6 +17,19 @@ const jsonSchema: z.ZodType<Json> = z.lazy(() =>
     z.record(jsonSchema.optional()),
   ]),
 );
+
+/** Where a settings value that is not an object is kept when the row is rewritten. */
+const UNREADABLE_SETTINGS_KEY = "unreadable_settings";
+
+/** A JSON string, decoded; fails on any other value or on text that is not JSON. */
+const encodedJsonSchema = z.string().transform((text, ctx): unknown => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "not JSON" });
+    return z.NEVER;
+  }
+});
 
 /** settings is free-form jsonb shared by several features, so every key is kept. */
 const storedSettingsSchema = z.record(jsonSchema.optional()).nullable();
@@ -47,9 +61,27 @@ export async function tenantConnections(
   return data.map((row) => ({
     id: row.id,
     user_id: row.user_id,
-    settings: storedSettingsSchema.parse(row.settings) ?? {},
+    settings: storedSettings(row.id, row.settings),
     updated_at: row.updated_at,
   }));
+}
+
+/**
+ * The row's settings object; a double-encoded object (a JSON string) is
+ * decoded. Any other value has no keys to keep: it is logged and kept under
+ * UNREADABLE_SETTINGS_KEY, so a reconnect writes a valid object and loses nothing.
+ */
+function storedSettings(rowId: string, value: Json): StoredSettings {
+  const decoded = encodedJsonSchema.safeParse(value);
+  const settings = storedSettingsSchema.safeParse(
+    decoded.success ? decoded.data : value,
+  );
+  if (!settings.success) {
+    console.error(`tenant_integrations ${rowId}: settings is not an object`);
+    return { [UNREADABLE_SETTINGS_KEY]: value };
+  }
+
+  return settings.data ?? {};
 }
 
 export type SaveConnection = {
@@ -109,8 +141,8 @@ export async function saveTenantConnection(
   }
   // A PATCH that matched nothing returns no rows (an empty body reads as null).
   if (!data || data.length === 0) {
-    throw new Error(
-      "tenant_integrations changed while connecting; the connect was not saved",
+    throw new UserFacingError(
+      "The connection changed while connecting, so it was not saved. Connect again.",
     );
   }
 }

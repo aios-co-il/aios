@@ -27,12 +27,16 @@ const env = {
   SUPABASE_SERVICE_ROLE_KEY: "test-service",
   GOOGLE_CLIENT_ID: "test-client",
   GOOGLE_CLIENT_SECRET: "test-secret",
+  PUBLIC_API_URL: null,
 };
 
 const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/gmail-auth`;
 
 /** Runs the real handler against a tenant with one member; Google is never called. */
-async function run(request: Request) {
+async function run(
+  request: Request,
+  runtimeEnv: Record<string, string | null> = env,
+) {
   const http = fakeSupabaseHttp({
     supabaseUrl: SUPABASE_URL,
     users: { member: MEMBER, outsider: OUTSIDER },
@@ -46,7 +50,7 @@ async function run(request: Request) {
     },
   });
 
-  return await withRuntime({ env, fetch: http.fetch }, async () => {
+  return await withRuntime({ env: runtimeEnv, fetch: http.fetch }, async () => {
     const handle = await servedHandler(new URL("./index.ts", import.meta.url));
     return { response: await handle(request), http };
   });
@@ -91,16 +95,32 @@ Deno.test({
     );
 
     await t.step(
-      "the old userId|tenantId state is refused before the code is exchanged",
+      "the authorize URL sends Google the custom-domain callback when PUBLIC_API_URL is set",
+      async () => {
+        const { response } = await run(init("member"), {
+          ...env,
+          PUBLIC_API_URL: "https://api.aios.co.il",
+        });
+        const { authUrl } = await response.json();
+        assertEquals(
+          new URL(authUrl).searchParams.get("redirect_uri"),
+          "https://api.aios.co.il/functions/v1/gmail-auth",
+        );
+      },
+    );
+
+    await t.step(
+      "the old userId|tenantId state is refused before the code is exchanged, and the app is told",
       async () => {
         const { response, http } = await run(
           new Request(
             `${FUNCTION_URL}?code=code&state=${encodeURIComponent(`${OUTSIDER}|${TENANT}`)}`,
           ),
         );
-        assertEquals(response.status, 500);
-        const { error } = await response.json();
-        assertStringIncludes(error, "invalid or has expired");
+        assertEquals(response.status, 200);
+        const page = await response.text();
+        assertStringIncludes(page, "google_connect_error");
+        assertStringIncludes(page, '"error":"invalid_state"');
         assertEquals(http.calls.length, 0);
       },
     );
