@@ -32,7 +32,11 @@ import {
   saveSyncRun,
 } from "../_shared/ads-sync/save-run.ts";
 import { syncAdsWindow } from "../_shared/ads-sync/write-window.ts";
-import { runCatchup } from "./catchup.ts";
+import {
+  historyBackfillPatch,
+  planHistoryBackfill,
+} from "../_shared/ads-sync/history-backfill.ts";
+import { runCatchup, runHistoryBackfill } from "./catchup.ts";
 
 const SOURCE = "cron-sync-facebook-insights";
 
@@ -182,8 +186,9 @@ Deno.serve(async (req) => {
 
         const accessToken = integration.api_key;
 
+        const today = jerusalemToday();
         const plan = planScheduledSyncWindows(
-          jerusalemToday(),
+          today,
           typeof settings.scheduled_history_from === "string"
             ? settings.scheduled_history_from
             : null,
@@ -335,6 +340,21 @@ Deno.serve(async (req) => {
             catchupError,
           );
         }
+        // A one-off past window pinned by a migration; it writes rows only, so
+        // the alerts below still read the refresh alone.
+        const backfill = planHistoryBackfill(settings, {
+          catchup: plan.catchup,
+          today,
+        });
+        const backfilled = backfill
+          ? await runHistoryBackfill(writeWindow, backfill)
+          : null;
+        if (backfilled?.status === "failed" || backfilled?.status === "empty") {
+          console.error(
+            `[cron-sync-facebook-insights] ${table.name}: history backfill ${backfilled.status}, kept for the next run:`,
+            backfilled.error,
+          );
+        }
         const { insights, outcome } = await writeWindow(plan.refresh);
         const campaignInsights = insights.filter(
           (row) => (row.entity_level || "campaign") === "campaign",
@@ -359,6 +379,7 @@ Deno.serve(async (req) => {
               scheduled_synced_through: plan.syncedThrough,
               scheduled_lookback_on: plan.lookbackOn,
             }),
+            ...(backfilled ? historyBackfillPatch(backfilled.status) : {}),
             ...(isWriteSuccess(outcome.status)
               ? { last_insights_until: untilStr }
               : {}),

@@ -84,6 +84,104 @@ async function backfill(runStatuses: Array<number>) {
   }
 }
 
+/**
+ * One scheduled run over a direct-API table whose history catch-up is
+ * complete, on 2026-11-25 (Israel): the windows it asks sync-google-ads-data
+ * for, in order.
+ */
+async function scheduledSyncBodies(settings: Record<string, unknown>) {
+  const http = fakeSupabaseHttp({
+    supabaseUrl: SUPABASE_URL,
+    tables: {
+      crm_tables: [
+        {
+          id: "table-direct",
+          tenant_id: TENANT,
+          name: "Direct table",
+          integration_type: "google_ads",
+          integration_settings: {
+            data_source: "direct_api",
+            scheduled_history_from: "2026-07-01",
+            scheduled_synced_through: "2026-11-25",
+            scheduled_lookback_on: "2026-11-25",
+            ...settings,
+          },
+        },
+      ],
+    },
+  });
+  const time = new FakeTime(new Date("2026-11-25T12:00:00Z"));
+  try {
+    await withRuntime(
+      {
+        env: { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY: "service-key" },
+        fetch: http.fetch,
+      },
+      async () => {
+        const handle = await servedHandler(
+          new URL("./index.ts", import.meta.url),
+        );
+        const res = await handle(
+          new Request(SUPABASE_URL, { method: "POST", body: "{}" }),
+        );
+        await res.body?.cancel();
+      },
+    );
+  } finally {
+    time.restore();
+  }
+  return http.calls
+    .filter((call) => call.url.pathname.endsWith("/sync-google-ads-data"))
+    .map((call) => call.body);
+}
+
+Deno.test({
+  name: "cron-sync-google-ads history backfill",
+  // supabase-js starts an unref'd auth refresh timer per client.
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async (t) => {
+    await t.step(
+      "a marker adds its window, flagged to clear it, before the refresh",
+      async () => {
+        const bodies = await scheduledSyncBodies({
+          history_backfill: { start: "2026-06-30", end: "2026-07-17" },
+        });
+
+        assertEquals(bodies, [
+          {
+            table_id: "table-direct",
+            start_date: "2026-06-30",
+            end_date: "2026-07-17",
+            history_backfill: true,
+            update_last_sync: false,
+          },
+          {
+            table_id: "table-direct",
+            start_date: "2026-11-25",
+            end_date: "2026-11-25",
+            scheduled_synced_through: "2026-11-25",
+            scheduled_lookback_on: "2026-11-25",
+            scheduled_history_from: "2026-07-01",
+          },
+        ]);
+      },
+    );
+
+    await t.step(
+      "without a marker the run syncs the refresh only",
+      async () => {
+        const bodies = await scheduledSyncBodies({ history_backfill: null });
+
+        assertEquals(
+          bodies.map((body) => (body as { start_date: string }).start_date),
+          ["2026-11-25"],
+        );
+      },
+    );
+  },
+});
+
 Deno.test({
   name: "cron-sync-google-ads Make backfill",
   // supabase-js starts an unref'd auth refresh timer per client.

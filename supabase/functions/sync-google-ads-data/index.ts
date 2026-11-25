@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { type OperationalCampaignState } from "../_shared/campaign-operational-health.ts";
 import type { AdsEntityLevel } from "../_shared/ads-sync/levels.ts";
 import { scheduledMarkerPatch } from "../_shared/ads-sync/outcome.ts";
+import { historyBackfillPatch } from "../_shared/ads-sync/history-backfill.ts";
 import { redactSyncError } from "../_shared/ads-sync/redact.ts";
 import { syncRunBody } from "../_shared/ads-sync/run-response.ts";
 import {
@@ -173,7 +174,11 @@ Deno.serve(async (req) => {
       scheduled_synced_through,
       scheduled_lookback_on,
       update_last_sync = true,
+      history_backfill = false,
     } = await req.json();
+    // Only the scheduled cron may clear the history backfill marker.
+    const clearsHistoryBackfill =
+      history_backfill === true && isInternalCron && hasServiceRole;
 
     if (!table_id) {
       return new Response(JSON.stringify({ error: "table_id required" }), {
@@ -1445,11 +1450,14 @@ Deno.serve(async (req) => {
       outcome,
       catchup: update_last_sync === false || !resolvedWindow.stampsLastSync,
       fallbackSettings: settings,
-      settingsPatch: scheduledMarkerPatch(outcome.status, {
-        scheduled_history_from,
-        scheduled_synced_through,
-        scheduled_lookback_on,
-      }),
+      settingsPatch: {
+        ...scheduledMarkerPatch(outcome.status, {
+          scheduled_history_from,
+          scheduled_synced_through,
+          scheduled_lookback_on,
+        }),
+        ...(clearsHistoryBackfill ? historyBackfillPatch(outcome.status) : {}),
+      },
     });
 
     console.log(`[sync-google-ads] by_level`, byLevel);
