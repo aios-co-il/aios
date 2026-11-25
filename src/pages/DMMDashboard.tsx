@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 /**
  * דשבורד בדיקת דופק — שכבה 1: נתוני קמפיין גולמיים מ-Meta/Google, מקובצים לפי לקוח
  * וסוג קמפיין (לידים / אינגייג׳מנט / איקומרס) ללא רמזור או ניתוח.
@@ -193,14 +194,10 @@ export function CampaignPulseDashboard({
       tenantSlug,
       effectiveAgencyId,
     );
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.success(
-        effectiveAgencyId ? "קישור הסוכנות הועתק" : "קישור הדשבורד הועתק",
-      );
-    } catch {
-      toast.error("לא ניתן להעתיק קישור");
-    }
+    await copyToClipboard(
+      url,
+      effectiveAgencyId ? "קישור הסוכנות הועתק" : "קישור הדשבורד הועתק",
+    );
   }
 
   const { data: crossTenantAgencyIds = [] } = useQuery({

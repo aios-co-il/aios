@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -586,8 +587,7 @@ export function MakeScenarioSettings({
             variant="outline"
             size="icon"
             onClick={() => {
-              navigator.clipboard.writeText(ourWebhookUrl);
-              toast.success("הכתובת הועתקה");
+              void copyToClipboard(ourWebhookUrl, "הכתובת הועתקה");
             }}
           >
             <ExternalLink className="h-4 w-4" />

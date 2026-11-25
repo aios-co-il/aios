@@ -34,7 +34,9 @@ describe("ContactValue", () => {
 
     expect(writeText).toHaveBeenCalledWith("050-1234567");
     await waitFor(() =>
-      expect(toasts.success).toHaveBeenCalledWith("הטלפון הועתק"),
+      expect(toasts.success).toHaveBeenCalledWith("הטלפון הועתק", {
+        description: undefined,
+      }),
     );
   });
 
@@ -127,7 +129,7 @@ describe("ContactValue", () => {
       );
 
       await waitFor(() =>
-        expect(toasts.error).toHaveBeenCalledWith("לא ניתן להעתיק את הטלפון"),
+        expect(toasts.error).toHaveBeenCalledWith("ההעתקה נכשלה"),
       );
       expect(toasts.success).not.toHaveBeenCalled();
     } finally {

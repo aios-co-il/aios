@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState } from "react";
 import {
   Card,
@@ -159,11 +160,11 @@ export default function GoogleAnalyticsSettings() {
     },
   });
 
-  const handleCopyWebhook = () => {
-    navigator.clipboard.writeText(webhookUrl);
-    setWebhookCopied(true);
-    toast.success("URL הועתק ללוח");
-    setTimeout(() => setWebhookCopied(false), 2000);
+  const handleCopyWebhook = async () => {
+    if (await copyToClipboard(webhookUrl, "URL הועתק ללוח")) {
+      setWebhookCopied(true);
+      setTimeout(() => setWebhookCopied(false), 2000);
+    }
   };
 
   return (

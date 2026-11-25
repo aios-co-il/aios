@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useMemo } from "react";
 import { Copy, Download, Loader2, Mic, Sparkles } from "lucide-react";
 import {
@@ -8,7 +9,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
 import { useRegenerateRecordingSummary } from "@/hooks/useRegenerateRecordingSummary";
 
 interface TranscriptRecording {
@@ -46,7 +46,6 @@ export function TranscriptViewerDialog({
   recordingIds,
   onSummarized,
 }: TranscriptViewerDialogProps) {
-  const { toast } = useToast();
   const transcript = recording.transcription?.trim() || "";
   const ids = recordingIds?.length
     ? recordingIds
@@ -73,8 +72,7 @@ export function TranscriptViewerDialog({
   }, [transcript]);
 
   const copyTranscript = async () => {
-    await navigator.clipboard.writeText(transcript);
-    toast({ title: "התמלול הועתק" });
+    await copyToClipboard(transcript, "התמלול הועתק");
   };
 
   const downloadTranscript = () => {

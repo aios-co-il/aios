@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState } from "react";
 import DOMPurify from "dompurify";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -338,10 +339,8 @@ export default function AhrefsSettings() {
     reportType: filterReportType !== "all" ? filterReportType : undefined,
   });
 
-  const copyWebhookUrl = () => {
-    navigator.clipboard.writeText(WEBHOOK_URL);
-    toast.success("כתובת ה-Webhook הועתקה");
-  };
+  const copyWebhookUrl = () =>
+    void copyToClipboard(WEBHOOK_URL, "כתובת ה-Webhook הועתקה");
 
   const features = [
     {
