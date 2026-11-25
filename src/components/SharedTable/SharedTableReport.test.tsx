@@ -39,13 +39,14 @@ const table = {
  * Answers public-table like the edge function: the shown window by default,
  * and the previous window when the page asks for a custom range.
  */
-function stubPublicTable() {
+function stubPublicTable(extra: Record<string, unknown> = {}) {
   const fetchMock = vi.fn(async (url: string) => {
     const previous = new URL(url).searchParams.has("custom_start");
     const records = previous ? [salesDay(9, 50, 1)] : [salesDay(2, 120, 3)];
-    return new Response(JSON.stringify({ table, fields: [], records }), {
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ table, fields: [], records, ...extra }),
+      { headers: { "Content-Type": "application/json" } },
+    );
   });
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
@@ -71,8 +72,42 @@ describe("SharedTableReport", () => {
     expect(screen.queryByText("תקופה קודמת")).toBeNull();
   });
 
-  it("shows the summary without controls, ending at the snapshot marker, when summaryOnly", async () => {
+  it("opens the ad account public-table sends, as the internal report does", async () => {
+    const url =
+      "https://business.facebook.com/adsmanager/manage/campaigns?act=111";
+    stubPublicTable({
+      ad_account_links: [{ url, platform: "meta", label: "חשבון Facebook" }],
+    });
+    const open = vi.fn();
+    vi.stubGlobal("open", open);
+    const user = userEvent.setup();
+    render(withTestQuery(<SharedTableReport shareToken="share-token" />));
+
+    await user.click(
+      await screen.findByRole("button", { name: "פתח חשבון מודעות" }),
+    );
+
+    expect(open).toHaveBeenCalledWith(url, "_blank", "noopener,noreferrer");
+  });
+
+  it("shows no ad account button without links", async () => {
     stubPublicTable();
+    render(withTestQuery(<SharedTableReport shareToken="share-token" />));
+
+    await screen.findByText("עלות לרכישה");
+    expect(screen.queryByRole("button", { name: /חשבון/ })).toBeNull();
+  });
+
+  it("shows the summary without controls, ending at the snapshot marker, when summaryOnly", async () => {
+    stubPublicTable({
+      ad_account_links: [
+        {
+          url: "https://ads.google.com/aw/overview?__e=1",
+          platform: "google",
+          label: "חשבון Google Ads",
+        },
+      ],
+    });
     const { container } = render(
       withTestQuery(
         <SharedTableReport
@@ -88,6 +123,9 @@ describe("SharedTableReport", () => {
       screen.queryByRole("button", { name: /השוואה לתקופה קודמת/ }),
     ).toBeNull();
     expect(screen.queryByRole("button", { name: /30 יום אחרונים/ })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "פתח חשבון מודעות" }),
+    ).toBeNull();
     expect(
       container.querySelector('[data-snapshot-end="true"]'),
     ).not.toBeNull();

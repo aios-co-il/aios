@@ -1,3 +1,4 @@
+import type { AdAccountShortcut } from "@/lib/adAccountUrl";
 import type { AdsReportRecord } from "@/components/reports/AdsGoalTables/adsGoalTablesTypes";
 import { shareResponseError } from "@/lib/rangeRefusedError";
 import type { SharedSeoPayload } from "./sharedSeoPayload";
@@ -21,6 +22,8 @@ export type SharedTablePayload = SharedSeoPayload & {
   table?: SharedTableInfo;
   fields?: Array<{ field_key: string; field_label: string }>;
   records?: Array<SharedTableRecord>;
+  /** The "open ad account" buttons, built by public-table. */
+  ad_account_links?: Array<AdAccountShortcut>;
   error?: string;
 };
 

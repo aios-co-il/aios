@@ -38,7 +38,6 @@ import {
   AlertCircle,
   Play,
   ShoppingCart,
-  ExternalLink,
   User,
 } from "lucide-react";
 import { format, subDays } from "date-fns";
@@ -126,14 +125,12 @@ import {
 import { invalidateReportTables } from "@/lib/invalidateReportTables";
 import { useAdsRangeSync } from "@/hooks/useAdsRangeSync";
 import {
-  adAccountShortcutLabel,
-  getAdAccountLinks,
+  type AdAccountTable,
   getAdAccountUrl,
+  getTableAdAccountLinks,
 } from "@/lib/adAccountUrl";
 import { useClientAdLinks } from "@/hooks/useClientAdLinks";
-
-/** A client table as the ads-account links read it. */
-type AdAccountTable = NonNullable<Parameters<typeof getAdAccountUrl>[0]>;
+import { AdAccountButtons } from "@/components/reports/ReportHeader/AdAccountButtons";
 import { ReportHeader } from "@/components/reports/ReportHeader/ReportHeader";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
 import { ReportDataTrust } from "@/components/reports/ReportDataTrust";
@@ -414,15 +411,11 @@ export default function DynamicTableView({
       return Array.isArray(response.data) ? response.data : [];
     },
     enabled: !!tenantId && !!reportClientId && !adAccountUrl && !isEmbed,
-    ...reportQueryOptions<
-      NonNullable<Parameters<typeof getAdAccountLinks>[0]>
-    >(),
+    ...reportQueryOptions<Array<AdAccountTable>>(),
   });
-  const adAccountLinks = adAccountUrl
-    ? [{ url: adAccountUrl, label: "פתח חשבון מודעות" }]
-    : clientAdLinks.loading
-      ? []
-      : getAdAccountLinks(siblingTables, clientAdLinks.links);
+  const adAccountLinks = clientAdLinks.loading
+    ? []
+    : getTableAdAccountLinks(table, siblingTables, clientAdLinks.links);
 
   const isGoogleAdsEcommerceReport =
     table?.integration_type === "google_ads" && isEcommerceReportTable(table);
@@ -2258,20 +2251,7 @@ export default function DynamicTableView({
                     כרטיס לקוח
                   </Button>
                 )}
-                {adAccountLinks.map((link) => (
-                  <Button
-                    key={link.url}
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                    onClick={() =>
-                      window.open(link.url, "_blank", "noopener,noreferrer")
-                    }
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    {adAccountShortcutLabel(link, adAccountLinks.length)}
-                  </Button>
-                ))}
+                <AdAccountButtons links={adAccountLinks} />
                 {!table.client_id && (
                   <Button
                     variant="outline"
