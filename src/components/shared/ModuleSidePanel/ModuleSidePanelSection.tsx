@@ -42,6 +42,7 @@ export function ModuleSidePanelSection({
       </div>
     );
   }
+
   // The icon-only panel always shows its rows; folding is for the open panel.
   const showContent = collapsed || open;
 

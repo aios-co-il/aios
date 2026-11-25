@@ -10,7 +10,7 @@ import { PanelTooltip } from "./PanelTooltip";
 export function ModuleSidePanelStat({
   title,
   ...row
-}: PanelRowProps & { title?: string }) {
+}: PanelRowProps & { value: string | number; title?: string }) {
   const { collapsed } = useModuleSidePanel();
 
   return (

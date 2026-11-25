@@ -18,7 +18,10 @@ import { useModuleSidePanel } from "@/components/shared/ModuleSidePanel/moduleSi
 import { ModuleSidePanelItem } from "@/components/shared/ModuleSidePanel/ModuleSidePanelItem";
 import { PanelTooltip } from "@/components/shared/ModuleSidePanel/PanelTooltip";
 import { PanelRowContent } from "@/components/shared/ModuleSidePanel/PanelRow";
-import { panelRowClassName } from "@/components/shared/ModuleSidePanel/panelRowClassName";
+import {
+  PANEL_ROW_INTERACTIVE_CLASS,
+  panelRowClassName,
+} from "@/components/shared/ModuleSidePanel/panelRowClassName";
 import { cn } from "@/lib/utils";
 
 export interface LeadsPanelToolsProps {
@@ -78,7 +81,7 @@ export function LeadsPanelFooter({
           aria-label={collapsed ? "ארכיון" : undefined}
           className={cn(
             panelRowClassName(collapsed),
-            "transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            PANEL_ROW_INTERACTIVE_CLASS,
           )}
         >
           <PanelRowContent

@@ -22,6 +22,7 @@ export function PanelTooltip({
   if (!enabled) {
     return children;
   }
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>{children}</TooltipTrigger>

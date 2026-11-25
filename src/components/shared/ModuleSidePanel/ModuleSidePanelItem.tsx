@@ -3,7 +3,10 @@ import { forwardRef, type ComponentPropsWithoutRef } from "react";
 import { cn } from "@/lib/utils";
 import { useModuleSidePanel } from "./moduleSidePanelContext";
 import { PanelRowContent, type PanelRowProps } from "./PanelRow";
-import { panelRowClassName } from "./panelRowClassName";
+import {
+  PANEL_ROW_INTERACTIVE_CLASS,
+  panelRowClassName,
+} from "./panelRowClassName";
 import { PanelTooltip } from "./PanelTooltip";
 
 export interface ModuleSidePanelItemProps
@@ -46,7 +49,8 @@ export const ModuleSidePanelItem = forwardRef<
         title={collapsed ? undefined : title}
         className={cn(
           panelRowClassName(collapsed),
-          "transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+          PANEL_ROW_INTERACTIVE_CLASS,
+          "disabled:pointer-events-none disabled:opacity-50",
           active &&
             "bg-surface-inset font-semibold text-foreground shadow-elevation-1",
           className,

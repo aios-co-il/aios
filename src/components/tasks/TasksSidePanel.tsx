@@ -9,6 +9,7 @@ import {
 
 import { ModuleSidePanel } from "@/components/shared/ModuleSidePanel/ModuleSidePanel";
 import { ModuleSidePanelItem } from "@/components/shared/ModuleSidePanel/ModuleSidePanelItem";
+import { badgeCount } from "@/components/shared/ModuleSidePanel/panelRowClassName";
 import { ModuleSidePanelSection } from "@/components/shared/ModuleSidePanel/ModuleSidePanelSection";
 import { TasksPanelPeriodNav } from "./TasksPanelPeriodNav";
 import { TASK_VIEWS } from "./taskViews";
@@ -59,7 +60,7 @@ export function TasksSidePanel({
   calendar,
 }: TasksSidePanelProps) {
   const isCalendarView = viewMode !== "chat";
-  const filtersCount = activeFiltersCount > 0 ? activeFiltersCount : undefined;
+  const filtersCount = badgeCount(activeFiltersCount);
 
   return (
     <ModuleSidePanel
@@ -134,6 +135,7 @@ function CalendarAction({
       />
     );
   }
+
   return (
     <ModuleSidePanelItem
       icon={CalendarDays}

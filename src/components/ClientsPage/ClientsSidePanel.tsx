@@ -3,6 +3,7 @@ import { SlidersHorizontal, Users } from "lucide-react";
 
 import { ModuleSidePanel } from "@/components/shared/ModuleSidePanel/ModuleSidePanel";
 import { ModuleSidePanelItem } from "@/components/shared/ModuleSidePanel/ModuleSidePanelItem";
+import { badgeCount } from "@/components/shared/ModuleSidePanel/panelRowClassName";
 import { ModuleSidePanelSection } from "@/components/shared/ModuleSidePanel/ModuleSidePanelSection";
 import type { ClientFilters } from "./clientFilters";
 import type { CampaignerOption } from "./CampaignerFilterSelect";
@@ -48,7 +49,7 @@ export function ClientsSidePanel({
   kpis,
   footer,
 }: ClientsSidePanelProps) {
-  const filtersCount = activeFilterCount > 0 ? activeFilterCount : undefined;
+  const filtersCount = badgeCount(activeFilterCount);
 
   return (
     <ModuleSidePanel

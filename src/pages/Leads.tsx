@@ -3203,6 +3203,8 @@ export default function Leads() {
             className={cn(
               "hidden shrink-0 items-center gap-2 md:flex",
               viewMode === "table" && "pb-2.5",
+              // Kanban scrolls this column, so the row stays on top as the old header did.
+              !fillsScreen && "sticky top-0 z-40 bg-background py-2",
             )}
           >
             <LeadsSearchInput

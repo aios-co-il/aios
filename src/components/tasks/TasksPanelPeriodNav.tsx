@@ -26,6 +26,7 @@ export function TasksPanelPeriodNav({
       </div>
     );
   }
+
   return (
     <>
       <ModuleSidePanelItem icon={ChevronRight} label="הקודם" onClick={onPrev} />

@@ -536,6 +536,8 @@ export default function Clients() {
     onDelete: setDeletingClient,
   };
 
+  // Null hides the campaigner filter: only managers and owners get it.
+  const campaignerOptions = canFilterByCampaigner ? (campaigners ?? []) : null;
   const importExportProps = {
     onExport: handleExportToExcel,
     onImportCsv: () => setShowImportCSV(true),
@@ -557,7 +559,7 @@ export default function Clients() {
           <ClientsToolbar
             filters={filters}
             onFilterChange={setFilter}
-            campaigners={canFilterByCampaigner ? (campaigners ?? []) : null}
+            campaigners={campaignerOptions}
             showSearch={viewMode !== "chat"}
             activeFilterCount={activeFilterCount}
             onOpenFilters={() => setShowFiltersDialog(true)}
@@ -606,7 +608,7 @@ export default function Clients() {
           onOpenChange={setShowFiltersDialog}
           filters={filters}
           onFilterChange={setFilter}
-          campaigners={canFilterByCampaigner ? (campaigners ?? []) : null}
+          campaigners={campaignerOptions}
           activeFilterCount={activeFilterCount}
           onClearAll={() => setFilters(CLEARED_CLIENT_FILTERS)}
         />
@@ -803,7 +805,7 @@ export default function Clients() {
         onViewModeChange={setViewMode}
         filters={filters}
         onFilterChange={setFilter}
-        campaigners={canFilterByCampaigner ? (campaigners ?? []) : null}
+        campaigners={campaignerOptions}
         activeFilterCount={activeFilterCount}
         onOpenFilters={() => setShowFiltersDialog(true)}
         kpis={showKpis && <ClientsKpiList clients={filteredClients ?? []} />}
