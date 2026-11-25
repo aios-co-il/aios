@@ -6,7 +6,6 @@ import { CarmenLoadingScreen } from "@/components/shared/CarmenLoadingScreen";
 import { isQueryResolving } from "@/lib/queryUi";
 import {
   FileSpreadsheet,
-  Plus,
   Users,
   CheckCircle2,
   XCircle,
@@ -807,13 +806,6 @@ export default function Clients() {
         campaigners={campaignerOptions}
         activeFilterCount={activeFilterCount}
         onOpenFilters={() => setShowFiltersDialog(true)}
-        primaryAction={
-          <AddClientForm
-            trigger={
-              <ModuleSidePanelItem primary icon={Plus} label="הוסף לקוח" />
-            }
-          />
-        }
         kpis={showKpis && <ClientsKpiList clients={filteredClients ?? []} />}
         footer={
           <ClientsImportExportMenu

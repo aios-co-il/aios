@@ -3198,7 +3198,7 @@ export default function Leads() {
             </Sheet>
           </div>
 
-          {/* Desktop: search and add above the list; the rest is in the side panel */}
+          {/* Desktop: search above the list; the rest is in the side panel */}
           <div
             className={cn(
               "hidden shrink-0 items-center gap-2 md:flex",
@@ -3212,9 +3212,6 @@ export default function Leads() {
               onChange={setSearchQuery}
               className="w-72"
             />
-            <div className="ms-auto">
-              <AddLeadForm />
-            </div>
           </div>
 
           {/* Filters Dialog */}

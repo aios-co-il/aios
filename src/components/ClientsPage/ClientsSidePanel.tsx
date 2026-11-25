@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
-import { SlidersHorizontal, Users } from "lucide-react";
+import { Plus, SlidersHorizontal, Users } from "lucide-react";
 
+import { AddClientForm } from "@/components/forms/AddClientForm";
 import { ModuleSidePanel } from "@/components/shared/ModuleSidePanel/ModuleSidePanel";
 import { ModuleSidePanelItem } from "@/components/shared/ModuleSidePanel/ModuleSidePanelItem";
 import { badgeCount } from "@/components/shared/ModuleSidePanel/panelRowClassName";
@@ -27,8 +28,6 @@ interface ClientsSidePanelProps {
   campaigners: ReadonlyArray<CampaignerOption> | null;
   activeFilterCount: number;
   onOpenFilters: () => void;
-  /** The screen's main action, above the views: add a client. */
-  primaryAction: ReactNode;
   /** The headline figures as panel rows; omitted while there are none. */
   kpis?: ReactNode;
   /** Import / export and other secondary actions, at the bottom. */
@@ -49,7 +48,6 @@ export function ClientsSidePanel({
   campaigners,
   activeFilterCount,
   onOpenFilters,
-  primaryAction,
   kpis,
   footer,
 }: ClientsSidePanelProps) {
@@ -63,7 +61,9 @@ export function ClientsSidePanel({
       subtitle={shownCount === undefined ? undefined : `${shownCount} מוצגים`}
       footer={footer}
     >
-      {primaryAction}
+      <AddClientForm
+        trigger={<ModuleSidePanelItem primary icon={Plus} label="הוסף לקוח" />}
+      />
       <ModuleSidePanelSection label="תצוגה">
         {CLIENT_VIEW_OPTIONS.map(({ value, label, icon }) => (
           <ModuleSidePanelItem
