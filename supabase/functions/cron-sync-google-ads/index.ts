@@ -298,6 +298,11 @@ Deno.serve(async (req) => {
       }
     };
 
+    // Tables whose history backfill this invocation already posted: the
+    // rate-limit retry pass re-runs syncOne with the settings read at the
+    // start, so it would fetch the backfill window again.
+    const backfillPosted = new Set<string>();
+
     const syncOne = async (
       table: any,
     ): Promise<{ ok: boolean; rateLimited: boolean; reason?: string }> => {
@@ -320,7 +325,8 @@ Deno.serve(async (req) => {
         catchup: plan.catchup,
         today,
       });
-      if (backfill) {
+      if (backfill && !backfillPosted.has(table.id)) {
+        backfillPosted.add(table.id);
         // sync-google-ads-data clears the marker after its write; a failure
         // keeps it for the next run and does not hold back the refresh.
         const filled = await postSync({

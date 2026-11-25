@@ -87,9 +87,13 @@ async function backfill(runStatuses: Array<number>) {
 /**
  * One scheduled run over a direct-API table whose history catch-up is
  * complete, on 2026-11-25 (Israel): the windows it asks sync-google-ads-data
- * for, in order.
+ * for, in order. `respond` answers each of those calls (the fake's 201 when
+ * unset); the 20 s rate-limit retry pause runs on fake time.
  */
-async function scheduledSyncBodies(settings: Record<string, unknown>) {
+async function scheduledSyncBodies(
+  settings: Record<string, unknown>,
+  respond?: (body: unknown) => Response,
+) {
   const http = fakeSupabaseHttp({
     supabaseUrl: SUPABASE_URL,
     tables: {
@@ -110,21 +114,33 @@ async function scheduledSyncBodies(settings: Record<string, unknown>) {
       ],
     },
   });
+  const fetch = async (input: string | URL | Request, init?: RequestInit) => {
+    const res = await http.fetch(input, init);
+    const call = http.calls[http.calls.length - 1];
+    return respond && call.url.pathname.endsWith("/sync-google-ads-data")
+      ? respond(call.body)
+      : res;
+  };
   const time = new FakeTime(new Date("2026-11-25T12:00:00Z"));
   try {
     await withRuntime(
       {
         env: { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY: "service-key" },
-        fetch: http.fetch,
+        fetch,
       },
       async () => {
         const handle = await servedHandler(
           new URL("./index.ts", import.meta.url),
         );
-        const res = await handle(
+        const pending = handle(
           new Request(SUPABASE_URL, { method: "POST", body: "{}" }),
         );
-        await res.body?.cancel();
+        let settled = false;
+        pending.finally(() => (settled = true));
+        while (!settled) {
+          await time.tickAsync(1000);
+        }
+        await (await pending).body?.cancel();
       },
     );
   } finally {
@@ -165,6 +181,32 @@ Deno.test({
             scheduled_history_from: "2026-07-01",
           },
         ]);
+      },
+    );
+
+    await t.step(
+      "a rate-limited refresh retries without fetching the backfill again",
+      async () => {
+        let refreshCalls = 0;
+        const bodies = await scheduledSyncBodies(
+          { history_backfill: { start: "2026-06-30", end: "2026-07-17" } },
+          (body) => {
+            const isRefresh =
+              (body as { start_date?: string }).start_date === "2026-11-25";
+            if (isRefresh && refreshCalls++ === 0) {
+              return Response.json(
+                { error: "Rate limit exceeded" },
+                { status: 429 },
+              );
+            }
+            return Response.json({ success: true });
+          },
+        );
+
+        assertEquals(
+          bodies.map((body) => (body as { start_date: string }).start_date),
+          ["2026-06-30", "2026-11-25", "2026-11-25"],
+        );
       },
     );
 

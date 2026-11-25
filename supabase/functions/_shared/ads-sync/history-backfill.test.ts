@@ -4,6 +4,7 @@ import { describe, it } from "jsr:@std/testing@1/bdd";
 import {
   historyBackfillPatch,
   planHistoryBackfill,
+  requestedHistoryBackfillPatch,
 } from "./history-backfill.ts";
 
 const TODAY = "2026-11-25";
@@ -49,13 +50,48 @@ describe("planHistoryBackfill", () => {
 });
 
 describe("historyBackfillPatch", () => {
-  it("clears the marker after a write, including a confirmed empty window", () => {
+  it("clears the marker after a clean write, including a confirmed empty window", () => {
     assertEquals(historyBackfillPatch("ok"), { history_backfill: null });
-    assertEquals(historyBackfillPatch("partial"), { history_backfill: null });
   });
 
-  it("keeps the marker when the write failed or came back empty", () => {
+  it("keeps the marker when a level failed, the write failed or came back empty", () => {
+    assertEquals(historyBackfillPatch("partial"), {});
     assertEquals(historyBackfillPatch("failed"), {});
     assertEquals(historyBackfillPatch("empty"), {});
+  });
+});
+
+describe("requestedHistoryBackfillPatch", () => {
+  it("clears the marker for a flagged run from a trusted caller", () => {
+    assertEquals(
+      requestedHistoryBackfillPatch("ok", {
+        historyBackfill: true,
+        trusted: true,
+      }),
+      { history_backfill: null },
+    );
+    assertEquals(
+      requestedHistoryBackfillPatch("failed", {
+        historyBackfill: true,
+        trusted: true,
+      }),
+      {},
+    );
+  });
+
+  it("ignores the flag from an untrusted caller and an unflagged run", () => {
+    assertEquals(
+      requestedHistoryBackfillPatch("ok", {
+        historyBackfill: true,
+        trusted: false,
+      }),
+      {},
+    );
+    for (const historyBackfill of [false, "true", undefined]) {
+      assertEquals(
+        requestedHistoryBackfillPatch("ok", { historyBackfill, trusted: true }),
+        {},
+      );
+    }
   });
 });

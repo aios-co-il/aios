@@ -7,12 +7,12 @@
  * pin `integration_settings.history_backfill = {"start": "yyyy-MM-dd", "end":
  * "yyyy-MM-dd"}` on a report table: the next scheduled run fetches that window
  * through the same bounded write as a catch-up slice (only its days are
- * replaced) and clears the marker after the write. A failed write keeps it, so
- * the following run retries.
+ * replaced) and clears the marker after a clean write. Any other outcome keeps
+ * it, so the following run retries.
  */
 import type { SyncWindow } from "../report-sync-window.ts";
 import { isRecord } from "./is-record.ts";
-import { isWriteSuccess, type SyncOutcomeStatus } from "./outcome.ts";
+import type { SyncOutcomeStatus } from "./outcome.ts";
 import { parseRequestedWindow } from "./requested-window.ts";
 
 /** The integration_settings key that holds the marker. */
@@ -50,15 +50,31 @@ export function planHistoryBackfill(
 }
 
 /**
- * The settings patch after the backfill write. A write (`ok`/`partial`) clears
- * the marker; an empty fetch with no stored rows for those days is `ok` too
- * (confirmEmptyPlan), so a table without delivery then is done. `failed` and
- * `empty` (the platform returned nothing although rows are stored) keep it for
- * the next run. The marker is set to null because the settings save merges
- * keys and cannot remove one.
+ * The settings patch after the backfill write. Only `ok` clears the marker: an
+ * empty fetch with no stored rows for those days is `ok` too
+ * (confirmEmptyPlan), so a table without delivery then is done. `partial`
+ * restored the campaign rows but not a failed ad set or ad level, `failed`
+ * wrote nothing and `empty` (the platform returned nothing although rows are
+ * stored) left the days as they were: each keeps the marker for the next run.
+ * The marker is set to null because the settings save merges keys and cannot
+ * remove one.
  */
 export function historyBackfillPatch(
   status: SyncOutcomeStatus,
 ): Record<string, null> {
-  return isWriteSuccess(status) ? { [HISTORY_BACKFILL_KEY]: null } : {};
+  return status === "ok" ? { [HISTORY_BACKFILL_KEY]: null } : {};
+}
+
+/**
+ * historyBackfillPatch for a sync-google-ads-data run: only a run flagged
+ * `history_backfill: true` by a trusted caller (the internal cron with the
+ * service role) may clear the marker.
+ */
+export function requestedHistoryBackfillPatch(
+  status: SyncOutcomeStatus,
+  request: { historyBackfill: unknown; trusted: boolean },
+): Record<string, null> {
+  return request.historyBackfill === true && request.trusted
+    ? historyBackfillPatch(status)
+    : {};
 }

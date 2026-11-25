@@ -32,10 +32,6 @@ import {
   saveSyncRun,
 } from "../_shared/ads-sync/save-run.ts";
 import { syncAdsWindow } from "../_shared/ads-sync/write-window.ts";
-import {
-  historyBackfillPatch,
-  planHistoryBackfill,
-} from "../_shared/ads-sync/history-backfill.ts";
 import { runCatchup, runHistoryBackfill } from "./catchup.ts";
 
 const SOURCE = "cron-sync-facebook-insights";
@@ -342,14 +338,11 @@ Deno.serve(async (req) => {
         }
         // A one-off past window pinned by a migration; it writes rows only, so
         // the alerts below still read the refresh alone.
-        const backfill = planHistoryBackfill(settings, {
+        const backfilled = await runHistoryBackfill(writeWindow, settings, {
           catchup: plan.catchup,
           today,
         });
-        const backfilled = backfill
-          ? await runHistoryBackfill(writeWindow, backfill)
-          : null;
-        if (backfilled?.status === "failed" || backfilled?.status === "empty") {
+        if (backfilled && backfilled.status !== "ok") {
           console.error(
             `[cron-sync-facebook-insights] ${table.name}: history backfill ${backfilled.status}, kept for the next run:`,
             backfilled.error,
@@ -379,7 +372,7 @@ Deno.serve(async (req) => {
               scheduled_synced_through: plan.syncedThrough,
               scheduled_lookback_on: plan.lookbackOn,
             }),
-            ...(backfilled ? historyBackfillPatch(backfilled.status) : {}),
+            ...backfilled?.settingsPatch,
             ...(isWriteSuccess(outcome.status)
               ? { last_insights_until: untilStr }
               : {}),
