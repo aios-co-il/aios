@@ -135,6 +135,8 @@ import { ReportHeader } from "@/components/reports/ReportHeader/ReportHeader";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
 import { ReportDataTrust } from "@/components/reports/ReportDataTrust";
 import { AdsEntityLevelTabs } from "@/components/reports/AdsEntityLevelTabs";
+import { filterRecordsByCampaign } from "@/components/reports/AdsCampaignFilter/adsCampaignFilter";
+import { useAdsCampaignFilter } from "@/components/reports/AdsCampaignFilter/useAdsCampaignFilter";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
 import { AdsGoalTables } from "@/components/reports/AdsGoalTables/AdsGoalTables";
 import { weeklySourceModesForTable } from "@/lib/weeklyCampaignGoals";
@@ -590,12 +592,18 @@ export default function DynamicTableView({
       enabled: !!table?.id && isAdsReportTable && adsReportView === "weekly",
     });
 
-  const entityLevelRecords = useMemo(() => {
+  const allEntityLevelRecords = useMemo(() => {
     if (!isAdsReportTable) {
       return displayRecords;
     }
     return filterRecordsByEntityLevel(displayRecords, adsEntityLevel);
   }, [displayRecords, adsEntityLevel, isAdsReportTable]);
+
+  const adsCampaignFilter = useAdsCampaignFilter(
+    allEntityLevelRecords,
+    adsEntityLevel,
+  );
+  const entityLevelRecords = adsCampaignFilter.records;
 
   // Filter records by entity search (campaign / ad set / ad name)
   const filteredRecords = useMemo(() => {
@@ -629,13 +637,21 @@ export default function DynamicTableView({
     if (!previousPeriod.records || recordsPlaceholder) {
       return undefined;
     }
-    return previousReportRecords(previousPeriod.records, adsEntityLevel, {
-      searching: !!debouncedCampaignSearch.trim(),
-      shown: filteredRecords,
-    });
+    return previousReportRecords(
+      filterRecordsByCampaign(
+        previousPeriod.records,
+        adsCampaignFilter.campaignKey,
+      ),
+      adsEntityLevel,
+      {
+        searching: !!debouncedCampaignSearch.trim(),
+        shown: filteredRecords,
+      },
+    );
   }, [
     previousPeriod.records,
     recordsPlaceholder,
+    adsCampaignFilter.campaignKey,
     adsEntityLevel,
     debouncedCampaignSearch,
     filteredRecords,
@@ -1981,7 +1997,10 @@ export default function DynamicTableView({
     return (
       <div className="container mx-auto py-8 px-4">
         <CarmenLoadingScreen
-          messages={["כרמן פותחת את הטבלה…", "טוענת את השדות והנתונים…"]}
+          messages={[
+            "{name} {פותחת|פותח} את הטבלה…",
+            "{טוענת|טוען} את השדות והנתונים…",
+          ]}
         />
       </div>
     );
@@ -3210,6 +3229,7 @@ export default function DynamicTableView({
               <AdsEntityLevelTabs
                 value={adsEntityLevel}
                 onChange={setAdsEntityLevel}
+                campaignFilter={adsCampaignFilter.control}
               />
             </div>
           )}
@@ -3296,7 +3316,10 @@ export default function DynamicTableView({
         ) ? null : isLoading ? (
           <CarmenLoadingScreen
             variant="card"
-            messages={["כרמן מושכת את נתוני הטבלה…", "מחשבת את התקופה הנבחרת…"]}
+            messages={[
+              "{name} {מושכת|מושך} את נתוני הטבלה…",
+              "{מחשבת|מחשב} את התקופה הנבחרת…",
+            ]}
           />
         ) : (
           <div className="border rounded-lg overflow-hidden bg-background shadow-sm">
@@ -3566,7 +3589,7 @@ export default function DynamicTableView({
                       {recordsFetching ? (
                         <CarmenLoadingScreen
                           variant="inline"
-                          messages={["כרמן מרעננת את הנתונים…"]}
+                          messages={["{name} {מרעננת|מרענן} את הנתונים…"]}
                         />
                       ) : campaignSearch ? (
                         <p className="text-muted-foreground mb-3">

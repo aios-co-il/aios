@@ -1559,7 +1559,10 @@ export default function DashboardView() {
     return (
       <div className="container mx-auto max-w-full overflow-x-hidden py-4 px-3 sm:py-8 sm:px-4">
         <CarmenLoadingScreen
-          messages={["כרמן מרכיבה את הדשבורד…", "מושכת את נתוני הפלטפורמות…"]}
+          messages={[
+            "{name} {מרכיבה|מרכיב} את הדשבורד…",
+            "{מושכת|מושך} את נתוני הפלטפורמות…",
+          ]}
         />
       </div>
     );
@@ -1838,8 +1841,8 @@ export default function DashboardView() {
             <CarmenLoadingScreen
               variant="card"
               messages={[
-                "כרמן מושכת את נתוני הדוח…",
-                "מסכמת לפי טווח התאריכים…",
+                "{name} {מושכת|מושך} את נתוני הדוח…",
+                "{מסכמת|מסכם} לפי טווח התאריכים…",
               ]}
             />
           ) : tables.length === 0 ? (

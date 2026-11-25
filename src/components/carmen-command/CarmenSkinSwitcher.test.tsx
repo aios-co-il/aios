@@ -145,7 +145,7 @@ test("in the Mini Me style the Zoom window shows the Mini Me", () => {
   const { container } = render(<Session />);
   expect(container.querySelector(".carmen-session-character")).toBeNull();
   expect(container.querySelector(".orb-buddy")).toBeNull();
-  expect(container.querySelector("svg.mini-me")).not.toBeNull();
+  expect(container.querySelector(".mini-me")).not.toBeNull();
 });
 
 test("by default the Zoom window shows the humanised orb in the skin's color", () => {
