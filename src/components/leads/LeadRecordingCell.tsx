@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useStartRecordingProcessing } from "@/hooks/useStartRecordingProcessing";
 import type { LeadRecordingItem } from "@/lib/leadRecordings";
 import { MANUAL_RECORDING_TOPIC } from "../../../supabase/functions/_shared/manual-recording-topic.ts";
 
@@ -20,11 +21,18 @@ export function LeadRecordingCell({
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  const startProcessingUploads = useStartRecordingProcessing(() =>
+    queryClient.invalidateQueries({
+      queryKey: ["lead-call-recordings", tenantId],
+    }),
+  );
+
   const upload = useMutation({
     mutationFn: async (files: Array<File>) => {
       if (!tenantId) {
         throw new Error("חסר ארגון");
       }
+      const uploadedIds: Array<string> = [];
       for (const [index, file] of files.entries()) {
         const ext = file.name.split(".").pop() || "bin";
         const filePath = `${tenantId}/${leadId}/${Date.now()}-${index}.${ext}`;
@@ -36,29 +44,36 @@ export function LeadRecordingCell({
         }
         const topic =
           file.name.replace(/\.[^.]+$/, "") || MANUAL_RECORDING_TOPIC;
-        const { error } = await supabase.from("zoom_recordings").insert({
-          tenant_id: tenantId,
-          lead_id: leadId,
-          agency_id: agencyId || null,
-          meeting_topic: topic,
-          start_time: new Date().toISOString(),
-          source: "manual",
-          file_path: filePath,
-          meeting_id: `manual_${leadId}_${Date.now()}_${index}`,
-          recording_type: file.type.startsWith("audio/")
-            ? "audio_only"
-            : "manual",
-        });
+        const { data, error } = await supabase
+          .from("zoom_recordings")
+          .insert({
+            tenant_id: tenantId,
+            lead_id: leadId,
+            agency_id: agencyId || null,
+            meeting_topic: topic,
+            start_time: new Date().toISOString(),
+            source: "manual",
+            file_path: filePath,
+            meeting_id: `manual_${leadId}_${Date.now()}_${index}`,
+            recording_type: file.type.startsWith("audio/")
+              ? "audio_only"
+              : "manual",
+          })
+          .select("id")
+          .single();
         if (error) {
           throw error;
         }
+        uploadedIds.push(data.id);
       }
+      return uploadedIds;
     },
-    onSuccess: () => {
+    onSuccess: async (uploadedIds) => {
       queryClient.invalidateQueries({
         queryKey: ["lead-call-recordings", tenantId],
       });
       toast({ title: "ההקלטה הועלתה" });
+      await startProcessingUploads(uploadedIds);
     },
     onError: (error: Error) => {
       toast({
