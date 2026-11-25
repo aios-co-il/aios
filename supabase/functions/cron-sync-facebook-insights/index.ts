@@ -32,6 +32,7 @@ import {
   saveSyncRun,
 } from "../_shared/ads-sync/save-run.ts";
 import { syncAdsWindow } from "../_shared/ads-sync/write-window.ts";
+import { startBatchBudget } from "../_shared/ads-sync/batch-budget.ts";
 import { runCatchup } from "./catchup.ts";
 
 const SOURCE = "cron-sync-facebook-insights";
@@ -41,8 +42,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
-
-const BATCH_SIZE = 4;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -64,6 +63,7 @@ Deno.serve(async (req) => {
     }
     const batchOffset = body.batch_offset || 0;
     const tableIds: Array<string> | null = body.table_ids || null;
+    const budget = startBatchBudget(batchOffset);
 
     // Get Facebook Insights tables
     let query = supabase
@@ -85,24 +85,20 @@ Deno.serve(async (req) => {
       throw tablesError;
     }
 
-    // Slice for current batch
-    const tables = (allTables || []).slice(
-      batchOffset,
-      batchOffset + BATCH_SIZE,
-    );
-    const hasMore = (allTables || []).length > batchOffset + BATCH_SIZE;
-
     const results = {
       total: (allTables || []).length,
       batch_offset: batchOffset,
-      batch_size: tables.length,
-      has_more: hasMore,
+      batch_size: 0,
+      has_more: false,
       synced: 0,
       failed: 0,
       errors: [] as Array<string>,
     };
 
-    for (const table of tables || []) {
+    for (const table of (allTables || []).slice(batchOffset)) {
+      if (!budget.take()) {
+        break;
+      }
       const run = { tableId: table.id, tenantId: table.tenant_id };
       // True once this table's run was recorded, so the catch below does not overwrite it.
       let runRecorded = false;
@@ -860,9 +856,18 @@ Deno.serve(async (req) => {
       }
     }
 
+    const nextOffset = budget.nextOffset(results.total);
+    results.batch_size = budget.taken;
+    results.has_more = nextOffset !== null;
+    if (nextOffset !== null && tableIds) {
+      // A table_ids call never chains, so say which tables this run skipped.
+      console.error(
+        `[${SOURCE}] time budget spent; table_ids from offset ${nextOffset} not synced`,
+      );
+    }
+
     // Auto-invoke next batch if there are more tables
-    if (hasMore && !tableIds) {
-      const nextOffset = batchOffset + BATCH_SIZE;
+    if (nextOffset !== null && !tableIds) {
       console.log(`🔄 Triggering next batch at offset ${nextOffset}...`);
       await kickNextBatch(supabase, "cron-sync-facebook-insights", {
         batch_offset: nextOffset,
