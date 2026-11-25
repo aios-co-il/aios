@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useForm } from "react-hook-form";
 import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -571,10 +572,10 @@ export function EditAutomationDialog({
                     variant="outline"
                     size="icon"
                     onClick={() => {
-                      navigator.clipboard.writeText(
+                      void copyToClipboard(
                         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webhook-task-intake`,
+                        "הועתק!",
                       );
-                      toast.success("הועתק!");
                     }}
                   >
                     <Copy className="h-4 w-4" />
@@ -610,10 +611,10 @@ export function EditAutomationDialog({
                       variant="outline"
                       size="icon"
                       onClick={() => {
-                        navigator.clipboard.writeText(
+                        void copyToClipboard(
                           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webhook-maskyoo-intake?tenant_id=${automation.tenant_id || ""}`,
+                          "הועתק!",
                         );
-                        toast.success("הועתק!");
                       }}
                     >
                       <Copy className="h-4 w-4" />

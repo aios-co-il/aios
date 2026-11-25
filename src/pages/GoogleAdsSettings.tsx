@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -533,10 +534,8 @@ export default function GoogleAdsSettings() {
     },
   });
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success(`${label} הועתק ללוח`);
-  };
+  const copyLabelled = (text: string, label: string) =>
+    void copyToClipboard(text, `${label} הועתק ללוח`);
 
   const isConnected = isGoogleIntegrationConnected(googleAdsIntegration);
   const isMakeConfigured = makeIntegration?.is_active;
@@ -891,7 +890,7 @@ export default function GoogleAdsSettings() {
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => copyToClipboard(webhookUrl, "Webhook URL")}
+                      onClick={() => copyLabelled(webhookUrl, "Webhook URL")}
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
@@ -911,7 +910,7 @@ export default function GoogleAdsSettings() {
                       variant="outline"
                       size="icon"
                       onClick={() =>
-                        copyToClipboard(webhookSecret, "Webhook Secret")
+                        copyLabelled(webhookSecret, "Webhook Secret")
                       }
                     >
                       <Copy className="h-4 w-4" />

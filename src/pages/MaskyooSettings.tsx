@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -220,8 +221,7 @@ export default function MaskyooSettings() {
                   variant="outline"
                   size="icon"
                   onClick={() => {
-                    navigator.clipboard.writeText(webhookUrl);
-                    toast.success("הועתק");
+                    void copyToClipboard(webhookUrl, "הועתק");
                   }}
                 >
                   <Copy className="h-4 w-4" />

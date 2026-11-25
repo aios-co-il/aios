@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useEffect, useRef, useState, useMemo } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
@@ -25,7 +26,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { ConvertMessageToTaskDialog } from "./ConvertMessageToTaskDialog";
-import { toast } from "sonner";
 
 interface Message {
   id: string;
@@ -121,8 +121,7 @@ export default function ChatMessageList({
   }, [messages, contactType]);
 
   const handleCopyMessage = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success("הועתק ללוח");
+    void copyToClipboard(text);
   };
 
   const handleConvertToTask = (message: Message) => {

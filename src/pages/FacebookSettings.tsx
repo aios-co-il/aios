@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -429,10 +430,7 @@ export default function FacebookSettings() {
     },
   });
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success("הועתק ללוח");
-  };
+  const copyWebhookUrl = (text: string) => void copyToClipboard(text);
 
   const leadAdsSettings = leadAdsIntegration?.settings as any;
   const pages = leadAdsSettings?.pages || [];
@@ -783,7 +781,7 @@ export default function FacebookSettings() {
                       <Button
                         variant="outline"
                         size="icon"
-                        onClick={() => copyToClipboard(webhookUrl)}
+                        onClick={() => copyWebhookUrl(webhookUrl)}
                       >
                         <Copy className="h-4 w-4" />
                       </Button>

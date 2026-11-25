@@ -1,10 +1,10 @@
-import { Building2, Globe } from "lucide-react";
+import { Building2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { ClientAvatar } from "@/components/clients/ClientAvatar";
 import { ClientTeamPills } from "@/components/clients/ClientChips";
 import { ContactValue } from "@/components/contact/ContactValue";
-import { Empty, LinkCell, RowActions } from "./ClientsTableCells";
+import { Empty, RowActions, WebsiteCell } from "./ClientsTableCells";
 import { CampaignerAssignmentPicker } from "@/components/clients/CampaignerAssignmentPicker";
 import { cn } from "@/lib/utils";
 import { assignedCampaignerIds, type ClientRow } from "./clientRow";
@@ -122,9 +122,7 @@ export function ClientsTableRow({
         )}
       </TableCell>
       <TableCell className="py-3">
-        <LinkCell icon={Globe} href={client.website} external>
-          קישור
-        </LinkCell>
+        <WebsiteCell website={client.website} />
       </TableCell>
       <TableCell className="py-3">
         <div className="min-w-[200px]">

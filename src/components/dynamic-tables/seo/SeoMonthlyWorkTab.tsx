@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -677,11 +678,13 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
       }
       const token = await upsertShare();
       const url = `${SHARE_ORIGIN}/shared/seo-monthly/${token}`;
-      await navigator.clipboard.writeText(url);
       queryClient.invalidateQueries({
         queryKey: ["seo-monthly-share", clientId, selectedMonth],
       });
-      toast.success("קישור השיתוף הועתק — נפתח תמיד עם העדכונים האחרונים");
+      await copyToClipboard(
+        url,
+        "קישור השיתוף הועתק — נפתח תמיד עם העדכונים האחרונים",
+      );
     } catch (err: any) {
       const msg = String(err?.message || "");
       if (

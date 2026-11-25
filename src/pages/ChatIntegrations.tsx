@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
@@ -770,8 +771,10 @@ export default function ChatIntegrations() {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            navigator.clipboard.writeText(group.invite_link);
-                            toast.success("קישור הקבוצה הועתק");
+                            void copyToClipboard(
+                              group.invite_link,
+                              "קישור הקבוצה הועתק",
+                            );
                           }}
                         >
                           <Link2 className="h-3 w-3 shrink-0" />
