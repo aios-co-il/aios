@@ -135,6 +135,8 @@ import { ReportHeader } from "@/components/reports/ReportHeader/ReportHeader";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
 import { ReportDataTrust } from "@/components/reports/ReportDataTrust";
 import { AdsEntityLevelTabs } from "@/components/reports/AdsEntityLevelTabs";
+import { filterRecordsByCampaign } from "@/components/reports/AdsCampaignFilter/adsCampaignFilter";
+import { useAdsCampaignFilter } from "@/components/reports/AdsCampaignFilter/useAdsCampaignFilter";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
 import { AdsGoalTables } from "@/components/reports/AdsGoalTables/AdsGoalTables";
 import { weeklySourceModesForTable } from "@/lib/weeklyCampaignGoals";
@@ -590,12 +592,17 @@ export default function DynamicTableView({
       enabled: !!table?.id && isAdsReportTable && adsReportView === "weekly",
     });
 
-  const entityLevelRecords = useMemo(() => {
+  const allEntityLevelRecords = useMemo(() => {
     if (!isAdsReportTable) {
       return displayRecords;
     }
     return filterRecordsByEntityLevel(displayRecords, adsEntityLevel);
   }, [displayRecords, adsEntityLevel, isAdsReportTable]);
+  const adsCampaignFilter = useAdsCampaignFilter(
+    allEntityLevelRecords,
+    adsEntityLevel,
+  );
+  const entityLevelRecords = adsCampaignFilter.records;
 
   // Filter records by entity search (campaign / ad set / ad name)
   const filteredRecords = useMemo(() => {
@@ -629,13 +636,21 @@ export default function DynamicTableView({
     if (!previousPeriod.records || recordsPlaceholder) {
       return undefined;
     }
-    return previousReportRecords(previousPeriod.records, adsEntityLevel, {
-      searching: !!debouncedCampaignSearch.trim(),
-      shown: filteredRecords,
-    });
+    return previousReportRecords(
+      filterRecordsByCampaign(
+        previousPeriod.records,
+        adsCampaignFilter.campaignKey,
+      ),
+      adsEntityLevel,
+      {
+        searching: !!debouncedCampaignSearch.trim(),
+        shown: filteredRecords,
+      },
+    );
   }, [
     previousPeriod.records,
     recordsPlaceholder,
+    adsCampaignFilter.campaignKey,
     adsEntityLevel,
     debouncedCampaignSearch,
     filteredRecords,
@@ -3210,6 +3225,7 @@ export default function DynamicTableView({
               <AdsEntityLevelTabs
                 value={adsEntityLevel}
                 onChange={setAdsEntityLevel}
+                campaignFilter={adsCampaignFilter.control}
               />
             </div>
           )}
