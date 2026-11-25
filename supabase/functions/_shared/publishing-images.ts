@@ -116,3 +116,39 @@ export function resolveArticleImageFields<
     ),
   };
 }
+
+/** The supabase.co origin of a stored publishing-image proxy URL (any project ref). */
+const STORED_PROXY_ORIGIN =
+  /^https:\/\/[a-z0-9]{20}\.supabase\.co(?=\/functions\/v1\/publishing-image(?:[?#]|$))/;
+
+/**
+ * Serves a stored proxy URL from the public API address (AIO-647).
+ * Articles saved before PUBLIC_API_URL kept the supabase.co address, which
+ * changes when the project moves region. Other URLs, and any URL when
+ * `publicBase` is empty, come back unchanged.
+ */
+export function proxyUrlOnPublicApi(
+  value: string | null,
+  publicBase: string,
+): string | null {
+  const base = publicBase.replace(/\/+$/, "");
+  if (!value || !base) {
+    return value;
+  }
+
+  return value.replace(STORED_PROXY_ORIGIN, base);
+}
+
+/** Applies proxyUrlOnPublicApi to an article's hero and inline image URLs. */
+export function articleImagesOnPublicApi<
+  T extends {
+    hero_image_url: string | null;
+    inline_image_url: string | null;
+  },
+>(article: T, publicBase: string): T {
+  return {
+    ...article,
+    hero_image_url: proxyUrlOnPublicApi(article.hero_image_url, publicBase),
+    inline_image_url: proxyUrlOnPublicApi(article.inline_image_url, publicBase),
+  };
+}
