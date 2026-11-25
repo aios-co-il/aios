@@ -15,6 +15,10 @@ import {
 import { toPublicTableSettings } from "../_shared/share-links/public-table-settings.ts";
 import { parseRequestRange } from "../_shared/share-links/request-range.ts";
 import { toPublicCachedShareBody } from "./cached-share-body.ts";
+import {
+  shareTableAdAccountLinks,
+  supabaseShareAdAccountReads,
+} from "./share-ad-account-links.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -77,6 +81,11 @@ function getDateRange(filter: string): {
       // Match Facebook's "Last 7 days": 7 full days ending yesterday.
       return {
         startDate: fmt(subDays(today, 7)),
+        endDate: fmt(subDays(today, 1)),
+      };
+    case "last_9_days":
+      return {
+        startDate: fmt(subDays(today, 9)),
         endDate: fmt(subDays(today, 1)),
       };
     case "last_14_days":
@@ -1038,6 +1047,11 @@ Deno.serve(async (req) => {
         });
       }
 
+      const adAccountLinks = await shareTableAdAccountLinks(
+        table,
+        supabaseShareAdAccountReads(supabase),
+      );
+
       const seoPayload = {
         table: {
           id: table.id,
@@ -1083,6 +1097,7 @@ Deno.serve(async (req) => {
           force_relevant: seoForceRelevant,
           force_irrelevant: seoForceIrrelevant,
         },
+        ad_account_links: adAccountLinks,
         has_email_restriction: false,
       };
 
@@ -1101,6 +1116,12 @@ Deno.serve(async (req) => {
 
     // The window parsed above — presets mirror internal DynamicTableView logic.
     const { startDate, endDate } = requestRange.window;
+
+    // Read beside the records; it never rejects (a failure shows no button).
+    const adAccountLinksPromise = shareTableAdAccountLinks(
+      table,
+      supabaseShareAdAccountReads(supabase),
+    );
 
     // Fetch records WITH PAGINATION (bypass 1000-row default limit)
     const allRecords: Array<any> = [];
@@ -1158,6 +1179,7 @@ Deno.serve(async (req) => {
         },
         fields: fields || [],
         records: filteredRecords,
+        ad_account_links: await adAccountLinksPromise,
         has_email_restriction: false,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },

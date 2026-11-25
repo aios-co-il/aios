@@ -103,8 +103,10 @@ function RangeRefusedReport({
   return (
     <div className="min-h-screen bg-background" dir="rtl">
       <div className="w-full max-w-7xl mx-auto p-4 md:p-6 space-y-6">
+        {/* Only the last table is kept, so the account buttons wait for an answer. */}
         <SharedReportHeader
           table={table}
+          adAccountLinks={undefined}
           dates={dates}
           views={null}
           comparison={null}

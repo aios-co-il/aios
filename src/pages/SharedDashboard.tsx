@@ -1165,6 +1165,7 @@ export default function SharedDashboard({
       <SharedDashboardHeader
         shareToken={shareToken}
         dashboard={dashboard}
+        adAccountLinks={data.ad_account_links}
         tabItems={platformTabItems}
         tab={platformFilter}
         onTabChange={(v) => setPlatformFilter(v as DashboardPlatformFilter)}

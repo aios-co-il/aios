@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
+import type { AdAccountShortcut } from "@/lib/adAccountUrl";
 import { showsPreviousToggle } from "@/components/report-ui/dashboard/previousPlatformTabs";
 import { PreviousPeriodToggle } from "@/components/reports/PreviousPeriod/PreviousPeriodToggle";
+import { AdAccountButtons } from "@/components/reports/ReportHeader/AdAccountButtons";
 import {
   type DashboardDateRange,
   DashboardDateControls,
@@ -19,6 +21,8 @@ import type { SharedPrevious } from "./useSharedPreviousPeriod";
 type SharedDashboardHeaderProps = {
   shareToken: string | undefined;
   dashboard: { name: string; client_name?: string; agency_name?: string };
+  /** The "open ad account" buttons, built by public-dashboard. */
+  adAccountLinks: Array<AdAccountShortcut> | undefined;
   tabItems: Array<ResponsiveTabItem>;
   tab: string;
   onTabChange: (tab: string) => void;
@@ -35,13 +39,15 @@ type SharedDashboardHeaderProps = {
 
 /**
  * The shared dashboard's two thin rows, as on the signed-in dashboard: the
- * title with the client and agency and a refresh button, then the platform
- * tabs with the same dates, custom range included, and the previous-period
- * button. No sync status: the client does not see sync failures (David).
+ * title with the client and agency, the ad account buttons and a refresh
+ * button, then the platform tabs with the same dates, custom range included,
+ * and the previous-period button. No sync status: the client does not see
+ * sync failures (David).
  */
 export function SharedDashboardHeader({
   shareToken,
   dashboard,
+  adAccountLinks,
   tabItems,
   tab,
   onTabChange,
@@ -61,7 +67,14 @@ export function SharedDashboardHeader({
     <ReportHeader
       title={dashboard.name}
       meta={meta && <span>{meta}</span>}
-      actions={!snapshotMode && <RefreshButton shareToken={shareToken} />}
+      actions={
+        !snapshotMode && (
+          <>
+            <AdAccountButtons links={adAccountLinks} />
+            <RefreshButton shareToken={shareToken} />
+          </>
+        )
+      }
       tabs={
         tabItems.length > 1 && (
           <Tabs value={tab} onValueChange={onTabChange}>
