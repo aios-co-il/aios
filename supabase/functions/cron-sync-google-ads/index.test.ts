@@ -1,5 +1,6 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { FakeTime } from "jsr:@std/testing@1/time";
+import { HISTORY_BACKFILL_KEY } from "../_shared/ads-sync/history-backfill.ts";
 import { fakeSupabaseHttp } from "../_shared/testing/fake-supabase-http.ts";
 import {
   servedHandler,
@@ -161,7 +162,7 @@ Deno.test({
       "a marker adds its window, flagged to clear it, before the refresh",
       async () => {
         const bodies = await scheduledSyncBodies({
-          history_backfill: { start: "2026-06-30", end: "2026-07-17" },
+          [HISTORY_BACKFILL_KEY]: { start: "2026-06-30", end: "2026-07-17" },
         });
 
         assertEquals(bodies, [
@@ -189,7 +190,9 @@ Deno.test({
       async () => {
         let refreshCalls = 0;
         const bodies = await scheduledSyncBodies(
-          { history_backfill: { start: "2026-06-30", end: "2026-07-17" } },
+          {
+            [HISTORY_BACKFILL_KEY]: { start: "2026-06-30", end: "2026-07-17" },
+          },
           (body) => {
             const isRefresh =
               (body as { start_date?: string }).start_date === "2026-11-25";
@@ -213,7 +216,9 @@ Deno.test({
     await t.step(
       "without a marker the run syncs the refresh only",
       async () => {
-        const bodies = await scheduledSyncBodies({ history_backfill: null });
+        const bodies = await scheduledSyncBodies({
+          [HISTORY_BACKFILL_KEY]: null,
+        });
 
         assertEquals(
           bodies.map((body) => (body as { start_date: string }).start_date),

@@ -2,6 +2,7 @@ import { assertEquals } from "jsr:@std/assert@1";
 import { describe, it } from "jsr:@std/testing@1/bdd";
 
 import {
+  HISTORY_BACKFILL_KEY,
   historyBackfillPatch,
   planHistoryBackfill,
   requestedHistoryBackfillPatch,
@@ -9,7 +10,9 @@ import {
 
 const TODAY = "2026-11-25";
 const NO_CATCHUP = { catchup: null, today: TODAY };
-const MARKER = { history_backfill: { start: "2026-06-30", end: "2026-07-17" } };
+const MARKER = {
+  [HISTORY_BACKFILL_KEY]: { start: "2026-06-30", end: "2026-07-17" },
+};
 
 describe("planHistoryBackfill", () => {
   it("returns the marker's window when the run has no catch-up slice", () => {
@@ -29,7 +32,7 @@ describe("planHistoryBackfill", () => {
     assertEquals(planHistoryBackfill({}, NO_CATCHUP), null);
     assertEquals(planHistoryBackfill(null, NO_CATCHUP), null);
     assertEquals(
-      planHistoryBackfill({ history_backfill: null }, NO_CATCHUP),
+      planHistoryBackfill({ [HISTORY_BACKFILL_KEY]: null }, NO_CATCHUP),
       null,
     );
   });
@@ -43,15 +46,18 @@ describe("planHistoryBackfill", () => {
       { start: "2026-06-01", end: "2026-07-17" },
     ];
 
-    for (const history_backfill of markers) {
-      assertEquals(planHistoryBackfill({ history_backfill }, NO_CATCHUP), null);
+    for (const marker of markers) {
+      assertEquals(
+        planHistoryBackfill({ [HISTORY_BACKFILL_KEY]: marker }, NO_CATCHUP),
+        null,
+      );
     }
   });
 });
 
 describe("historyBackfillPatch", () => {
   it("clears the marker after a clean write, including a confirmed empty window", () => {
-    assertEquals(historyBackfillPatch("ok"), { history_backfill: null });
+    assertEquals(historyBackfillPatch("ok"), { [HISTORY_BACKFILL_KEY]: null });
   });
 
   it("keeps the marker when a level failed, the write failed or came back empty", () => {
@@ -68,7 +74,7 @@ describe("requestedHistoryBackfillPatch", () => {
         historyBackfill: true,
         trusted: true,
       }),
-      { history_backfill: null },
+      { [HISTORY_BACKFILL_KEY]: null },
     );
     assertEquals(
       requestedHistoryBackfillPatch("failed", {

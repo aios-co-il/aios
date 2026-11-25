@@ -4,6 +4,7 @@ import {
   buildSyncOutcome,
   type SyncOutcomeStatus,
 } from "../_shared/ads-sync/outcome.ts";
+import { HISTORY_BACKFILL_KEY } from "../_shared/ads-sync/history-backfill.ts";
 import { runCatchup, runHistoryBackfill } from "./catchup.ts";
 
 const WINDOW = { startDate: "2026-09-01", endDate: "2026-09-30" };
@@ -35,7 +36,9 @@ Deno.test(
 
 const TODAY = "2026-11-25";
 const BACKFILL = { startDate: "2026-06-30", endDate: "2026-07-17" };
-const MARKER = { history_backfill: { start: "2026-06-30", end: "2026-07-17" } };
+const MARKER = {
+  [HISTORY_BACKFILL_KEY]: { start: "2026-06-30", end: "2026-07-17" },
+};
 const NO_CATCHUP = { catchup: null, today: TODAY };
 
 /** A writeWindow that records the windows it was asked for. */
@@ -56,7 +59,7 @@ Deno.test(
     assertEquals(await runHistoryBackfill(writeWindow, MARKER, NO_CATCHUP), {
       status: "ok",
       error: null,
-      settingsPatch: { history_backfill: null },
+      settingsPatch: { [HISTORY_BACKFILL_KEY]: null },
     });
     assertEquals(windows, [BACKFILL]);
   },
