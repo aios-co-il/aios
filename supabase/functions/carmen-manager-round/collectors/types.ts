@@ -64,7 +64,7 @@ export type CollectorContext = {
   watermark: Json | null;
   budget: RoundBudget;
   /** Restrict to these clients (a manual run for one client), or null for all. */
-  clientIds: string[] | null;
+  clientIds: Array<string> | null;
   /** Service-role client: every query must filter by tenantId. */
   db: DbClient;
   /** Request fixtures (non-production only); null in every scheduled run. */
@@ -83,7 +83,7 @@ export type FindingResolution = {
 };
 
 export type CollectorResult = {
-  candidates: FindingCandidate[];
+  candidates: Array<FindingCandidate>;
   watermark: Json | null;
   /**
    * What the run fully checked, for auto-clear: complete=false (budget ran
@@ -93,11 +93,11 @@ export type CollectorResult = {
    */
   coverage: {
     complete: boolean;
-    clientIds: string[] | null;
-    kinds?: readonly FindingKind[];
+    clientIds: Array<string> | null;
+    kinds?: ReadonlyArray<FindingKind>;
   };
   /** Findings to close now (e.g. a client wait staff answered), whatever `coverage` says. */
-  resolved?: FindingResolution[];
+  resolved?: Array<FindingResolution>;
   /** LLM use of this run, summed into the round's heartbeat_logs row. */
   llm?: { calls: number; costUsd: number };
   /** Why the run read less than it could (e.g. no monitored line), shown in its report. */
@@ -114,7 +114,7 @@ export type Collector = {
   /** Stable key in carmen_round_state.collector. */
   id: string;
   /** Kinds it may emit; also the scope of its auto-clear and its notify floor. */
-  kinds: readonly FindingKind[];
+  kinds: ReadonlyArray<FindingKind>;
   detectorVersion: string;
   schedule: CollectorSchedule;
   /** Runs without the fixture the request names are skipped (the self-test collector). */

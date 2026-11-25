@@ -18,9 +18,9 @@ export type LinePhone = { tenantId: string; phone: string };
 /** The numbers of the tenants' Manus and Green API lines, each with its tenant. */
 export async function linePhones(
   db: DbClient,
-  tenantIds: string[],
+  tenantIds: Array<string>,
   since: Date,
-): Promise<LinePhone[]> {
+): Promise<Array<LinePhone>> {
   const { data, error } = await db
     .from("tenant_integrations")
     .select("tenant_id, user_id, integration_type, settings")

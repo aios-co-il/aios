@@ -1,3 +1,5 @@
+// First: frees localStorage before the Supabase client (imported below) saves a session.
+import "./clearStaleScreenshots.ts";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import { preserveLegalPrerender } from "./pages/legal/preserveLegalPrerender";
@@ -12,7 +14,9 @@ const MAIN_CHUNK_RELOAD_KEY = "aios-main-chunk-reload";
 
 function reloadOnceForStaleChunk(): boolean {
   try {
-    if (sessionStorage.getItem(MAIN_CHUNK_RELOAD_KEY) === "1") return false;
+    if (sessionStorage.getItem(MAIN_CHUNK_RELOAD_KEY) === "1") {
+      return false;
+    }
     sessionStorage.setItem(MAIN_CHUNK_RELOAD_KEY, "1");
   } catch {
     // If storage is blocked, still attempt a single reload best-effort.
@@ -63,7 +67,9 @@ window.addEventListener("vite:preloadError", (event) => {
   // Swallow the error only while a reload is on its way. Otherwise the lazy
   // route gets `undefined` and crashes with "reading 'default'", hiding the
   // file that failed to load.
-  if (reloadOnceForStaleChunk()) event.preventDefault();
+  if (reloadOnceForStaleChunk()) {
+    event.preventDefault();
+  }
 });
 
 window.addEventListener("unhandledrejection", (event) => {

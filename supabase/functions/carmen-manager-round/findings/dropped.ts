@@ -18,10 +18,10 @@ const LOGGED_CANDIDATES = 20;
 /** Counts the candidates the upsert did not store and logs the unexpected ones. */
 export function reportDropped(
   source: { tenantId: string; collector: string },
-  outcomes: UpsertOutcome[],
+  outcomes: Array<UpsertOutcome>,
 ): DroppedCounts {
   const counts: DroppedCounts = {};
-  const unexpected: UpsertOutcome[] = [];
+  const unexpected: Array<UpsertOutcome> = [];
   for (const entry of outcomes) {
     const drop = UPSERT_DROPPED.find((outcome) => outcome === entry.outcome);
     if (!drop) {

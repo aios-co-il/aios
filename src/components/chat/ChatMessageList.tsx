@@ -40,7 +40,7 @@ interface Message {
 }
 
 interface ChatMessageListProps {
-  messages: Message[];
+  messages: Array<Message>;
   isLoading: boolean;
   contactId?: string;
   contactType?: "client" | "lead" | "group" | "unknown" | "telegram";
@@ -141,7 +141,9 @@ export default function ChatMessageList({
 
   // Scroll to anchor message or bottom - only on initial load or contact change
   useEffect(() => {
-    if (!messages.length) return;
+    if (!messages.length) {
+      return;
+    }
 
     const isContactChange = lastMessageCount.current === 0;
     const isNewMessages = messages.length > lastMessageCount.current;
@@ -216,8 +218,9 @@ export default function ChatMessageList({
       messageData?.extendedTextMessageData?.quotedMessage;
 
     // If no quoted message structure, check if we have a quotedMessage type with main text
-    if (!quotedMessage && messageData?.typeMessage !== "quotedMessage")
+    if (!quotedMessage && messageData?.typeMessage !== "quotedMessage") {
       return null;
+    }
 
     // Get the MAIN message text (what the user typed as a reply)
     const mainMessageText =
@@ -241,10 +244,15 @@ export default function ChatMessageList({
     const hasDocument = quotedMessage?.typeMessage === "documentMessage";
 
     let mediaIndicator = null;
-    if (hasImage) mediaIndicator = "📷 תמונה";
-    else if (hasVideo) mediaIndicator = "🎬 סרטון";
-    else if (hasAudio) mediaIndicator = "🎤 הודעה קולית";
-    else if (hasDocument) mediaIndicator = "📄 מסמך";
+    if (hasImage) {
+      mediaIndicator = "📷 תמונה";
+    } else if (hasVideo) {
+      mediaIndicator = "🎬 סרטון";
+    } else if (hasAudio) {
+      mediaIndicator = "🎤 הודעה קולית";
+    } else if (hasDocument) {
+      mediaIndicator = "📄 מסמך";
+    }
 
     // Format participant for display - remove @c.us and show just the number
     const participant = quotedMessage?.participant;
@@ -273,11 +281,15 @@ export default function ChatMessageList({
     const messageData = message.raw_provider_data?.messageData;
 
     // Check if this is a reaction message
-    if (messageData?.typeMessage !== "reactionMessage") return null;
+    if (messageData?.typeMessage !== "reactionMessage") {
+      return null;
+    }
 
     // Get the emoji from extendedTextMessageData.text
     const reactionText = messageData?.extendedTextMessageData?.text;
-    if (!reactionText) return null;
+    if (!reactionText) {
+      return null;
+    }
 
     // Get stanzaId to find the original message
     const quotedMessage = messageData?.quotedMessage;
@@ -305,10 +317,15 @@ export default function ChatMessageList({
     const hasDocument = quotedMessage?.typeMessage === "documentMessage";
 
     let mediaIndicator = null;
-    if (hasImage) mediaIndicator = "📷 תמונה";
-    else if (hasVideo) mediaIndicator = "🎬 סרטון";
-    else if (hasAudio) mediaIndicator = "🎤 הודעה קולית";
-    else if (hasDocument) mediaIndicator = "📄 מסמך";
+    if (hasImage) {
+      mediaIndicator = "📷 תמונה";
+    } else if (hasVideo) {
+      mediaIndicator = "🎬 סרטון";
+    } else if (hasAudio) {
+      mediaIndicator = "🎤 הודעה קולית";
+    } else if (hasDocument) {
+      mediaIndicator = "📄 מסמך";
+    }
 
     const displayText = quotedText || mediaIndicator;
 
@@ -331,12 +348,16 @@ export default function ChatMessageList({
   };
 
   const getMediaContent = (message: Message) => {
-    if (!message.raw_provider_data?.messageData) return null;
+    if (!message.raw_provider_data?.messageData) {
+      return null;
+    }
 
     const messageData = message.raw_provider_data.messageData;
     const fileData = messageData.fileMessageData;
 
-    if (!fileData?.downloadUrl) return null;
+    if (!fileData?.downloadUrl) {
+      return null;
+    }
 
     const messageType = messageData.typeMessage;
 
@@ -436,7 +457,9 @@ export default function ChatMessageList({
   // is not necessarily a message that reached the recipient.
   const getDeliveryIndicator = (message: Message) => {
     const status = message.raw_provider_data?.delivery_status;
-    if (!status) return null;
+    if (!status) {
+      return null;
+    }
     if (status === "failed") {
       const reason =
         message.raw_provider_data?.delivery_error?.error_data?.details ||
@@ -453,14 +476,16 @@ export default function ChatMessageList({
         </span>
       );
     }
-    if (status === "read")
+    if (status === "read") {
       return (
         <CheckCheck className="h-3.5 w-3.5 text-sky-500" aria-label="נקראה" />
       );
-    if (status === "delivered")
+    }
+    if (status === "delivered") {
       return (
         <CheckCheck className="h-3.5 w-3.5 text-gray-500" aria-label="נמסרה" />
       );
+    }
     return <Check className="h-3.5 w-3.5 text-gray-500" aria-label="נשלחה" />;
   };
 

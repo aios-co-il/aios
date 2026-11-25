@@ -28,19 +28,19 @@ import type {
 } from "./types.ts";
 
 export type CompareResult = {
-  findings: ReconcileFinding[];
+  findings: Array<ReconcileFinding>;
   counts: Record<FindingKind, number>;
   totals: CompareTotals;
   campaigns: { aios: number; platform: number; both: number };
-  missing_dates: string[];
+  missing_dates: Array<string>;
 };
 
 type CompareInput = {
   table: ReconcileTable;
   platform: ReconcilePlatform;
-  aiosRows: CampaignDayRow[];
-  platformRows: CampaignDayRow[];
-  dates: string[];
+  aiosRows: Array<CampaignDayRow>;
+  platformRows: Array<CampaignDayRow>;
+  dates: Array<string>;
   tolerance?: ReconcileTolerance;
 };
 

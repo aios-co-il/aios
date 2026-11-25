@@ -92,7 +92,7 @@ export async function sendStaffAlert(
 async function sendFromLines(
   input: StaffAlertInput,
   phone: string,
-  lines: ManusLine[],
+  lines: Array<ManusLine>,
 ): Promise<StaffAlertResult> {
   const senderFor = await staffAlertSender(input);
   let last: StaffAlertResult | null = null;

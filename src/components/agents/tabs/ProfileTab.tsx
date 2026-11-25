@@ -82,7 +82,9 @@ export function ProfileTab({
         .from("ai_agents")
         .update(form)
         .eq("id", agent.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ai-agents", tenantId] });
@@ -496,7 +498,7 @@ function MoodCard({
 // Voice selector — Carmen's spoken voice for voice-note replies (OpenAI TTS).
 // Self-contained save. NULL = text only.
 // =========================================================================
-const VOICE_OPTIONS: { value: string; label: string }[] = [
+const VOICE_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "none", label: "🔇 ללא קול (טקסט בלבד)" },
   { value: "shimmer", label: "🎙️ Shimmer — נשי, חם (מומלץ לעברית)" },
   { value: "nova", label: "🎙️ Nova — נשי, אנרגטי" },

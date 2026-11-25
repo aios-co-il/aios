@@ -72,12 +72,12 @@ import {
 import { LeadSourceHistory } from "@/components/leads/LeadSourceHistory";
 import { SendSignatureFromLeadPanel } from "@/components/leads/SendSignatureFromLeadPanel";
 import { LeadCustomFieldsCard } from "@/components/leads/LeadCustomFieldsCard";
-import { LeadContactLink } from "@/components/LeadsPage/LeadContactLink";
+import { ContactValue } from "@/components/contact/ContactValue";
 import { useCustomFieldLabels } from "@/hooks/useCustomFieldLabels";
 import { getVisibleLeadCustomFields } from "@/lib/leadCustomFields";
 
 interface LeadsChatViewProps {
-  leads: any[];
+  leads: Array<any>;
   pipelineStages: Array<{
     id: string;
     label: string;
@@ -93,7 +93,7 @@ interface LeadsChatViewProps {
     sort_order: number;
   }>;
   allTags: Array<{ id: string; name: string; color: string }>;
-  leadsTagsMap: Record<string, string[]>;
+  leadsTagsMap: Record<string, Array<string>>;
   productsLookup: Record<string, { name: string; price: number }>;
   onStatusChange: (leadId: string, newStatus: string) => void;
   onResponseStatusChange: (
@@ -170,19 +170,25 @@ export function LeadsChatView({
   const isDialog = presentation === "dialog";
 
   useEffect(() => {
-    if (initialLeadId) setSelectedLeadId(initialLeadId);
+    if (initialLeadId) {
+      setSelectedLeadId(initialLeadId);
+    }
   }, [initialLeadId]);
 
   // Auto-select first lead on desktop only. The table popup stays on the opened lead.
   useEffect(() => {
-    if (isDialog) return;
+    if (isDialog) {
+      return;
+    }
     if (!isMobile && !selectedLeadId && leads.length > 0) {
       setSelectedLeadId(leads[0].id);
     }
   }, [isDialog, isMobile, leads, selectedLeadId]);
 
   const filteredListLeads = useMemo(() => {
-    if (!searchQuery.trim()) return leads;
+    if (!searchQuery.trim()) {
+      return leads;
+    }
     const q = searchQuery.trim();
     const qLower = q.toLowerCase();
     return leads.filter(
@@ -229,8 +235,11 @@ export function LeadsChatView({
   const toggleLeadSelection = useCallback((leadId: string) => {
     setSelectedLeadIds((prev) => {
       const next = new Set(prev);
-      if (next.has(leadId)) next.delete(leadId);
-      else next.add(leadId);
+      if (next.has(leadId)) {
+        next.delete(leadId);
+      } else {
+        next.add(leadId);
+      }
       return next;
     });
   }, []);
@@ -249,11 +258,15 @@ export function LeadsChatView({
   }, []);
 
   const handleBulkDelete = async () => {
-    if (selectedLeadIds.size === 0) return;
+    if (selectedLeadIds.size === 0) {
+      return;
+    }
     const confirmed = window.confirm(
       `להעביר ${selectedLeadIds.size} לידים לארכיון? מחיקה לצמיתות רק מארכיון הלידים.`,
     );
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
     setBulkActionLoading(true);
     try {
       await archiveLeads(Array.from(selectedLeadIds));
@@ -274,14 +287,18 @@ export function LeadsChatView({
   };
 
   const handleBulkStageChange = async (stageId: string) => {
-    if (selectedLeadIds.size === 0) return;
+    if (selectedLeadIds.size === 0) {
+      return;
+    }
     setBulkActionLoading(true);
     try {
       const { error } = await supabase
         .from("leads")
         .update({ status: stageId })
         .in("id", Array.from(selectedLeadIds));
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success(`${selectedLeadIds.size} לידים עודכנו`);
       exitMultiSelect();
       queryClient.invalidateQueries({ queryKey: ["leads-table", tenantId] });
@@ -295,14 +312,18 @@ export function LeadsChatView({
   };
 
   const handleBulkResponseStatusChange = async (statusKey: string | null) => {
-    if (selectedLeadIds.size === 0) return;
+    if (selectedLeadIds.size === 0) {
+      return;
+    }
     setBulkActionLoading(true);
     try {
       const { error } = await supabase
         .from("leads")
         .update({ response_status: statusKey })
         .in("id", Array.from(selectedLeadIds));
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success(`${selectedLeadIds.size} לידים עודכנו`);
       exitMultiSelect();
       queryClient.invalidateQueries({ queryKey: ["leads-table", tenantId] });
@@ -467,7 +488,9 @@ export function LeadsChatView({
           <div
             className="flex-1 overflow-y-auto overflow-x-hidden"
             onScroll={(event) => {
-              if (!hasMore || isLoadingMore || !onLoadMore) return;
+              if (!hasMore || isLoadingMore || !onLoadMore) {
+                return;
+              }
               const el = event.currentTarget;
               if (el.scrollHeight - el.scrollTop - el.clientHeight < 120) {
                 onLoadMore();
@@ -851,7 +874,9 @@ export function LeadsChatView({
                       open={editDialogOpen}
                       onOpenChange={(o) => {
                         setEditDialogOpen(o);
-                        if (!o) setEditingLead(null);
+                        if (!o) {
+                          setEditingLead(null);
+                        }
                       }}
                       hideTrigger
                       initialTab={editInitialTab}
@@ -976,10 +1001,10 @@ export function LeadsChatView({
                           )}
                           <div className="flex items-center justify-end gap-2">
                             {selectedLead.phone ? (
-                              <LeadContactLink
+                              <ContactValue
                                 kind="phone"
                                 value={selectedLead.phone}
-                                className="font-medium text-primary hover:underline"
+                                className="font-medium text-primary"
                               />
                             ) : (
                               <span>—</span>
@@ -990,10 +1015,10 @@ export function LeadsChatView({
                           </div>
                           <div className="flex items-center justify-end gap-2">
                             {selectedLead.email ? (
-                              <LeadContactLink
+                              <ContactValue
                                 kind="email"
                                 value={selectedLead.email}
-                                className="font-medium text-primary hover:underline truncate"
+                                className="font-medium text-primary"
                               />
                             ) : (
                               <span>—</span>
@@ -1118,7 +1143,9 @@ export function LeadsChatView({
                           const items = ids
                             .map((id: string) => productsLookup[id])
                             .filter(Boolean);
-                          if (items.length === 0) return null;
+                          if (items.length === 0) {
+                            return null;
+                          }
                           return (
                             <div className="bg-card border border-border/60 rounded-xl p-4 shadow-sm">
                               <h3 className="font-semibold text-sm mb-2">

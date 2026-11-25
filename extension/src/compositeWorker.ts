@@ -15,7 +15,9 @@ let canvas: OffscreenCanvas | null = null;
 let ctx: OffscreenCanvasRenderingContext2D | null = null;
 
 function drawBubble(width: number, height: number) {
-  if (!ctx || !latestCam) return;
+  if (!ctx || !latestCam) {
+    return;
+  }
   const d = Math.round(Math.min(width, height) * 0.22); // bubble diameter
   const m = Math.round(d * 0.18); // margin from edges
   const x = corner.includes("right") ? width - d - m : m;
@@ -56,8 +58,12 @@ self.onmessage = (e: MessageEvent) => {
     out?: WritableStream<VideoFrame>;
   };
 
-  if (data.corner) corner = data.corner;
-  if (!data.screen || !data.cam || !data.out) return;
+  if (data.corner) {
+    corner = data.corner;
+  }
+  if (!data.screen || !data.cam || !data.out) {
+    return;
+  }
 
   // Keep only the freshest camera frame.
   data.cam

@@ -1,22 +1,30 @@
 /** A rank Google actually reported. 0 and blank values are not a position. */
 export function finiteRank(value: unknown): number | null {
-  if (typeof value === "string" && value.trim() === "") return null;
+  if (typeof value === "string" && value.trim() === "") {
+    return null;
+  }
   const n = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(n) || n <= 0) return null;
+  if (!Number.isFinite(n) || n <= 0) {
+    return null;
+  }
   return n;
 }
 
 /** Any real rank, including outside the top 20. Zero and blank stay empty. */
 export function displayRank(value: unknown): number | null {
   const n = finiteRank(value);
-  if (n == null) return null;
+  if (n == null) {
+    return null;
+  }
   return Math.round(n * 10) / 10;
 }
 
 /** Numeric position is a Top 20 rank. Anything worse stays blank. */
 export function top20DisplayPosition(value: unknown): number | null {
   const n = displayRank(value);
-  if (n == null || n > 20) return null;
+  if (n == null || n > 20) {
+    return null;
+  }
   return n;
 }
 
@@ -36,7 +44,9 @@ export function resolveTop20Rank(input: {
   if (ahrefs != null && (gsc == null || ahrefs <= gsc)) {
     return { position: ahrefs, source: "ahrefs" };
   }
-  if (gsc != null) return { position: gsc, source: "gsc" };
+  if (gsc != null) {
+    return { position: gsc, source: "gsc" };
+  }
   return null;
 }
 
@@ -51,7 +61,9 @@ export function keywordTop20Rank(
     | null
     | undefined,
 ): { position: number; source: RankSource } | null {
-  if (!kw) return null;
+  if (!kw) {
+    return null;
+  }
   const fromGsc = kw._source === "gsc";
   const gscPosition = kw.gsc_position ?? (fromGsc ? kw.position : null);
   const ahrefsPosition = fromGsc
@@ -73,7 +85,9 @@ export function betterDisplayRank(input: {
   if (ahrefs != null && (gsc == null || ahrefs <= gsc)) {
     return { position: ahrefs, source: "ahrefs" };
   }
-  if (gsc != null) return { position: gsc, source: "gsc" };
+  if (gsc != null) {
+    return { position: gsc, source: "gsc" };
+  }
   return null;
 }
 
@@ -87,12 +101,18 @@ export function mergeTrackedKeywordRows(
 ): Array<Record<string, unknown>> {
   const prevRows = Array.isArray(previous) ? previous : [];
   const nextRows = Array.isArray(next) ? next : [];
-  if (nextRows.length === 0) return prevRows as Array<Record<string, unknown>>;
+  if (nextRows.length === 0) {
+    return prevRows as Array<Record<string, unknown>>;
+  }
   const prevByKey = new Map<string, Record<string, unknown>>();
   for (const row of prevRows) {
-    if (!row || typeof row !== "object") continue;
+    if (!row || typeof row !== "object") {
+      continue;
+    }
     const key = normalizeGscQuery((row as { keyword?: unknown }).keyword);
-    if (!key || prevByKey.has(key)) continue;
+    if (!key || prevByKey.has(key)) {
+      continue;
+    }
     prevByKey.set(key, row as Record<string, unknown>);
   }
   return nextRows.map((row) => {
@@ -101,7 +121,9 @@ export function mergeTrackedKeywordRows(
       unknown
     >;
     const prev = prevByKey.get(normalizeGscQuery(current.keyword));
-    if (!prev) return current;
+    if (!prev) {
+      return current;
+    }
     const position =
       displayRank(current.position) ?? displayRank(prev.position);
     const positionPrev =
@@ -164,8 +186,8 @@ export type GscAggregateRow = {
  * skipped so they cannot pull a query that is outside the top 20 into it.
  */
 export function aggregateGscQueryRows(
-  rows: GscAggregateSample[],
-): GscAggregateRow[] {
+  rows: Array<GscAggregateSample>,
+): Array<GscAggregateRow> {
   const map = new Map<
     string,
     {
@@ -179,7 +201,9 @@ export function aggregateGscQueryRows(
 
   for (const row of rows) {
     const query = String(row.query || row.keyword || "").trim();
-    if (!query) continue;
+    if (!query) {
+      continue;
+    }
     const clicks = Number(row.clicks) || 0;
     const impressions = Number(row.impressions) || 0;
     const position = finiteRank(row.position);

@@ -18,8 +18,11 @@ export type UnmappedAccountsDeps = {
     afterTenantId: string | null,
   ) => Promise<TenantConnections | null>;
   mapped: Set<string>;
-  listAccounts: (token: string) => Promise<MetaAccountWithSpend[]>;
-  saveRun: (run: StoredRun, findings: ReconcileFinding[]) => Promise<string>;
+  listAccounts: (token: string) => Promise<Array<MetaAccountWithSpend>>;
+  saveRun: (
+    run: StoredRun,
+    findings: Array<ReconcileFinding>,
+  ) => Promise<string>;
   budget: CallBudget;
   now: () => Date;
   deadline: number;

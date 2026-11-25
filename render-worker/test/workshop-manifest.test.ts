@@ -283,8 +283,9 @@ test("a talking clip's line is captioned across its speech", () => {
   expect(words[0].startFrame > 0).toBeTruthy();
   const last = words[words.length - 1];
   expect(last.endFrame <= manifest.scenes[0].frameCount).toBeTruthy();
-  for (let i = 1; i < words.length; i++)
+  for (let i = 1; i < words.length; i++) {
     expect(words[i].startFrame >= words[i - 1].endFrame).toBeTruthy();
+  }
 });
 
 test("a talking clip shorter than its scene is captioned only while it speaks", () => {

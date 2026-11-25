@@ -3,10 +3,10 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { OpenFindingsList } from "./OpenFindingsList";
 
-type ListResult = { data: unknown[]; error: { message: string } | null };
+type ListResult = { data: Array<unknown>; error: { message: string } | null };
 
 const result = vi.hoisted(() => {
-  const state: { value: ListResult; filters: unknown[][] } = {
+  const state: { value: ListResult; filters: Array<Array<unknown>> } = {
     value: { data: [], error: null },
     filters: [],
   };
@@ -20,7 +20,7 @@ vi.mock("@/hooks/useCurrentTenant", () => ({
 vi.mock("@/integrations/supabase/client", () => {
   const chain = {
     select: () => chain,
-    eq: (...args: unknown[]) => {
+    eq: (...args: Array<unknown>) => {
       result.filters.push(args);
       return chain;
     },

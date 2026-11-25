@@ -26,7 +26,9 @@ serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Missing authorization");
+    if (!authHeader) {
+      throw new Error("Missing authorization");
+    }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -38,7 +40,9 @@ serve(async (req) => {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser();
-    if (authError || !user) throw new Error("Unauthorized");
+    if (authError || !user) {
+      throw new Error("Unauthorized");
+    }
 
     const {
       recording_id,
@@ -156,7 +160,9 @@ serve(async (req) => {
       targetName = data?.name || "";
       targetAgencyId = target_id;
     }
-    if (!targetName) throw new Error("יעד הסיכום לא נמצא או אינו נגיש");
+    if (!targetName) {
+      throw new Error("יעד הסיכום לא נמצא או אינו נגיש");
+    }
 
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -181,10 +187,14 @@ serve(async (req) => {
         })
       : { ok: false as const, reason: "not_configured" as const };
     const cursorResponse = cursorSummaryResponse(dispatched, corsHeaders);
-    if (cursorResponse) return cursorResponse;
+    if (cursorResponse) {
+      return cursorResponse;
+    }
 
     const OPENAI_API_KEY = await resolveOpenAIKey();
-    if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not configured");
+    if (!OPENAI_API_KEY) {
+      throw new Error("OPENAI_API_KEY not configured");
+    }
 
     const summaryInput: WriteSummaryInput = {
       openaiKey: OPENAI_API_KEY,

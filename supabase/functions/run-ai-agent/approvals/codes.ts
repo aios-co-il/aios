@@ -9,7 +9,7 @@ interface CodeRow {
  */
 export function approvalDisplayCode(
   row: CodeRow | null | undefined,
-  rows: readonly (CodeRow | null | undefined)[] = [],
+  rows: ReadonlyArray<CodeRow | null | undefined> = [],
 ): string {
   const short = approvalShortCode(row?.id);
   const list = Array.isArray(rows) ? rows : [];

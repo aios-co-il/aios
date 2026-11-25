@@ -1,6 +1,7 @@
 import importlib.util
 import unittest
 import json
+import re
 import subprocess
 import tempfile
 from types import SimpleNamespace
@@ -120,7 +121,7 @@ class MirrorTests(unittest.TestCase):
     def test_legacy_source_key_ambiguity_prevents_every_target_write(self):
         class API:
             def query(self, sql, source=False):
-                if source: return [{'items':[{'id':'a','user_id':'u','module':'m'}, {'id':'b','user_id':'u','module':'m'}]}]
+                if source: return [{'items':[{'id':'a','user_id':'u','tenant_id':'t','module':'m'}, {'id':'b','user_id':'u','tenant_id':'t','module':'m'}]}]
                 raise AssertionError('Ambiguous identities must not be written')
         with self.assertRaisesRegex(RuntimeError, 'ambiguous source logical key'):
             mirror.reconcile_legacy_keys(API(), {'name':'user_permissions'})
@@ -299,6 +300,19 @@ class RecoveryTests(unittest.TestCase):
             git('add', '.')
             git('commit', '-qm', 'runtime change')
             self.assertFalse(verify.verified_sources_unchanged(API(), {'report': 1}, root, git('rev-parse', 'HEAD')))
+
+    def test_attestation_covers_every_module_the_outbound_guard_imports(self):
+        shared = Path(__file__).resolve().parent.parent / 'supabase/functions/_shared'
+        pending, imported = ['staging-outbound.mjs'], set()
+        while pending:
+            current = pending.pop()
+            imported.add(current)
+            for target in re.findall(r'from\s+"(\.[^"]+)"', (shared / current).read_text()):
+                resolved = (shared / current).parent.joinpath(target).resolve().relative_to(shared).as_posix()
+                if resolved not in imported:
+                    pending.append(resolved)
+        self.assertIn('public-api/hosts.ts', imported)
+        self.assertEqual(set(verify.GUARD_FILES), imported)
 
     def test_download_retries_a_rate_limit_without_restart(self):
         calls, pauses = [], []

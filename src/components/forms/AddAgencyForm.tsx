@@ -67,7 +67,9 @@ export function AddAgencyForm() {
 
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      if (!tenantId) throw new Error("לא נמצא tenant_id");
+      if (!tenantId) {
+        throw new Error("לא נמצא tenant_id");
+      }
       const { error } = await supabase.from("agencies").insert({
         name: values.name,
         tenant_id: tenantId,
@@ -78,7 +80,9 @@ export function AddAgencyForm() {
         start_date: values.start_date || null,
         notes: values.notes || null,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success(`${t("agency")} נוספה בהצלחה`);

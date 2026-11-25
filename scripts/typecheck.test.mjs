@@ -147,7 +147,51 @@ test("real missing-declaration diagnostics remain identical across different che
       resolved: [],
     });
   } finally {
-    for (const dir of dirs) fs.rmSync(dir, { recursive: true, force: true });
+    for (const dir of dirs) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});
+
+test("generated database diagnostics are ignored while consumer contracts stay checked", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aio-generated-types-"));
+  try {
+    const generatedPaths = [
+      "src/integrations/supabase/types.ts",
+      "supabase/functions/_shared/database.types.ts",
+    ];
+    for (const file of generatedPaths) {
+      fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
+      fs.writeFileSync(
+        path.join(dir, file),
+        "export type Contract = { id: string };\nexport type Broken = Missing;\n",
+      );
+    }
+    fs.writeFileSync(
+      path.join(dir, "tsconfig.app.json"),
+      JSON.stringify({
+        compilerOptions: { strict: true, types: [], skipLibCheck: true },
+        include: ["src"],
+      }),
+    );
+    fs.writeFileSync(
+      path.join(dir, "src/consumer.ts"),
+      'import type { Contract } from "./integrations/supabase/types";\n' +
+        'import type { Contract as EdgeContract } from "../supabase/functions/_shared/database.types";\n' +
+        "export const app: Contract = { id: 1 };\nexport const edge: EdgeContract = { id: 2 };\n",
+    );
+
+    const diagnostics = collectDiagnostics(dir);
+
+    expect(diagnostics).toHaveLength(2);
+    expect(diagnostics.map(({ file, code }) => ({ file, code }))).toStrictEqual(
+      [
+        { file: "src/consumer.ts", code: 2322 },
+        { file: "src/consumer.ts", code: 2322 },
+      ],
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 

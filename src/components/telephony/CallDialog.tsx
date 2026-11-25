@@ -82,7 +82,9 @@ export function CallDialog({
       }
     }
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
     };
   }, [callStatus]);
 
@@ -102,7 +104,9 @@ export function CallDialog({
   };
 
   const handleCall = async () => {
-    if (!tenantId) return;
+    if (!tenantId) {
+      return;
+    }
     setIsLoading(true);
     try {
       localStorage.setItem("telephony_provider", provider);
@@ -124,9 +128,13 @@ export function CallDialog({
       // Response, whose body carries the function's error code and message.
       let result = data;
       if (error) {
-        if (!(error instanceof FunctionsHttpError)) throw error;
+        if (!(error instanceof FunctionsHttpError)) {
+          throw error;
+        }
         result = await error.context.json().catch(() => null);
-        if (!result?.error) throw error;
+        if (!result?.error) {
+          throw error;
+        }
       }
 
       if (result?.error === config.notConfiguredError) {

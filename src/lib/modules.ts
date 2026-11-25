@@ -41,7 +41,7 @@ export interface PermissionCategory {
   /** תיאור קצר */
   description?: string;
   /** מודולים השייכים לקטגוריה זו */
-  modules: ModuleConfig[];
+  modules: Array<ModuleConfig>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -118,7 +118,7 @@ const NON_PERMISSION_MENU_KEYS = new Set(["my-profile"]);
 // הרשאות ללא מודול בתפריט (catalog-only)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const EXTRA_PERMISSIONS: ModuleConfig[] = [
+export const EXTRA_PERMISSIONS: Array<ModuleConfig> = [
   {
     id: "client_onboarding",
     label: "קליטת לקוחות",
@@ -173,9 +173,9 @@ export const EXTRA_PERMISSIONS: ModuleConfig[] = [
 // יצירת ה-catalog מהתפריט
 // ─────────────────────────────────────────────────────────────────────────────
 
-function buildPermissionCategories(): PermissionCategory[] {
+function buildPermissionCategories(): Array<PermissionCategory> {
   const seen = new Set<string>();
-  const categories: PermissionCategory[] = [];
+  const categories: Array<PermissionCategory> = [];
   const categoryById = new Map<string, PermissionCategory>();
 
   const ensureCategory = (
@@ -197,7 +197,9 @@ function buildPermissionCategories(): PermissionCategory[] {
     id: string,
     menuLabel: string,
   ) => {
-    if (seen.has(id)) return; // dedupe by permission id — first label wins
+    if (seen.has(id)) {
+      return;
+    } // dedupe by permission id — first label wins
     seen.add(id);
     cat.modules.push({
       id,
@@ -212,7 +214,9 @@ function buildPermissionCategories(): PermissionCategory[] {
     const cat = ensureCategory(tab.id, tab.label);
     for (const section of tab.sections) {
       for (const item of section.items) {
-        if (NON_PERMISSION_MENU_KEYS.has(item.key)) continue;
+        if (NON_PERMISSION_MENU_KEYS.has(item.key)) {
+          continue;
+        }
         addModule(cat, permissionForMenuKey(item.key), item.label);
       }
     }
@@ -231,7 +235,9 @@ function buildPermissionCategories(): PermissionCategory[] {
   // Catalog-only permissions with no menu entry
   for (const extra of EXTRA_PERMISSIONS) {
     const cat = categoryById.get(extra.category) ?? special;
-    if (seen.has(extra.id)) continue;
+    if (seen.has(extra.id)) {
+      continue;
+    }
     seen.add(extra.id);
     cat.modules.push({ ...extra, category: cat.id });
   }
@@ -239,7 +245,7 @@ function buildPermissionCategories(): PermissionCategory[] {
   return categories;
 }
 
-export const PERMISSION_CATEGORIES: PermissionCategory[] =
+export const PERMISSION_CATEGORIES: Array<PermissionCategory> =
   buildPermissionCategories();
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -247,15 +253,15 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] =
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** @deprecated השתמש ב-PERMISSION_CATEGORIES במקום */
-export const MAIN_MODULES: ModuleConfig[] =
+export const MAIN_MODULES: Array<ModuleConfig> =
   PERMISSION_CATEGORIES.find((c) => c.id === "daily")?.modules ?? [];
 
 /** @deprecated השתמש ב-PERMISSION_CATEGORIES במקום */
-export const SALES_MODULES: ModuleConfig[] =
+export const SALES_MODULES: Array<ModuleConfig> =
   PERMISSION_CATEGORIES.find((c) => c.id === "sales")?.modules ?? [];
 
 /** @deprecated השתמש ב-PERMISSION_CATEGORIES במקום */
-export const SETTINGS_MODULES: ModuleConfig[] = [
+export const SETTINGS_MODULES: Array<ModuleConfig> = [
   ...(PERMISSION_CATEGORIES.find((c) => c.id === "settings")?.modules ?? []),
   ...(PERMISSION_CATEGORIES.find((c) => c.id === "admin")?.modules ?? []),
   ...(PERMISSION_CATEGORIES.find((c) => c.id === "integrations")?.modules ??
@@ -263,7 +269,7 @@ export const SETTINGS_MODULES: ModuleConfig[] = [
 ];
 
 /** @deprecated השתמש ב-PERMISSION_CATEGORIES במקום */
-export const SPECIAL_PERMISSIONS: ModuleConfig[] =
+export const SPECIAL_PERMISSIONS: Array<ModuleConfig> =
   PERMISSION_CATEGORIES.find((c) => c.id === "special")?.modules ?? [];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -271,12 +277,12 @@ export const SPECIAL_PERMISSIONS: ModuleConfig[] =
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** מחזיר את כל המודולים מכל הקטגוריות במערך שטוח */
-export function getAllModules(): ModuleConfig[] {
+export function getAllModules(): Array<ModuleConfig> {
   return PERMISSION_CATEGORIES.flatMap((cat) => cat.modules);
 }
 
 /** מחזיר מודולים לפי קטגוריה */
-export function getModulesByCategory(categoryId: string): ModuleConfig[] {
+export function getModulesByCategory(categoryId: string): Array<ModuleConfig> {
   return PERMISSION_CATEGORIES.find((c) => c.id === categoryId)?.modules ?? [];
 }
 

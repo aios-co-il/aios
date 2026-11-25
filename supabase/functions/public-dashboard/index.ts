@@ -4,12 +4,14 @@ import {
   filterWooOrdersForRevenue,
 } from "../_shared/wooRevenue.ts";
 import { toPublicTableSettings } from "../_shared/share-links/public-table-settings.ts";
+import { dashboardAdAccountLinks } from "./dashboard-ad-account-links.ts";
 import {
   EVENT_REPORT_TYPES,
   fetchEventTotals,
   withFullEventTotals,
 } from "./event-totals.ts";
-import { parseRequestRange, wooWindowIso } from "./request-range.ts";
+import { parseRequestRange } from "../_shared/share-links/request-range.ts";
+import { wooWindowIso } from "./request-range.ts";
 import { readsCampaignRowsOnly, tagTableRecords } from "./table-records.ts";
 import { fetchWindowRecords } from "./window-records.ts";
 
@@ -42,7 +44,9 @@ Deno.serve(async (req) => {
     // Look up the share
     const { data: share, error: shareError } = await supabase
       .from("dashboard_shares")
-      .select("*, crm_dashboards(*, clients(name, website), agencies(name))")
+      .select(
+        "*, crm_dashboards(*, clients(name, website, tenant_id, meta_ads_url, google_ads_url), agencies(name))",
+      )
       .eq("share_token", shareToken)
       .eq("is_active", true)
       .single();
@@ -148,8 +152,12 @@ Deno.serve(async (req) => {
                 .select("id, data, created_at")
                 .eq("table_id", table.id)
                 .in("data->>report_type", EVENT_REPORT_TYPES);
-              if (startDate) query = query.gte("data->>date", startDate);
-              if (endDate) query = query.lte("data->>date", endDate);
+              if (startDate) {
+                query = query.gte("data->>date", startDate);
+              }
+              if (endDate) {
+                query = query.lte("data->>date", endDate);
+              }
               return query.order("id").range(from, to);
             }),
           )
@@ -163,24 +171,24 @@ Deno.serve(async (req) => {
     ).flat();
 
     // Resolve SEO / Woo / Maskyoo extras in parallel with each other.
-    let ahrefsReports: any[] = [];
-    let seoGaRecords: any[] = [];
-    const seoGscRecords: any[] = [];
+    let ahrefsReports: Array<any> = [];
+    let seoGaRecords: Array<any> = [];
+    const seoGscRecords: Array<any> = [];
     let seoLinkedGscSiteUrl: string | null = null;
     let seoTargetClientId: string | null = dashboard.client_id || null;
-    let seoForceRelevant: string[] = [];
-    let seoForceIrrelevant: string[] = [];
-    let seoTenantIdList: string[] = dashboard.tenant_id
+    let seoForceRelevant: Array<string> = [];
+    let seoForceIrrelevant: Array<string> = [];
+    let seoTenantIdList: Array<string> = dashboard.tenant_id
       ? [dashboard.tenant_id]
       : [];
     let gscMultiPeriod: {
-      prevMonth: any[];
-      threeMonth: any[];
-      yearly: any[];
+      prevMonth: Array<any>;
+      threeMonth: Array<any>;
+      yearly: Array<any>;
     } | null = null;
-    let wooSites: any[] = [];
-    let wooOrders: any[] = [];
-    let maskyooSnapshots: any[] = [];
+    let wooSites: Array<any> = [];
+    let wooOrders: Array<any> = [];
+    let maskyooSnapshots: Array<any> = [];
     let maskyooPeriod: { start: string; end: string } | null = null;
     // Monthly work log — same payload shape as public-table so the shared
     // dashboard SEO tab can show "עבודה שבוצעה" like the SEO report share link.
@@ -205,7 +213,9 @@ Deno.serve(async (req) => {
     let seoTargetDomain: string | null = null;
 
     const loadAhrefs = async () => {
-      if (!dashboard.client_id) return;
+      if (!dashboard.client_id) {
+        return;
+      }
       const { data: reports } = await supabase
         .from("ahrefs_reports")
         .select(
@@ -218,7 +228,9 @@ Deno.serve(async (req) => {
     };
 
     const loadWoo = async () => {
-      if (!dashboard.client_id) return;
+      if (!dashboard.client_id) {
+        return;
+      }
       // client_id only — WP/Woo sites for shared-agency clients may live on the
       // agency home tenant while the dashboard row is on another tenant.
       const { data: sites } = await supabase
@@ -229,7 +241,9 @@ Deno.serve(async (req) => {
         .eq("is_active", true);
       wooSites = sites || [];
       const siteIds = wooSites.map((s: any) => s.id);
-      if (siteIds.length === 0) return;
+      if (siteIds.length === 0) {
+        return;
+      }
 
       const selectCols =
         "id, total, status, date_created, date_completed, date_paid, customer_email, customer_first_name, customer_last_name, line_items, order_number, currency, attribution";
@@ -239,8 +253,10 @@ Deno.serve(async (req) => {
       const fetchByColumn = async (
         column: "date_created" | "date_paid" | "date_completed",
       ) => {
-        const collected: any[] = [];
-        if (!wooRange.start || !wooRange.end) return collected;
+        const collected: Array<any> = [];
+        if (!wooRange.start || !wooRange.end) {
+          return collected;
+        }
         for (let page = 0; page < maxPages; page++) {
           const from = page * pageSize;
           const { data: batch, error } = await supabase
@@ -259,9 +275,13 @@ Deno.serve(async (req) => {
             );
             break;
           }
-          if (!batch || batch.length === 0) break;
+          if (!batch || batch.length === 0) {
+            break;
+          }
           collected.push(...batch);
-          if (batch.length < pageSize) break;
+          if (batch.length < pageSize) {
+            break;
+          }
         }
         return collected;
       };
@@ -282,7 +302,9 @@ Deno.serve(async (req) => {
     };
 
     const loadMaskyoo = async () => {
-      if (!dashboard.client_id) return;
+      if (!dashboard.client_id) {
+        return;
+      }
       try {
         const now = new Date();
         const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
@@ -312,7 +334,9 @@ Deno.serve(async (req) => {
     };
 
     const loadSeoLinked = async () => {
-      if (!dashboard.client_id) return;
+      if (!dashboard.client_id) {
+        return;
+      }
       try {
         const { data: seoTables } = await supabase
           .from("crm_tables")
@@ -346,22 +370,25 @@ Deno.serve(async (req) => {
             .select("tenant_id, agency_id, seo_keyword_relevance")
             .eq("id", seoTargetClientId || dashboard.client_id)
             .maybeSingle();
-          if (clientRow?.tenant_id)
+          if (clientRow?.tenant_id) {
             accessibleTenantIds.add(clientRow.tenant_id);
+          }
           if (clientRow?.agency_id) {
             const { data: accessRows } = await supabase
               .from("agency_tenant_access")
               .select("accessing_tenant_id, source_tenant_id")
               .eq("agency_id", clientRow.agency_id);
             for (const r of accessRows || []) {
-              if (r.accessing_tenant_id)
+              if (r.accessing_tenant_id) {
                 accessibleTenantIds.add(r.accessing_tenant_id);
-              if (r.source_tenant_id)
+              }
+              if (r.source_tenant_id) {
                 accessibleTenantIds.add(r.source_tenant_id);
+              }
             }
           }
           const relevance = (clientRow as any)?.seo_keyword_relevance || {};
-          const asList = (v: unknown): string[] =>
+          const asList = (v: unknown): Array<string> =>
             Array.isArray(v)
               ? v.map((x) => String(x || "").trim()).filter(Boolean)
               : [];
@@ -412,9 +439,13 @@ Deno.serve(async (req) => {
                 .eq("table_id", gaTable.id)
                 .order("created_at", { ascending: false })
                 .range(from, from + 999);
-              if (error || !page || page.length === 0) break;
+              if (error || !page || page.length === 0) {
+                break;
+              }
               seoGaRecords.push(...page);
-              if (page.length < 1000) break;
+              if (page.length < 1000) {
+                break;
+              }
             }
           }
         }
@@ -446,9 +477,13 @@ Deno.serve(async (req) => {
               .eq("table_id", gscTable.id)
               .order("created_at", { ascending: false })
               .range(from, from + 999);
-            if (error || !page || page.length === 0) break;
+            if (error || !page || page.length === 0) {
+              break;
+            }
             seoGscRecords.push(...page);
-            if (page.length < 1000) break;
+            if (page.length < 1000) {
+              break;
+            }
           }
         }
       } catch (e) {
@@ -458,7 +493,9 @@ Deno.serve(async (req) => {
 
     const loadSeoMonthly = async () => {
       const clientId = seoTargetClientId || dashboard.client_id;
-      if (!clientId) return;
+      if (!clientId) {
+        return;
+      }
       try {
         const [{ data: monthlyRows }, { data: monthlyShare }] =
           await Promise.all([
@@ -529,8 +566,9 @@ Deno.serve(async (req) => {
       loadSeoMonthly(),
     ]);
     // Refresh domain after seo table settings resolve (loadSeoLinked may set it).
-    if (seoTargetDomain)
+    if (seoTargetDomain) {
       seoMonthly.domain = seoTargetDomain || seoMonthly.domain;
+    }
     await loadMaskyoo();
 
     // Multi-period GSC — only when we have a site URL (SEO ranking deltas).
@@ -638,7 +676,7 @@ Deno.serve(async (req) => {
                 resp.status,
                 await resp.text(),
               );
-              return [] as any[];
+              return [] as Array<any>;
             }
             const json = await resp.json();
             const rows = Array.isArray(json.rows) ? json.rows : [];
@@ -704,6 +742,8 @@ Deno.serve(async (req) => {
           force_irrelevant: seoForceIrrelevant,
         },
         seo_monthly: seoMonthly,
+        // Built here so the response carries finished links, not account ids.
+        ad_account_links: dashboardAdAccountLinks(dashboard, allTables),
         has_email_restriction: false,
       }),
 

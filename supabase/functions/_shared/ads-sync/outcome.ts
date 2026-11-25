@@ -28,7 +28,7 @@ export type SyncOutcome = {
   /** Rows written by this run. */
   rows: number;
   /** Report levels fetched without an error (ads syncs only). */
-  levels_ok?: AdsEntityLevel[];
+  levels_ok?: Array<AdsEntityLevel>;
   error?: string;
   /** When the run finished (ISO). */
   at: string;
@@ -43,7 +43,7 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 export function buildSyncOutcome(input: {
   status: SyncOutcomeStatus;
   rows?: number;
-  levelsOk?: readonly AdsEntityLevel[];
+  levelsOk?: ReadonlyArray<AdsEntityLevel>;
   error?: string | null;
   at?: string;
   source?: string;

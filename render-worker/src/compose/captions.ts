@@ -16,7 +16,9 @@ const num = (value: unknown) => {
  * Scribe-style list ({ words: [{ text|word, start, end }] }). Returns [] for anything else.
  */
 export function wordsFromAlignment(alignment: unknown): Array<TimedWord> {
-  if (!alignment || typeof alignment !== "object") return [];
+  if (!alignment || typeof alignment !== "object") {
+    return [];
+  }
   const listed: unknown = Reflect.get(alignment, "words");
   if (Array.isArray(listed)) {
     const entries: Array<AlignmentWord | null | undefined> = listed;
@@ -38,8 +40,9 @@ export function wordsFromAlignment(alignment: unknown): Array<TimedWord> {
     "character_start_times_seconds",
   );
   const ends: unknown = Reflect.get(alignment, "character_end_times_seconds");
-  if (!Array.isArray(chars) || !Array.isArray(starts) || !Array.isArray(ends))
+  if (!Array.isArray(chars) || !Array.isArray(starts) || !Array.isArray(ends)) {
     return [];
+  }
   const words: Array<TimedWord> = [];
   let current: TimedWord | null = null;
   for (let i = 0; i < chars.length; i++) {
@@ -47,17 +50,22 @@ export function wordsFromAlignment(alignment: unknown): Array<TimedWord> {
     const start = num(starts[i]);
     const end = num(ends[i]);
     if (/^\s*$/.test(ch) || start === null || end === null) {
-      if (current) words.push(current);
+      if (current) {
+        words.push(current);
+      }
       current = null;
       continue;
     }
-    if (!current) current = { text: ch, start, end };
-    else {
+    if (!current) {
+      current = { text: ch, start, end };
+    } else {
       current.text += ch;
       current.end = Math.max(current.end, end);
     }
   }
-  if (current) words.push(current);
+  if (current) {
+    words.push(current);
+  }
   return words;
 }
 
@@ -93,7 +101,9 @@ export function spreadWords(
     .filter(Boolean)
     .slice(0, 60);
   const span = endFrame - startFrame;
-  if (!words.length || span < words.length) return [];
+  if (!words.length || span < words.length) {
+    return [];
+  }
   const total = words.reduce((sum, word) => sum + word.length + 1, 0);
   let at = startFrame;
   return words.map((word) => {
@@ -123,7 +133,9 @@ export function captionChunks(
   const chunks: Array<Array<FramedWord>> = [];
   let current: Array<FramedWord> = [];
   const flush = () => {
-    if (current.length) chunks.push(current);
+    if (current.length) {
+      chunks.push(current);
+    }
     current = [];
   };
   for (const word of sorted) {
@@ -133,8 +145,9 @@ export function captionChunks(
       (current.length >= MAX_WORDS ||
         word.startFrame - last.endFrame > MAX_GAP_S * fps ||
         /[.!?,:;]$/.test(last.text))
-    )
+    ) {
       flush();
+    }
     current.push(word);
   }
   flush();

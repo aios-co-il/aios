@@ -16,15 +16,17 @@ interface SheetRow {
   website?: string | null;
   notes?: string | null;
   tier?: string | null;
-  services?: string[] | null;
+  services?: Array<string> | null;
   meta_ads_account_id?: string | null;
   google_ads_account_id?: string | null;
 }
 
 // Map platform strings from the sheet to service keys
-function mapPlatformToServices(platformStr: string | null): string[] {
-  if (!platformStr) return [];
-  const services: string[] = [];
+function mapPlatformToServices(platformStr: string | null): Array<string> {
+  if (!platformStr) {
+    return [];
+  }
+  const services: Array<string> = [];
   const parts = platformStr.split("+").map((p) => p.trim().toUpperCase());
   for (const part of parts) {
     switch (part) {
@@ -130,7 +132,7 @@ Deno.serve(async (req) => {
     }
 
     const sheetsData = await sheetsResponse.json();
-    const rows = sheetsData.values as string[][];
+    const rows = sheetsData.values as Array<Array<string>>;
 
     if (!rows || rows.length === 0) {
       throw new Error("No data found in the sheet");
@@ -146,13 +148,15 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    const clients: SheetRow[] = [];
-    const errors: string[] = [];
+    const clients: Array<SheetRow> = [];
+    const errors: Array<string> = [];
 
     // Map rows to client objects
     for (let i = 0; i < dataRows.length; i++) {
       const row = dataRows[i];
-      if (!row || row.length === 0) continue;
+      if (!row || row.length === 0) {
+        continue;
+      }
 
       const client: SheetRow = {};
 

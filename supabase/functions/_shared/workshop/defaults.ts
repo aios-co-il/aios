@@ -18,7 +18,7 @@ export const VIDEO_WORDS =
   /סרטון|(?<![א-ת])סרט(?![א-ת])|וידאו|ווידאו|ריל|רילס|קליפ|אנימציה|סטורי נע|טיקטוק|\bvideo\b|\breels?\b|\btiktok\b/i;
 const CAMPAIGN_WORDS = /קמפיין|קמפיינים|\bcampaign\b/i;
 
-const FORMAT_WORDS: { format: Format; words: RegExp }[] = [
+const FORMAT_WORDS: Array<{ format: Format; words: RegExp }> = [
   {
     format: "9:16",
     words:
@@ -36,18 +36,26 @@ const FORMAT_WORDS: { format: Format; words: RegExp }[] = [
 export function inferKind(text: string): ProjectKind {
   // A landing page named before any film word is the deliverable; named after one it is only
   // where the film leads ("סרטון לקידום עמוד נחיתה").
-  if (asksForLanding(text, text.search(VIDEO_WORDS))) return "landing";
-  if (VIDEO_WORDS.test(text)) return "video";
-  if (CAMPAIGN_WORDS.test(text)) return "campaign";
+  if (asksForLanding(text, text.search(VIDEO_WORDS))) {
+    return "landing";
+  }
+  if (VIDEO_WORDS.test(text)) {
+    return "video";
+  }
+  if (CAMPAIGN_WORDS.test(text)) {
+    return "campaign";
+  }
   return "static";
 }
 
 /** Every format the request names, in the order of FORMAT_WORDS; the default when it names none. */
-export function inferFormats(text: string, kind: ProjectKind): Format[] {
+export function inferFormats(text: string, kind: ProjectKind): Array<Format> {
   const named = FORMAT_WORDS.filter((entry) => entry.words.test(text)).map(
     (entry) => entry.format,
   );
-  if (named.length > 0) return kind === "video" ? [named[0]] : named;
+  if (named.length > 0) {
+    return kind === "video" ? [named[0]] : named;
+  }
   return [kind === "video" ? "9:16" : "1:1"];
 }
 
@@ -62,9 +70,13 @@ export function inferFilmSeconds(request: string): number {
   const seconds = SECONDS.exec(text);
   const minutes = MINUTES.exec(text);
   let value = DEFAULT_FILM_SECONDS;
-  if (seconds) value = Number(seconds[1]);
-  else if (minutes) value = Number(minutes[1]) * 60;
-  else if (ONE_MINUTE.test(text)) value = 60;
+  if (seconds) {
+    value = Number(seconds[1]);
+  } else if (minutes) {
+    value = Number(minutes[1]) * 60;
+  } else if (ONE_MINUTE.test(text)) {
+    value = 60;
+  }
   return Math.min(Math.max(Math.round(value), 3), MAX_FILM_SECONDS);
 }
 
@@ -84,8 +96,12 @@ export function planScenes(totalSeconds: number) {
 export type ContentType = "posts" | "ads" | "script";
 
 export function inferContentType(text: string, kind: ProjectKind): ContentType {
-  if (kind === "video" || /תסריט|\bscript\b/i.test(text)) return "script";
-  if (/מודעה|מודעות|ממומן|\bads?\b/i.test(text)) return "ads";
+  if (kind === "video" || /תסריט|\bscript\b/i.test(text)) {
+    return "script";
+  }
+  if (/מודעה|מודעות|ממומן|\bads?\b/i.test(text)) {
+    return "ads";
+  }
   return "posts";
 }
 
@@ -104,7 +120,7 @@ export interface StartProjectInput {
   brief: string;
   title?: string;
   kind?: ProjectKind;
-  formats?: string[];
+  formats?: Array<string>;
   duration_s?: number;
   visual_style?: string;
 }
@@ -114,7 +130,7 @@ export interface StartProjectPlan {
   kind: ProjectKind;
   projectType: "video" | "static" | "landing";
   format: Format;
-  formats: Format[];
+  formats: Array<Format>;
   contentType: ContentType;
   visualStyle: string;
   film: { totalSeconds: number; scenes: number; sceneSeconds: number } | null;
@@ -122,7 +138,8 @@ export interface StartProjectPlan {
 }
 
 const isFormat = (value: unknown): value is Format =>
-  typeof value === "string" && (FORMATS as readonly string[]).includes(value);
+  typeof value === "string" &&
+  (FORMATS as ReadonlyArray<string>).includes(value);
 
 /** Everything the project needs, from one free sentence plus whatever the model already knows. */
 export function planProject(input: StartProjectInput): StartProjectPlan {
@@ -175,7 +192,7 @@ export const IMAGE_USD: Record<Format, number> = {
   "16:9": 0.25,
 };
 
-export function estimateImages(formats: Format[], perFormat = 1) {
+export function estimateImages(formats: Array<Format>, perFormat = 1) {
   const images = formats.length * perFormat;
   const usd = formats.reduce(
     (sum, format) => sum + IMAGE_USD[format] * perFormat,
@@ -186,8 +203,8 @@ export function estimateImages(formats: Format[], perFormat = 1) {
 
 export const imageFormatsFrom = (
   value: unknown,
-  fallback: Format[],
-): Format[] => {
+  fallback: Array<Format>,
+): Array<Format> => {
   const list = Array.isArray(value) ? value.filter(isFormat) : [];
   return list.length > 0 ? [...new Set(list)] : fallback;
 };

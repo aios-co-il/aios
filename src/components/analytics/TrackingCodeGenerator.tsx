@@ -41,8 +41,8 @@ type TrackingConfig = Pick<
 };
 
 interface TrackingCodeGeneratorProps {
-  clients: Client[];
-  trackingConfigs: TrackingConfig[];
+  clients: Array<Client>;
+  trackingConfigs: Array<TrackingConfig>;
   onCreateConfig: (data: { clientId: string; domain: string }) => void;
   isCreating: boolean;
   onViewDashboard?: (clientId: TrackingConfig["client_id"]) => void;
@@ -60,7 +60,7 @@ export function TrackingCodeGenerator({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const supabaseUrl = "https://zvoijyneresvkadpprel.supabase.co";
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 
   const generateEmbedCode = (trackingId: TrackingConfig["tracking_id"]) => {
     return `<!-- Marketing Captain Analytics -->

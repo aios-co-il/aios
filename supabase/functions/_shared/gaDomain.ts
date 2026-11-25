@@ -3,7 +3,9 @@ export function normalizeGaHost(value?: string | null): string {
   let v = String(value || "")
     .trim()
     .toLowerCase();
-  if (!v) return "";
+  if (!v) {
+    return "";
+  }
   v = v.replace(/^sc-domain:/, "");
   v = v.replace(/^[a-z][a-z0-9+.-]*:\/\//, "");
   v = v.split("/")[0]?.split("?")[0]?.split("#")[0] || "";
@@ -15,7 +17,9 @@ export function normalizeGaHost(value?: string | null): string {
 export function gaHostsMatch(a?: string | null, b?: string | null): boolean {
   const na = normalizeGaHost(a);
   const nb = normalizeGaHost(b);
-  if (!na || !nb) return false;
+  if (!na || !nb) {
+    return false;
+  }
   return na === nb || na.endsWith(`.${nb}`) || nb.endsWith(`.${na}`);
 }
 

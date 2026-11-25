@@ -14,17 +14,18 @@ const json = (body: unknown, status = 200) =>
 Deno.test(
   "Higgsfield uses Soul 2 text-to-image, or image-to-image with a reference link",
   async () => {
-    const seen: { url: string; body?: Record<string, any> }[] = [];
+    const seen: Array<{ url: string; body?: Record<string, any> }> = [];
     const fetchImpl = (async (url: string, init?: RequestInit) => {
       if (init?.method === "POST") {
         seen.push({ url, body: JSON.parse(String(init.body)) });
         return json({ request_id: "r1" });
       }
-      if (url.endsWith("/status"))
+      if (url.endsWith("/status")) {
         return json({
           status: "completed",
           images: [{ url: "https://c/out.png" }],
         });
+      }
       return new Response(png, { headers: { "content-type": "image/png" } });
     }) as typeof fetch;
     const plain = await generateStill(
@@ -57,7 +58,7 @@ Deno.test(
 Deno.test(
   "a Higgsfield job that was accepted and then failed does not fall through",
   async () => {
-    const hosts: string[] = [];
+    const hosts: Array<string> = [];
     await assertRejects(
       () =>
         generateStill(
@@ -70,11 +71,15 @@ Deno.test(
             maxPolls: 2,
             fetchImpl: (async (url: string, init?: RequestInit) => {
               hosts.push(new URL(url).host);
-              if (url.includes("elevenlabs"))
+              if (url.includes("elevenlabs")) {
                 return json({ detail: { status: "paid_plan_required" } }, 402);
-              if (url.includes("openai"))
+              }
+              if (url.includes("openai")) {
                 return json({ data: [{ b64_json: b64 }] });
-              if (init?.method === "POST") return json({ request_id: "req-1" });
+              }
+              if (init?.method === "POST") {
+                return json({ request_id: "req-1" });
+              }
               return json({ status: "in_progress" });
             }) as typeof fetch,
           },

@@ -10,6 +10,10 @@ graphify-out/
 pnpm-lock.yaml
 extension/bun.lock
 
+# Generated Supabase schema contracts
+src/integrations/supabase/types.ts
+supabase/functions/_shared/database.types.ts
+
 # Local environment files
 .env
 .env.*

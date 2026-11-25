@@ -51,7 +51,9 @@ Deno.serve(async (req) => {
       .select("role, tenant_id")
       .eq("user_id", user.id);
 
-    if (rolesError) throw rolesError;
+    if (rolesError) {
+      throw rolesError;
+    }
 
     const isSuperAdmin = userRoles?.some(
       (r) => r.role === "super_admin" && r.tenant_id === null,
@@ -68,8 +70,12 @@ Deno.serve(async (req) => {
       .eq("id", tenant_id)
       .single();
 
-    if (tenantError) throw tenantError;
-    if (!currentTenant) throw new Error("Tenant not found");
+    if (tenantError) {
+      throw tenantError;
+    }
+    if (!currentTenant) {
+      throw new Error("Tenant not found");
+    }
 
     // Cannot convert to root (only created as root)
     if (new_org_type === ("root" as any)) {
@@ -84,7 +90,9 @@ Deno.serve(async (req) => {
       .select("id, name, org_type")
       .eq("parent_tenant_id", tenant_id);
 
-    if (childrenError) throw childrenError;
+    if (childrenError) {
+      throw childrenError;
+    }
 
     // If converting to sub_organization, cannot have children
     if (
@@ -136,7 +144,9 @@ Deno.serve(async (req) => {
       .update(updates)
       .eq("id", tenant_id);
 
-    if (updateError) throw updateError;
+    if (updateError) {
+      throw updateError;
+    }
 
     return new Response(
       JSON.stringify({

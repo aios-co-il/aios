@@ -7,6 +7,7 @@ import {
   openUnifiedCalendarConnection,
 } from "@/lib/unifiedCalendarConnection";
 import { initDirectGoogleAuth } from "@/lib/calendarApi";
+import { connectGoogleInPopup } from "@/lib/googleConnect";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarIcon, AlertCircle } from "lucide-react";
@@ -26,7 +27,9 @@ export function CalendarView() {
   const { data: calendarStatus, isLoading } = useQuery({
     queryKey: ["calendar-status", currentTenantId, provider],
     queryFn: async () => {
-      if (!currentTenantId) return { connected: false, type: "none" as const };
+      if (!currentTenantId) {
+        return { connected: false, type: "none" as const };
+      }
       return await checkCalendarConnection({
         tenantId: currentTenantId,
         provider,
@@ -42,7 +45,9 @@ export function CalendarView() {
   }, []);
 
   const handleConnect = async () => {
-    if (!currentTenantId) return;
+    if (!currentTenantId) {
+      return;
+    }
 
     try {
       if (provider === "unified") {
@@ -54,18 +59,8 @@ export function CalendarView() {
         await openUnifiedCalendarConnection({ tenantId: currentTenantId });
       } else {
         const { authUrl } = await initDirectGoogleAuth();
-        const popup = window.open(
-          authUrl,
-          "google-calendar-auth",
-          "width=600,height=700",
-        );
-        const handler = (event: MessageEvent) => {
-          if (event.data?.type === "calendar_connected") {
-            window.removeEventListener("message", handler);
-            window.location.reload();
-          }
-        };
-        window.addEventListener("message", handler);
+        await connectGoogleInPopup(authUrl, "google-calendar-auth");
+        window.location.reload();
       }
     } catch (error) {
       listenerCleanupRef.current?.();

@@ -36,10 +36,10 @@ function setup(
 /** dispatchDue over `w` in team mode unless `settings` says otherwise; `fields` override the run. */
 const run = (
   w: World,
-  skip: string[] = [],
+  skip: Array<string> = [],
   settings = team,
   fields: {
-    briefKeys?: string[];
+    briefKeys?: Array<string>;
     budget?: RoundBudget;
     ports?: ReturnType<typeof deps>;
     settingsChanged?: () => Promise<boolean>;

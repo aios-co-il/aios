@@ -24,7 +24,9 @@ export function GlobalApprovalsBell() {
   const { data: items = [] } = useQuery({
     queryKey: ["agent-approvals-global", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return [];
+      if (!currentTenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("agent_approval_queue")
         .select(
@@ -34,7 +36,9 @@ export function GlobalApprovalsBell() {
         .eq("status", "pending")
         .order("created_at", { ascending: false })
         .limit(20);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []).filter(
         (it: any) => !it.expires_at || new Date(it.expires_at) > new Date(),
       );
@@ -45,7 +49,9 @@ export function GlobalApprovalsBell() {
 
   // Lightweight realtime — best-effort, ignored if not enabled
   useEffect(() => {
-    if (!currentTenantId) return;
+    if (!currentTenantId) {
+      return;
+    }
     const ch = supabase
       .channel(`approvals-${currentTenantId}`)
       .on(

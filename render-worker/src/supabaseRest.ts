@@ -9,8 +9,9 @@ export function createSupabaseRest({
   url: string;
   serviceRoleKey: string;
 }): SupabaseRest {
-  if (!url || !serviceRoleKey)
+  if (!url || !serviceRoleKey) {
     throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
+  }
   const base = url.replace(/\/$/, "");
   const headers = {
     apikey: serviceRoleKey,
@@ -96,9 +97,15 @@ export function createSupabaseRest({
         signedUrl?: string;
       }>(data);
       const signed = signedURL || signedUrl;
-      if (!signed) throw new Error("storage sign returned no url");
-      if (signed.startsWith("http")) return signed;
-      if (signed.startsWith("/object/")) return `${base}/storage/v1${signed}`;
+      if (!signed) {
+        throw new Error("storage sign returned no url");
+      }
+      if (signed.startsWith("http")) {
+        return signed;
+      }
+      if (signed.startsWith("/object/")) {
+        return `${base}/storage/v1${signed}`;
+      }
       return `${base}${signed.startsWith("/") ? "" : "/"}${signed}`;
     },
   };
@@ -109,8 +116,9 @@ const encodePath = (path: string) => {
   const segments = String(path).split("/");
   if (
     segments.some((segment) => !segment || segment === "." || segment === "..")
-  )
+  ) {
     throw new Error(`invalid storage path: ${String(path).slice(0, 120)}`);
+  }
   return segments.map(encodeURIComponent).join("/");
 };
 

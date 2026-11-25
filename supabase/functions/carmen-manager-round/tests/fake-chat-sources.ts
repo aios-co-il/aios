@@ -39,11 +39,11 @@ export function chatContext(
 }
 
 export type FakeChatFields = {
-  lines?: string[];
+  lines?: Array<string>;
   /** The tenant's Carmen (Manus) lines. */
   carmenLines?: Array<string>;
-  live?: LiveChatFinding[];
-  closed?: string[];
+  live?: Array<LiveChatFinding>;
+  closed?: Array<string>;
   /** Verdicts the review cache holds, by thread key. */
   reviews?: Map<string, CachedReview>;
   /** The model's JSON answer (no answer: the model is down). */
@@ -56,11 +56,11 @@ export type FakeChatFields = {
 
 /** Sources over `rows`; `asked` holds the prompts, `reads` the sources read. */
 export function fakeChatSources(
-  rows: ActivityRow[],
+  rows: Array<ActivityRow>,
   fields: FakeChatFields = {},
 ) {
-  const asked: string[] = [];
-  const reads: string[] = [];
+  const asked: Array<string> = [];
+  const reads: Array<string> = [];
   const queries: Array<ActivityQuery> = [];
   const read = <T>(name: string, value: T) => {
     reads.push(name);
@@ -110,9 +110,9 @@ export function fakeChatSources(
 
 /** threadFindings over `rows` for `kinds` in the 7-day read, with the prompts the model was asked. */
 export async function findInThreads(
-  rows: ActivityRow[],
+  rows: Array<ActivityRow>,
   fields: FakeChatFields = {},
-  kinds: readonly FindingKind[] = THREAD_KINDS,
+  kinds: ReadonlyArray<FindingKind> = THREAD_KINDS,
 ) {
   const sources = fakeChatSources(rows, fields);
   const query = {

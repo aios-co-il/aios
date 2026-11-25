@@ -48,8 +48,9 @@ export function UsagePanel({ tenantId, clientId }: Props) {
     },
   });
 
-  if (!stats)
+  if (!stats) {
     return <div className="p-6 text-sm text-muted-foreground">טוען...</div>;
+  }
 
   return (
     <div className="space-y-4 p-4" dir="rtl">

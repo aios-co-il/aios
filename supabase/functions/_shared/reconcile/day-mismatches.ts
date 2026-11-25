@@ -19,20 +19,20 @@ export function dayMismatches(
   input: {
     table: ReconcileTable;
     platform: ReconcilePlatform;
-    dates: string[];
+    dates: Array<string>;
   },
   a: CampaignSide,
   p: CampaignSide,
   campaign: CampaignRef,
   missingDates: Set<string>,
   tolerance: ReconcileTolerance,
-): ReconcileFinding[] {
+): Array<ReconcileFinding> {
   const resultMetric = primaryResultMetric(
     input.platform,
     p.rows.length ? p.rows : a.rows,
     input.table,
   );
-  const out: ReconcileFinding[] = [];
+  const out: Array<ReconcileFinding> = [];
   for (const date of input.dates) {
     const ad = a.days.get(date);
     const pd = p.days.get(date);

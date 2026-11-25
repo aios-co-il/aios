@@ -9,7 +9,7 @@
 // or task.
 
 /** Request fields only service-to-service callers may set. */
-export const SERVICE_ONLY_RUN_FIELDS: readonly string[] = Object.freeze([
+export const SERVICE_ONLY_RUN_FIELDS: ReadonlyArray<string> = Object.freeze([
   // Per-task engine override (agent_tasks.engine_model).
   "model_override",
   // Admin-authored per-automation Carmen instructions.

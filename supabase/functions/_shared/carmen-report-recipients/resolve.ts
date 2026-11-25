@@ -23,10 +23,10 @@ import {
  * empty or none of its entries is reachable.
  */
 export function resolveCarmenReportRecipients(input: {
-  configured: ConfiguredReportRecipient[];
-  staff: ReportStaffMember[];
+  configured: Array<ConfiguredReportRecipient>;
+  staff: Array<ReportStaffMember>;
   /** Listed extra phones that now belong to a client (carmen_report_client_phones). */
-  clientPhones?: string[];
+  clientPhones?: Array<string>;
 }): CarmenReportRecipients {
   const owners = () =>
     dedupeByPhone(
@@ -100,8 +100,8 @@ export type SkippedReportRecipient = {
 };
 
 export type CarmenReportRecipients = {
-  recipients: CarmenReportRecipient[];
-  skipped: SkippedReportRecipient[];
+  recipients: Array<CarmenReportRecipient>;
+  skipped: Array<SkippedReportRecipient>;
   /** The organization lists recipients, but none is reachable, so the owners stand in. */
   listUnreachable: boolean;
 };

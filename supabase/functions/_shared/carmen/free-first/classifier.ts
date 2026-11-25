@@ -17,12 +17,12 @@ export type TaskContext = {
 
 type Rule = {
   kind: TaskKind;
-  patterns: RegExp[];
+  patterns: Array<RegExp>;
   complexity: "simple" | "medium" | "complex";
   tools?: boolean;
 };
 
-const RULES: Rule[] = [
+const RULES: Array<Rule> = [
   {
     kind: "development",
     complexity: "complex",

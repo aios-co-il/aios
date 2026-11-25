@@ -29,18 +29,18 @@ export type GroupWindow = {
   /** The WhatsApp group chat, the same for every tenant that stores it. */
   groupChatId: string;
   groupName: string;
-  messages: WindowMessage[];
+  messages: Array<WindowMessage>;
   /** The last message of the window: the watermark it advances to. */
   last: GroupMark;
 };
 
 /** The windows with at least one new message, oldest message first. */
 export function groupWindows(
-  histories: GroupHistory[],
+  histories: Array<GroupHistory>,
   watermark: GroupWatermark,
   from: Date,
   staff: StaffRoster,
-): GroupWindow[] {
+): Array<GroupWindow> {
   return histories.flatMap((history) => {
     const mark = watermark.groups[history.group_id] ?? null;
     const fresh = history.messages.filter((message) =>
@@ -69,7 +69,7 @@ export function groupWindows(
 }
 
 /** The substantive messages of a window. */
-export function substantive(window: GroupWindow): WindowMessage[] {
+export function substantive(window: GroupWindow): Array<WindowMessage> {
   return window.messages.filter((message) => message.substantive);
 }
 

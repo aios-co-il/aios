@@ -74,7 +74,7 @@ Deno.test("blocks any outside recipient, empty or odd payloads", async () => {
 Deno.test(
   "guard lets an allowed email through and blocks the rest",
   async () => {
-    const calls: string[] = [];
+    const calls: Array<string> = [];
     const runtime = {
       fetch: async (input: RequestInfo | URL) => {
         calls.push(String(input));

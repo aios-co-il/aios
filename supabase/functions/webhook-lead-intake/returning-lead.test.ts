@@ -6,11 +6,11 @@ import {
   returningLeadStatusUpdate,
 } from "./returning-lead.ts";
 
-type Call = { table: string; op: string; args: unknown[] };
+type Call = { table: string; op: string; args: Array<unknown> };
 
 /** Fake client: each query resolves to the next queued result for its table. */
-function fakeDb(results: Record<string, unknown[]>) {
-  const calls: Call[] = [];
+function fakeDb(results: Record<string, Array<unknown>>) {
+  const calls: Array<Call> = [];
   const db: LeadDb = {
     from(table: string) {
       const result = () => ({ data: results[table]?.shift() ?? null });
@@ -29,7 +29,7 @@ function fakeDb(results: Record<string, unknown[]>) {
         "insert",
         "upsert",
       ]) {
-        chain[op] = (...args: unknown[]) => {
+        chain[op] = (...args: Array<unknown>) => {
           calls.push({ table, op, args });
           return chain;
         };

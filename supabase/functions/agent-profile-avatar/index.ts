@@ -10,12 +10,17 @@ const headers = {
 const reply = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { headers, status });
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers });
-  if (req.method !== "POST") return reply({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers });
+  }
+  if (req.method !== "POST") {
+    return reply({ error: "Method not allowed" }, 405);
+  }
   try {
     const authorization = req.headers.get("Authorization");
-    if (!authorization?.startsWith("Bearer "))
+    if (!authorization?.startsWith("Bearer ")) {
       return reply({ error: "Unauthorized" }, 401);
+    }
     const userClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -25,10 +30,13 @@ Deno.serve(async (req) => {
       data: { user },
       error: authError,
     } = await userClient.auth.getUser();
-    if (authError || !user) return reply({ error: "Unauthorized" }, 401);
+    if (authError || !user) {
+      return reply({ error: "Unauthorized" }, 401);
+    }
     const { tenantId, agentId, prompt, imageData } = await req.json();
-    if (typeof tenantId !== "string" || typeof agentId !== "string")
+    if (typeof tenantId !== "string" || typeof agentId !== "string") {
       return reply({ error: "Missing organization or agent" }, 400);
+    }
     // Resolve the exact agent through the caller's RLS before using privileged storage.
     const { data: agent, error } = await userClient
       .from("ai_agents")
@@ -36,25 +44,30 @@ Deno.serve(async (req) => {
       .eq("id", agentId)
       .eq("tenant_id", tenantId)
       .single();
-    if (error || !agent)
+    if (error || !agent) {
       return reply(
         { error: "Agent is not accessible in this organization" },
         403,
       );
+    }
     let bytes: Uint8Array;
     let type: string;
     if (imageData !== undefined) {
-      if (typeof imageData !== "string" || imageData.length > 7_000_000)
+      if (typeof imageData !== "string" || imageData.length > 7_000_000) {
         return reply({ error: "Image too large" }, 400);
+      }
       const match =
         /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/.exec(
           imageData,
         );
-      if (!match) return reply({ error: "Use PNG, JPG or WebP" }, 400);
+      if (!match) {
+        return reply({ error: "Use PNG, JPG or WebP" }, 400);
+      }
       type = match[1];
       bytes = Uint8Array.from(atob(match[2]), (c) => c.charCodeAt(0));
-      if (bytes.length > 5 * 1024 * 1024)
+      if (bytes.length > 5 * 1024 * 1024) {
         return reply({ error: "Maximum image size is 5MB" }, 400);
+      }
       const valid =
         type === "png"
           ? bytes[0] === 137 &&
@@ -65,15 +78,24 @@ Deno.serve(async (req) => {
             ? bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255
             : String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" &&
               String.fromCharCode(...bytes.slice(8, 12)) === "WEBP";
-      if (!valid) return reply({ error: "Invalid image file" }, 400);
+      if (!valid) {
+        return reply({ error: "Invalid image file" }, 400);
+      }
     } else {
-      if (typeof prompt !== "string" || !prompt.trim() || prompt.length > 2000)
+      if (
+        typeof prompt !== "string" ||
+        !prompt.trim() ||
+        prompt.length > 2000
+      ) {
         return reply(
           { error: "Describe the character (up to 2000 characters)" },
           400,
         );
+      }
       const key = await resolveOpenAIKey();
-      if (!key) return reply({ error: "מנוע יצירת התמונות אינו מוגדר" }, 503);
+      if (!key) {
+        return reply({ error: "מנוע יצירת התמונות אינו מוגדר" }, 503);
+      }
       const response = await fetch(
         "https://api.openai.com/v1/images/generations",
         {
@@ -93,7 +115,7 @@ Deno.serve(async (req) => {
           }),
         },
       );
-      if (!response.ok)
+      if (!response.ok) {
         return reply(
           {
             error:
@@ -103,10 +125,12 @@ Deno.serve(async (req) => {
           },
           response.status === 429 ? 429 : 502,
         );
+      }
       const result = await response.json();
       const b64 = result.data?.[0]?.b64_json;
-      if (typeof b64 !== "string")
+      if (typeof b64 !== "string") {
         return reply({ error: "No image returned" }, 502);
+      }
       bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
       type = "png";
     }
@@ -118,12 +142,15 @@ Deno.serve(async (req) => {
     const { error: uploadError } = await admin.storage
       .from("entity-attachments")
       .upload(path, bytes, { contentType: `image/${type}`, upsert: false });
-    if (uploadError) return reply({ error: "שמירת התמונה נכשלה" }, 500);
+    if (uploadError) {
+      return reply({ error: "שמירת התמונה נכשלה" }, 500);
+    }
     const { data, error: signError } = await userClient.storage
       .from("entity-attachments")
       .createSignedUrl(path, 3600);
-    if (signError || !data)
+    if (signError || !data) {
       return reply({ error: "לא ניתן להציג את התמונה" }, 403);
+    }
     return reply({ avatar_url: data.signedUrl, avatar_path: path });
   } catch (error) {
     console.error(

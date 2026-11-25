@@ -113,7 +113,7 @@ const PUBLIC_SETTING_FILTERS: {
 
 /** Every `integration_settings` key a share link may return. */
 export const PUBLIC_TABLE_SETTINGS_KEYS = Object.freeze(
-  Object.keys(PUBLIC_SETTING_FILTERS) as (keyof PublicTableSettingValues)[],
+  Object.keys(PUBLIC_SETTING_FILTERS) as Array<keyof PublicTableSettingValues>,
 );
 
 const MAX_TEXT_LENGTH = 256;

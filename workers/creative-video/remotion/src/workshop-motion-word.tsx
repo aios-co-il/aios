@@ -23,7 +23,8 @@ export const MotionWord: React.FC<{
   const size = `${key ? KEY_SCALE : 1}em`;
   const t = now - (word.startFrame - LEAD);
   if (t < 0)
-    // Not said yet: the word keeps its place, so the phrase never shifts as words arrive.
+  // Not said yet: the word keeps its place, so the phrase never shifts as words arrive.
+  {
     return (
       <span
         style={{
@@ -36,6 +37,7 @@ export const MotionWord: React.FC<{
         <WordText word={word} />
       </span>
     );
+  }
   // A plain word rises and sharpens into place; the key word slams down from larger.
   const p = spring({
     frame: t,

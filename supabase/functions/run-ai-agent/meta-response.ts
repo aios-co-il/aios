@@ -34,9 +34,9 @@ type MetaNodeFields = {
   cpm?: string | number;
   frequency?: string | number;
   reach?: string | number;
-  actions?: MetaAction[];
-  cost_per_action_type?: MetaAction[];
-  questions?: MetaQuestion[];
+  actions?: Array<MetaAction>;
+  cost_per_action_type?: Array<MetaAction>;
+  questions?: Array<MetaQuestion>;
 };
 
 export type MetaNode = {
@@ -44,7 +44,7 @@ export type MetaNode = {
 };
 
 interface MetaResponse extends MetaNode {
-  data?: MetaNode[] | null;
+  data?: Array<MetaNode> | null;
   error?: {
     message?: string | null;
     code?: number | null;
@@ -141,7 +141,9 @@ export async function readMetaResponse(
 ): Promise<MetaResult> {
   const body: unknown = await response.json();
   const parsed = metaResponseSchema.safeParse(body);
-  if (parsed.success) return { ok: true, value: parsed.data };
+  if (parsed.success) {
+    return { ok: true, value: parsed.data };
+  }
   const metaError = z
     .object({
       error: z.object({}).passthrough(),

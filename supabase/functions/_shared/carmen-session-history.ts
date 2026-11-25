@@ -9,8 +9,10 @@ const turnSchema = z.object({
 export type SessionTurn = z.infer<typeof turnSchema>;
 
 /** Validate stored session messages, dropping malformed entries individually. */
-export function sessionHistoryEntries(value: unknown): SessionTurn[] {
-  if (!Array.isArray(value)) return [];
+export function sessionHistoryEntries(value: unknown): Array<SessionTurn> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
   return value.flatMap((raw) => {
     const parsed = turnSchema.safeParse(raw);
     return parsed.success ? [parsed.data] : [];
@@ -45,7 +47,9 @@ export function lastAssistantReply(
     .reverse()
     .find((m) => m.role === "assistant");
   const content = last?.content;
-  if (!content) return null;
+  if (!content) {
+    return null;
+  }
   const lastTs = timestampMs(last?.timestamp);
   return {
     text: content.trim(),
@@ -63,7 +67,7 @@ export function buildCarmenMergedHistory(
   recentContext: Array<{ role: string; content: string; timestamp?: string }>,
   storedHistory: unknown,
   hardCap = 40,
-): SessionTurn[] {
+): Array<SessionTurn> {
   const sessionHistory = sessionHistoryEntries(storedHistory);
   const sessionTimestamps = new Set(
     (sessionHistory || [])
@@ -82,13 +86,19 @@ export function buildCarmenMergedHistory(
       : null;
 
   const dedupedContext = recentContext.filter((m) => {
-    if (!m?.timestamp) return true;
-    if (sessionTimestamps.has(m.timestamp)) return false;
-    if (oldestSessionTs && m.timestamp >= oldestSessionTs) return false;
+    if (!m?.timestamp) {
+      return true;
+    }
+    if (sessionTimestamps.has(m.timestamp)) {
+      return false;
+    }
+    if (oldestSessionTs && m.timestamp >= oldestSessionTs) {
+      return false;
+    }
     return true;
   });
 
-  const merged: SessionTurn[] = [];
+  const merged: Array<SessionTurn> = [];
   if (dedupedContext.length > 0) {
     merged.push({
       role: "user",
@@ -99,6 +109,8 @@ export function buildCarmenMergedHistory(
   }
   merged.push(...(sessionHistory || []));
 
-  if (merged.length <= hardCap) return merged;
+  if (merged.length <= hardCap) {
+    return merged;
+  }
   return [merged[0], ...merged.slice(-(hardCap - 1))];
 }

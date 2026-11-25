@@ -15,7 +15,7 @@ import type { ReportSenderChoice } from "./useReportSenderChoice";
 type Props = {
   choice: ReportSenderChoice;
   /** The dialog's WhatsApp groups, to warn when the line is not in the chosen one. */
-  groups?: readonly { id: string; group_chat_id?: string | null }[];
+  groups?: ReadonlyArray<{ id: string; group_chat_id?: string | null }>;
   /** The chosen group's whatsapp_groups.id. */
   groupId?: string | null;
 };
@@ -82,7 +82,7 @@ export function ReportSenderPicker({ choice, groups, groupId }: Props) {
 
 /** The list of lines; ones that cannot send yet are shown but disabled. */
 function SenderSelect(props: {
-  senders: ReportSender[];
+  senders: Array<ReportSender>;
   value: string;
   onChange: (id: string) => void;
 }) {

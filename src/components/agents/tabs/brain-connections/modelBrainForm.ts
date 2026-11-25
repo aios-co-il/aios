@@ -48,7 +48,9 @@ export function formFor(conn: BrainConnection | null): ModelBrainForm {
 /** Switching preset fills its URL and first model; a blank name takes its label. */
 export function withPreset(f: ModelBrainForm, id: string): ModelBrainForm {
   const p = presetById(id);
-  if (!p) return f;
+  if (!p) {
+    return f;
+  }
   return {
     ...f,
     preset: id,

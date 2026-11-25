@@ -10,7 +10,7 @@ import { DailyTaskCard } from "./DailyTaskCard";
 
 interface DailyViewProps {
   date: Date;
-  tasks: Task[];
+  tasks: Array<Task>;
   onToggleComplete: (taskId: string, completed: boolean) => void;
   onTaskClick: (task: Task) => void;
   onDropOnSlot: (taskId: string, time: string) => void;
@@ -101,7 +101,7 @@ function TimeSlot({
   onTaskClick,
 }: {
   time: string;
-  tasks: Task[];
+  tasks: Array<Task>;
   date: Date;
   onToggleComplete: (taskId: string, completed: boolean) => void;
   onTaskClick: (task: Task) => void;
@@ -112,7 +112,9 @@ function TimeSlot({
   });
 
   const slotTasks = tasks.filter((t) => {
-    if (!t.due_time) return false;
+    if (!t.due_time) {
+      return false;
+    }
     // Format time to match HH:MM
     const taskTime = t.due_time.substring(0, 5);
     return taskTime === time;

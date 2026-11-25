@@ -19,7 +19,9 @@ function charged(
     { tool, engine: "kling", count: 1, usd },
     {},
   );
-  if (!checked.ok) throw new Error("budget refused");
+  if (!checked.ok) {
+    throw new Error("budget refused");
+  }
   return spendBudget(checked.payload, tool, 1);
 }
 

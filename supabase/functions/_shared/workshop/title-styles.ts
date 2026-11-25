@@ -24,11 +24,11 @@ export type TitleSize = (typeof TITLE_SIZES)[number];
 
 export const isTitleStyle = (value: unknown): value is TitleStyle =>
   typeof value === "string" &&
-  (TITLE_STYLES as readonly string[]).includes(value);
+  (TITLE_STYLES as ReadonlyArray<string>).includes(value);
 
 export const isTitleSize = (value: unknown): value is TitleSize =>
   typeof value === "string" &&
-  (TITLE_SIZES as readonly string[]).includes(value);
+  (TITLE_SIZES as ReadonlyArray<string>).includes(value);
 
 /** What each style does, for Carmen's tools. */
 export const TITLE_STYLE_HELP =
@@ -51,7 +51,7 @@ export type FilmFont = (typeof FILM_FONTS)[number];
 
 export const isFilmFont = (value: unknown): value is FilmFont =>
   typeof value === "string" &&
-  (FILM_FONTS as readonly string[]).includes(value);
+  (FILM_FONTS as ReadonlyArray<string>).includes(value);
 
 export const FILM_FONT_HELP =
   "הפונט של כל הטקסט בסרט: heebo (נקי ומודרני, ברירת המחדל), rubik (עגול וידידותי, לצעירים ולמבצעים), assistant (דק ואלגנטי), secular-one (עבה ובולט, לכותרות חזקות), suez-one (סריף כבד, קלאסי ומרשים), frank-ruhl-libre (סריף ספרותי, יוקרה ותרבות). בלי זה: הפונט של המותג אם הוא אחד מהם, אחרת heebo. לבחור לפי אופי המותג והבריף, ולשאול רק כשהמשתמש ביקש פונט.";

@@ -32,7 +32,7 @@ export async function listMetaAccountsWithSpend(opts: {
   fetch?: FetchLike;
   sleep?: Sleep;
   maxPages?: number;
-}): Promise<MetaAccountWithSpend[]> {
+}): Promise<Array<MetaAccountWithSpend>> {
   const accounts = await metaGetPaged<MetaAdAccount>(
     graphUrl(
       "me/adaccounts",

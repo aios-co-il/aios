@@ -60,7 +60,9 @@ export function ChangePasswordForm() {
           factorId: totpFactor.id,
         });
 
-      if (challengeError) throw challengeError;
+      if (challengeError) {
+        throw challengeError;
+      }
 
       // Verify the code
       const { error: verifyError } = await supabase.auth.mfa.verify({
@@ -69,14 +71,18 @@ export function ChangePasswordForm() {
         code: mfaCode,
       });
 
-      if (verifyError) throw verifyError;
+      if (verifyError) {
+        throw verifyError;
+      }
 
       // Now update the password
       const { error: updateError } = await supabase.auth.updateUser({
         password: pendingPassword,
       });
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        throw updateError;
+      }
 
       toast.success("הסיסמה עודכנה בהצלחה");
       reset();

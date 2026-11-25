@@ -1,8 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 export type CarmenAutomationConfig = Record<string, unknown> & {
   agent_id?: string;
-  carmen_allowed_phones?: string[];
-  carmen_allowed_group_ids?: string[];
+  carmen_allowed_phones?: Array<string>;
+  carmen_allowed_group_ids?: Array<string>;
   carmen_allowed_group_id?: string;
   carmen_open_member_groups?: boolean;
   carmen_scope_mode?: string;
@@ -36,14 +36,18 @@ export async function fetchCarmenAutomationConfig(
     .eq("tenant_id", tenantId)
     .eq("step_type", "trigger")
     .eq("action_type", "carmen_whatsapp_session");
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
   const configs = (steps || [])
     .map((s) => toAutomationConfig(s.configuration))
     .filter((c): c is CarmenAutomationConfig => c !== null)
     .filter((c) => !c.agent_id || c.agent_id === agentId);
 
-  if (!configs.length) return null;
+  if (!configs.length) {
+    return null;
+  }
 
   // Prefer the private-phone trigger when Carmen has both a private and a group
   // trigger — otherwise an unordered `.find()` can pick the group-only step and
@@ -72,14 +76,16 @@ export async function fetchCarmenAutomationConfig(
 
 export function resolveAutomationGroupIds(
   cfg: CarmenAutomationConfig,
-  manusGroups: ManusGroupRow[],
-): string[] {
-  const refs: string[] = cfg.carmen_allowed_group_ids?.length
+  manusGroups: Array<ManusGroupRow>,
+): Array<string> {
+  const refs: Array<string> = cfg.carmen_allowed_group_ids?.length
     ? cfg.carmen_allowed_group_ids
     : cfg.carmen_allowed_group_id
       ? [cfg.carmen_allowed_group_id]
       : [];
-  if (!refs.length) return [];
+  if (!refs.length) {
+    return [];
+  }
   return (manusGroups || [])
     .filter((g) => refs.includes(g.group_chat_id) || refs.includes(g.id))
     .map((g) => g.id);
@@ -87,7 +93,7 @@ export function resolveAutomationGroupIds(
 
 export function buildPolicyFromAutomation(
   cfg: CarmenAutomationConfig,
-  manusGroups: ManusGroupRow[],
+  manusGroups: Array<ManusGroupRow>,
 ) {
   const phones = (cfg.carmen_allowed_phones || []).map((p: string) => ({
     phone: normalizePhone(p),

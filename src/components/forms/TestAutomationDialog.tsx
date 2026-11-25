@@ -96,14 +96,18 @@ export function TestAutomationDialog({
   const { data: leads = [] } = useQuery({
     queryKey: ["leads-for-test", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("leads")
         .select("id, company_name, contact_name, phone, response_status")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false })
         .limit(100);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: open && !!tenantId,
@@ -115,7 +119,9 @@ export function TestAutomationDialog({
   const { data: clients = [] } = useQuery({
     queryKey: ["clients-for-test", tenantId, crossTenantAgencyIds],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       let query = supabase
         .from("clients")
         .select("id, name, contact_name, phone");
@@ -129,7 +135,9 @@ export function TestAutomationDialog({
       const { data, error } = await query
         .order("created_at", { ascending: false })
         .limit(100);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: open && !!tenantId,
@@ -139,7 +147,9 @@ export function TestAutomationDialog({
   const { data: tasks = [] } = useQuery({
     queryKey: ["tasks-for-test", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("tasks")
         .select(
@@ -148,7 +158,9 @@ export function TestAutomationDialog({
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false })
         .limit(100);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: open && !!tenantId && testMode === "task",
@@ -230,7 +242,9 @@ export function TestAutomationDialog({
         const selectedStatus = decodeStatusSelection(newStatus);
         testData.status = selectedStatus.value;
         testData.new_status = selectedStatus.value;
-        if (selectedStatus.kind) testData.status_kind = selectedStatus.kind;
+        if (selectedStatus.kind) {
+          testData.status_kind = selectedStatus.kind;
+        }
       }
 
       // Add meeting details for meeting_created trigger
@@ -256,7 +270,9 @@ export function TestAutomationDialog({
         },
       });
 
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       return response.data;
     },
     onSuccess: (data) => {

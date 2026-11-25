@@ -20,7 +20,7 @@ export const META_REPORT_TABLE_TYPES = [
 export async function loadReportAccounts(
   db: Pick<DbClient, "from">,
   tenantId: string,
-): Promise<ReportAccount[]> {
+): Promise<Array<ReportAccount>> {
   const { data: tables, error } = await db
     .from("crm_tables")
     .select("id, client_id, integration_settings, campaign_active")
@@ -30,7 +30,7 @@ export async function loadReportAccounts(
   if (error) {
     throw new Error(`report tables read failed: ${error.message}`);
   }
-  const candidates: Omit<ReportAccount, "clientName">[] = [];
+  const candidates: Array<Omit<ReportAccount, "clientName">> = [];
   for (const table of tables || []) {
     if (table.campaign_active === false || !table.client_id) {
       continue;

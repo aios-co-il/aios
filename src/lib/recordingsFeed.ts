@@ -13,7 +13,9 @@ export async function fetchRecordingFolders(tenantId: string) {
     .order("name");
 
   if (error) {
-    if (isMissingTableError(error.message)) return [];
+    if (isMissingTableError(error.message)) {
+      return [];
+    }
     throw error;
   }
 

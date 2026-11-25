@@ -14,8 +14,12 @@ const startOfMonth = () => {
 const sevenDaysAgo = () => new Date(Date.now() - 7 * 86400_000).toISOString();
 
 function deriveStatus(alerts: number, errors = 0): IslandStatus {
-  if (alerts >= 3 || errors >= 3) return "alert";
-  if (alerts >= 1 || errors >= 1) return "watch";
+  if (alerts >= 3 || errors >= 3) {
+    return "alert";
+  }
+  if (alerts >= 1 || errors >= 1) {
+    return "watch";
+  }
   return "good";
 }
 
@@ -41,7 +45,7 @@ export function useVisualWorkspaceData() {
           return 0;
         }
       };
-      const safeRows = async (q: any): Promise<any[]> => {
+      const safeRows = async (q: any): Promise<Array<any>> => {
         try {
           const r = await q;
           return r?.data ?? [];
@@ -226,11 +230,11 @@ export function useVisualWorkspaceData() {
         ),
       ]);
 
-      const incomeMonth = (incomePayments as any[]).reduce(
+      const incomeMonth = (incomePayments as Array<any>).reduce(
         (s: number, r: any) => s + Number(r.amount || 0),
         0,
       );
-      const expenseMonth = (expensePayments as any[]).reduce(
+      const expenseMonth = (expensePayments as Array<any>).reduce(
         (s: number, r: any) => s + Number(r.amount || 0),
         0,
       );
@@ -238,7 +242,7 @@ export function useVisualWorkspaceData() {
       const businessName = (tenantRow?.name as string) || "העסק שלי";
       const totalAlerts = campaignAlertsOpen + reportAlertsOpen;
 
-      const islands: IslandSummary[] = [
+      const islands: Array<IslandSummary> = [
         {
           id: "management",
           name: "ניהול",

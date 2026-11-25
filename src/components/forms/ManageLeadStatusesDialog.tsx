@@ -160,7 +160,7 @@ export function ManageLeadStatusesDialog({
     useLeadStatusMutations();
 
   // Local state for immediate UI updates during drag
-  const [localStatuses, setLocalStatuses] = useState<LeadStatus[]>([]);
+  const [localStatuses, setLocalStatuses] = useState<Array<LeadStatus>>([]);
 
   // Sync local state with server data
   useEffect(() => {
@@ -204,7 +204,9 @@ export function ManageLeadStatusesDialog({
   };
 
   const handleAdd = () => {
-    if (!newLabel.trim()) return;
+    if (!newLabel.trim()) {
+      return;
+    }
     createStatus.mutate({ label: newLabel.trim(), color: newColor });
     setNewLabel("");
     setNewColor("#3b82f6");
@@ -212,7 +214,9 @@ export function ManageLeadStatusesDialog({
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
-    if (isOpen && onDialogOpen) onDialogOpen();
+    if (isOpen && onDialogOpen) {
+      onDialogOpen();
+    }
   };
 
   return (

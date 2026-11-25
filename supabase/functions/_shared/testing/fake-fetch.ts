@@ -12,8 +12,8 @@ type FakeCall = {
  * Records fetch calls and answers each with the next scripted reply; the last
  * reply repeats once the script runs out.
  */
-export function fakeFetch(replies: FakeReply[] = []) {
-  const calls: FakeCall[] = [];
+export function fakeFetch(replies: Array<FakeReply> = []) {
+  const calls: Array<FakeCall> = [];
   const queue = [...replies];
   const impl = (url: string | URL | Request, init: RequestInit = {}) => {
     const raw = typeof init.body === "string" ? init.body : "{}";

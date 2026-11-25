@@ -72,7 +72,9 @@ export function ConvertMessageToTaskDialog({
   const { data: agencies = [] } = useQuery({
     queryKey: ["agencies", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data } = await supabase
         .from("agencies")
         .select("id, name")
@@ -88,7 +90,9 @@ export function ConvertMessageToTaskDialog({
   const { data: clients = [] } = useQuery({
     queryKey: ["clients", tenantId, selectedAgencyId],
     queryFn: async () => {
-      if (!tenantId || !selectedAgencyId) return [];
+      if (!tenantId || !selectedAgencyId) {
+        return [];
+      }
       const { data } = await supabase
         .from("clients")
         .select("id, name")
@@ -104,7 +108,9 @@ export function ConvertMessageToTaskDialog({
   const { data: campaigners = [] } = useQuery({
     queryKey: ["campaigners-for-agency", tenantId, selectedAgencyId],
     queryFn: async () => {
-      if (!tenantId || !selectedAgencyId) return [];
+      if (!tenantId || !selectedAgencyId) {
+        return [];
+      }
       const { data } = await supabase
         .from("campaigner_agencies")
         .select("campaigner_id, campaigners(id, full_name)")
@@ -117,7 +123,9 @@ export function ConvertMessageToTaskDialog({
 
   const createTaskMutation = useMutation({
     mutationFn: async (values: TaskFormValues) => {
-      if (!tenantId) throw new Error("No tenant");
+      if (!tenantId) {
+        throw new Error("No tenant");
+      }
 
       const { data, error } = await supabase
         .from("tasks")
@@ -135,7 +143,9 @@ export function ConvertMessageToTaskDialog({
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {

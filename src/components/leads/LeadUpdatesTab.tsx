@@ -82,7 +82,9 @@ export function LeadUpdatesTab({ leadId, leadName }: LeadUpdatesTabProps) {
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return withTaskCreatorNames(data || []);
     },
     enabled: !!leadId,
@@ -109,7 +111,9 @@ export function LeadUpdatesTab({ leadId, leadName }: LeadUpdatesTabProps) {
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!leadId,
@@ -121,13 +125,17 @@ export function LeadUpdatesTab({ leadId, leadName }: LeadUpdatesTabProps) {
   // Add update mutation
   const addUpdateMutation = useMutation({
     mutationFn: async (content: string) => {
-      if (!user?.id) throw new Error("Missing user");
+      if (!user?.id) {
+        throw new Error("Missing user");
+      }
       const { data: leadRow, error: leadError } = await supabase
         .from("leads")
         .select("id, tenant_id, agency_id")
         .eq("id", leadId)
         .maybeSingle();
-      if (leadError) throw leadError;
+      if (leadError) {
+        throw leadError;
+      }
       if (leadRow) {
         await ensureLeadHomeAgency(leadRow);
       }
@@ -136,7 +144,9 @@ export function LeadUpdatesTab({ leadId, leadName }: LeadUpdatesTabProps) {
         user_id: user.id,
         content,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead-updates", leadId] });
@@ -155,7 +165,9 @@ export function LeadUpdatesTab({ leadId, leadName }: LeadUpdatesTabProps) {
         .from("lead_updates")
         .update({ content })
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead-updates", leadId] });
@@ -175,7 +187,9 @@ export function LeadUpdatesTab({ leadId, leadName }: LeadUpdatesTabProps) {
         .from("lead_updates")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead-updates", leadId] });
@@ -198,7 +212,9 @@ export function LeadUpdatesTab({ leadId, leadName }: LeadUpdatesTabProps) {
         .from("tasks")
         .update({ status })
         .eq("id", taskId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead-tasks", leadId] });
@@ -211,7 +227,9 @@ export function LeadUpdatesTab({ leadId, leadName }: LeadUpdatesTabProps) {
   });
 
   const handleAddUpdate = () => {
-    if (!newUpdate.trim()) return;
+    if (!newUpdate.trim()) {
+      return;
+    }
     addUpdateMutation.mutate(newUpdate.trim());
   };
 

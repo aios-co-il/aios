@@ -4,18 +4,19 @@ import type { ReactNode } from "react";
 import { expect, test, vi } from "vitest";
 import { useWorkshopArtifacts } from "./useWorkshopArtifacts";
 
-const mocks = vi.hoisted(() => ({ rows: [] as unknown[] }));
+const mocks = vi.hoisted(() => ({ rows: [] as Array<unknown> }));
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 vi.mock("@/components/marketing/departments/creative/videoScenesStore", () => ({
-  signCreativeVideoPaths: async (paths: string[]) =>
+  signCreativeVideoPaths: async (paths: Array<string>) =>
     Object.fromEntries(paths.map((path) => [path, `https://signed/${path}`])),
 }));
 vi.mock("@/integrations/supabase/client", () => {
   const query = () => {
     const chain: Record<string, unknown> = {};
-    for (const name of ["select", "eq", "order", "in", "delete"])
+    for (const name of ["select", "eq", "order", "in", "delete"]) {
       chain[name] = () => chain;
+    }
     chain.then = (resolve: (value: unknown) => unknown) =>
       resolve({ data: mocks.rows, error: null });
     return chain;

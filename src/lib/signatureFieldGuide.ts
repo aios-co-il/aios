@@ -29,19 +29,23 @@ export function fieldFillLabel(field: DocumentField): string {
 
 /** Page, then top-to-bottom, then right-to-left (Hebrew documents). */
 export function sortFieldsReadingOrder(
-  fields: DocumentField[],
-): DocumentField[] {
+  fields: Array<DocumentField>,
+): Array<DocumentField> {
   return [...fields].sort((a, b) => {
     const pageA = a.position.page ?? 1;
     const pageB = b.position.page ?? 1;
-    if (pageA !== pageB) return pageA - pageB;
-    if (a.position.y !== b.position.y) return a.position.y - b.position.y;
+    if (pageA !== pageB) {
+      return pageA - pageB;
+    }
+    if (a.position.y !== b.position.y) {
+      return a.position.y - b.position.y;
+    }
     return b.position.x - a.position.x;
   });
 }
 
 export function nextFieldToFill(
-  fields: DocumentField[],
+  fields: Array<DocumentField>,
   values: Record<string, string>,
   fromId?: string | null,
 ): DocumentField | null {
@@ -51,28 +55,36 @@ export function nextFieldToFill(
     ...ordered.filter((field) => isFieldRequired(field) && empty(field)),
     ...ordered.filter((field) => !isFieldRequired(field) && empty(field)),
   ];
-  if (queue.length === 0) return null;
-  if (!fromId) return queue[0];
+  if (queue.length === 0) {
+    return null;
+  }
+  if (!fromId) {
+    return queue[0];
+  }
   const index = queue.findIndex((field) => field.id === fromId);
-  if (index === -1) return queue[0];
+  if (index === -1) {
+    return queue[0];
+  }
   return queue[(index + 1) % queue.length];
 }
 
 export function hasAnySignature(
-  fields: DocumentField[],
+  fields: Array<DocumentField>,
   values: Record<string, string>,
 ): boolean {
-  if (values[LEGACY_SIGNATURE]?.trim()) return true;
+  if (values[LEGACY_SIGNATURE]?.trim()) {
+    return true;
+  }
   return fields.some(
     (field) => isSignatureFieldType(field.type) && isFieldFilled(field, values),
   );
 }
 
 export function missingRequiredForSubmit(
-  fields: DocumentField[],
+  fields: Array<DocumentField>,
   values: Record<string, string>,
   stamp: { name: string; companyId: string },
-): DocumentField[] {
+): Array<DocumentField> {
   const ordered = sortFieldsReadingOrder(fields);
   const missing = ordered.filter(
     (field) => isFieldRequired(field) && !isFieldFilled(field, values),
@@ -94,8 +106,9 @@ export function missingRequiredForSubmit(
     (field) => isStampSignatureType(field.type) && isFieldFilled(field, values),
   );
   if (signedStamp && (!stamp.name.trim() || !stamp.companyId.trim())) {
-    if (!missing.some((field) => field.id === signedStamp.id))
+    if (!missing.some((field) => field.id === signedStamp.id)) {
       missing.push(signedStamp);
+    }
   }
 
   return missing;

@@ -239,7 +239,9 @@ const PALETTES: Record<CreativeVisualStyleId, Palette> = {
 
 const hexLuma = (hex: string) => {
   const value = hex.replace("#", "");
-  if (value.length < 6) return 0.5;
+  if (value.length < 6) {
+    return 0.5;
+  }
   const r = Number.parseInt(value.slice(0, 2), 16) / 255;
   const g = Number.parseInt(value.slice(2, 4), 16) / 255;
   const b = Number.parseInt(value.slice(4, 6), 16) / 255;
@@ -256,12 +258,14 @@ const normalizeHex = (value: string) => {
 
 export const applyBrandPalette = (
   base: Palette,
-  colors?: string[],
+  colors?: Array<string>,
 ): Palette => {
   const cleaned = (colors ?? [])
     .map(normalizeHex)
     .filter((item): item is string => !!item);
-  if (cleaned.length === 0) return base;
+  if (cleaned.length === 0) {
+    return base;
+  }
   const sorted = [...cleaned].sort(
     (left, right) => hexLuma(left) - hexLuma(right),
   );
@@ -377,7 +381,9 @@ const normalizeKey = (value: string) =>
 
 export const isInternalCopyLine = (line: string): boolean => {
   const cleaned = cleanLine(line);
-  if (!cleaned) return true;
+  if (!cleaned) {
+    return true;
+  }
   if (
     /^(כותרת|כותרת ראשית|הצעה|הצעת ערך|גוף|גוף הפרסומת|cta|קריאה לפעולה|קריאת פעולה|רציונל|rationale|רפרנס|reference|headline|title|offer|body)\s*:?\s*$/i.test(
       cleaned,
@@ -385,11 +391,15 @@ export const isInternalCopyLine = (line: string): boolean => {
   ) {
     return true;
   }
-  if (/^וריאציה\s*\d+/i.test(cleaned) || /^variation\s*\d+/i.test(cleaned))
+  if (/^וריאציה\s*\d+/i.test(cleaned) || /^variation\s*\d+/i.test(cleaned)) {
     return true;
-  if (/\b(AIDA|PAS|BAB|4Ps|4PS)\b/.test(cleaned) && /[—–-]/.test(cleaned))
+  }
+  if (/\b(AIDA|PAS|BAB|4Ps|4PS)\b/.test(cleaned) && /[—–-]/.test(cleaned)) {
     return true;
-  if (/^(AIDA|PAS|BAB|4Ps|4PS)$/i.test(cleaned)) return true;
+  }
+  if (/^(AIDA|PAS|BAB|4Ps|4PS)$/i.test(cleaned)) {
+    return true;
+  }
   return false;
 };
 
@@ -397,16 +407,24 @@ const labeledField = (
   line: string,
 ): { key: keyof CopyParts | "skip"; value: string } | null => {
   const match = cleanLine(line).match(/^(.{2,24}?)\s*[:：]\s*(.*)$/);
-  if (!match) return null;
+  if (!match) {
+    return null;
+  }
   const key = LABEL_KEYS[normalizeKey(match[1])];
-  if (!key) return null;
+  if (!key) {
+    return null;
+  }
   return { key, value: match[2].trim() };
 };
 
 const clip = (value: string | undefined, max: number) => {
-  if (!value) return undefined;
+  if (!value) {
+    return undefined;
+  }
   const next = value.trim();
-  if (!next || isInternalCopyLine(next)) return undefined;
+  if (!next || isInternalCopyLine(next)) {
+    return undefined;
+  }
   return next.slice(0, max);
 };
 
@@ -420,7 +438,9 @@ export const parseCreativeCopy = (
 
   for (const raw of source.split("\n")) {
     const line = cleanLine(raw);
-    if (!line) continue;
+    if (!line) {
+      continue;
+    }
 
     const labeled = labeledField(line);
     if (labeled) {
@@ -437,7 +457,9 @@ export const parseCreativeCopy = (
       continue;
     }
 
-    if (isInternalCopyLine(line)) continue;
+    if (isInternalCopyLine(line)) {
+      continue;
+    }
 
     if (pending) {
       parts[pending] ??= line;
@@ -451,7 +473,9 @@ export const parseCreativeCopy = (
       .split("\n")
       .map(cleanLine)
       .find((line) => line && !isInternalCopyLine(line) && !labeledField(line));
-    if (firstReal) parts.headline = firstReal;
+    if (firstReal) {
+      parts.headline = firstReal;
+    }
   }
 
   const fallback = fallbackTitle?.trim();
@@ -459,14 +483,21 @@ export const parseCreativeCopy = (
     parts.headline = fallback;
   }
 
-  if (parts.offer && parts.offer === parts.headline) delete parts.offer;
+  if (parts.offer && parts.offer === parts.headline) {
+    delete parts.offer;
+  }
   if (
     parts.body &&
     (parts.body === parts.headline || parts.body === parts.offer)
-  )
+  ) {
     delete parts.body;
-  if (parts.cta && (parts.cta === parts.headline || parts.cta === parts.offer))
+  }
+  if (
+    parts.cta &&
+    (parts.cta === parts.headline || parts.cta === parts.offer)
+  ) {
     delete parts.cta;
+  }
 
   return {
     headline: clip(parts.headline, 48),
@@ -477,10 +508,16 @@ export const parseCreativeCopy = (
 };
 
 export const heroWord = (headline?: string): string | undefined => {
-  if (!headline) return undefined;
+  if (!headline) {
+    return undefined;
+  }
   const text = cleanLine(headline);
-  if (!text || isInternalCopyLine(text)) return undefined;
-  if (text.length <= 14) return text;
+  if (!text || isInternalCopyLine(text)) {
+    return undefined;
+  }
+  if (text.length <= 14) {
+    return text;
+  }
   const words = text.split(/\s+/).filter(Boolean);
   const distinctive = words.find((word) => {
     const bare = word.replace(/[^\p{L}\p{N}]+/gu, "");
@@ -490,13 +527,14 @@ export const heroWord = (headline?: string): string | undefined => {
       !STOP_WORDS.has(bare.toLowerCase())
     );
   });
-  if (distinctive && words.length > 2)
+  if (distinctive && words.length > 2) {
     return distinctive.replace(/[^\p{L}\p{N}₪$€]+/gu, "") || distinctive;
+  }
   const two = words.slice(0, 2).join(" ");
   return (two.length <= 16 ? two : words[0]).slice(0, 16);
 };
 
-const splitSentences = (value: string): string[] =>
+const splitSentences = (value: string): Array<string> =>
   value
     .split(/(?<=[.!?…])\s+|(?<=[。])/)
     .map(cleanLine)
@@ -504,25 +542,46 @@ const splitSentences = (value: string): string[] =>
 
 export const punchScore = (value: string): number => {
   const text = cleanLine(value);
-  if (!text || isInternalCopyLine(text)) return -100;
+  if (!text || isInternalCopyLine(text)) {
+    return -100;
+  }
   const length = text.length;
   let score = 16;
-  if (length >= 8 && length <= 28) score += 32;
-  else if (length >= 6 && length <= 36) score += 20;
-  else if (length <= 4) score -= 28;
-  else if (length > 42) score -= 18;
-  if (/\d/.test(text) || /[₪$€%]/.test(text)) score += 24;
-  if (/[!?]/.test(text)) score += 6;
-  if (PUNCH_WORDS.test(text)) score += 16;
-  if (WEAK_ALONE.has(text)) score -= 42;
-  if (text.split(/\s+/).length === 1 && length < 8) score -= 22;
+  if (length >= 8 && length <= 28) {
+    score += 32;
+  } else if (length >= 6 && length <= 36) {
+    score += 20;
+  } else if (length <= 4) {
+    score -= 28;
+  } else if (length > 42) {
+    score -= 18;
+  }
+  if (/\d/.test(text) || /[₪$€%]/.test(text)) {
+    score += 24;
+  }
+  if (/[!?]/.test(text)) {
+    score += 6;
+  }
+  if (PUNCH_WORDS.test(text)) {
+    score += 16;
+  }
+  if (WEAK_ALONE.has(text)) {
+    score -= 42;
+  }
+  if (text.split(/\s+/).length === 1 && length < 8) {
+    score -= 22;
+  }
   return score;
 };
 
 export const wrapPosterLine = (text: string, maxPerLine = 14): string => {
-  if (text.length <= maxPerLine) return text;
+  if (text.length <= maxPerLine) {
+    return text;
+  }
   const words = text.split(/\s+/).filter(Boolean);
-  if (words.length < 2) return text;
+  if (words.length < 2) {
+    return text;
+  }
   let best = 1;
   let bestDiff = Number.POSITIVE_INFINITY;
   for (let index = 1; index < words.length; index += 1) {
@@ -549,7 +608,9 @@ export const strongestLine = (
   const candidates = [parts.headline, parts.offer, parts.body]
     .filter((item): item is string => !!item)
     .flatMap(splitSentences);
-  if (candidates.length === 0) return undefined;
+  if (candidates.length === 0) {
+    return undefined;
+  }
   const ranked = [...candidates].sort(
     (left, right) => punchScore(right) - punchScore(left),
   );
@@ -558,10 +619,18 @@ export const strongestLine = (
 
 const posterFontSize = (text: string, story: boolean) => {
   const longest = Math.max(...text.split("\n").map((line) => line.length), 1);
-  if (longest <= 6) return story ? 76 : 66;
-  if (longest <= 10) return story ? 60 : 52;
-  if (longest <= 16) return story ? 46 : 40;
-  if (longest <= 22) return story ? 36 : 32;
+  if (longest <= 6) {
+    return story ? 76 : 66;
+  }
+  if (longest <= 10) {
+    return story ? 60 : 52;
+  }
+  if (longest <= 16) {
+    return story ? 46 : 40;
+  }
+  if (longest <= 22) {
+    return story ? 36 : 32;
+  }
   return story ? 30 : 28;
 };
 
@@ -599,7 +668,9 @@ export const buildCampaignVisualBrief = ({
 const ANGLE_LINE = /^(?:וריאציה|variation)\s*\d+\s*[—–\-|:•·]\s*(.+)$/i;
 
 const sanitizeCopyAngle = (raw?: string): string | undefined => {
-  if (!raw) return undefined;
+  if (!raw) {
+    return undefined;
+  }
   const angle = raw
     .replace(/\b(AIDA|PAS|BAB|4Ps|4PS|framework)\b/gi, "")
     .replace(/[—–\-•·]/g, " ")
@@ -617,7 +688,9 @@ export const extractCopyAngle = (
     .map((line) => line.trim())
     .find(Boolean);
   for (const source of [firstCopyLine, copyLabel]) {
-    if (!source) continue;
+    if (!source) {
+      continue;
+    }
     const header = source
       .replace(/^#+\s*/, "")
       .replace(/\*\*/g, "")
@@ -627,7 +700,9 @@ export const extractCopyAngle = (
     const angle = sanitizeCopyAngle(
       match?.[1] ?? (copyLabel && source === copyLabel ? source : undefined),
     );
-    if (angle) return angle;
+    if (angle) {
+      return angle;
+    }
   }
   return sanitizeCopyAngle(copyLabel);
 };
@@ -776,7 +851,7 @@ export const isLegacyHeadlineBand = (layer: CreativeLayer): boolean =>
   layer.height <= 36;
 
 export const shouldRebuildDesignedLayers = (
-  layers: CreativeLayer[],
+  layers: Array<CreativeLayer>,
   copyText?: string,
 ): boolean => {
   if (
@@ -796,8 +871,9 @@ export const shouldRebuildDesignedLayers = (
       (footer?.fill && footer.fill !== "#111111") ||
       (field?.width ?? 0) > 50 ||
       footerIcons.length < 4
-    )
+    ) {
       return true;
+    }
     return false;
   }
   if (
@@ -810,13 +886,19 @@ export const shouldRebuildDesignedLayers = (
   ) {
     return true;
   }
-  if (!copyText) return false;
+  if (!copyText) {
+    return false;
+  }
   const strong = strongestLine(copyText);
-  if (!strong) return false;
+  if (!strong) {
+    return false;
+  }
   const strongText = flattenLayerText(strong);
   const poster =
     layers.find((layer) => {
-      if (layer.type !== "text") return false;
+      if (layer.type !== "text") {
+        return false;
+      }
       const text = flattenLayerText(layer.text);
       return (
         !!text &&
@@ -826,24 +908,30 @@ export const shouldRebuildDesignedLayers = (
       );
     }) ?? layers.find((layer) => layer.type === "text" && layer.y <= 14);
   const posterText = flattenLayerText(poster?.text);
-  if (!posterText) return true;
+  if (!posterText) {
+    return true;
+  }
   if (
     strongText.includes(posterText) &&
     posterText.length < strongText.length &&
     posterText.length <= 14
-  )
+  ) {
     return true;
-  if ((poster?.fontSize ?? 0) < 34) return true;
+  }
+  if ((poster?.fontSize ?? 0) < 34) {
+    return true;
+  }
   if (
     (poster?.fontFamily === "Rubik" || !poster?.fontFamily) &&
     (poster?.fontSize ?? 0) <= 36
-  )
+  ) {
     return true;
+  }
   return false;
 };
 
 export const pickNextVariationStyle = (
-  _used: CreativeVisualStyleId[] = [],
+  _used: Array<CreativeVisualStyleId> = [],
 ): CreativeVisualStyle => visualStyleById("adaptive");
 
 const layer = (partial: Omit<CreativeLayer, "id">): CreativeLayer => ({
@@ -872,12 +960,14 @@ export const makeLogoLayer = (
   });
 
 export const ensureLogoLayer = (
-  layers: CreativeLayer[],
+  layers: Array<CreativeLayer>,
   logoUrl?: string,
   slot?: { x: number; y: number; width: number; height: number },
-): CreativeLayer[] => {
+): Array<CreativeLayer> => {
   const withoutLogo = layers.filter((item) => !isLogoLayer(item));
-  if (!logoUrl) return withoutLogo;
+  if (!logoUrl) {
+    return withoutLogo;
+  }
   const existing = layers.find(isLogoLayer);
   if (existing) {
     return [
@@ -909,11 +999,13 @@ export const buildDesignedCopyLayers = ({
   title?: string;
   logoUrl?: string;
   compositionId?: CompositionId;
-  brandColors?: string[];
-}): CreativeLayer[] => {
+  brandColors?: Array<string>;
+}): Array<CreativeLayer> => {
   const parts = parseCreativeCopy(copyText ?? "", title);
   const poster = strongestLine(copyText ?? "", title);
-  if (!poster && !parts.cta) return [];
+  if (!poster && !parts.cta) {
+    return [];
+  }
 
   const composition = compositionById(compositionId);
   const palette = applyBrandPalette(
@@ -943,7 +1035,7 @@ export const buildDesignedCopyLayers = ({
     });
   }
 
-  const layers: CreativeLayer[] = [];
+  const layers: Array<CreativeLayer> = [];
 
   if (poster && composition.field) {
     layers.push(
@@ -1076,7 +1168,7 @@ export const hydrateVariationLayers = (
   title?: string,
   styleId?: CreativeVisualStyleId,
   logoUrl?: string,
-  brandColors?: string[],
+  brandColors?: Array<string>,
   liveTextLayers?: boolean,
 ): CreativeVariation => {
   const compositionId =

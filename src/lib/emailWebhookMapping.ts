@@ -4,12 +4,16 @@ const TEMPLATE_VAR_RE = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
 
 export function extractTemplateVariables(
   template: string | undefined | null,
-): string[] {
-  if (!template) return [];
+): Array<string> {
+  if (!template) {
+    return [];
+  }
   const keys = new Set<string>();
   for (const match of template.matchAll(TEMPLATE_VAR_RE)) {
     const key = match[1]?.trim();
-    if (key) keys.add(key);
+    if (key) {
+      keys.add(key);
+    }
   }
   return Array.from(keys);
 }
@@ -19,7 +23,7 @@ export type EmailFieldUsage = "subject" | "body" | "recipient";
 export type EmailMappedField = {
   key: string;
   label: string;
-  usedIn: EmailFieldUsage[];
+  usedIn: Array<EmailFieldUsage>;
 };
 
 const SAMPLE_VALUES: Record<string, string> = {
@@ -42,23 +46,35 @@ const SAMPLE_VALUES: Record<string, string> = {
 };
 
 function sampleValueForKey(key: string): string {
-  if (SAMPLE_VALUES[key]) return SAMPLE_VALUES[key];
-  if (key.includes("email") || key.includes("mail")) return "user@example.com";
-  if (key.includes("phone") || key.includes("mobile")) return "0501234567";
-  if (key.includes("name")) return "ישראל ישראלי";
+  if (SAMPLE_VALUES[key]) {
+    return SAMPLE_VALUES[key];
+  }
+  if (key.includes("email") || key.includes("mail")) {
+    return "user@example.com";
+  }
+  if (key.includes("phone") || key.includes("mobile")) {
+    return "0501234567";
+  }
+  if (key.includes("name")) {
+    return "ישראל ישראלי";
+  }
   return `ערך_${key}`;
 }
 
 export function collectEmailMappedFields(
   configuration: Record<string, any>,
-  availableFields: { key: string; label: string }[],
-): EmailMappedField[] {
+  availableFields: Array<{ key: string; label: string }>,
+): Array<EmailMappedField> {
   const labelByKey = new Map(availableFields.map((f) => [f.key, f.label]));
   const usage = new Map<string, Set<EmailFieldUsage>>();
 
   const mark = (key: string, where: EmailFieldUsage) => {
-    if (!key || key === "agent_output") return;
-    if (!usage.has(key)) usage.set(key, new Set());
+    if (!key || key === "agent_output") {
+      return;
+    }
+    if (!usage.has(key)) {
+      usage.set(key, new Set());
+    }
     usage.get(key)!.add(where);
   };
 
@@ -72,7 +88,7 @@ export function collectEmailMappedFields(
   const recipients = Array.isArray(configuration?.email_recipients)
     ? configuration.email_recipients
     : [];
-  for (const recipient of recipients as EmailRecipient[]) {
+  for (const recipient of recipients as Array<EmailRecipient>) {
     if (recipient?.type === "email_field" && recipient.field) {
       mark(recipient.field, "recipient");
     }
@@ -88,7 +104,7 @@ export function collectEmailMappedFields(
 }
 
 export function buildSampleWebhookJsonFromAvailableFields(
-  availableFields: { key: string; label: string }[],
+  availableFields: Array<{ key: string; label: string }>,
 ): Record<string, string> {
   const payload: Record<string, string> = {};
   for (const field of availableFields) {
@@ -98,7 +114,7 @@ export function buildSampleWebhookJsonFromAvailableFields(
 }
 
 export function buildSampleWebhookJson(
-  fields: EmailMappedField[],
+  fields: Array<EmailMappedField>,
 ): Record<string, string> {
   const payload: Record<string, string> = {};
   for (const field of fields) {
@@ -107,10 +123,16 @@ export function buildSampleWebhookJson(
   return payload;
 }
 
-export function usageLabel(usedIn: EmailFieldUsage[]): string {
-  const parts: string[] = [];
-  if (usedIn.includes("subject")) parts.push("נושא");
-  if (usedIn.includes("body")) parts.push("גוף");
-  if (usedIn.includes("recipient")) parts.push("נמען");
+export function usageLabel(usedIn: Array<EmailFieldUsage>): string {
+  const parts: Array<string> = [];
+  if (usedIn.includes("subject")) {
+    parts.push("נושא");
+  }
+  if (usedIn.includes("body")) {
+    parts.push("גוף");
+  }
+  if (usedIn.includes("recipient")) {
+    parts.push("נמען");
+  }
   return parts.join(" · ");
 }

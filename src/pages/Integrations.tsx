@@ -34,12 +34,13 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/contexts/TenantContext";
 import { useHasIntegrationAccess } from "@/hooks/useUserIntegrations";
+import { useGoogleConnectRedirect } from "./useGoogleConnectRedirect";
 
 interface IntegrationCardProps {
   icon: React.ReactNode;
   title: string;
   description: string;
-  features: string[];
+  features: Array<string>;
   isConnected: boolean;
   route: string;
   gradient: string;
@@ -98,12 +99,15 @@ function IntegrationCard({
 
 export default function Integrations() {
   const { currentTenantId } = useTenant();
+  useGoogleConnectRedirect();
 
   // Check Green API connection status
   const { data: greenApiIntegration } = useQuery({
     queryKey: ["green-api-integration", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("tenant_integrations")
         .select("*")
@@ -120,7 +124,9 @@ export default function Integrations() {
   const { data: manusWaIntegration } = useQuery({
     queryKey: ["manus-wa-integration", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("tenant_integrations")
         .select("*")
@@ -137,7 +143,9 @@ export default function Integrations() {
   const { data: metaWhatsAppIntegration } = useQuery({
     queryKey: ["meta-whatsapp-integration", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("tenant_integrations")
         .select("id")
@@ -154,7 +162,9 @@ export default function Integrations() {
   const { data: facebookIntegration } = useQuery({
     queryKey: ["facebook-integration", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("tenant_integrations")
         .select("*")
@@ -171,7 +181,9 @@ export default function Integrations() {
   const { data: manychatIntegration } = useQuery({
     queryKey: ["manychat-integration", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("tenant_integrations")
         .select("*")
@@ -191,7 +203,9 @@ export default function Integrations() {
   const { data: makeIntegration } = useQuery({
     queryKey: ["make-integration", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("tenant_integrations")
         .select("*")
@@ -222,7 +236,9 @@ export default function Integrations() {
   const { data: ahrefsIntegration } = useQuery({
     queryKey: ["ahrefs-integration", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("tenant_integrations")
         .select("*")
@@ -239,7 +255,9 @@ export default function Integrations() {
   const { data: dataForSeoIntegration } = useQuery({
     queryKey: ["dataforseo-integration", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
       // Check DataForSEO first
       const { data: dfData } = await supabase
         .from("tenant_integrations")
@@ -248,7 +266,9 @@ export default function Integrations() {
         .eq("integration_type", "dataforseo")
         .eq("is_active", true)
         .maybeSingle();
-      if (dfData) return dfData;
+      if (dfData) {
+        return dfData;
+      }
       // Fallback to SerpAPI
       const { data: serpData } = await supabase
         .from("tenant_integrations")
@@ -266,7 +286,9 @@ export default function Integrations() {
   const { data: sumitIntegration } = useQuery({
     queryKey: ["sumit-integration", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("tenant_integrations")
         .select("*")
@@ -286,7 +308,9 @@ export default function Integrations() {
       const { data, error } = await supabase.functions.invoke("gmail-auth", {
         body: { action: "status" },
       });
-      if (error) return null;
+      if (error) {
+        return null;
+      }
       return data as { connected: boolean } | null;
     },
   });
@@ -295,7 +319,9 @@ export default function Integrations() {
   const { data: wordpressSite } = useQuery({
     queryKey: ["wordpress-site-integration", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
       const { data } = await (supabase
         .from("social_media_wordpress_sites" as any)
         .select("id, woocommerce_enabled")
@@ -312,7 +338,9 @@ export default function Integrations() {
   const { data: manusIntegration } = useQuery({
     queryKey: ["manus-integration", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("tenant_integrations")
         .select("*")
@@ -329,7 +357,9 @@ export default function Integrations() {
   const { data: unifiedConnections } = useQuery({
     queryKey: ["unified-connections-count", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("tenant_integrations")
         .select("id")
@@ -345,7 +375,9 @@ export default function Integrations() {
   const { data: maskyooIntegration } = useQuery({
     queryKey: ["maskyoo-settings", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("maskyoo_settings" as any)
         .select("*")
@@ -360,7 +392,9 @@ export default function Integrations() {
   const { data: pbxSettings } = useQuery({
     queryKey: ["pbx-settings-status", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("pbx_settings")
         .select("is_active")
@@ -375,7 +409,9 @@ export default function Integrations() {
   const { data: telegramBotState } = useQuery({
     queryKey: ["telegram-bot-state", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("telegram_bot_state")
         .select("*")
@@ -390,7 +426,9 @@ export default function Integrations() {
   const { data: tiktokIntegration } = useQuery({
     queryKey: ["tiktok-integration", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("tenant_integrations")
         .select("*")
@@ -407,7 +445,9 @@ export default function Integrations() {
   const { data: llmIntegration } = useQuery({
     queryKey: ["llm-integration-card", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("tenant_integrations")
         .select("id")
@@ -420,7 +460,7 @@ export default function Integrations() {
     enabled: !!currentTenantId,
   });
 
-  const integrations: IntegrationCardProps[] = [
+  const integrations: Array<IntegrationCardProps> = [
     {
       icon: <Brain className="h-6 w-6" />,
       title: "מודלי AI (LLMs)",

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { FacebookCampaignRow } from "@/lib/adsMetrics";
-import { facebookContinentSections } from "./facebookContinentSections";
+import type { FacebookTabFormatters } from "@/components/FacebookReportTab/facebookColumns";
+import {
+  facebookContinentSections,
+  facebookSummaryCells,
+} from "./facebookContinentSections";
 
 /** A Meta campaign with this spend and these leads and purchases. */
 function campaign(
@@ -34,7 +38,7 @@ describe("facebookContinentSections", () => {
     });
 
     expect(sections.map((section) => section.title)).toStrictEqual([
-      "דרום אמריקה",
+      "אמריקה",
       "אסיה",
       "כללי",
     ]);
@@ -55,5 +59,26 @@ describe("facebookContinentSections", () => {
 
     expect(asia.totals.spend).toBe(1000);
     expect(asia.resultSpend).toBe(400);
+  });
+
+  it("leaves a traffic campaign's leads out of the cost per result", () => {
+    const leads = campaign("טיול לוייטנאם | לידים", 400, { leads: 8 });
+    const traffic = campaign("טיול לוייטנאם | תנועה", 600, { leads: 2 });
+
+    const [asia] = facebookContinentSections({
+      ecommerce: [],
+      leads: [leads],
+      traffic: [traffic],
+      all: [leads, traffic],
+    });
+    const formats: FacebookTabFormatters = {
+      formatCurrency: (value) => `₪${value}`,
+      formatNumber: (value) => String(value),
+      formatUnitCost: (value) => `₪${value}`,
+    };
+    const cells = facebookSummaryCells(asia, formats);
+
+    expect(cells[3]).toBe("10");
+    expect(cells[5]).toBe("₪50");
   });
 });

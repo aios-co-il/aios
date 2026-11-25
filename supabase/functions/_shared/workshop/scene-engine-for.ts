@@ -14,7 +14,9 @@ export async function sceneEngineFor(
   fetchImpl: typeof fetch = fetch,
   connections: VideoConnections = {},
 ): Promise<SceneEngine> {
-  if (connections.openrouter) return "openrouter";
+  if (connections.openrouter) {
+    return "openrouter";
+  }
   const fallback: SceneEngine = higgsfieldReady(settings)
     ? "higgsfield"
     : "mock";
@@ -23,7 +25,9 @@ export async function sceneEngineFor(
     : "";
   if (elevenKey) {
     const allowed = await elevenLabsMediaAllowed(elevenKey, fetchImpl);
-    if (allowed !== false) return "elevenlabs";
+    if (allowed !== false) {
+      return "elevenlabs";
+    }
   }
   return fallback;
 }
@@ -40,9 +44,15 @@ export function engineFromKeys(
     typeof settings[key] === "string" &&
     (settings[key] as string).trim() !== "";
   // The tenant's OpenRouter brain comes first: David chose it for video (Kling, Veo, Seedance).
-  if (connections.openrouter) return "openrouter";
-  if (has("elevenlabs_api_key")) return "elevenlabs";
-  if (higgsfieldReady(settings)) return "higgsfield";
+  if (connections.openrouter) {
+    return "openrouter";
+  }
+  if (has("elevenlabs_api_key")) {
+    return "elevenlabs";
+  }
+  if (higgsfieldReady(settings)) {
+    return "higgsfield";
+  }
   return "mock";
 }
 
@@ -77,7 +87,9 @@ export async function elevenLabsMediaAllowed(
       "https://api.elevenlabs.io/v1/user/subscription",
       { headers: { "xi-api-key": apiKey } },
     );
-    if (!response.ok) return null;
+    if (!response.ok) {
+      return null;
+    }
     const data = await response.json();
     const tier =
       (data as { tier?: unknown; subscription?: { tier?: unknown } }).tier ??

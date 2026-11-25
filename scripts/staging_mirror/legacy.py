@@ -5,7 +5,7 @@ from .sql import IMPORT_GATE, batches, ident, json_sql, key_text, literal, read_
 # Only reviewed logical keys on tables with no inbound foreign keys. Carmen
 # instruction conflicts and referenced route/tag IDs require separate review.
 LEGACY_KEYS = {
-    'user_permissions': (['user_id', 'module'], ''),
+    'user_permissions': (['user_id', 'tenant_id', 'module'], ''),
     'menu_items': (['tenant_id', 'menu_key'], ''),
     'seo_monthly_updates': (['client_id', 'month'], ''),
     'seo_monthly_shares': (['client_id', 'month'], ''),

@@ -8,7 +8,7 @@ const ALL_TOOLS = [
   { name: "analyze_campaign_performance" },
 ];
 
-const names = (tools: { name: string }[]) => tools.map((t) => t.name);
+const names = (tools: Array<{ name: string }>) => tools.map((t) => t.name);
 
 Deno.test("missingEnabledTools", async (t) => {
   await t.step("adds the named tools the pool lacks, in catalog order", () => {

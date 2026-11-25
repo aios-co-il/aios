@@ -39,14 +39,14 @@ export interface ProjectCostRow {
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  rows: ProjectCostRow[];
+  rows: Array<ProjectCostRow>;
   selectedId?: string | null;
   onSelect?: (id: string) => void;
 }
 
 export function buildNextGenerateEstimate(
   item: CreativeItem,
-  storyboard: StoryboardFrame[] = [],
+  storyboard: Array<StoryboardFrame> = [],
 ): { cost: ImageGenerationCost; count: number } {
   const format = defaultFormat(item.payload);
   const size = imageSizeForFormat(format);

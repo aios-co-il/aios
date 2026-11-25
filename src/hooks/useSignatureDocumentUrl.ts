@@ -21,7 +21,9 @@ export function useSignatureDocumentUrl(
 
     resolveSignatureDocumentUrl(fileUrlOrPath)
       .then((url) => {
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
         if (!url) {
           setError("לא ניתן לטעון את המסמך");
           setResolvedUrl(null);
@@ -30,12 +32,16 @@ export function useSignatureDocumentUrl(
         }
       })
       .catch((err) => {
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
         setError(err instanceof Error ? err.message : "שגיאה בטעינת המסמך");
         setResolvedUrl(null);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       });
 
     return () => {

@@ -8,7 +8,7 @@ import type { UpsertOutcome } from "../findings/types.ts";
 import { resolveLive } from "./fake-resolve.ts";
 import { delivery, finding, type World } from "./fake-world.ts";
 
-const LIVE: readonly string[] = FINDING_LIVE_STATUSES;
+const LIVE: ReadonlyArray<string> = FINDING_LIVE_STATUSES;
 
 /**
  * The findings RPCs over `w.findings`. As in carmen_finding_upsert, a kind and

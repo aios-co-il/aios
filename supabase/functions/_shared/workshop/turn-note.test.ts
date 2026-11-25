@@ -107,13 +107,14 @@ Deno.test(
   "pictures a cut-off request left pending turn into failed pages",
   async () => {
     const { failStalePictures } = await import("./turn-note.ts");
-    const calls: [string, ...unknown[]][] = [];
-    const chain: Record<string, (...a: unknown[]) => unknown> = {};
-    for (const name of ["update", "eq", "in", "lt"])
-      chain[name] = (...a: unknown[]) => {
+    const calls: Array<[string, ...Array<unknown>]> = [];
+    const chain: Record<string, (...a: Array<unknown>) => unknown> = {};
+    for (const name of ["update", "eq", "in", "lt"]) {
+      chain[name] = (...a: Array<unknown>) => {
         calls.push([name, ...a]);
         return chain;
       };
+    }
     const db = {
       from: (table: string) => (calls.push(["from", table]), chain),
     };
@@ -149,7 +150,7 @@ Deno.test(
       project_type: "static",
       workshop_brief: { answers: { "טקסט על התמונה": "כותרת וקריאה לפעולה" } },
     };
-    const rows: Record<string, unknown[]> = {
+    const rows: Record<string, Array<unknown>> = {
       workshop_artifacts: [
         { kind: "concept" },
         { kind: "concept" },
@@ -158,8 +159,9 @@ Deno.test(
     };
     const query = (table: string) => {
       const chain: Record<string, unknown> = {};
-      for (const name of ["select", "eq", "in", "lt", "update"])
+      for (const name of ["select", "eq", "in", "lt", "update"]) {
         chain[name] = () => chain;
+      }
       chain.maybeSingle = async () => ({ data: { payload } });
       chain.then = (resolve: (value: unknown) => void) =>
         resolve({ data: rows[table] ?? [], error: null });
@@ -186,8 +188,9 @@ Deno.test(
     };
     const query = () => {
       const chain: Record<string, unknown> = {};
-      for (const name of ["select", "eq", "in", "lt", "order", "update"])
+      for (const name of ["select", "eq", "in", "lt", "order", "update"]) {
         chain[name] = () => chain;
+      }
       chain.maybeSingle = async () => ({ data: { payload } });
       chain.then = (resolve: (value: unknown) => void) =>
         resolve({ data: [], error: null });
@@ -206,11 +209,12 @@ Deno.test(
   "a tapped answer is saved to the brief at the start of the turn",
   async () => {
     const { workshopTurnNote } = await import("./turn-note.ts");
-    const updates: Record<string, unknown>[] = [];
+    const updates: Array<Record<string, unknown>> = [];
     const query = () => {
       const chain: Record<string, unknown> = {};
-      for (const name of ["select", "eq", "in", "lt"])
+      for (const name of ["select", "eq", "in", "lt"]) {
         chain[name] = () => chain;
+      }
       chain.update = (value: Record<string, unknown>) => {
         updates.push(value);
         return chain;

@@ -31,8 +31,9 @@ const gone = (pid: number) => {
 
 const waitUntil = async (check: () => boolean, ms = 3000) => {
   const end = Date.now() + ms;
-  while (!check() && Date.now() < end)
+  while (!check() && Date.now() < end) {
     await new Promise((resolve) => setTimeout(resolve, 50));
+  }
   return check();
 };
 
@@ -72,8 +73,11 @@ test("a render that runs past its time limit is stopped, with the processes it s
     expect(await waitUntil(() => gone(job))).toBe(true);
     expect(await waitUntil(() => gone(helper))).toBe(true);
   } finally {
-    if (previous === undefined) delete process.env.REMOTION_DIR;
-    else process.env.REMOTION_DIR = previous;
+    if (previous === undefined) {
+      delete process.env.REMOTION_DIR;
+    } else {
+      process.env.REMOTION_DIR = previous;
+    }
     await rm(dir, { recursive: true, force: true });
     await rm(remotionDir, { recursive: true, force: true });
   }

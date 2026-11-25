@@ -1,4 +1,5 @@
 import type { ChannelAttachment, ChannelProvider } from "./types.ts";
+import { publicApiUrl } from "../public-api/url.ts";
 
 export function aiosEnvironmentLabel(): "staging" | "production" {
   const env = String(
@@ -31,7 +32,7 @@ export function buildCodexWorkspaceAgentInput(args: {
   tenantId: string;
   environment?: "staging" | "production";
   parliamentRound?: number | null;
-  attachments?: ChannelAttachment[];
+  attachments?: Array<ChannelAttachment>;
   projectRef?: string;
 }): string {
   const env = args.environment ?? aiosEnvironmentLabel();
@@ -80,8 +81,12 @@ export function buildCodexWorkspaceAgentInput(args: {
   );
 }
 
-function attachmentBlock(attachments: ChannelAttachment[] | undefined): string {
-  if (!attachments?.length) return "";
+function attachmentBlock(
+  attachments: Array<ChannelAttachment> | undefined,
+): string {
+  if (!attachments?.length) {
+    return "";
+  }
   const lines = attachments.map((a) => {
     const label = a.type === "image" ? "image" : "file";
     return `- ${label}: ${a.name} → ${a.url}`;
@@ -99,8 +104,7 @@ export function buildCallbackInstructions(args: {
   readOnly?: boolean;
   callbackIntent?: "default" | "meeting_summary";
 }): string {
-  const supabaseUrl =
-    Deno.env.get("SUPABASE_URL") || "https://zvoijyneresvkadpprel.supabase.co";
+  const supabaseUrl = publicApiUrl();
   const roundLine = args.parliamentRound
     ? `This is parliament round ${args.parliamentRound}. Do not open another parliament.\n`
     : "";
@@ -174,7 +178,7 @@ export function wrapDirectPrompt(args: {
   origin: ChannelProvider;
   userText: string;
   history: Array<{ role: string; content: string }>;
-  attachments?: ChannelAttachment[];
+  attachments?: Array<ChannelAttachment>;
   opening?: string;
   /** Command Center sidecar context, unvalidated from the browser. */
   screenContext?: unknown;

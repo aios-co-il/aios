@@ -1,8 +1,9 @@
-import { Building2, Globe, Mail, Phone } from "lucide-react";
+import { Building2, Globe } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { ClientAvatar } from "@/components/clients/ClientAvatar";
 import { ClientTeamPills } from "@/components/clients/ClientChips";
+import { ContactValue } from "@/components/contact/ContactValue";
 import { Empty, LinkCell, RowActions } from "./ClientsTableCells";
 import { CampaignerAssignmentPicker } from "@/components/clients/CampaignerAssignmentPicker";
 import { cn } from "@/lib/utils";
@@ -99,14 +100,26 @@ export function ClientsTableRow({
         />
       </TableCell>
       <TableCell className="py-3">
-        <LinkCell icon={Phone} href={client.phone && `tel:${client.phone}`}>
-          {client.phone}
-        </LinkCell>
+        {client.phone ? (
+          <ContactValue
+            kind="phone"
+            value={client.phone}
+            className="whitespace-nowrap text-sm"
+          />
+        ) : (
+          <Empty />
+        )}
       </TableCell>
       <TableCell className="py-3">
-        <LinkCell icon={Mail} href={client.email && `mailto:${client.email}`}>
-          {client.email}
-        </LinkCell>
+        {client.email ? (
+          <ContactValue
+            kind="email"
+            value={client.email}
+            className="whitespace-nowrap text-sm"
+          />
+        ) : (
+          <Empty />
+        )}
       </TableCell>
       <TableCell className="py-3">
         <LinkCell icon={Globe} href={client.website} external>

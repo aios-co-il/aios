@@ -9,13 +9,19 @@ export async function markLinkedTaskDoneForCalendarEvent(
     .select("id, status")
     .eq("google_calendar_event_id", eventId)
     .maybeSingle();
-  if (fetchError) throw fetchError;
-  if (!task || task.status === "done") return null;
+  if (fetchError) {
+    throw fetchError;
+  }
+  if (!task || task.status === "done") {
+    return null;
+  }
 
   const { error } = await supabase
     .from("tasks")
     .update({ status: "done", google_calendar_event_id: null })
     .eq("id", task.id);
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return task.id;
 }

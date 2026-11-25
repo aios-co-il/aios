@@ -11,7 +11,9 @@ import {
 /** Header agency picker; hidden when the user has no agencies. */
 export function AgencySelector() {
   const { selectedAgency, setSelectedAgency, agencies } = useAgency();
-  if (!(agencies && agencies.length > 0)) return null;
+  if (!(agencies && agencies.length > 0)) {
+    return null;
+  }
   return (
     <div className="hidden md:flex items-center gap-1 sm:gap-2 min-w-0 max-w-[42vw] sm:max-w-none">
       <span className="text-sm text-muted-foreground hidden lg:inline shrink-0">

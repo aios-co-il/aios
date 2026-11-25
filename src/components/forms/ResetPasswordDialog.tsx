@@ -41,7 +41,9 @@ export function ResetPasswordDialog({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("No active session");
+      if (!session) {
+        throw new Error("No active session");
+      }
 
       const { data, error } = await supabase.functions.invoke(
         "reset-user-password",
@@ -53,8 +55,12 @@ export function ResetPasswordDialog({
         },
       );
 
-      if (error) throw error;
-      if (!data.success) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (!data.success) {
+        throw new Error(data.error);
+      }
       return data;
     },
     onSuccess: () => {

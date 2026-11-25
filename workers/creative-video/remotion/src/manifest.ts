@@ -17,9 +17,9 @@ export type InputManifest = {
   width: number;
   height: number;
   totalFrames: number;
-  scenes: InputScene[];
+  scenes: Array<InputScene>;
 };
-const kinds: SceneKind[] = [
+const kinds: Array<SceneKind> = [
   "sink",
   "chaos",
   "arrival",
@@ -37,14 +37,16 @@ export function validateManifest(manifest: InputManifest): void {
     manifest.width > 3840 ||
     manifest.height < 240 ||
     manifest.height > 3840
-  )
+  ) {
     throw Error("Invalid manifest header");
+  }
   if (
     !Array.isArray(manifest.scenes) ||
     manifest.scenes.length < 1 ||
     manifest.scenes.length > 100
-  )
+  ) {
     throw Error("Invalid scene count");
+  }
   let cursor = 0;
   const ids = new Set<string>();
   for (const s of [...manifest.scenes].sort((a, b) => a.order - b.order)) {
@@ -54,13 +56,15 @@ export function validateManifest(manifest: InputManifest): void {
       !Number.isInteger(s.frameCount) ||
       s.frameCount < 1 ||
       s.startFrame !== cursor
-    )
+    ) {
       throw Error("Invalid scene order or timing");
+    }
     ids.add(s.id);
     cursor += s.frameCount;
   }
-  if (cursor !== manifest.totalFrames || cursor > 18000)
+  if (cursor !== manifest.totalFrames || cursor > 18000) {
     throw Error("Total frame count mismatch");
+  }
 }
 export function manifestToProps(manifest: InputManifest): CarmenVideoProps {
   validateManifest(manifest);
@@ -98,9 +102,12 @@ export type WorkshopCaptionStyle = "motion" | "karaoke";
 export type WorkshopCaption = {
   startFrame: number;
   endFrame: number;
-  words: WorkshopWord[];
+  words: Array<WorkshopWord>;
 };
-export type WorkshopEnvelope = { frames: number[]; volumes: number[] };
+export type WorkshopEnvelope = {
+  frames: Array<number>;
+  volumes: Array<number>;
+};
 export type WorkshopBrand = {
   primaryColor?: string | null;
   secondaryColor?: string | null;
@@ -108,7 +115,7 @@ export type WorkshopBrand = {
   fontFamily?: string | null;
   ctaText?: string | null;
   /** ctaText in reading order, one entry per line (at most three). */
-  ctaLines?: string[] | null;
+  ctaLines?: Array<string> | null;
   ctaUrl?: string | null;
 };
 export type WorkshopScene = SceneLook & {
@@ -159,16 +166,16 @@ export type WorkshopMusicLoop = {
   fadeOutFrames: number;
 };
 export type WorkshopFilmProps = FilmLook & {
-  scenes: WorkshopScene[];
+  scenes: Array<WorkshopScene>;
   narration?: string | null;
   music?: string | null;
   /** Copies of the music that cover the film; without them the track simply loops. */
-  musicLoops?: WorkshopMusicLoop[] | null;
+  musicLoops?: Array<WorkshopMusicLoop> | null;
   musicEnvelope?: WorkshopEnvelope | null;
-  effects?: WorkshopEffect[];
+  effects?: Array<WorkshopEffect>;
   /** Effect levels over the film, ducked under the voice like the music bed. */
   effectsEnvelope?: WorkshopEnvelope | null;
-  captions?: WorkshopCaption[];
+  captions?: Array<WorkshopCaption>;
   /** How the captions are drawn; karaoke when unset (older manifests). */
   captionStyle?: WorkshopCaptionStyle;
   brand?: WorkshopBrand | null;

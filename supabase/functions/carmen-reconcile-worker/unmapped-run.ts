@@ -12,8 +12,8 @@ import type { TenantConnections } from "./unmapped-accounts-db.ts";
 
 /** What scanning one tenant's connections found. */
 export type TenantScan = {
-  findings: ReconcileFinding[];
-  errors: string[];
+  findings: Array<ReconcileFinding>;
+  errors: Array<string>;
   accountsSeen: number;
   complete: boolean;
 };
@@ -24,7 +24,7 @@ export function unmappedRun(
   scan: TenantScan,
   startedAt: Date,
   finishedAt: Date,
-): { run: StoredRun; kept: ReconcileFinding[] } {
+): { run: StoredRun; kept: Array<ReconcileFinding> } {
   // Only staff members' private connections, which this check never reads:
   // say so rather than store an "ok" that covered nothing.
   const noOrgConnections = group.connections.length === 0;

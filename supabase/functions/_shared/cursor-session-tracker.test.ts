@@ -11,22 +11,22 @@ import {
   type CursorTaskSessionRow,
 } from "./cursor-session-tracker.ts";
 
-type Call = { table: string; op: string; args: unknown[] };
+type Call = { table: string; op: string; args: Array<unknown> };
 
 /** A query builder that records every call made on each table. */
 function fakeDb() {
-  const calls: Call[] = [];
+  const calls: Array<Call> = [];
   const from = (table: string) => {
     const builder = {
-      upsert: (...args: unknown[]) => {
+      upsert: (...args: Array<unknown>) => {
         calls.push({ table, op: "upsert", args });
         return Promise.resolve({ error: null });
       },
-      update: (...args: unknown[]) => {
+      update: (...args: Array<unknown>) => {
         calls.push({ table, op: "update", args });
         return builder;
       },
-      eq: (...args: unknown[]) => {
+      eq: (...args: Array<unknown>) => {
         calls.push({ table, op: "eq", args });
         return builder;
       },
@@ -56,7 +56,7 @@ Deno.test("cursorSessionDisplayName prefers task title", () => {
 });
 
 Deno.test("formatCursorSessionsForAgent lists sessions for Carmen", () => {
-  const rows: CursorTaskSessionRow[] = [
+  const rows: Array<CursorTaskSessionRow> = [
     {
       id: "1",
       tenant_id: "t1",

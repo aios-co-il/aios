@@ -26,7 +26,7 @@ export function targetsAtPlace(
   settings: unknown,
   goal: string,
   campaign: CampaignRef,
-): PulseTarget[] {
+): Array<PulseTarget> {
   const s = isJsonObject(settings) ? settings : {};
   const targets = campaignTargets(s);
   const platformTargets = isJsonObject(s.pulse_platform_targets)
@@ -113,7 +113,7 @@ export function campaignSlotKey(campaign: CampaignRef): string | null {
 }
 
 /** Every slot a campaign's target can sit under, id first ("default" is never one). */
-export function campaignSlots(campaign: CampaignRef): string[] {
+export function campaignSlots(campaign: CampaignRef): Array<string> {
   if (!campaign) {
     return [];
   }
@@ -130,7 +130,7 @@ export function campaignSlots(campaign: CampaignRef): string[] {
 export function staleCampaignNameSlot(
   campaign: { campaignName?: string | null },
   slot: string,
-): string[] {
+): Array<string> {
   const name = (campaign.campaignName || "").trim();
   return name && name !== slot && name !== "default" ? [name] : [];
 }

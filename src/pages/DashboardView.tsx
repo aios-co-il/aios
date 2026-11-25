@@ -1,8 +1,9 @@
 import { DashboardContinentsView } from "@/components/dynamic-tables/CampaignContinents/DashboardContinentsView";
 import { continentPlatforms } from "@/components/dynamic-tables/CampaignContinents/combinedContinents";
+import { continentsFallbackFilter } from "@/components/dynamic-tables/CampaignContinents/continentsFallback";
 import type { DashboardPlatformFilter } from "@/lib/dashboardPlatformFilter";
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
-import { DashboardTrackedEvents } from "@/components/dynamic-tables/TrackedEvents/DashboardTrackedEvents";
+import { DashboardAnalyticsTab } from "@/components/report-ui/dashboard/DashboardAnalyticsTab";
 import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleAdsCampaignSection/summarizeGoogleAdsCampaigns";
 import { CombinedRoasCard } from "@/components/dynamic-tables/CombinedRoasCard";
 import { DashboardPlatformBreakdown } from "@/components/dynamic-tables/DashboardPlatformBreakdown/DashboardPlatformBreakdown";
@@ -58,7 +59,6 @@ import {
 } from "@/components/ui/table";
 import {
   ArrowRight,
-  ExternalLink,
   Facebook,
   ShoppingCart,
   FileSpreadsheet,
@@ -76,7 +76,8 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
-import { adAccountShortcutLabel, getAdAccountLinks } from "@/lib/adAccountUrl";
+import { getAdAccountLinks } from "@/lib/adAccountUrl";
+import { AdAccountButtons } from "@/components/reports/ReportHeader/AdAccountButtons";
 import { useClientAdLinks } from "@/hooks/useClientAdLinks";
 import { format } from "date-fns";
 import { useTenantPath } from "@/hooks/useTenantPath";
@@ -84,7 +85,6 @@ import { toast } from "sonner";
 import { AgencyDashboardContent } from "@/components/dynamic-tables/AgencyDashboardContent";
 import { ShareDashboardDialog } from "@/components/dynamic-tables/ShareDashboardDialog";
 import { useTenant } from "@/contexts/TenantContext";
-import { GoogleAnalyticsDashboard } from "@/components/dynamic-tables/GoogleAnalyticsDashboard";
 import { SeoDashboardView } from "@/components/dynamic-tables/SeoDashboardView";
 import { SeoDashboardWithGa } from "@/components/dynamic-tables/SeoDashboardWithGa";
 import { SeoReportTabs } from "@/components/dynamic-tables/SeoReportTabs";
@@ -198,17 +198,28 @@ const matchesPlatformFilter = (
   integrationType: string,
   filter: DashboardPlatformFilter,
 ): boolean => {
-  if (filter === "all") return true;
-  if (filter === "facebook") return isFacebookPlatform(integrationType);
-  if (filter === "google_ads") return integrationType === "google_ads";
-  if (filter === "google_analytics")
+  if (filter === "all") {
+    return true;
+  }
+  if (filter === "facebook") {
+    return isFacebookPlatform(integrationType);
+  }
+  if (filter === "google_ads") {
+    return integrationType === "google_ads";
+  }
+  if (filter === "google_analytics") {
     return isAnalyticsPlatform(integrationType);
+  }
   return true;
 };
 
 const formatNumber = (num: number) => {
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
-  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + "M";
+  }
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1) + "K";
+  }
   return Math.round(num).toString();
 };
 
@@ -282,13 +293,17 @@ export default function DashboardView() {
   const { data: dashboard, isLoading: dashboardLoading } = useQuery({
     queryKey: ["crm-dashboard", dashboardId],
     queryFn: async () => {
-      if (!dashboardId) throw new Error("No dashboard ID");
+      if (!dashboardId) {
+        throw new Error("No dashboard ID");
+      }
       const { data, error } = await supabase
         .from("crm_dashboards")
         .select("*, clients(name), agencies(name)")
         .eq("id", dashboardId)
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!dashboardId,
@@ -307,7 +322,9 @@ export default function DashboardView() {
       isOrganizationDashboard,
     ],
     queryFn: async () => {
-      if (!currentTenantId) return [];
+      if (!currentTenantId) {
+        return [];
+      }
       const { data: shared } = await supabase
         .from("agency_tenant_access")
         .select("agency_id")
@@ -322,7 +339,9 @@ export default function DashboardView() {
         query = query.eq("tenant_id", currentTenantId);
       }
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!currentTenantId && isOrganizationDashboard,
@@ -340,14 +359,18 @@ export default function DashboardView() {
   }, [isOrganizationDashboard, orgAgencies, selectedOrgAgencyId]);
 
   // Fetch tables for the client
-  const { data: tables = [], isPending: tablesPending } = useQuery<any[]>({
+  const { data: tables = [], isPending: tablesPending } = useQuery<Array<any>>({
     queryKey: dashboardTablesQueryKey(dashboard?.client_id),
     queryFn: async () => {
-      if (!dashboard?.client_id) return [];
+      if (!dashboard?.client_id) {
+        return [];
+      }
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const response = await supabase.functions.invoke(
         currentTenantId
@@ -355,11 +378,13 @@ export default function DashboardView() {
           : `crm-tables?client_id=${dashboard.client_id}`,
         { method: "GET" },
       );
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       return Array.isArray(response.data) ? response.data : [];
     },
     enabled: !!dashboard?.client_id,
-    ...reportQueryOptions<any[]>(),
+    ...reportQueryOptions<Array<any>>(),
     // Bust empty lists after permission grants; keep warm cache when data exists.
     refetchOnMount: refetchOnMountIfEmpty,
   });
@@ -376,8 +401,10 @@ export default function DashboardView() {
   const dashboardLastSyncAt = useMemo(() => {
     const stamps = tables
       .map((t: any) => getReportLastSyncAt(t))
-      .filter(Boolean) as string[];
-    if (!stamps.length) return null;
+      .filter(Boolean) as Array<string>;
+    if (!stamps.length) {
+      return null;
+    }
     return stamps.sort().reverse()[0];
   }, [tables]);
   const dashboardSyncProblem = useMemo(
@@ -389,13 +416,17 @@ export default function DashboardView() {
   const { data: tableFields = {} } = useQuery({
     queryKey: ["crm-fields-dashboard", tables.map((t: any) => t.id).join(",")],
     queryFn: async () => {
-      if (tables.length === 0) return {};
+      if (tables.length === 0) {
+        return {};
+      }
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
-      const fieldsMap: Record<string, any[]> = {};
+      const fieldsMap: Record<string, Array<any>> = {};
       await Promise.all(
         tables.map(async (table: any) => {
           const response = await supabase.functions.invoke(
@@ -404,7 +435,7 @@ export default function DashboardView() {
           );
           if (!response.error) {
             const fields = (response.data as any)?.fields || [];
-            fieldsMap[table.id] = (fields as any[]).sort(
+            fieldsMap[table.id] = (fields as Array<any>).sort(
               (a: any, b: any) => a.position - b.position,
             );
           }
@@ -423,7 +454,7 @@ export default function DashboardView() {
     error: recordsError,
     dataUpdatedAt: recordsUpdatedAt,
     refetch: refetchRecords,
-  } = useQuery<any[]>({
+  } = useQuery<Array<any>>({
     queryKey: [
       "crm-records-dashboard",
       tables.map((t: any) => t.id).join(","),
@@ -432,11 +463,15 @@ export default function DashboardView() {
       customToStr,
     ],
     queryFn: async () => {
-      if (tables.length === 0) return [];
+      if (tables.length === 0) {
+        return [];
+      }
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const tablesToFetch = dashboardRecordTables(tables);
 
@@ -464,7 +499,7 @@ export default function DashboardView() {
       return allResults.flat();
     },
     enabled: tables.length > 0 && isCustomReady,
-    ...reportQueryOptions<any[]>(),
+    ...reportQueryOptions<Array<any>>(),
     refetchOnMount: refetchOnMountIfEmpty,
   });
 
@@ -474,7 +509,7 @@ export default function DashboardView() {
   // Weekly comparison is independent of the dashboard's active date preset: it needs
   // every available campaign day (up to one year) to render the stacked week tables.
   const { data: weeklyRecords = [], isPending: weeklyRecordsPending } =
-    useQuery<any[]>({
+    useQuery<Array<any>>({
       queryKey: [
         "crm-records-dashboard-weekly",
         tables.map((t: any) => t.id).join(","),
@@ -511,7 +546,7 @@ export default function DashboardView() {
       enabled:
         platformFilter === "weekly" &&
         tables.some((t: any) => isAdsPlatform(t.integration_type)),
-      ...reportQueryOptions<any[]>(),
+      ...reportQueryOptions<Array<any>>(),
     });
 
   // Check if client has SEO (Ahrefs) reports — do NOT filter by UI tenant.
@@ -520,13 +555,17 @@ export default function DashboardView() {
   const { data: hasSeoReports = false } = useQuery({
     queryKey: ["has-seo-reports", dashboard?.client_id],
     queryFn: async () => {
-      if (!dashboard?.client_id) return false;
+      if (!dashboard?.client_id) {
+        return false;
+      }
       const { count, error } = await supabase
         .from("ahrefs_reports")
         .select("id", { count: "exact", head: true })
         .eq("client_id", dashboard.client_id)
         .limit(1);
-      if (error) return false;
+      if (error) {
+        return false;
+      }
       return (count || 0) > 0;
     },
     enabled: !!dashboard?.client_id,
@@ -536,7 +575,9 @@ export default function DashboardView() {
   const { data: hasWooCommerce = false } = useQuery({
     queryKey: ["has-woocommerce", dashboard?.client_id],
     queryFn: async () => {
-      if (!dashboard?.client_id) return false;
+      if (!dashboard?.client_id) {
+        return false;
+      }
       const { count, error } = await supabase
         .from("social_media_wordpress_sites" as any)
         .select("id", { count: "exact", head: true })
@@ -554,7 +595,9 @@ export default function DashboardView() {
   });
 
   useEffect(() => {
-    if (didSetSeoDefaultRef.current) return;
+    if (didSetSeoDefaultRef.current) {
+      return;
+    }
     if (hasSeoReports || hasWooCommerce) {
       setDateFilter("last_30_days");
       didSetSeoDefaultRef.current = true;
@@ -659,15 +702,26 @@ export default function DashboardView() {
   const availablePlatforms = useMemo(() => {
     const set = new Set<string>();
     tables.forEach((t: any) => {
-      if (t.integration_type) set.add(t.integration_type);
+      if (t.integration_type) {
+        set.add(t.integration_type);
+      }
     });
-    const platforms: DashboardPlatformFilter[] = [];
-    if (set.has("facebook_insights") || set.has("facebook_ecommerce"))
+    const platforms: Array<DashboardPlatformFilter> = [];
+    if (set.has("facebook_insights") || set.has("facebook_ecommerce")) {
       platforms.push("facebook");
-    if (set.has("google_ads")) platforms.push("google_ads");
-    if (set.has("google_analytics")) platforms.push("google_analytics");
-    if (hasSeoReports) platforms.push("seo");
-    if (hasWooCommerce) platforms.push("woocommerce");
+    }
+    if (set.has("google_ads")) {
+      platforms.push("google_ads");
+    }
+    if (set.has("google_analytics")) {
+      platforms.push("google_analytics");
+    }
+    if (hasSeoReports) {
+      platforms.push("seo");
+    }
+    if (hasWooCommerce) {
+      platforms.push("woocommerce");
+    }
     return platforms;
   }, [tables, hasSeoReports, hasWooCommerce]);
 
@@ -682,12 +736,12 @@ export default function DashboardView() {
   // A period whose campaigns stop naming destinations drops the tab; leave it too.
   useEffect(() => {
     if (platformFilter === "continents" && !hasContinentsTab) {
-      setPlatformFilter("google_ads");
+      setPlatformFilter(continentsFallbackFilter(availablePlatforms));
     }
-  }, [platformFilter, hasContinentsTab]);
+  }, [platformFilter, hasContinentsTab, availablePlatforms]);
 
-  const platformTabItems = useMemo((): ResponsiveTabItem[] => {
-    const items: ResponsiveTabItem[] = [{ value: "all", label: "📊 הכל" }];
+  const platformTabItems = useMemo((): Array<ResponsiveTabItem> => {
+    const items: Array<ResponsiveTabItem> = [{ value: "all", label: "📊 הכל" }];
     if (
       availablePlatforms.includes("facebook") ||
       availablePlatforms.includes("google_ads")
@@ -750,20 +804,25 @@ export default function DashboardView() {
     return displayAllRecords.filter((record: any) => {
       const source = record._source || "unknown";
       // Platform filter
-      if (!matchesPlatformFilter(source, platformFilter)) return false;
+      if (!matchesPlatformFilter(source, platformFilter)) {
+        return false;
+      }
       // For Analytics: only use 'daily' records for accurate totals
       if (isAnalyticsPlatform(source)) {
         const data = record.data || {};
         // Only include report_type='daily' (aggregate per day)
         // Exclude: traffic_source (no date), daily_source (per-source breakdown = double counting), top_pages
-        if (data.report_type !== "daily") return false;
+        if (data.report_type !== "daily") {
+          return false;
+        }
       }
       // Ads sync stores campaign + adset + ad rows; dashboards aggregate at campaign level only.
       if (
         isAdsPlatform(source) &&
         !shouldIncludeInAdsDashboardAggregate(record.data, source)
-      )
+      ) {
         return false;
+      }
       return true;
     });
   }, [displayAllRecords, platformFilter]);
@@ -774,7 +833,9 @@ export default function DashboardView() {
     const adsDates = displayAllRecords
       .filter((r: any) => isAdsPlatform(r._source || ""))
       .map((r: any) => r.data?.date);
-    if (adsDates.length === 0) return null;
+    if (adsDates.length === 0) {
+      return null;
+    }
     const { startDate } = getDashboardDateRange(
       dateFilter,
       new Date(),
@@ -844,8 +905,12 @@ export default function DashboardView() {
       const source = record._source || "unknown";
       if (isAdsPlatform(source)) {
         const data = record.data || {};
-        if (data.report_type && data.report_type !== "daily") return;
-        if (!shouldIncludeInAdsDashboardAggregate(data, source)) return;
+        if (data.report_type && data.report_type !== "daily") {
+          return;
+        }
+        if (!shouldIncludeInAdsDashboardAggregate(data, source)) {
+          return;
+        }
         spend += getSpendFromData(data);
         impressions += Number(data.impressions) || 0;
       }
@@ -915,19 +980,24 @@ export default function DashboardView() {
     const categorize = (sourceMedium: string): string => {
       const sm = sourceMedium.toLowerCase();
       if (sm.includes("facebook") || sm.includes("fb")) {
-        if (sm.includes("paid") || sm.includes("cpc") || sm.includes("cpm"))
+        if (sm.includes("paid") || sm.includes("cpc") || sm.includes("cpm")) {
           return "Facebook ממומן";
+        }
         return "Facebook אורגני";
       }
       if (sm.includes("instagram") || sm.includes("ig")) {
-        if (sm.includes("paid") || sm.includes("cpc") || sm.includes("cpm"))
+        if (sm.includes("paid") || sm.includes("cpc") || sm.includes("cpm")) {
           return "Instagram ממומן";
+        }
         return "Instagram אורגני";
       }
       if (sm.includes("google") || sm.includes("googleads")) {
-        if (sm.includes("organic")) return "Google אורגני";
-        if (sm.includes("cpc") || sm.includes("paid") || sm.includes("ads"))
+        if (sm.includes("organic")) {
+          return "Google אורגני";
+        }
+        if (sm.includes("cpc") || sm.includes("paid") || sm.includes("ads")) {
           return "Google ממומן";
+        }
         return "Google";
       }
       if (
@@ -936,18 +1006,26 @@ export default function DashboardView() {
         sm.includes("mailchimp") ||
         sm.includes("klaviyo") ||
         sm.includes("activetrail")
-      )
+      ) {
         return "דיוור";
-      if (sm.includes("whatsapp") || sm.includes("wa.me")) return "WhatsApp";
-      if (sm.includes("organic") || sm.includes("seo")) return "אורגני";
+      }
+      if (sm.includes("whatsapp") || sm.includes("wa.me")) {
+        return "WhatsApp";
+      }
+      if (sm.includes("organic") || sm.includes("seo")) {
+        return "אורגני";
+      }
       if (
         sm === "(direct) / (none)" ||
         sm === "direct" ||
         sm.includes("(direct)") ||
         sm.includes("(none)")
-      )
+      ) {
         return "ישיר (Direct)";
-      if (sm.includes("referral")) return "הפניות (Referral)";
+      }
+      if (sm.includes("referral")) {
+        return "הפניות (Referral)";
+      }
       return "אחר";
     };
 
@@ -963,13 +1041,17 @@ export default function DashboardView() {
     > = {};
     displayAllRecords.forEach((record: any) => {
       const source = record._source || "unknown";
-      if (!isAnalyticsPlatform(source)) return;
+      if (!isAnalyticsPlatform(source)) {
+        return;
+      }
       const data = record.data || {};
-      if (data.report_type !== "daily_source") return;
+      if (data.report_type !== "daily_source") {
+        return;
+      }
 
       const sm = data.source_medium || "Unknown";
       const category = categorize(sm);
-      if (!sources[category])
+      if (!sources[category]) {
         sources[category] = {
           sessions: 0,
           users: 0,
@@ -977,6 +1059,7 @@ export default function DashboardView() {
           revenue: 0,
           addToCart: 0,
         };
+      }
       sources[category].sessions += Number(data.sessions) || 0;
       sources[category].users += Number(data.users) || 0;
       sources[category].purchases += getPurchasesFromData(data);
@@ -1009,12 +1092,16 @@ export default function DashboardView() {
     > = {};
     displayAllRecords.forEach((record: any) => {
       const source = record._source || "unknown";
-      if (!isAnalyticsPlatform(source)) return;
+      if (!isAnalyticsPlatform(source)) {
+        return;
+      }
       const data = record.data || {};
-      if (data.report_type !== "channel_group") return;
+      if (data.report_type !== "channel_group") {
+        return;
+      }
 
       const ch = data.channel_group || "Unknown";
-      if (!channels[ch])
+      if (!channels[ch]) {
         channels[ch] = {
           sessions: 0,
           engagedSessions: 0,
@@ -1029,6 +1116,7 @@ export default function DashboardView() {
           eventsSum: 0,
           count: 0,
         };
+      }
       channels[ch].sessions += Number(data.sessions) || 0;
       channels[ch].engagedSessions += Number(data.engaged_sessions) || 0;
       channels[ch].users += Number(data.users) || 0;
@@ -1067,7 +1155,9 @@ export default function DashboardView() {
 
     filteredRecords.forEach((record: any) => {
       const date = record.data?.date;
-      if (!date) return;
+      if (!date) {
+        return;
+      }
       const source = record._source || "unknown";
       const data = record.data || {};
 
@@ -1118,17 +1208,21 @@ export default function DashboardView() {
 
   // Get raw records and fields for platform-specific tabs
   const platformRawData = useMemo(() => {
-    if (platformFilter === "all")
+    if (platformFilter === "all") {
       return { records: [], fields: [], tableIds: [] };
+    }
 
     // Find matching tables
     const matchingTables = tables.filter((t: any) => {
-      if (platformFilter === "facebook")
+      if (platformFilter === "facebook") {
         return isFacebookPlatform(t.integration_type);
-      if (platformFilter === "google_ads")
+      }
+      if (platformFilter === "google_ads") {
         return t.integration_type === "google_ads";
-      if (platformFilter === "google_analytics")
+      }
+      if (platformFilter === "google_analytics") {
         return t.integration_type === "google_analytics";
+      }
       return false;
     });
 
@@ -1261,10 +1355,12 @@ export default function DashboardView() {
 
   // Group records by date for table
   const recordsByDate = useMemo(() => {
-    const byDate: Record<string, any[]> = {};
+    const byDate: Record<string, Array<any>> = {};
     filteredRecords.forEach((record: any) => {
       const date = record.data?.date || "unknown";
-      if (!byDate[date]) byDate[date] = [];
+      if (!byDate[date]) {
+        byDate[date] = [];
+      }
       byDate[date].push(record);
     });
     return Object.entries(byDate)
@@ -1357,7 +1453,7 @@ export default function DashboardView() {
       }));
 
       // Build a sync task per remaining table based on integration_type
-      const tableTasks = (tables as any[])
+      const tableTasks = (tables as Array<any>)
         .map((t: any) => {
           switch (t.integration_type) {
             case "google_analytics":
@@ -1386,10 +1482,10 @@ export default function DashboardView() {
               return null;
           }
         })
-        .filter(Boolean) as { label: string; promise: Promise<any> }[];
+        .filter(Boolean) as Array<{ label: string; promise: Promise<any> }>;
 
       // Fetch WooCommerce sites for this client and sync each
-      const wooTasks: { label: string; promise: Promise<any> }[] = [];
+      const wooTasks: Array<{ label: string; promise: Promise<any> }> = [];
       if (dashboard?.client_id) {
         const { data: sites } = await supabase
           .from("social_media_wordpress_sites" as any)
@@ -1397,7 +1493,7 @@ export default function DashboardView() {
           .eq("client_id", dashboard.client_id)
           .eq("woocommerce_enabled", true)
           .eq("is_active", true);
-        ((sites as any[]) || []).forEach((s: any) => {
+        ((sites as Array<any>) || []).forEach((s: any) => {
           wooTasks.push({
             label: `WooCommerce (${s.site_name})`,
             promise: supabase.functions.invoke("sync-woocommerce-data", {
@@ -1416,7 +1512,7 @@ export default function DashboardView() {
       }
 
       const results = await Promise.allSettled(allTasks.map((t) => t.promise));
-      const failed: string[] = [];
+      const failed: Array<string> = [];
       results.forEach((r, i) => {
         if (
           r.status === "rejected" ||
@@ -1559,20 +1655,7 @@ export default function DashboardView() {
                   כרטיס לקוח
                 </Button>
               )}
-              {adAccountLinks.map((link) => (
-                <Button
-                  key={link.url}
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={() =>
-                    window.open(link.url, "_blank", "noopener,noreferrer")
-                  }
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  {adAccountShortcutLabel(link, adAccountLinks.length)}
-                </Button>
-              ))}
+              <AdAccountButtons links={adAccountLinks} />
               {currentTenantId && dashboardId && (
                 <ShareDashboardDialog
                   dashboardId={dashboardId}
@@ -1772,30 +1855,23 @@ export default function DashboardView() {
               </Button>
             </Card>
           ) : platformFilter === "google_analytics" ? (
-            /* Analytics tab: render the same GoogleAnalyticsDashboard used in standalone table view */
-            <div className="space-y-4">
-              <DashboardTrackedEvents
-                records={displayAllRecords}
-                settings={dashboard?.settings}
-                // Spend in several currencies has no single cost per event.
-                adsSpend={currencies.mixed ? 0 : globalAdsMetrics.spend}
-                formatCurrency={formatCurrency}
-                formatNumber={formatNumber}
-                source={dashboardId ? { dashboardId } : null}
-                dateFilter={dateFilter}
-                customFrom={customFromStr}
-                customTo={customToStr}
-                editableDashboardId={dashboardId}
-              />
-              <GoogleAnalyticsDashboard
-                records={allAnalyticsRecords}
-                externalDateFilter={dateFilter}
-                dashboardId={dashboardId}
-                tableId={analyticsTableIds[0]}
-                relatedTableIds={analyticsTableIds.slice(1)}
-                defaultReportMode={analyticsReportMode}
-              />
-            </div>
+            /* Analytics tab: the same component as the share link, at the same days */
+            <DashboardAnalyticsTab
+              records={displayAllRecords}
+              analyticsRecords={allAnalyticsRecords}
+              settings={dashboard?.settings}
+              // Spend in several currencies has no single cost per event.
+              adsSpend={currencies.mixed ? 0 : globalAdsMetrics.spend}
+              formatCurrency={formatCurrency}
+              formatNumber={formatNumber}
+              source={dashboardId ? { dashboardId } : null}
+              dateFilter={dateFilter}
+              customDateRange={customDateRange}
+              analyticsTableIds={analyticsTableIds}
+              reportMode={analyticsReportMode}
+              dashboardId={dashboardId}
+              editableDashboardId={dashboardId}
+            />
           ) : (
             <>
               {platformFilter === "all" && (

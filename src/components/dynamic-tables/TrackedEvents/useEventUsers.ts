@@ -60,6 +60,10 @@ export function useEventUsers(input: {
                   : {
                       share_token: source.shareToken,
                       date_filter: dateFilter,
+                      // A custom range's days, checked as public-dashboard checks them.
+                      ...(dateFilter === "custom"
+                        ? { custom_start: customFrom, custom_end: customTo }
+                        : {}),
                     }),
               },
             },

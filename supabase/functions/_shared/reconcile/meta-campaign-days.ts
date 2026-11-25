@@ -29,7 +29,7 @@ export async function readCampaignDays(
   window: { start: string; end: string },
   token: string,
   opts: MetaRequestOptions & { maxPages: number },
-): Promise<CampaignDayRow[]> {
+): Promise<Array<CampaignDayRow>> {
   const campaigns = await metaGetPaged<CampaignStatus>(
     graphUrl(
       `${act}/campaigns`,

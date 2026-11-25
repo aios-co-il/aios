@@ -6,7 +6,7 @@
 export function fakeTables(
   tables: Record<string, Array<Record<string, unknown>>>,
 ) {
-  const queried: string[] = [];
+  const queried: Array<string> = [];
   const client = {
     queried,
     from(table: string) {

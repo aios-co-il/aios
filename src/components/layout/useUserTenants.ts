@@ -10,20 +10,26 @@ export function useUserTenants(userId: string | null | undefined) {
   const { data: userTenants } = useQuery({
     queryKey: ["user-tenants", userId],
     queryFn: async () => {
-      if (!userId) return [];
+      if (!userId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("tenant_users")
         .select("tenant_id, tenants(id, name, slug)")
         .eq("user_id", userId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!userId,
   });
 
   const handleTenantChange = async (tenantId: string) => {
-    if (!userId) return;
+    if (!userId) {
+      return;
+    }
     try {
       await supabase.from("user_active_tenant").upsert(
         {

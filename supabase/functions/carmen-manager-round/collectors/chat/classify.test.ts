@@ -39,7 +39,7 @@ const group = (text = "יש עדכון", key = "group:111@g.us"): Thread =>
 const none = new Set<string>();
 const all = { dueKeys: none, raisedKeys: none, complaints: true };
 
-const classify = (threads: Thread[], p: ClassifyPorts, dryRun = false) =>
+const classify = (threads: Array<Thread>, p: ClassifyPorts, dryRun = false) =>
   classifyThreads(threads, all, p, run(dryRun));
 
 Deno.test("classifyThreads", async (t) => {

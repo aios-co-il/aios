@@ -13,7 +13,7 @@ export type ReconcileStatusScope = {
   /** Tenant-level runs (table_id NULL) of the own tenant: owners and super admins only. */
   includeTenantLevel: boolean;
   /** Clients of the agencies other tenants share with this one (agency_tenant_access). */
-  sharedClientIds: string[];
+  sharedClientIds: Array<string>;
 };
 
 /** Roles that may see tenant-level rows (unmapped ad accounts), as RLS allows. */
@@ -22,7 +22,7 @@ const TENANT_LEVEL_ROLES = ["owner", "super_admin"];
 /** The caller's scope: own tenant, shared-agency clients, and tenant-level rows by role. */
 export async function reconcileStatusScope(
   db: Pick<DbClient, "from">,
-  opts: { tenantId: string; callerRoles: string[] },
+  opts: { tenantId: string; callerRoles: Array<string> },
 ): Promise<ReconcileStatusScope> {
   const { data: shares, error } = await db
     .from("agency_tenant_access")
@@ -42,7 +42,7 @@ export async function reconcileStatusScope(
     set.add(agency);
     agenciesBySource.set(source, set);
   }
-  const sharedClientIds: string[] = [];
+  const sharedClientIds: Array<string> = [];
   for (const [source, agencies] of agenciesBySource) {
     sharedClientIds.push(...(await agencyClientIds(db, source, agencies)));
   }
@@ -67,7 +67,7 @@ export async function rolesInTenant(
   db: Pick<DbClient, "from">,
   tenantId: string,
   userId: string | null,
-): Promise<string[]> {
+): Promise<Array<string>> {
   if (!userId) {
     return [];
   }
@@ -111,8 +111,8 @@ async function agencyClientIds(
   db: Pick<DbClient, "from">,
   source: string,
   agencies: Set<string>,
-): Promise<string[]> {
-  const ids: string[] = [];
+): Promise<Array<string>> {
+  const ids: Array<string> = [];
   for (let from = 0; ; from += CRM_RECORDS_PAGE_SIZE) {
     const { data, error } = await db
       .from("clients")

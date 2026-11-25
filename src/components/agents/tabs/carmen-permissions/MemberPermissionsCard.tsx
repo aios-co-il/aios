@@ -17,7 +17,7 @@ export function MemberPermissionsCard({
 }: {
   member: Member;
   row: AccessRow | undefined;
-  routes: Route[];
+  routes: Array<Route>;
   disabled: boolean;
   onSave: (patch: AccessPatch | null) => void;
 }) {

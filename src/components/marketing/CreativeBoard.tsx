@@ -17,7 +17,9 @@ export function CreativeBoard({ clientId, onSelectItem }: Props) {
         .select("id")
         .eq("client_id", clientId);
       const ids = (items ?? []).map((i: any) => i.id);
-      if (ids.length === 0) return [];
+      if (ids.length === 0) {
+        return [];
+      }
       const { data } = await supabase
         .from("marketing_assets")
         .select("*, marketing_pipeline_stages(name, stage_type)")

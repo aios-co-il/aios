@@ -30,8 +30,8 @@ interface AddTaskTeamMemberSelectorProps {
     getValues: (name: "sales_person_id") => string | undefined;
     setValue: (name: "sales_person_id", value: string) => void;
   };
-  visibleCampaigners?: TeamMember[];
-  salesPeople?: TeamMember[];
+  visibleCampaigners?: Array<TeamMember>;
+  salesPeople?: Array<TeamMember>;
   disabled: boolean;
   campaignerLabel: string;
   salesPersonLabel: string;

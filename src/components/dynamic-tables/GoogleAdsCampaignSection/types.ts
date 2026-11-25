@@ -21,7 +21,7 @@ export type GoogleAdsTotals = Omit<
 >;
 
 export type GoogleAdsCampaignSummary = {
-  campaigns: GoogleAdsCampaignSummaryRow[];
+  campaigns: Array<GoogleAdsCampaignSummaryRow>;
   totals: GoogleAdsTotals;
   ecommerce: GoogleAdsTotals;
   leads: GoogleAdsTotals;

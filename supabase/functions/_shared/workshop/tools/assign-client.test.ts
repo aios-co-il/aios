@@ -142,7 +142,7 @@ Deno.test(
     assert(removed, "old client assets are replaced");
     const rows = db.calls.find(
       (c) => c.table === "workshop_assets" && c.op === "insert",
-    )?.value as Record<string, any>[];
+    )?.value as Array<Record<string, any>>;
     assertEquals(
       rows.map((r) => [r.asset_type, r.source]),
       [

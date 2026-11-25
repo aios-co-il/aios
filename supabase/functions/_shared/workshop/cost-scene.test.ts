@@ -42,7 +42,7 @@ Deno.test("clip prices match the app for every engine", () => {
     "elevenlabs",
     "higgsfield",
     "openrouter",
-  ] as SceneEngine[]) {
+  ] as Array<SceneEngine>) {
     const mine = clipEstimate(engine, scenes);
     const app = appScenes(engine, frames);
     assertStrictEquals(mine.usd, app.usd, engine);

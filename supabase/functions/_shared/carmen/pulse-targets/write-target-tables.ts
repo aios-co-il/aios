@@ -14,7 +14,7 @@ export type TargetTable = { id: string; integration_settings: unknown };
  * names the tables that keep the new target because their restore failed too.
  */
 export type TargetTablesWrite =
-  { ok: true } | { ok: false; error: string; stillWritten: string[] };
+  { ok: true } | { ok: false; error: string; stillWritten: Array<string> };
 
 /**
  * Writes one target to each table, all or none. A table that fails or takes no
@@ -31,12 +31,12 @@ export async function writeTargetToTables(
     tenantIds,
     patch,
   }: {
-    tables: TargetTable[];
-    tenantIds: string[];
+    tables: Array<TargetTable>;
+    tenantIds: Array<string>;
     patch: PulseTargetPatchInput;
   },
 ): Promise<TargetTablesWrite> {
-  const written: TargetTable[] = [];
+  const written: Array<TargetTable> = [];
   for (const table of tables) {
     const error = await writeTableSettings(db, {
       tableId: table.id,
@@ -55,11 +55,11 @@ export async function writeTargetToTables(
 /** Restores each written table; returns the ids whose restore failed (logged). */
 async function restoreTables(
   db: PulseTargetDb,
-  tables: TargetTable[],
-  tenantIds: string[],
+  tables: Array<TargetTable>,
+  tenantIds: Array<string>,
   patch: PulseTargetPatchInput,
-): Promise<string[]> {
-  const failed: string[] = [];
+): Promise<Array<string>> {
+  const failed: Array<string> = [];
   for (const table of tables) {
     const error = await restoreTable(db, table, tenantIds, patch);
     if (error) {
@@ -81,7 +81,7 @@ async function restoreTables(
 async function restoreTable(
   db: PulseTargetDb,
   table: TargetTable,
-  tenantIds: string[],
+  tenantIds: Array<string>,
   patch: PulseTargetPatchInput,
 ): Promise<string | null> {
   const { data: current, error } = await db

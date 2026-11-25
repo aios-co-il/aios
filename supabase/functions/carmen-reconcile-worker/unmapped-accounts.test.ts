@@ -15,19 +15,20 @@ const acct = (
 ): MetaAccountWithSpend => ({ account_id, name, currency: "ILS", spend_7d });
 
 /** nextTenant over a fixed list, in tenant order. */
-const tenantWalk = (groups: TenantConnections[]) => (after: string | null) =>
-  Promise.resolve(
-    groups
-      .filter((g) => !after || g.tenant_id > after)
-      .sort((a, b) => a.tenant_id.localeCompare(b.tenant_id))[0] || null,
-  );
+const tenantWalk =
+  (groups: Array<TenantConnections>) => (after: string | null) =>
+    Promise.resolve(
+      groups
+        .filter((g) => !after || g.tenant_id > after)
+        .sort((a, b) => a.tenant_id.localeCompare(b.tenant_id))[0] || null,
+    );
 
 /** Check dependencies over fixed tenants and per-token account lists; saved runs go to `saved`. */
 function unmappedDeps(
-  groups: TenantConnections[],
-  accountsByToken: Record<string, MetaAccountWithSpend[] | Error>,
+  groups: Array<TenantConnections>,
+  accountsByToken: Record<string, Array<MetaAccountWithSpend> | Error>,
   budget: CallBudget,
-  saved: SavedRun[],
+  saved: Array<SavedRun>,
   cursor: string | null = null,
 ) {
   return {
@@ -53,7 +54,7 @@ function unmappedDeps(
 
 describe("runUnmappedAccountsCheck", () => {
   it("reports spend above the floor on accounts mapped nowhere", async () => {
-    const saved: SavedRun[] = [];
+    const saved: Array<SavedRun> = [];
     const accounts = [
       acct("act_1", 900, "Mapped"),
       acct("act_2", 450, "Orphan"),
@@ -99,7 +100,7 @@ describe("runUnmappedAccountsCheck", () => {
   it("checks a tenant split across calls whole, never 'ok' from half", async () => {
     // tenant-2's first connection sees an unmapped account; its second sees
     // only mapped ones. The first call runs out of budget between them.
-    const groups: TenantConnections[] = [
+    const groups: Array<TenantConnections> = [
       { tenant_id: "tenant-1", connections: [{ id: "a", token: "ta" }] },
       {
         tenant_id: "tenant-2",
@@ -114,7 +115,7 @@ describe("runUnmappedAccountsCheck", () => {
       t1: [acct("act_9", 500)],
       t2: [acct("act_1", 800)],
     };
-    const saved: SavedRun[] = [];
+    const saved: Array<SavedRun> = [];
     const first = await runUnmappedAccountsCheck(
       unmappedDeps(groups, accounts, new CallBudget(2), saved),
     );
@@ -147,7 +148,7 @@ describe("runUnmappedAccountsCheck", () => {
   });
 
   it("stores a tenant too big for one call flagged incomplete and moves on", async () => {
-    const groups: TenantConnections[] = [
+    const groups: Array<TenantConnections> = [
       {
         tenant_id: "tenant-1",
         connections: [
@@ -158,7 +159,7 @@ describe("runUnmappedAccountsCheck", () => {
       { tenant_id: "tenant-2", connections: [{ id: "c3", token: "t3" }] },
     ];
     const accounts = { t1: [acct("act_1", 50)], t2: [], t3: [] };
-    const saved: SavedRun[] = [];
+    const saved: Array<SavedRun> = [];
     const first = await runUnmappedAccountsCheck(
       unmappedDeps(groups, accounts, new CallBudget(1), saved),
     );
@@ -188,7 +189,7 @@ describe("runUnmappedAccountsCheck", () => {
   });
 
   it("records a tenant with only private connections as not checked", async () => {
-    const saved: SavedRun[] = [];
+    const saved: Array<SavedRun> = [];
     const budget = new CallBudget(10);
     const r = await runUnmappedAccountsCheck(
       unmappedDeps(
@@ -219,11 +220,14 @@ describe("runUnmappedAccountsCheck", () => {
   });
 
   it("ends the walk only when no tenant is left", async () => {
-    const groups: TenantConnections[] = Array.from({ length: 250 }, (_, i) => ({
-      tenant_id: `tenant-${String(i).padStart(3, "0")}`,
-      connections: [{ id: `c${i}`, token: `t${i}` }],
-    }));
-    const saved: SavedRun[] = [];
+    const groups: Array<TenantConnections> = Array.from(
+      { length: 250 },
+      (_, i) => ({
+        tenant_id: `tenant-${String(i).padStart(3, "0")}`,
+        connections: [{ id: `c${i}`, token: `t${i}` }],
+      }),
+    );
+    const saved: Array<SavedRun> = [];
     let cursor: string | null = null;
     let calls = 0;
     for (;;) {

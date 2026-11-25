@@ -52,11 +52,11 @@ type Call = { name: string; body: Record<string, unknown> };
  * or one the asking user owns.
  */
 function deps(
-  senders: ReportSender[],
+  senders: Array<ReportSender>,
   tenantDefault: string | null = null,
   reply: FunctionReply = { ok: true, status: 200, text: "{}" },
 ) {
-  const calls: Call[] = [];
+  const calls: Array<Call> = [];
   const channel: WhatsAppChannelDeps = {
     listSenders: async (tenantId, userId) =>
       tenantId === TENANT

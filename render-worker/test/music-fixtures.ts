@@ -73,15 +73,20 @@ export function filmDb({
     },
     async select(table: string, query: string) {
       queries.push([table, query]);
-      if (table === "marketing_video_scenes") return rows;
-      if (table === "marketing_work_items")
+      if (table === "marketing_video_scenes") {
+        return rows;
+      }
+      if (table === "marketing_work_items") {
         return query.includes("select=payload")
           ? [{ payload }]
           : [{ id: ITEM, tenant_id: TENANT, client_id: null }];
-      if (table === "marketing_runs")
+      }
+      if (table === "marketing_runs") {
         return typeof pending === "function" ? pending() : pending;
-      if (table === "marketing_assets" && query.includes("type=eq.narration"))
+      }
+      if (table === "marketing_assets" && query.includes("type=eq.narration")) {
         return typeof narration === "function" ? narration() : narration;
+      }
       return [];
     },
   };

@@ -37,10 +37,12 @@ export function useChatConnections(tenantId: string | null | undefined) {
   return useQuery({
     queryKey: ["chat-connections", tenantId, userId],
     enabled: !!tenantId && !!userId,
-    queryFn: async (): Promise<ChatConnection[]> => {
-      if (!tenantId || !userId) return [];
+    queryFn: async (): Promise<Array<ChatConnection>> => {
+      if (!tenantId || !userId) {
+        return [];
+      }
 
-      const TYPES: ChatProviderKey[] = [
+      const TYPES: Array<ChatProviderKey> = [
         "green_api",
         "manus_wa",
         "meta_whatsapp",
@@ -58,7 +60,9 @@ export function useChatConnections(tenantId: string | null | undefined) {
         .in("integration_type", TYPES)
         .eq("is_active", true)
         .eq("user_id", userId);
-      if (ownErr) throw ownErr;
+      if (ownErr) {
+        throw ownErr;
+      }
 
       // Shared via permissions
       const { data: perms } = await supabase
@@ -67,7 +71,7 @@ export function useChatConnections(tenantId: string | null | undefined) {
         .eq("user_id", userId);
       const sharedIds = (perms || []).map((p) => p.integration_id);
 
-      let shared: any[] = [];
+      let shared: Array<any> = [];
       if (sharedIds.length > 0) {
         const { data, error } = await supabase
           .from("tenant_integrations")
@@ -78,7 +82,9 @@ export function useChatConnections(tenantId: string | null | undefined) {
           .in("integration_type", TYPES)
           .eq("is_active", true)
           .in("id", sharedIds);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         shared = data || [];
       }
 
@@ -99,7 +105,9 @@ export function useChatConnections(tenantId: string | null | undefined) {
         .from("integration_tenant_access")
         .select("integration_id")
         .eq("accessing_tenant_id", tenantId);
-      if (grantsError) throw grantsError;
+      if (grantsError) {
+        throw grantsError;
+      }
       const grantedIds = (tenantGrants || []).map(
         (grant) => grant.integration_id,
       );
@@ -113,7 +121,9 @@ export function useChatConnections(tenantId: string | null | undefined) {
           .in("id", grantedIds)
           .in("integration_type", TYPES)
           .eq("is_active", true);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         // Chat rows copied into the accessing tenant are scoped to the local user,
         // while the physical integration row remains owned by the source user.
         crossTenantShared = (data || []).map((connection) => ({

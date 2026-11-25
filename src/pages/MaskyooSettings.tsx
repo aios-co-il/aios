@@ -42,7 +42,9 @@ export default function MaskyooSettings() {
         .select("*")
         .eq("tenant_id", tenantId!)
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as any;
     },
     enabled: !!tenantId,
@@ -68,7 +70,9 @@ export default function MaskyooSettings() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("Missing tenant");
+      if (!tenantId) {
+        throw new Error("Missing tenant");
+      }
       const { error } = await supabase.from("maskyoo_settings" as any).upsert(
         {
           tenant_id: tenantId,
@@ -81,7 +85,9 @@ export default function MaskyooSettings() {
         },
         { onConflict: "tenant_id" },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("הגדרות Maskyoo נשמרו");

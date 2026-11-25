@@ -282,5 +282,7 @@ beforeEach(() => {
   });
 });
 afterEach(() => {
-  for (const client of clients.splice(0)) client.clear();
+  for (const client of clients.splice(0)) {
+    client.clear();
+  }
 });

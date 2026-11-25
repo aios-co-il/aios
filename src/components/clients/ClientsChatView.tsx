@@ -2,6 +2,10 @@ import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type { TablesUpdate } from "@/integrations/supabase/types";
 import ChatViewComponent from "@/components/chat/ChatView";
 import {
+  ContactValue,
+  type ContactKind,
+} from "@/components/contact/ContactValue";
+import {
   User,
   Phone,
   PhoneCall,
@@ -115,8 +119,8 @@ const DETAIL_TAB_CLASS =
 const WORKSHOP_PERMISSION = permissionForSubpath("workshop");
 
 interface ClientsChatViewProps {
-  clients: any[];
-  agencies?: any[];
+  clients: Array<any>;
+  agencies?: Array<any>;
   canViewFinance?: boolean;
   /** False while finance access is loading; the business-tab guard waits for it. */
   financeAccessReady?: boolean;
@@ -211,14 +215,18 @@ export function ClientsChatView({
   const { data: whatsappGroups = [] } = useQuery({
     queryKey: ["whatsapp-groups", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("whatsapp_groups")
         .select("id, group_name")
         .eq("tenant_id", tenantId)
         .eq("is_blocked", false)
         .order("group_name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId,
@@ -228,13 +236,17 @@ export function ClientsChatView({
   const { data: clientContacts = [] } = useQuery({
     queryKey: ["client-contacts", selectedClientIdForContacts],
     queryFn: async () => {
-      if (!selectedClientIdForContacts) return [];
+      if (!selectedClientIdForContacts) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("client_contacts")
         .select("*")
         .eq("client_id", selectedClientIdForContacts)
         .order("is_primary", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!selectedClientIdForContacts,
@@ -258,7 +270,9 @@ export function ClientsChatView({
   const [showGroupDropdown, setShowGroupDropdown] = useState(false);
 
   const filteredGroups = useMemo(() => {
-    if (!groupSearch.trim()) return whatsappGroups;
+    if (!groupSearch.trim()) {
+      return whatsappGroups;
+    }
     const q = groupSearch.toLowerCase();
     return whatsappGroups.filter((g: any) =>
       g.group_name?.toLowerCase().includes(q),
@@ -274,13 +288,17 @@ export function ClientsChatView({
     ].map((value) => (typeof value === "string" ? value.trim() : ""));
 
     const firstNonEmpty = candidates.find((value) => value.length > 0);
-    if (firstNonEmpty) return firstNonEmpty;
+    if (firstNonEmpty) {
+      return firstNonEmpty;
+    }
 
     return client?.id ? `לקוח ${String(client.id).slice(0, 6)}` : "ללא שם";
   }, []);
 
   const filteredClients = useMemo(() => {
-    if (!listSearch.trim()) return clients;
+    if (!listSearch.trim()) {
+      return clients;
+    }
     const q = listSearch.toLowerCase();
     return clients.filter(
       (c) =>
@@ -307,12 +325,16 @@ export function ClientsChatView({
   // Reset the window when the search narrows/changes the result set.
   useEffect(() => {
     setVisibleCount(LIST_PAGE);
-    if (listScrollRef.current) listScrollRef.current.scrollTop = 0;
+    if (listScrollRef.current) {
+      listScrollRef.current.scrollTop = 0;
+    }
   }, [listSearch]);
   // Grow the window as the sentinel near the bottom scrolls into view.
   useEffect(() => {
     const sentinel = listSentinelRef.current;
-    if (!sentinel) return;
+    if (!sentinel) {
+      return;
+    }
     const io = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting) {
@@ -339,7 +361,9 @@ export function ClientsChatView({
         .delete()
         .eq("id", id)
         .select("id");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       if (!data?.length) {
         throw new Error("לא ניתן למחוק לקוח — אין הרשאה או שהלקוח כבר נמחק");
       }
@@ -358,8 +382,11 @@ export function ClientsChatView({
   const toggleClientSelection = useCallback((clientId: string) => {
     setSelectedClientIds((prev) => {
       const next = new Set(prev);
-      if (next.has(clientId)) next.delete(clientId);
-      else next.add(clientId);
+      if (next.has(clientId)) {
+        next.delete(clientId);
+      } else {
+        next.add(clientId);
+      }
       return next;
     });
   }, []);
@@ -379,7 +406,9 @@ export function ClientsChatView({
   }, []);
 
   const handleBulkDelete = async () => {
-    if (selectedClientIds.size === 0) return;
+    if (selectedClientIds.size === 0) {
+      return;
+    }
     setBulkActionLoading(true);
     try {
       const ids = Array.from(selectedClientIds);
@@ -388,7 +417,9 @@ export function ClientsChatView({
         .delete()
         .in("id", ids)
         .select("id");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       if (!data?.length) {
         throw new Error("לא ניתן למחוק לקוחות — אין הרשאה");
       }
@@ -413,14 +444,18 @@ export function ClientsChatView({
   };
 
   const handleBulkStatusChange = async (status: string) => {
-    if (selectedClientIds.size === 0) return;
+    if (selectedClientIds.size === 0) {
+      return;
+    }
     setBulkActionLoading(true);
     try {
       const { error } = await supabase
         .from("clients")
         .update({ status: status as any })
         .in("id", Array.from(selectedClientIds));
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success(`${selectedClientIds.size} לקוחות עודכנו`);
       exitMultiSelect();
       queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
@@ -432,14 +467,18 @@ export function ClientsChatView({
   };
 
   const handleBulkMoodChange = async (moodStatus: string) => {
-    if (selectedClientIds.size === 0) return;
+    if (selectedClientIds.size === 0) {
+      return;
+    }
     setBulkActionLoading(true);
     try {
       const { error } = await supabase
         .from("clients")
         .update({ mood_status: moodStatus as any })
         .in("id", Array.from(selectedClientIds));
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success(`${selectedClientIds.size} לקוחות עודכנו`);
       exitMultiSelect();
       queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
@@ -456,7 +495,9 @@ export function ClientsChatView({
         .from("clients")
         .update({ status: status as any })
         .eq("id", clientId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success("הסטטוס עודכן בהצלחה");
       queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
     } catch {
@@ -470,7 +511,9 @@ export function ClientsChatView({
         .from("clients")
         .update({ mood_status: moodStatus as any })
         .eq("id", clientId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success("מצב הלקוח עודכן בהצלחה");
       queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
     } catch {
@@ -504,7 +547,9 @@ export function ClientsChatView({
         .update(patch)
         .eq("id", clientId)
         .select();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       if (!data || data.length === 0) {
         throw new Error("אין הרשאה לעדכן לקוח זה (ייתכן שלקוח בסוכנות משותפת)");
       }
@@ -523,6 +568,7 @@ export function ClientsChatView({
     type = "text",
     isLink,
     linkPrefix,
+    contactKind,
   }: {
     label: string;
     value: string | null;
@@ -531,6 +577,7 @@ export function ClientsChatView({
     type?: "text" | "number" | "textarea";
     isLink?: boolean;
     linkPrefix?: string;
+    contactKind?: ContactKind;
   }) => {
     const [editing, setEditing] = useState(false);
     const [editValue, setEditValue] = useState(value || "");
@@ -547,7 +594,9 @@ export function ClientsChatView({
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" && type !== "textarea") handleSave();
+      if (e.key === "Enter" && type !== "textarea") {
+        handleSave();
+      }
       if (e.key === "Escape") {
         setEditValue(value || "");
         setEditing(false);
@@ -612,7 +661,13 @@ export function ClientsChatView({
         }}
       >
         <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-        {isLink && value ? (
+        {contactKind && value ? (
+          <ContactValue
+            kind={contactKind}
+            value={value}
+            className="font-medium text-primary"
+          />
+        ) : isLink && value ? (
           <a
             href={`${linkPrefix || ""}${value}`}
             target={
@@ -655,7 +710,9 @@ export function ClientsChatView({
       setEditing(false);
     };
     const handleKeyDown = (e: React.KeyboardEvent) => {
-      if (e.key === "Enter") handleSave();
+      if (e.key === "Enter") {
+        handleSave();
+      }
       if (e.key === "Escape") {
         setEditValue(currentName);
         setEditing(false);
@@ -1106,16 +1163,22 @@ export function ClientsChatView({
                       const summary = await provision(selectedClient.id, {
                         createDashboard: true,
                       });
-                      const parts: string[] = [];
-                      if (summary.resolved?.length)
+                      const parts: Array<string> = [];
+                      if (summary.resolved?.length) {
                         parts.push(`זוהו: ${summary.resolved.join(", ")}`);
-                      if (summary.created.length)
+                      }
+                      if (summary.created.length) {
                         parts.push(`נוצרו: ${summary.created.join(", ")}`);
-                      if (summary.updated.length)
+                      }
+                      if (summary.updated.length) {
                         parts.push(`עודכנו: ${summary.updated.join(", ")}`);
-                      if (summary.dashboardCreated) parts.push("דשבורד נוצר");
-                      if (summary.skipped.length)
+                      }
+                      if (summary.dashboardCreated) {
+                        parts.push("דשבורד נוצר");
+                      }
+                      if (summary.skipped.length) {
                         parts.push(`דולגו: ${summary.skipped.join(", ")}`);
+                      }
                       toast.success(
                         parts.length
                           ? parts.join(" · ")
@@ -1425,16 +1488,14 @@ export function ClientsChatView({
                             value={selectedClient.phone}
                             field="phone"
                             clientId={selectedClient.id}
-                            isLink
-                            linkPrefix="tel:"
+                            contactKind="phone"
                           />
                           <EditableField
                             label=":אימייל"
                             value={selectedClient.email}
                             field="email"
                             clientId={selectedClient.id}
-                            isLink
-                            linkPrefix="mailto:"
+                            contactKind="email"
                           />
                           <EditableField
                             label=":אתר"
@@ -1645,11 +1706,14 @@ export function ClientsChatView({
                                       })
                                       .select("id")
                                       .maybeSingle();
-                                  if (error) throw error;
-                                  if (!inserted)
+                                  if (error) {
+                                    throw error;
+                                  }
+                                  if (!inserted) {
                                     throw new Error(
                                       "איש הקשר נשמר אך אין הרשאת צפייה — נסה לרענן",
                                     );
+                                  }
                                   toast.success("איש קשר נוסף");
                                   setAddingContact(false);
                                   setNewContact({
@@ -1771,7 +1835,9 @@ export function ClientsChatView({
                                                 null,
                                             })
                                             .eq("id", contact.id);
-                                          if (error) throw error;
+                                          if (error) {
+                                            throw error;
+                                          }
                                           toast.success("איש קשר עודכן");
                                           setEditingContactId(null);
                                           queryClient.invalidateQueries({
@@ -1806,7 +1872,9 @@ export function ClientsChatView({
                                             .from("client_contacts")
                                             .delete()
                                             .eq("id", contact.id);
-                                          if (error) throw error;
+                                          if (error) {
+                                            throw error;
+                                          }
                                           toast.success("איש קשר נמחק");
                                           queryClient.invalidateQueries({
                                             queryKey: [
@@ -1864,25 +1932,21 @@ export function ClientsChatView({
                                       {contact.contact_name}
                                     </div>
                                     {contact.phone && (
-                                      <div className="flex items-center gap-1 justify-end text-muted-foreground">
-                                        <a
-                                          href={`tel:${contact.phone}`}
-                                          className="text-primary hover:underline"
-                                        >
-                                          {contact.phone}
-                                        </a>
-                                        <Phone className="h-3 w-3" />
+                                      <div className="flex justify-end">
+                                        <ContactValue
+                                          kind="phone"
+                                          value={contact.phone}
+                                          className="text-primary"
+                                        />
                                       </div>
                                     )}
                                     {contact.email && (
-                                      <div className="flex items-center gap-1 justify-end text-muted-foreground">
-                                        <a
-                                          href={`mailto:${contact.email}`}
-                                          className="text-primary hover:underline truncate"
-                                        >
-                                          {contact.email}
-                                        </a>
-                                        <Mail className="h-3 w-3" />
+                                      <div className="flex justify-end">
+                                        <ContactValue
+                                          kind="email"
+                                          value={contact.email}
+                                          className="text-primary"
+                                        />
                                       </div>
                                     )}
                                   </div>

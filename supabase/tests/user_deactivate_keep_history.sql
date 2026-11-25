@@ -450,7 +450,7 @@ BEGIN
   INSERT INTO auth.users (id, email, raw_user_meta_data)
   VALUES (rejoiner, rejoin_email, '{"full_name": "QA Rejoiner"}');
   IF NOT EXISTS (SELECT 1 FROM public.tenant_users WHERE user_id = rejoiner AND tenant_id = t_a AND role = 'team_manager')
-    OR NOT EXISTS (SELECT 1 FROM public.user_permissions WHERE user_id = rejoiner AND module = 'finance') THEN
+    OR NOT EXISTS (SELECT 1 FROM public.user_permissions WHERE user_id = rejoiner AND tenant_id = t_a AND module = 'finance') THEN
     RAISE EXCEPTION 'invitation: an open invitation no longer links a new account';
   END IF;
   UPDATE public.invitation_tokens SET used = true, used_by = rejoiner, used_at = now() WHERE email = rejoin_email;

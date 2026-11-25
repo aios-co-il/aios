@@ -69,7 +69,7 @@ interface MakeConnection {
   accountType?: string;
   type?: string;
   typeName?: string;
-  scopes?: string[];
+  scopes?: Array<string>;
   invalid?: boolean;
 }
 
@@ -139,8 +139,10 @@ export default function MakeSettings() {
             region,
           },
         });
-        if (error) throw error;
-        return (data?.scenarios || data) as MakeScenario[];
+        if (error) {
+          throw error;
+        }
+        return (data?.scenarios || data) as Array<MakeScenario>;
       },
       enabled: !!apiToken && !!teamId && !!region,
     });
@@ -149,7 +151,9 @@ export default function MakeSettings() {
   const { data: makeIntegration, isLoading: isLoadingIntegration } = useQuery({
     queryKey: ["make-integration", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("tenant_integrations")
         .select("*")
@@ -188,8 +192,12 @@ export default function MakeSettings() {
           region,
         },
       });
-      if (error) throw error;
-      if (!data.success) throw new Error(data.error || "Connection failed");
+      if (error) {
+        throw error;
+      }
+      if (!data.success) {
+        throw new Error(data.error || "Connection failed");
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -210,7 +218,9 @@ export default function MakeSettings() {
   // Save settings
   const saveSettingsMutation = useMutation({
     mutationFn: async () => {
-      if (!currentTenantId) throw new Error("No tenant selected");
+      if (!currentTenantId) {
+        throw new Error("No tenant selected");
+      }
 
       const settings = {
         api_token: apiToken,
@@ -234,7 +244,9 @@ export default function MakeSettings() {
             updated_at: new Date().toISOString(),
           })
           .eq("id", existingId);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return;
       }
 
@@ -260,7 +272,9 @@ export default function MakeSettings() {
             updated_at: new Date().toISOString(),
           })
           .eq("id", existingRow.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return;
       }
 
@@ -287,8 +301,12 @@ export default function MakeSettings() {
             .limit(1)
             .maybeSingle();
 
-        if (conflictLookupError) throw conflictLookupError;
-        if (!rowAfterConflict?.id) throw insertError;
+        if (conflictLookupError) {
+          throw conflictLookupError;
+        }
+        if (!rowAfterConflict?.id) {
+          throw insertError;
+        }
 
         const { error: updateAfterConflictError } = await supabase
           .from("tenant_integrations")
@@ -298,11 +316,15 @@ export default function MakeSettings() {
             updated_at: new Date().toISOString(),
           })
           .eq("id", rowAfterConflict.id);
-        if (updateAfterConflictError) throw updateAfterConflictError;
+        if (updateAfterConflictError) {
+          throw updateAfterConflictError;
+        }
         return;
       }
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        throw insertError;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -325,12 +347,16 @@ export default function MakeSettings() {
   // Disconnect
   const disconnectMutation = useMutation({
     mutationFn: async () => {
-      if (!makeIntegration) return;
+      if (!makeIntegration) {
+        return;
+      }
       const { error } = await supabase
         .from("tenant_integrations")
         .update({ is_active: false })
         .eq("id", makeIntegration.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -359,8 +385,10 @@ export default function MakeSettings() {
           region,
         },
       });
-      if (error) throw error;
-      return (data?.connections || data) as MakeConnection[];
+      if (error) {
+        throw error;
+      }
+      return (data?.connections || data) as Array<MakeConnection>;
     },
     enabled: !!isConnected && activeTab === "connections",
   });
@@ -381,8 +409,10 @@ export default function MakeSettings() {
           region,
         },
       });
-      if (error) throw error;
-      return (data?.scenarios || data) as MakeScenario[];
+      if (error) {
+        throw error;
+      }
+      return (data?.scenarios || data) as Array<MakeScenario>;
     },
     enabled: !!isConnected && activeTab === "scenarios",
   });
@@ -399,7 +429,9 @@ export default function MakeSettings() {
           scenario_id: scenarioId,
         },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {

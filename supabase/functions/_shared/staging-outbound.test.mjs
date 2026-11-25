@@ -27,8 +27,38 @@ Deno.test(
         "POST",
       ],
       [`${own}/auth/v1/invite`, "POST"],
-    ])
+    ]) {
       assertStrictEquals(outboundAllowed(url, method, own), false);
+    }
+  },
+);
+Deno.test(
+  "Production's custom API domain and other AIOS API hosts are blocked",
+  () => {
+    for (const url of [
+      "https://api.aios.co.il/functions/v1/trigger-automation",
+      "https://api.aios.co.il/rest/v1/clients",
+      "https://API.aios.co.il/storage/v1/object/public/x.png",
+      "https://api-staging.aios.co.il/functions/v1/claude-notify",
+    ]) {
+      for (const method of ["GET", "POST"]) {
+        assertStrictEquals(outboundAllowed(url, method, own), false, url);
+      }
+    }
+
+    const customOwn = "https://api-staging.aios.co.il";
+    assertStrictEquals(
+      outboundAllowed(`${customOwn}/rest/v1/clients`, "POST", customOwn),
+      true,
+    );
+    assertStrictEquals(
+      outboundAllowed(
+        "https://api.aios.co.il/rest/v1/clients",
+        "GET",
+        customOwn,
+      ),
+      false,
+    );
   },
 );
 Deno.test(
@@ -40,8 +70,9 @@ Deno.test(
       "https://searchconsole.googleapis.com/webmasters/v3/sites/sc-domain%3Aexample.com/searchAnalytics/query",
       "https://analyticsdata.googleapis.com/v1beta/properties/123:runReport",
       "https://googleads.googleapis.com/v23/customers/123/googleAds:searchStream",
-    ])
+    ]) {
       assertStrictEquals(outboundAllowed(url, "POST", own), true, url);
+    }
     assertStrictEquals(
       outboundAllowed("https://oauth2.googleapis.com/revoke", "POST", own),
       false,
@@ -76,8 +107,9 @@ Deno.test(
         "POST",
       ],
       ["https://api.chatgpt.com/v1/workspace_agents/agtch_abc123", "HEAD"],
-    ])
+    ]) {
       assertStrictEquals(outboundAllowed(url, method, own), true, url);
+    }
     assertStrictEquals(
       outboundAllowed(
         "https://api.chatgpt.com/v1/workspace_agents/not-a-trigger/trigger",

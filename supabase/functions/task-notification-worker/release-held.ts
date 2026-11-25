@@ -38,7 +38,7 @@ export async function releaseHeldTaskNotifications(
   deliver: Deliver,
   now: Date = new Date(),
   limit = 25,
-): Promise<HeldReleaseResult[]> {
+): Promise<Array<HeldReleaseResult>> {
   if (jerusalemShabbatHoldUntil(now)) {
     return [];
   }
@@ -58,7 +58,7 @@ export async function releaseHeldTaskNotifications(
     return [];
   }
 
-  const results: HeldReleaseResult[] = [];
+  const results: Array<HeldReleaseResult> = [];
   for (const row of due || []) {
     const expired =
       now.getTime() - Date.parse(row.hold_until) >

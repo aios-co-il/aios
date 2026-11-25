@@ -24,7 +24,7 @@ interface TranscriptViewerDialogProps {
   recording: TranscriptRecording;
   tenantId?: string;
   /** All recording rows in the same meeting — keeps grouped Zoom files in sync. */
-  recordingIds?: string[];
+  recordingIds?: Array<string>;
   onSummarized?: (summaryMd: string) => void;
 }
 

@@ -87,7 +87,7 @@ interface MakeConnection {
 }
 
 type MakeConnectionsResult = {
-  connections: MakeConnection[];
+  connections: Array<MakeConnection>;
   error?: string | null;
 };
 
@@ -112,8 +112,8 @@ export default function GoogleAdsSettings() {
   // connections + sharing, exactly like the Google Analytics settings page.
   const { data: adsConnections = [], isLoading: loadingAdsConnections } =
     useUserIntegrations(currentTenant?.id, "google_ads");
-  const hasAnyDirectConnection = (adsConnections as any[]).length > 0;
-  const hasOwnDirectConnection = (adsConnections as any[]).some(
+  const hasAnyDirectConnection = (adsConnections as Array<any>).length > 0;
+  const hasOwnDirectConnection = (adsConnections as Array<any>).some(
     (i: any) => i._isOwn,
   );
 
@@ -122,14 +122,18 @@ export default function GoogleAdsSettings() {
     useQuery({
       queryKey: ["google-ads-integration", currentTenant?.id],
       queryFn: async () => {
-        if (!currentTenant?.id) return null;
+        if (!currentTenant?.id) {
+          return null;
+        }
         const { data, error } = await supabase
           .from("tenant_integrations")
           .select(CLIENT_INTEGRATION_COLUMNS)
           .eq("tenant_id", currentTenant.id)
           .eq("integration_type", "google_ads")
           .maybeSingle();
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return data ? toClientIntegration(data) : null;
       },
       enabled: !!currentTenant?.id,
@@ -139,14 +143,18 @@ export default function GoogleAdsSettings() {
   const { data: makeApiIntegration } = useQuery({
     queryKey: ["make-api-integration", currentTenant?.id],
     queryFn: async () => {
-      if (!currentTenant?.id) return null;
+      if (!currentTenant?.id) {
+        return null;
+      }
       const { data, error } = await supabase
         .from("tenant_integrations")
         .select("*")
         .eq("tenant_id", currentTenant.id)
         .eq("integration_type", "make_api")
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!currentTenant?.id,
@@ -159,14 +167,18 @@ export default function GoogleAdsSettings() {
   } = useQuery({
     queryKey: ["google-ads-via-make-integration", currentTenant?.id],
     queryFn: async () => {
-      if (!currentTenant?.id) return null;
+      if (!currentTenant?.id) {
+        return null;
+      }
       const { data, error } = await supabase
         .from("tenant_integrations")
         .select("*")
         .eq("tenant_id", currentTenant.id)
         .eq("integration_type", "google_ads_via_make")
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!currentTenant?.id,
@@ -176,14 +188,18 @@ export default function GoogleAdsSettings() {
   const { data: makeIntegration } = useQuery({
     queryKey: ["google-ads-make-integration", currentTenant?.id],
     queryFn: async () => {
-      if (!currentTenant?.id) return null;
+      if (!currentTenant?.id) {
+        return null;
+      }
       const { data, error } = await supabase
         .from("tenant_integrations")
         .select("*")
         .eq("tenant_id", currentTenant.id)
         .eq("integration_type", "google_ads_make")
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!currentTenant?.id,
@@ -282,9 +298,9 @@ export default function GoogleAdsSettings() {
         throw new Error("Missing required data");
       }
 
-      const selectedConn = (googleAdsConnections as MakeConnection[])?.find(
-        (c) => c.id.toString() === selectedConnection,
-      );
+      const selectedConn = (
+        googleAdsConnections as Array<MakeConnection>
+      )?.find((c) => c.id.toString() === selectedConnection);
 
       const settings = {
         connection_id: selectedConnection,
@@ -303,7 +319,9 @@ export default function GoogleAdsSettings() {
             updated_at: new Date().toISOString(),
           })
           .eq("id", googleAdsViaMakeIntegration.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       } else {
         const { error } = await supabase.from("tenant_integrations").insert({
           tenant_id: currentTenant.id,
@@ -312,7 +330,9 @@ export default function GoogleAdsSettings() {
           settings,
           user_id: user.id,
         });
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
     },
     onSuccess: () => {
@@ -329,13 +349,16 @@ export default function GoogleAdsSettings() {
   // Disconnect Google Ads via Make
   const disconnectViaMakeMutation = useMutation({
     mutationFn: async () => {
-      if (!googleAdsViaMakeIntegration?.id)
+      if (!googleAdsViaMakeIntegration?.id) {
         throw new Error("No integration found");
+      }
       const { error } = await supabase
         .from("tenant_integrations")
         .update({ is_active: false })
         .eq("id", googleAdsViaMakeIntegration.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("החיבור נותק בהצלחה");
@@ -357,13 +380,14 @@ export default function GoogleAdsSettings() {
     makeSettings?.webhook_secret ||
     `make_${currentTenant?.id?.substring(0, 8)}_${Date.now().toString(36)}`;
 
-  const webhookUrl = `https://zvoijyneresvkadpprel.supabase.co/functions/v1/webhook-google-ads-sync`;
+  const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webhook-google-ads-sync`;
 
   // Save Make webhook settings (legacy)
   const saveMakeSettingsMutation = useMutation({
     mutationFn: async () => {
-      if (!currentTenant?.id || !user?.id)
+      if (!currentTenant?.id || !user?.id) {
         throw new Error("Missing tenant or user");
+      }
 
       const settings = {
         webhook_secret: webhookSecret,
@@ -379,7 +403,9 @@ export default function GoogleAdsSettings() {
             updated_at: new Date().toISOString(),
           })
           .eq("id", makeIntegration.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       } else {
         const { error } = await supabase.from("tenant_integrations").insert({
           tenant_id: currentTenant.id,
@@ -388,7 +414,9 @@ export default function GoogleAdsSettings() {
           settings,
           user_id: user.id,
         });
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
     },
     onSuccess: () => {
@@ -419,7 +447,9 @@ export default function GoogleAdsSettings() {
         },
       );
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       if (data?.auth_url) {
         window.location.href = data.auth_url;
@@ -437,12 +467,16 @@ export default function GoogleAdsSettings() {
   // Disconnect mutation (direct API) — per connection id (multi-connection safe)
   const disconnectMutation = useMutation({
     mutationFn: async (integrationId: string) => {
-      if (!integrationId) throw new Error("No integration found");
+      if (!integrationId) {
+        throw new Error("No integration found");
+      }
       const { error } = await supabase
         .from("tenant_integrations")
         .update({ is_active: false, api_key: null })
         .eq("id", integrationId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("החיבור ל-Google Ads נותק בהצלחה");
@@ -470,7 +504,9 @@ export default function GoogleAdsSettings() {
           },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -734,19 +770,19 @@ export default function GoogleAdsSettings() {
                             <SelectValue placeholder="בחר חשבון..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {(googleAdsConnections as MakeConnection[]).map(
-                              (conn) => (
-                                <SelectItem
-                                  key={conn.id}
-                                  value={conn.id.toString()}
-                                >
-                                  {conn.name ||
-                                    conn.accountName ||
-                                    `חיבור ${conn.id}`}
-                                  {conn.valid === false && " (לא פעיל)"}
-                                </SelectItem>
-                              ),
-                            )}
+                            {(
+                              googleAdsConnections as Array<MakeConnection>
+                            ).map((conn) => (
+                              <SelectItem
+                                key={conn.id}
+                                value={conn.id.toString()}
+                              >
+                                {conn.name ||
+                                  conn.accountName ||
+                                  `חיבור ${conn.id}`}
+                                {conn.valid === false && " (לא פעיל)"}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -1012,7 +1048,7 @@ export default function GoogleAdsSettings() {
                   className={hasAnyDirectConnection ? "bg-green-500" : ""}
                 >
                   {hasAnyDirectConnection
-                    ? `${(adsConnections as any[]).length} חשבונות מחוברים`
+                    ? `${(adsConnections as Array<any>).length} חשבונות מחוברים`
                     : "לא מחובר"}
                 </Badge>
                 <span className="text-right">Google Ads API</span>
@@ -1029,7 +1065,7 @@ export default function GoogleAdsSettings() {
                 </div>
               ) : hasAnyDirectConnection ? (
                 <div className="space-y-4">
-                  {(adsConnections as any[]).map((integ: any) => {
+                  {(adsConnections as Array<any>).map((integ: any) => {
                     const s = integ.settings as Record<string, any> | null;
                     const email =
                       (s?.google_email as string) ||
@@ -1225,7 +1261,9 @@ export default function GoogleAdsSettings() {
       <ManageIntegrationPermissionsDialog
         open={!!sharingIntegrationId}
         onOpenChange={(open) => {
-          if (!open) setSharingIntegrationId(null);
+          if (!open) {
+            setSharingIntegrationId(null);
+          }
         }}
         integrationId={sharingIntegrationId || ""}
         integrationName={`Google Ads - ${sharingIntegrationName}`}

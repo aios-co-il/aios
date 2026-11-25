@@ -1,3 +1,5 @@
+import type { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+
 /** A Supabase client stand-in that records each query's calls and answers with `rows`. */
 export function recordingDb(rows: Array<Record<string, unknown>>) {
   const calls: Array<[string, ...Array<unknown>]> = [];
@@ -26,5 +28,7 @@ export function recordingDb(rows: Array<Record<string, unknown>>) {
       return chain;
     },
   };
-  return { db, calls };
+  // The one cast for the stand-in: it implements only the query methods the
+  // stores under test call.
+  return { db: db as unknown as ReturnType<typeof createClient>, calls };
 }

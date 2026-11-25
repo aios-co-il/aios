@@ -37,7 +37,7 @@ const EVIDENCE_BODY = {
 };
 
 /** Answers the evidence RPC with these rows. */
-const responder = (rows: unknown[]) => (): unknown => rows;
+const responder = (rows: Array<unknown>) => (): unknown => rows;
 
 /** A collector context for tenant T at NOW over `db`, with no_contact_days 10. */
 function context(
@@ -61,7 +61,7 @@ function context(
 }
 
 /** The evidence RPC calls a run made. */
-const evidenceCalls = (calls: Call[]) =>
+const evidenceCalls = (calls: Array<Call>) =>
   calls.filter((c) => c.path.endsWith("get_client_contact_evidence"));
 
 Deno.test("contactCollector", async (t) => {

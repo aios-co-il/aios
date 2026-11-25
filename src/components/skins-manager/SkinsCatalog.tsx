@@ -11,8 +11,8 @@ export function SkinsCatalog({
   onClone,
 }: {
   embedded: boolean;
-  globals: Skin[];
-  tenantSkins: Skin[];
+  globals: Array<Skin>;
+  tenantSkins: Array<Skin>;
   avatarFor: (slug?: string) => string | undefined;
   onEdit: (s: Skin) => void;
   onClone: (s: Skin) => void;

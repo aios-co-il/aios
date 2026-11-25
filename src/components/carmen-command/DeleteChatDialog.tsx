@@ -39,7 +39,9 @@ export function DeleteChatDialog({
             onClick={() => {
               const conv = chat;
               onCancel();
-              if (conv) onConfirm(conv);
+              if (conv) {
+                onConfirm(conv);
+              }
             }}
           >
             מחיקה

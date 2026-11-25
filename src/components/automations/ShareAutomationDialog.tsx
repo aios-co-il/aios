@@ -43,12 +43,16 @@ export function ShareAutomationDialog({
   const { data: existingClones } = useQuery({
     queryKey: ["automation-shares", automation?.id],
     queryFn: async () => {
-      if (!automation?.id) return [] as any[];
+      if (!automation?.id) {
+        return [] as Array<any>;
+      }
       const { data, error } = await supabase
         .from("automation_shared_tenants")
         .select("tenant_id")
         .eq("automation_id", automation.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!automation?.id && open,
@@ -63,7 +67,9 @@ export function ShareAutomationDialog({
     const list = (userTenants || []).filter(
       (t: any) => t.id !== sourceTenantId,
     );
-    if (!search.trim()) return list;
+    if (!search.trim()) {
+      return list;
+    }
     const q = search.trim().toLowerCase();
     return list.filter(
       (t: any) =>
@@ -75,14 +81,19 @@ export function ShareAutomationDialog({
   const toggle = (id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
       return next;
     });
   };
 
   const handleClone = async () => {
-    if (selected.size === 0) return;
+    if (selected.size === 0) {
+      return;
+    }
     setSubmitting(true);
     try {
       const {
@@ -98,7 +109,9 @@ export function ShareAutomationDialog({
           },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       const results = (data as any)?.results || [];
       const ok = results.filter((r: any) => r.success).length;
       const failed = results.filter((r: any) => !r.success);

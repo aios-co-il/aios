@@ -9,7 +9,9 @@ import { prerenderLegalPages } from "./vite-plugins/prerenderLegalPages";
 function pdfjsAssetsPlugin() {
   const copy = (outDir: string) => {
     const from = path.join(__dirname, "node_modules/pdfjs-dist");
-    if (!existsSync(from)) return;
+    if (!existsSync(from)) {
+      return;
+    }
     cpSync(path.join(from, "cmaps"), path.join(outDir, "cmaps"), {
       recursive: true,
     });
@@ -22,7 +24,9 @@ function pdfjsAssetsPlugin() {
   return {
     name: "pdfjs-assets",
     writeBundle(options) {
-      if (options.dir) copy(options.dir);
+      if (options.dir) {
+        copy(options.dir);
+      }
     },
   };
 }

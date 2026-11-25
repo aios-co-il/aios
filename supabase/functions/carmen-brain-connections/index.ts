@@ -42,21 +42,30 @@ const WRITES: Record<string, (ctx: ActionContext) => Promise<void>> = {
 };
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "POST") return json(405, { error: "POST only" });
+  }
+  if (req.method !== "POST") {
+    return json(405, { error: "POST only" });
+  }
   try {
     const ctx = await actionContext(req);
     const action =
       typeof ctx.body.action === "string" ? ctx.body.action : "list";
-    if (action === "test") return json(200, await testModel(ctx));
+    if (action === "test") {
+      return json(200, await testModel(ctx));
+    }
     const write = WRITES[action];
-    if (write) await write(ctx);
-    else if (action !== "list")
+    if (write) {
+      await write(ctx);
+    } else if (action !== "list") {
       throw new HttpError(400, `Unknown action: ${action}`);
+    }
     return json(200, await listState(ctx));
   } catch (e) {
-    if (e instanceof HttpError) return json(e.status, { error: e.message });
+    if (e instanceof HttpError) {
+      return json(e.status, { error: e.message });
+    }
     console.error("[carmen-brain-connections]", e);
     return json(500, { error: "Internal error" });
   }
@@ -65,14 +74,18 @@ Deno.serve(async (req) => {
 /** Signed-in tenant manager, the tenant's Carmen, and the parsed body. */
 async function actionContext(req: Request): Promise<ActionContext> {
   const auth = await requireAuth(req);
-  if (!auth || auth.kind !== "user" || !auth.userId)
+  if (!auth || auth.kind !== "user" || !auth.userId) {
     throw new HttpError(401, "Unauthorized");
+  }
   const body = await req.json().catch(() => null);
-  if (!body || typeof body !== "object")
+  if (!body || typeof body !== "object") {
     throw new HttpError(400, "Invalid JSON");
+  }
   const tenantId =
     typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
-  if (!tenantId) throw new HttpError(400, "tenant_id is required");
+  if (!tenantId) {
+    throw new HttpError(400, "tenant_id is required");
+  }
 
   const sb = serviceClient();
   const { superAdminActing } = await requireManager(sb, auth.userId, tenantId);

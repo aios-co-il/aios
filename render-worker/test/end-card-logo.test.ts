@@ -19,32 +19,43 @@ const attachment = (path: string) =>
 test("a link to the project's entity-attachments bucket reads as its bucket and path", () => {
   const path = `${TENANT}/workshop/${ITEM}/1793_carmen logo.png`;
   expect(
-    privateStorageObject(attachment(encodeURI(path)), PROJECT),
+    privateStorageObject(attachment(encodeURI(path)), [PROJECT]),
   ).toStrictEqual({ bucket: "entity-attachments", path });
   // A signed link of the same file, with its token.
   expect(
     privateStorageObject(
       `${PROJECT}/storage/v1/object/sign/entity-attachments/${TENANT}/a.png?token=abc`,
-      PROJECT,
+      [PROJECT],
     ),
   ).toStrictEqual({ bucket: "entity-attachments", path: `${TENANT}/a.png` });
   // Another project, another bucket, or not a storage link: fetched as a plain link.
   expect(
     privateStorageObject(
       `https://other.supabase.co/storage/v1/object/public/entity-attachments/${TENANT}/a.png`,
-      PROJECT,
+      [PROJECT],
     ),
   ).toBe(null);
   expect(
     privateStorageObject(
       `${PROJECT}/storage/v1/object/public/brand-assets/${TENANT}/a.png`,
-      PROJECT,
+      [PROJECT],
     ),
   ).toBe(null);
-  expect(privateStorageObject("https://cdn.example.com/a.png", PROJECT)).toBe(
+  expect(privateStorageObject("https://cdn.example.com/a.png", [PROJECT])).toBe(
     null,
   );
-  expect(privateStorageObject(attachment(`${TENANT}/a.png`), "")).toBe(null);
+  expect(privateStorageObject(attachment(`${TENANT}/a.png`), [""])).toBe(null);
+});
+
+test("a link on the project's custom domain reads as its bucket and path", () => {
+  const custom = "https://api.aios.co.il";
+  const link = `${custom}/storage/v1/object/public/entity-attachments/${TENANT}/a.png`;
+
+  expect(privateStorageObject(link, [PROJECT, custom])).toStrictEqual({
+    bucket: "entity-attachments",
+    path: `${TENANT}/a.png`,
+  });
+  expect(privateStorageObject(link, [PROJECT, undefined])).toBe(null);
 });
 
 /** The mean colour [r, g, b] of a small box at (x, y) as shares of the frame, at `atS`. */
@@ -82,11 +93,12 @@ function renderDb(dir: string, payload: WorkItemPayload) {
     stored,
     downloads,
     async select(table: string, query: string) {
-      if (table === "marketing_work_items")
+      if (table === "marketing_work_items") {
         return query.includes("select=payload")
           ? [{ payload }]
           : [{ id: ITEM, tenant_id: TENANT, client_id: null }];
-      if (table === "marketing_video_scenes")
+      }
+      if (table === "marketing_video_scenes") {
         return ["c1", "c2"].map((clip, index) => ({
           id: `s${index + 1}`,
           position: index + 1,
@@ -96,13 +108,15 @@ function renderDb(dir: string, payload: WorkItemPayload) {
           clip_asset_id: clip,
           meta: {},
         }));
-      if (table === "marketing_assets" && query.startsWith("id=in."))
+      }
+      if (table === "marketing_assets" && query.startsWith("id=in.")) {
         return ["c1", "c2"].map((id) => ({
           id,
           type: "clip",
           url: clipPath(id),
           meta: { provider: "kling" },
         }));
+      }
       return [];
     },
     async download(bucket: string, path: string) {
@@ -121,15 +135,20 @@ function renderDb(dir: string, payload: WorkItemPayload) {
 
 const saved: Record<string, string | undefined> = {};
 beforeEach(() => {
-  for (const name of ["SUPABASE_URL", "REMOTION_DISABLE"])
+  for (const name of ["SUPABASE_URL", "REMOTION_DISABLE"]) {
     saved[name] = process.env[name];
+  }
   process.env.SUPABASE_URL = PROJECT;
   process.env.REMOTION_DISABLE = "1";
 });
 afterEach(() => {
-  for (const [name, value] of Object.entries(saved))
-    if (value === undefined) delete process.env[name];
-    else process.env[name] = value;
+  for (const [name, value] of Object.entries(saved)) {
+    if (value === undefined) {
+      delete process.env[name];
+    } else {
+      process.env[name] = value;
+    }
+  }
 });
 
 test.skipIf(!hasFfmpeg)(
@@ -140,7 +159,7 @@ test.skipIf(!hasFfmpeg)(
       for (const [name, colour] of [
         ["c1", "black"],
         ["c2", "black"],
-      ])
+      ]) {
         media([
           "-f",
           "lavfi",
@@ -150,6 +169,7 @@ test.skipIf(!hasFfmpeg)(
           "yuv420p",
           join(dir, `${name}.mp4`),
         ]);
+      }
       media([
         "-f",
         "lavfi",

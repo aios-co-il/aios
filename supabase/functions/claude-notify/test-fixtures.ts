@@ -80,11 +80,11 @@ export function tenantTables({
   sessions,
   trigger = {},
 }: {
-  steps?: Row[];
-  integrations?: Row[];
-  sessions?: Row[];
+  steps?: Array<Row>;
+  integrations?: Array<Row>;
+  sessions?: Array<Row>;
   trigger?: Row;
-} = {}): Record<string, Row[]> {
+} = {}): Record<string, Array<Row>> {
   return {
     tenant_heartbeat_settings: [
       { tenant_id: TENANT, campaign_pulse_enabled: true },
@@ -135,15 +135,15 @@ export function handler({
   failing,
   rpc,
 }: {
-  tables?: Record<string, Row[]>;
-  responses?: { status?: number; body?: unknown }[];
+  tables?: Record<string, Array<Row>>;
+  responses?: Array<{ status?: number; body?: unknown }>;
   bearerSecret?: string | null;
   failing?: Record<string, string>;
   rpc?: Record<string, (args: Row) => unknown>;
 } = {}) {
   const fetch = fakeFetch(responses);
-  const warnings: unknown[][] = [];
-  const errors: unknown[][] = [];
+  const warnings: Array<Array<unknown>> = [];
+  const errors: Array<Array<unknown>> = [];
   const db = fakeSupabase(tables, { failing, rpc });
   const handle = createClaudeNotifyHandler({
     supabaseUrl: "https://this-project.supabase.co",
@@ -152,8 +152,8 @@ export function handler({
     createSupabase: () => db,
     fetchImpl: fetch.impl,
     logger: {
-      warn: (...a: unknown[]) => warnings.push(a),
-      error: (...a: unknown[]) => errors.push(a),
+      warn: (...a: Array<unknown>) => warnings.push(a),
+      error: (...a: Array<unknown>) => errors.push(a),
     },
   });
   return { handle, fetch, warnings, errors, db };

@@ -41,7 +41,9 @@ Deno.serve(async (req) => {
       .not("campaign_active", "is", false)
       .order("id");
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
 
     const tables = (allTables || []).slice(
       batchOffset,
@@ -54,7 +56,7 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const results: any[] = [];
+    const results: Array<any> = [];
     const today = jerusalemToday();
 
     const postSync = async (payload: Record<string, unknown>) => {

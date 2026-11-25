@@ -15,16 +15,26 @@ export const MEETING_PLATFORMS = Object.keys(
 /** Normalize pasted meeting links (trim, ensure https). */
 export function normalizeMeetingUrl(raw: string): string {
   let url = raw.trim();
-  if (!url) return url;
-  if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+  if (!url) {
+    return url;
+  }
+  if (!/^https?:\/\//i.test(url)) {
+    url = `https://${url}`;
+  }
   return url;
 }
 
 export function detectMeetingPlatform(url: string): MeetingPlatform {
   const lower = url.toLowerCase();
-  if (lower.includes("zoom.us/") || lower.includes("zoom.com/")) return "zoom";
-  if (lower.includes("meet.google.com/") || lower.includes("google.com/meet/"))
+  if (lower.includes("zoom.us/") || lower.includes("zoom.com/")) {
+    return "zoom";
+  }
+  if (
+    lower.includes("meet.google.com/") ||
+    lower.includes("google.com/meet/")
+  ) {
     return "google_meet";
+  }
   if (
     lower.includes("teams.microsoft.com/") ||
     lower.includes("teams.live.com/") ||
@@ -44,7 +54,9 @@ export function extractMeetingUrl(text: string): string | null {
   const m = text.match(
     /https?:\/\/(?:[\w.-]+\.)?(?:zoom\.us\/\S+|meet\.google\.com\/\S+|teams\.microsoft\.com\/\S+|teams\.live\.com\/\S+)/i,
   );
-  if (!m) return null;
+  if (!m) {
+    return null;
+  }
   return m[0].replace(/[)\]},.!?]+$/g, "");
 }
 

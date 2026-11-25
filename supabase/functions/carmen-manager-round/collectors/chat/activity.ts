@@ -34,15 +34,15 @@ export type UnlinkedGroupRow =
 export type ActivityQuery = {
   tenantId: string;
   /** The members' Green lines (connections.ts). */
-  connectionIds: string[];
+  connectionIds: Array<string>;
   /** The tenant's Carmen (Manus) lines, read for groups only. */
   carmenConnectionIds: Array<string>;
   since: Date;
-  clientIds: string[] | null;
+  clientIds: Array<string> | null;
 };
 
 /** The rows read, and whether every thread was (false past the page cap). */
-export type ActivityRead = { rows: ActivityRow[]; complete: boolean };
+export type ActivityRead = { rows: Array<ActivityRow>; complete: boolean };
 
 /** The provider the monitored lines store their rows under. */
 export const MONITORED_PROVIDER = "green_api";

@@ -18,7 +18,7 @@ export const lookup = (m: Names, key: string | null | undefined) =>
   key == null ? undefined : m.get(key);
 
 const toMap = <T>(
-  rows: T[] | null,
+  rows: Array<T> | null,
   key: (r: T) => string,
   val: (r: T) => string | null,
 ): Names => new Map((rows || []).map((r) => [key(r), val(r)]));
@@ -26,7 +26,7 @@ const toMap = <T>(
 export async function loadLookups(
   db: AudienceDb,
   tenantId: string,
-  clientIds: string[],
+  clientIds: Array<string>,
 ): Promise<Lookups> {
   const [stages, statuses, agencies, salesPeople, campaigners] =
     await Promise.all([
@@ -57,9 +57,13 @@ export async function loadLookups(
     );
     const today = todayIso();
     for (const t of team) {
-      if (t.end_date && t.end_date < today) continue;
+      if (t.end_date && t.end_date < today) {
+        continue;
+      }
       const name = campaignerNames.get(t.campaigner_id);
-      if (!name) continue;
+      if (!name) {
+        continue;
+      }
       const prev = clientCampaigner.get(t.client_id);
       clientCampaigner.set(t.client_id, prev ? `${prev}, ${name}` : name);
     }

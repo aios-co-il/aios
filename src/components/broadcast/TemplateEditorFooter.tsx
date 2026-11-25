@@ -12,9 +12,9 @@ export interface TestSendPayload {
   bodyHtml: string;
   htmlMode: boolean;
   vars: TemplateVars;
-  attachments: EmailAttachment[];
+  attachments: Array<EmailAttachment>;
   bodyText?: string;
-  to?: string[];
+  to?: Array<string>;
   fromEmail?: string | null;
   fromName?: string | null;
   replyTo?: string | null;

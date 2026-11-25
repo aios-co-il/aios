@@ -45,9 +45,9 @@ Deno.test("logStaffAlertOutcome", async (t) => {
         {},
         { failing: { agent_action_log: "permission denied" } },
       );
-      const warnings: unknown[][] = [];
+      const warnings: Array<Array<unknown>> = [];
       const warn = console.warn;
-      console.warn = (...a: unknown[]) => warnings.push(a);
+      console.warn = (...a: Array<unknown>) => warnings.push(a);
       try {
         await logStaffAlertOutcome(sb, {
           tenantId: TENANT,

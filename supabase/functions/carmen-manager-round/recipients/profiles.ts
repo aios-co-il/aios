@@ -6,7 +6,7 @@ import { throwIf } from "../../_shared/manager-round/db-error.ts";
 export async function profilesBy(
   db: DbClient,
   column: "id" | "campaigner_id",
-  values: string[],
+  values: Array<string>,
 ) {
   if (!values.length) {
     return [];

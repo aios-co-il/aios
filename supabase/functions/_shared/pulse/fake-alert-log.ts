@@ -14,14 +14,15 @@ import {
 type Row = Record<string, unknown>;
 
 type Result =
-  { data: Row[]; error: null } | { data: null; error: { message: string } };
+  | { data: Array<Row>; error: null }
+  | { data: null; error: { message: string } };
 
 /** The builder calls deliverInstantPulseAlerts makes. */
 type FakeQuery = {
   select: () => FakeQuery;
   eq: (col: string, val: unknown) => FakeQuery;
   is: (col: string, val: null) => FakeQuery;
-  in: (col: string, vals: unknown[]) => FakeQuery;
+  in: (col: string, vals: Array<unknown>) => FakeQuery;
   or: (filter: string) => FakeQuery;
   gte: (col: string, val: string) => FakeQuery;
   order: (col: string, opts?: { ascending?: boolean }) => FakeQuery;
@@ -57,7 +58,9 @@ export const NO_CONTACT_OFF = {
 };
 
 /** Client c1, contacted on WEDNESDAY, with these snapshot flags. */
-export const healthy = (flags: string[] = []): PulseSnapshotAlertInput => ({
+export const healthy = (
+  flags: Array<string> = [],
+): PulseSnapshotAlertInput => ({
   client_id: "c1",
   client_name: "Acme",
   status: "warning",
@@ -72,17 +75,17 @@ export const healthy = (flags: string[] = []): PulseSnapshotAlertInput => ({
  * and every insert into a `failingInserts` table returns an error.
  */
 export function fakeSupabase(
-  log: Row[] = [],
+  log: Array<Row> = [],
   options: {
-    grants?: Row[];
-    roles?: Row[];
-    managedAgencies?: Row[];
-    profiles?: Row[];
-    failing?: string[];
-    failingInserts?: string[];
+    grants?: Array<Row>;
+    roles?: Array<Row>;
+    managedAgencies?: Array<Row>;
+    profiles?: Array<Row>;
+    failing?: Array<string>;
+    failingInserts?: Array<string>;
   } = {},
 ) {
-  const db: Record<string, Row[]> = {
+  const db: Record<string, Array<Row>> = {
     pulse_instant_alert_log: log,
     agency_tenant_access: options.grants ?? [],
     user_roles: options.roles ?? [],
@@ -155,7 +158,7 @@ export function fakeSupabase(
 export async function run(
   supabase: ReturnType<typeof fakeSupabase>,
   now: Date,
-  snapshots: PulseSnapshotAlertInput[] = [ACME],
+  snapshots: Array<PulseSnapshotAlertInput> = [ACME],
   extra: Partial<InstantPulseAlertsInput> = {},
 ) {
   supabase.clock = now.toISOString();

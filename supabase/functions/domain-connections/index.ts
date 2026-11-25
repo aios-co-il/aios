@@ -28,11 +28,12 @@ const flattenDeploymentFiles = (
   nodes.flatMap((node) => {
     const name = String(node.name ?? "");
     const path = prefix ? `${prefix}/${name}` : name;
-    if (node.type === "directory" && Array.isArray(node.children))
+    if (node.type === "directory" && Array.isArray(node.children)) {
       return flattenDeploymentFiles(
         node.children as Array<Record<string, unknown>>,
         path,
       );
+    }
     return node.type === "file" && typeof node.uid === "string"
       ? [{ file: path, uid: node.uid }]
       : [];
@@ -40,8 +41,9 @@ const flattenDeploymentFiles = (
 
 const toBase64 = (bytes: Uint8Array) => {
   let binary = "";
-  for (let index = 0; index < bytes.length; index += 0x8000)
+  for (let index = 0; index < bytes.length; index += 0x8000) {
     binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  }
   return btoa(binary);
 };
 
@@ -54,30 +56,36 @@ const articleRouting = {
 
 Deno.serve(async (request) => {
   try {
-    if (request.method === "OPTIONS")
+    if (request.method === "OPTIONS") {
       return new Response(null, { headers: corsHeaders });
-    if (request.method !== "POST")
+    }
+    if (request.method !== "POST") {
       return reply({ error: "method_not_allowed" }, 405);
+    }
 
     const authHeader = request.headers.get("Authorization") ?? "";
     const token = authHeader.replace(/^Bearer\s+/i, "");
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    if (!token || !supabaseUrl || !serviceKey)
+    if (!token || !supabaseUrl || !serviceKey) {
       return reply({ error: "unauthorized" }, 401);
+    }
 
     const admin = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const { data: authData, error: authError } =
       await admin.auth.getUser(token);
-    if (authError || !authData.user)
+    if (authError || !authData.user) {
       return reply({ error: "unauthorized" }, 401);
+    }
 
     const body = await request.json().catch(() => ({}));
     const tenantId = typeof body?.tenant_id === "string" ? body.tenant_id : "";
     const action = typeof body?.action === "string" ? body.action : "test";
-    if (!tenantId) return reply({ error: "tenant_id_required" }, 400);
+    if (!tenantId) {
+      return reply({ error: "tenant_id_required" }, 400);
+    }
 
     const [{ data: membership }, { data: superAdmin }] = await Promise.all([
       admin
@@ -88,8 +96,9 @@ Deno.serve(async (request) => {
         .maybeSingle(),
       admin.rpc("is_super_admin", { _user_id: authData.user.id }),
     ]);
-    if (!membership && superAdmin !== true)
+    if (!membership && superAdmin !== true) {
       return reply({ error: "forbidden" }, 403);
+    }
 
     const ionosKey = (Deno.env.get("IONOS_API_KEY") ?? "").trim();
     const vercelToken = (Deno.env.get("VERCEL_TOKEN") ?? "").trim();
@@ -163,11 +172,12 @@ Deno.serve(async (request) => {
     }
 
     if (action === "list_projects") {
-      if (!vercelToken)
+      if (!vercelToken) {
         return reply(
           { success: false, error: "vercel_credentials_missing" },
           400,
         );
+      }
       const response = await fetch(
         `https://api.vercel.com/v9/projects?teamId=${teamId}&limit=100`,
         {
@@ -178,7 +188,7 @@ Deno.serve(async (request) => {
         },
       );
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok)
+      if (!response.ok) {
         return reply(
           {
             success: false,
@@ -187,6 +197,7 @@ Deno.serve(async (request) => {
           },
           400,
         );
+      }
       const projects = await Promise.all(
         (payload?.projects ?? []).map(
           async (project: Record<string, unknown>) => {
@@ -245,18 +256,20 @@ Deno.serve(async (request) => {
     }
 
     if (action === "create_site") {
-      if (!vercelToken)
+      if (!vercelToken) {
         return reply(
           { success: false, error: "vercel_credentials_missing" },
           400,
         );
+      }
       const requestedName = String(body?.name ?? "")
         .trim()
         .toLowerCase()
         .replace(/[^a-z0-9-]+/g, "-")
         .replace(/^-+|-+$/g, "");
-      if (!requestedName)
+      if (!requestedName) {
         return reply({ success: false, error: "site_name_required" }, 400);
+      }
       const headers = {
         Authorization: `Bearer ${vercelToken}`,
         Accept: "application/json",
@@ -282,7 +295,7 @@ Deno.serve(async (request) => {
           },
         );
         project = await projectResponse.json().catch(() => ({}));
-        if (!projectResponse.ok)
+        if (!projectResponse.ok) {
           return reply(
             {
               success: false,
@@ -292,6 +305,7 @@ Deno.serve(async (request) => {
             },
             400,
           );
+        }
       }
       if (project.framework !== null) {
         const updateProjectResponse = await fetch(
@@ -367,17 +381,18 @@ Deno.serve(async (request) => {
       );
       const deployments = await deploymentsResponse.json().catch(() => ({}));
       const templateDeploymentId = deployments?.deployments?.[0]?.uid;
-      if (!templateDeploymentId)
+      if (!templateDeploymentId) {
         return reply(
           { success: false, error: "template_deployment_missing", project },
           400,
         );
+      }
       const filesResponse = await fetch(
         `https://api.vercel.com/v6/deployments/${templateDeploymentId}/files?teamId=${teamId}`,
         { headers },
       );
       const fileTree = await filesResponse.json().catch(() => []);
-      if (!filesResponse.ok || !Array.isArray(fileTree))
+      if (!filesResponse.ok || !Array.isArray(fileTree)) {
         return reply(
           {
             success: false,
@@ -386,9 +401,11 @@ Deno.serve(async (request) => {
           },
           400,
         );
+      }
       const templateFiles = flattenDeploymentFiles(fileTree);
-      if (!templateFiles.length)
+      if (!templateFiles.length) {
         return reply({ success: false, error: "template_files_missing" }, 400);
+      }
       const files = await Promise.all(
         templateFiles
           .filter(
@@ -402,10 +419,11 @@ Deno.serve(async (request) => {
               `https://api.vercel.com/v8/deployments/${templateDeploymentId}/files/${uid}?teamId=${teamId}`,
               { headers },
             );
-            if (!contentResponse.ok)
+            if (!contentResponse.ok) {
               throw new Error(
                 `template_file_read_failed:${file}:${contentResponse.status}`,
               );
+            }
             return {
               file,
               data: toBase64(
@@ -460,7 +478,7 @@ Deno.serve(async (request) => {
         },
       );
       const deployment = await deployResponse.json().catch(() => ({}));
-      if (!deployResponse.ok)
+      if (!deployResponse.ok) {
         return reply(
           {
             success: false,
@@ -471,6 +489,7 @@ Deno.serve(async (request) => {
           },
           400,
         );
+      }
       if (deployment?.projectId !== project.id) {
         return reply(
           {
@@ -496,11 +515,12 @@ Deno.serve(async (request) => {
     }
 
     if (action === "connect") {
-      if (!ionosKey || !vercelToken)
+      if (!ionosKey || !vercelToken) {
         return reply(
           { success: false, error: "provider_credentials_missing", ...result },
           400,
         );
+      }
 
       const domain = String(body?.domain ?? "paperlief.com")
         .trim()
@@ -510,8 +530,9 @@ Deno.serve(async (request) => {
       const projectId = String(body?.project_id ?? templateProjectId);
       if (
         !/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i.test(domain)
-      )
+      ) {
         return reply({ success: false, error: "invalid_domain" }, 400);
+      }
       const vercelHeaders = {
         Authorization: `Bearer ${vercelToken}`,
         Accept: "application/json",
@@ -546,7 +567,7 @@ Deno.serve(async (request) => {
         },
       );
       const configText = await configResponse.text();
-      if (!configResponse.ok)
+      if (!configResponse.ok) {
         return reply(
           {
             success: false,
@@ -557,6 +578,7 @@ Deno.serve(async (request) => {
           },
           400,
         );
+      }
       const config = JSON.parse(configText);
       const rankedIps = Array.isArray(config?.recommendedIPv4)
         ? [...config.recommendedIPv4].sort(
@@ -591,7 +613,7 @@ Deno.serve(async (request) => {
         { headers: ionosHeaders },
       );
       const zonesText = await zonesResponse.text();
-      if (!zonesResponse.ok)
+      if (!zonesResponse.ok) {
         return reply(
           {
             success: false,
@@ -602,6 +624,7 @@ Deno.serve(async (request) => {
           },
           400,
         );
+      }
       const zones = JSON.parse(zonesText);
       const zone = Array.isArray(zones)
         ? zones.find(
@@ -611,7 +634,7 @@ Deno.serve(async (request) => {
                 .toLowerCase() === domain,
           )
         : null;
-      if (!zone?.id)
+      if (!zone?.id) {
         return reply(
           {
             success: false,
@@ -621,6 +644,7 @@ Deno.serve(async (request) => {
           },
           404,
         );
+      }
 
       const record = {
         name: domain,
@@ -635,7 +659,7 @@ Deno.serve(async (request) => {
         { headers: ionosHeaders },
       );
       const recordsText = await recordsResponse.text();
-      if (!recordsResponse.ok)
+      if (!recordsResponse.ok) {
         return reply(
           {
             success: false,
@@ -646,6 +670,7 @@ Deno.serve(async (request) => {
           },
           400,
         );
+      }
       const zoneDetails = recordsText.trim() ? JSON.parse(recordsText) : {};
       const currentRecords = Array.isArray(zoneDetails?.records)
         ? zoneDetails.records
@@ -678,7 +703,7 @@ Deno.serve(async (request) => {
         );
         dnsStatus = dnsResponse.status;
         const dnsText = await dnsResponse.text();
-        if (!dnsResponse.ok)
+        if (!dnsResponse.ok) {
           return reply(
             {
               success: false,
@@ -689,6 +714,7 @@ Deno.serve(async (request) => {
             },
             400,
           );
+        }
       }
 
       return reply({

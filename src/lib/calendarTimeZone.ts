@@ -112,6 +112,10 @@ export function getJerusalemDashboardDateRange(
 ): { startDate: string | null; endDate: string | null } {
   const today = jerusalemYmd(now);
   const dayOfWeek = jerusalemWeekdayIndex(now);
+  const days = rollingDays(filter);
+  if (days !== null) {
+    return { startDate: shiftYmd(today, -days), endDate: shiftYmd(today, -1) };
+  }
 
   switch (filter) {
     case "all":
@@ -129,24 +133,6 @@ export function getJerusalemDashboardDateRange(
       const startOfLastWeek = shiftYmd(endOfLastWeek, -6);
       return { startDate: startOfLastWeek, endDate: endOfLastWeek };
     }
-    case "last_7_days":
-      return { startDate: shiftYmd(today, -7), endDate: shiftYmd(today, -1) };
-    case "last_14_days":
-      return { startDate: shiftYmd(today, -14), endDate: shiftYmd(today, -1) };
-    case "last_30_days":
-      return { startDate: shiftYmd(today, -30), endDate: shiftYmd(today, -1) };
-    case "last_60_days":
-      return { startDate: shiftYmd(today, -60), endDate: shiftYmd(today, -1) };
-    case "last_70_days":
-      return { startDate: shiftYmd(today, -70), endDate: shiftYmd(today, -1) };
-    case "last_90_days":
-      return { startDate: shiftYmd(today, -90), endDate: shiftYmd(today, -1) };
-    case "last_120_days":
-      return { startDate: shiftYmd(today, -120), endDate: shiftYmd(today, -1) };
-    case "last_180_days":
-      return { startDate: shiftYmd(today, -180), endDate: shiftYmd(today, -1) };
-    case "last_365_days":
-      return { startDate: shiftYmd(today, -365), endDate: shiftYmd(today, -1) };
     case "this_month":
       return { startDate: `${today.slice(0, 7)}-01`, endDate: today };
     case "last_month": {
@@ -157,10 +143,20 @@ export function getJerusalemDashboardDateRange(
       };
     }
     case "custom":
-      if (customStart && customEnd)
+      if (customStart && customEnd) {
         return { startDate: customStart, endDate: customEnd };
+      }
       return { startDate: shiftYmd(today, -30), endDate: shiftYmd(today, -1) };
     default:
       return { startDate: shiftYmd(today, -30), endDate: shiftYmd(today, -1) };
   }
+}
+
+/** The rolling presets, each the given number of full days ending yesterday. */
+const ROLLING_DAYS = new Set([7, 9, 14, 30, 60, 70, 90, 120, 180, 365]);
+
+/** The day count of a rolling "last_N_days" preset, or null for any other filter. */
+function rollingDays(filter: string): number | null {
+  const days = Number(/^last_(\d+)_days$/.exec(filter)?.[1]);
+  return ROLLING_DAYS.has(days) ? days : null;
 }

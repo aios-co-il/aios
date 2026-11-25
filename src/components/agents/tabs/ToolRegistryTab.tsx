@@ -71,7 +71,9 @@ export function ToolRegistryTab() {
         .or(`tenant_id.eq.${tenantId},tenant_id.is.null`)
         .order("category")
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
   });
@@ -98,10 +100,14 @@ export function ToolRegistryTab() {
           .from("agent_tools")
           .update(payload)
           .eq("id", tool.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       } else {
         const { error } = await supabase.from("agent_tools").insert(payload);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
     },
     onSuccess: () => {
@@ -118,7 +124,9 @@ export function ToolRegistryTab() {
         .from("agent_tools")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["agent-tools-registry", tenantId] });
@@ -133,7 +141,9 @@ export function ToolRegistryTab() {
         .from("agent_tools")
         .update({ enabled })
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: ["agent-tools-registry", tenantId] }),
@@ -151,8 +161,8 @@ export function ToolRegistryTab() {
     );
   };
 
-  const byCategory: Record<string, AgentTool[]> = {};
-  for (const t of tools as AgentTool[]) {
+  const byCategory: Record<string, Array<AgentTool>> = {};
+  for (const t of tools as Array<AgentTool>) {
     const c = t.category || "general";
     (byCategory[c] ||= []).push(t);
   }

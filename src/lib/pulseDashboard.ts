@@ -25,7 +25,10 @@ export type PulseStatus = "healthy" | "warning" | "critical" | "no_data";
 
 export type PulsePeriod = "last_7_days" | "this_week" | "last_week";
 
-export const PULSE_PERIOD_OPTIONS: { value: PulsePeriod; label: string }[] = [
+export const PULSE_PERIOD_OPTIONS: Array<{
+  value: PulsePeriod;
+  label: string;
+}> = [
   { value: "last_7_days", label: "7 ימים אחרונים" },
   { value: "this_week", label: "השבוע" },
   { value: "last_week", label: "שבוע שעבר" },
@@ -49,8 +52,8 @@ export type PulseSnapshotRow = {
   roas_change_pct?: number | null;
   lead_goal_status?: PulseStatus | null;
   ecommerce_goal_status?: PulseStatus | null;
-  campaign_breakdown?: PulseCampaignGoalRow[] | null;
-  flags: string[] | null;
+  campaign_breakdown?: Array<PulseCampaignGoalRow> | null;
+  flags: Array<string> | null;
   data_fresh_through: string | null;
   calculated_at: string | null;
   last_meta_change_at: string | null;
@@ -76,7 +79,7 @@ export type PulseGoalDisplayRow = {
   efficiency: number | null;
   change_pct: number | null;
   efficiency_kind: "cpl" | "roas";
-  flags: string[];
+  flags: Array<string>;
   data_fresh_through: string | null;
   calculated_at: string | null;
   last_meta_change_at: string | null;
@@ -89,15 +92,25 @@ export type PulseGoalDisplayRow = {
 export function pulseStatusToOverall(
   status: PulseStatus | null | undefined,
 ): "green" | "yellow" | "red" {
-  if (status === "critical") return "red";
-  if (status === "warning" || status === "no_data") return "yellow";
-  if (status === "healthy") return "green";
+  if (status === "critical") {
+    return "red";
+  }
+  if (status === "warning" || status === "no_data") {
+    return "yellow";
+  }
+  if (status === "healthy") {
+    return "green";
+  }
   return "yellow";
 }
 
 export function overallStatusLabel(status: "green" | "yellow" | "red"): string {
-  if (status === "green") return "🟢 תקין";
-  if (status === "red") return "🔴 דורש טיפול";
+  if (status === "green") {
+    return "🟢 תקין";
+  }
+  if (status === "red") {
+    return "🔴 דורש טיפול";
+  }
   return "🟡 לתשומת לב";
 }
 
@@ -108,7 +121,7 @@ export type PulseOverrideRow = {
   algorithm_status: string;
   override_status: "green" | "yellow" | "red";
   reason: string;
-  algorithm_flags: string[] | null;
+  algorithm_flags: Array<string> | null;
   algorithm_metrics: Record<string, unknown> | null;
   snapshot_calculated_at: string | null;
   created_by: string | null;
@@ -119,7 +132,9 @@ export type PulseOverrideRow = {
 export function buildPulseAlgorithmMetrics(
   pulse: PulseSnapshotRow | null,
 ): Record<string, unknown> {
-  if (!pulse) return {};
+  if (!pulse) {
+    return {};
+  }
   return {
     status: pulse.status,
     spend_7d: pulse.spend_7d,
@@ -151,24 +166,28 @@ export function pulseStatusLabel(
 }
 
 export function clientHasCampaignService(
-  services: string[] | null | undefined,
+  services: Array<string> | null | undefined,
 ): boolean {
-  if (!Array.isArray(services)) return false;
+  if (!Array.isArray(services)) {
+    return false;
+  }
   return services.includes("ppc_meta") || services.includes("ppc_google");
 }
 
 export function clientHasConnectedCampaignTables(
-  tables: PulseCampaignTable[] | null | undefined,
+  tables: Array<PulseCampaignTable> | null | undefined,
 ): boolean {
-  if (!Array.isArray(tables) || !tables.length) return false;
+  if (!Array.isArray(tables) || !tables.length) {
+    return false;
+  }
   return tables.some(
     (table) => pulsePlatformOf(table.integration_type) !== null,
   );
 }
 
 export function clientHasCampaignCoverage(
-  services: string[] | null | undefined,
-  tables: PulseCampaignTable[] | null | undefined,
+  services: Array<string> | null | undefined,
+  tables: Array<PulseCampaignTable> | null | undefined,
 ): boolean {
   return (
     clientHasCampaignService(services) ||
@@ -177,24 +196,31 @@ export function clientHasCampaignCoverage(
 }
 
 export function formatPulseMoney(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(Number(value)))
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
     return "—";
+  }
   return `₪${Math.round(Number(value) * 100) / 100}`;
 }
 
 export function goalLabel(goal: CampaignGoal): string {
-  if (goal === "ecommerce") return "איקומרס";
-  if (goal === "engagement") return "אינגייג׳מנט";
+  if (goal === "ecommerce") {
+    return "איקומרס";
+  }
+  if (goal === "engagement") {
+    return "אינגייג׳מנט";
+  }
   return "לידים";
 }
 
 /** Precomputed per-campaign rows persisted on campaign_pulse_snapshots. */
 export function collectCampaignBreakdownFromSnapshots(
-  snapshots: PulseSnapshotRow[],
-): PulseCampaignGoalRow[] {
-  const rows: PulseCampaignGoalRow[] = [];
+  snapshots: Array<PulseSnapshotRow>,
+): Array<PulseCampaignGoalRow> {
+  const rows: Array<PulseCampaignGoalRow> = [];
   for (const snapshot of snapshots) {
-    if (!Array.isArray(snapshot.campaign_breakdown)) continue;
+    if (!Array.isArray(snapshot.campaign_breakdown)) {
+      continue;
+    }
     rows.push(...snapshot.campaign_breakdown);
   }
   return rows;
@@ -202,16 +228,16 @@ export function collectCampaignBreakdownFromSnapshots(
 
 /** Clients with campaign tables but no stored campaign_breakdown on snapshot. */
 export function pulseClientsNeedingRecordBuild(input: {
-  snapshots: PulseSnapshotRow[];
-  tables: PulseCampaignTable[];
-}): string[] {
+  snapshots: Array<PulseSnapshotRow>;
+  tables: Array<PulseCampaignTable>;
+}): Array<string> {
   const clientsWithTables = new Set(
     input.tables.map((table) => table.client_id),
   );
   const snapshotByClient = new Map(
     input.snapshots.map((row) => [row.client_id, row]),
   );
-  const needsBuild: string[] = [];
+  const needsBuild: Array<string> = [];
   for (const clientId of clientsWithTables) {
     const snapshot = snapshotByClient.get(clientId);
     if (!snapshot || !Array.isArray(snapshot.campaign_breakdown)) {
@@ -223,8 +249,8 @@ export function pulseClientsNeedingRecordBuild(input: {
 
 /** Pulse dashboard only tracks campaigns that spent in the current window. */
 export function filterPulseCampaignRowsWithSpend(
-  rows: PulseCampaignGoalRow[],
-): PulseCampaignGoalRow[] {
+  rows: Array<PulseCampaignGoalRow>,
+): Array<PulseCampaignGoalRow> {
   return rows.filter((row) => (row.spend_7d || 0) > 0);
 }
 
@@ -244,10 +270,10 @@ const PAUSED_ROW_PATCH = {
 
 /** Apply delivery status + paused/removed/ended criteria without a full crm_records rebuild. */
 export function rehydrateCampaignBreakdownRows(
-  rows: PulseCampaignGoalRow[],
-  tables: PulseCampaignTable[],
-  hints: PulseCampaignDeliveryHint[] = [],
-): PulseCampaignGoalRow[] {
+  rows: Array<PulseCampaignGoalRow>,
+  tables: Array<PulseCampaignTable>,
+  hints: Array<PulseCampaignDeliveryHint> = [],
+): Array<PulseCampaignGoalRow> {
   const settingsByTable = new Map(
     tables.map((table) => [table.id, table.integration_settings || {}]),
   );
@@ -255,7 +281,9 @@ export function rehydrateCampaignBreakdownRows(
   for (const hint of hints) {
     const key = `${hint.table_id}:${hint.campaign_id}`;
     const prev = hintByKey.get(key);
-    if (!prev || hint.date > prev.date) hintByKey.set(key, hint);
+    if (!prev || hint.date > prev.date) {
+      hintByKey.set(key, hint);
+    }
   }
 
   return dedupePulseCampaignRows(
@@ -301,9 +329,9 @@ export function rehydrateCampaignBreakdownRows(
 }
 
 export function pulseMetaTablesNeedingDeliveryHints(
-  rows: PulseCampaignGoalRow[],
-  tables: PulseCampaignTable[],
-): string[] {
+  rows: Array<PulseCampaignGoalRow>,
+  tables: Array<PulseCampaignTable>,
+): Array<string> {
   const metaTableIds = new Set(
     tables
       .filter(
@@ -315,8 +343,12 @@ export function pulseMetaTablesNeedingDeliveryHints(
   );
   const needsHint = new Set<string>();
   for (const row of rows) {
-    if (!metaTableIds.has(row.table_id)) continue;
-    if (row.delivery_status && row.delivery_status !== "unknown") continue;
+    if (!metaTableIds.has(row.table_id)) {
+      continue;
+    }
+    if (row.delivery_status && row.delivery_status !== "unknown") {
+      continue;
+    }
     needsHint.add(row.table_id);
   }
   return Array.from(needsHint);
@@ -328,11 +360,13 @@ const DELIVERY_HINT_TABLE_CHUNK = 15;
 
 /** Latest effective_status per campaign — 7-day window only (not full pulse trend). */
 export async function fetchPulseCampaignDeliveryHints(
-  tableIds: string[],
+  tableIds: Array<string>,
   lookbackStart: string,
-): Promise<PulseCampaignDeliveryHint[]> {
-  if (!tableIds.length) return [];
-  const hints: PulseCampaignDeliveryHint[] = [];
+): Promise<Array<PulseCampaignDeliveryHint>> {
+  if (!tableIds.length) {
+    return [];
+  }
+  const hints: Array<PulseCampaignDeliveryHint> = [];
   for (
     let offset = 0;
     offset < tableIds.length;
@@ -347,18 +381,25 @@ export async function fetchPulseCampaignDeliveryHints(
         .in("table_id", chunk)
         .filter("data->>date", "gte", lookbackStart)
         .range(from, to);
-      if (error) throw error;
-      if (!data?.length) break;
+      if (error) {
+        throw error;
+      }
+      if (!data?.length) {
+        break;
+      }
       for (const record of data) {
         const dataRow = jsonObject(record.data) ?? {};
         const campaignId = dataRow.campaign_id || dataRow.campaignId;
         const date = typeof dataRow.date === "string" ? dataRow.date : null;
-        if (!campaignId || !date) continue;
+        if (!campaignId || !date) {
+          continue;
+        }
         if (
           String(dataRow.entity_level || "campaign").toLowerCase() !==
           "campaign"
-        )
+        ) {
           continue;
+        }
         hints.push({
           table_id: record.table_id,
           campaign_id: String(campaignId),
@@ -368,22 +409,26 @@ export async function fetchPulseCampaignDeliveryHints(
           date,
         });
       }
-      if (data.length < DELIVERY_HINT_PAGE) break;
+      if (data.length < DELIVERY_HINT_PAGE) {
+        break;
+      }
     }
   }
   const latest = new Map<string, PulseCampaignDeliveryHint>();
   for (const hint of hints) {
     const key = `${hint.table_id}:${hint.campaign_id}`;
     const prev = latest.get(key);
-    if (!prev || hint.date > prev.date) latest.set(key, hint);
+    if (!prev || hint.date > prev.date) {
+      latest.set(key, hint);
+    }
   }
   return Array.from(latest.values());
 }
 
 export function pulseFallbackTableIds(
-  tables: PulseCampaignTable[],
-  clientIds: string[],
-): string[] {
+  tables: Array<PulseCampaignTable>,
+  clientIds: Array<string>,
+): Array<string> {
   const pending = new Set(clientIds);
   return tables
     .filter((table) => pending.has(table.client_id))
@@ -404,7 +449,7 @@ export type PulseClientGoalRollup = {
   efficiency: number | null;
   change_pct: number | null;
   efficiency_kind: "cpl" | "roas" | "cost_per_result";
-  flags: string[];
+  flags: Array<string>;
   data_fresh_through: string | null;
   calculated_at: string | null;
   last_meta_change_at: string | null;
@@ -415,7 +460,7 @@ export type PulseClientGoalRollup = {
   last_client_call_at: string | null;
   last_client_call_by: string | null;
   last_campaign_change_at: string | null;
-  campaigns: PulseCampaignGoalRow[];
+  campaigns: Array<PulseCampaignGoalRow>;
 };
 
 const PULSE_STATUS_RANK: Record<PulseStatus, number> = {
@@ -425,8 +470,10 @@ const PULSE_STATUS_RANK: Record<PulseStatus, number> = {
   healthy: 3,
 };
 
-function worstPulseStatusFromList(statuses: PulseStatus[]): PulseStatus {
-  if (!statuses.length) return "no_data";
+function worstPulseStatusFromList(statuses: Array<PulseStatus>): PulseStatus {
+  if (!statuses.length) {
+    return "no_data";
+  }
   return statuses.reduce((worst, status) =>
     PULSE_STATUS_RANK[status] < PULSE_STATUS_RANK[worst] ? status : worst,
   );
@@ -447,7 +494,7 @@ function isUnknownDelivery(status: string | null | undefined): boolean {
  * same platform is live (`liveElsewhere`).
  */
 export function rollupStatusFromCampaigns(
-  campaigns: CampaignRowWithDelivery[],
+  campaigns: Array<CampaignRowWithDelivery>,
   options: { deliveryHintsPending?: boolean; liveElsewhere?: boolean } = {},
 ): {
   status: PulseStatus;
@@ -531,7 +578,7 @@ export function rollupStatusFromCampaigns(
 }
 
 export function rollupNeedsDeliveryHints(
-  campaigns: CampaignRowWithDelivery[],
+  campaigns: Array<CampaignRowWithDelivery>,
   metaTableIds: Set<string>,
 ): boolean {
   return campaigns.some(
@@ -549,20 +596,24 @@ function rollupEfficiency(
   if (goal === "ecommerce") {
     return spend > 0 ? roundMetric(revenue / spend) : null;
   }
-  if (outcomes === null || outcomes <= 0) return null;
+  if (outcomes === null || outcomes <= 0) {
+    return null;
+  }
   return roundMetric(spend / outcomes);
 }
 
 /** One dashboard row per client × platform × goal (not per individual campaign). */
 export function rollupCampaignRowsByClientGoal(input: {
-  campaignRows: PulseCampaignGoalRow[];
+  campaignRows: Array<PulseCampaignGoalRow>;
   snapshotsByClient: Map<string, PulseSnapshotRow>;
   deliveryHintsPending?: boolean;
   metaTableIds?: Set<string>;
-}): PulseClientGoalRollup[] {
-  const groups = new Map<string, PulseCampaignGoalRow[]>();
+}): Array<PulseClientGoalRollup> {
+  const groups = new Map<string, Array<PulseCampaignGoalRow>>();
   for (const row of input.campaignRows) {
-    if (row.goal === "unknown") continue;
+    if (row.goal === "unknown") {
+      continue;
+    }
     const key = `${row.client_id}:${row.platform}:${row.goal}`;
     const list = groups.get(key) || [];
     list.push(row);
@@ -579,7 +630,7 @@ export function rollupCampaignRowsByClientGoal(input: {
       .map((row) => `${row.client_id}:${row.platform}`),
   );
 
-  const rollups: PulseClientGoalRollup[] = [];
+  const rollups: Array<PulseClientGoalRollup> = [];
   for (const [key, campaigns] of groups) {
     const parts = key.split(":");
     const client_id = parts[0];
@@ -646,7 +697,9 @@ export function rollupCampaignRowsByClientGoal(input: {
     }
     const trendWeighted = campaigns.reduce(
       (acc, row) => {
-        if (row.trend_7d_pct === null || !row.spend_7d) return acc;
+        if (row.trend_7d_pct === null || !row.spend_7d) {
+          return acc;
+        }
         acc.weighted += row.trend_7d_pct * row.spend_7d;
         acc.spend += row.spend_7d;
         return acc;
@@ -723,8 +776,9 @@ export function formatCampaignTouchSummary(
 ): string {
   const at = rollup.last_campaign_change_at || rollup.last_meta_change_at;
   if (!at) {
-    if (rollup.meta_change_availability === "no_campaign_change_in_30d")
+    if (rollup.meta_change_availability === "no_campaign_change_in_30d") {
       return "לא נמצא";
+    }
     return "לא זמין";
   }
   return new Date(at).toLocaleDateString("he-IL", {
@@ -751,12 +805,15 @@ export function formatCampaignTouchDetails(
     timeStyle: "short",
   });
   const lines = [`תאריך: ${when}`];
-  if (rollup.last_meta_change_type)
+  if (rollup.last_meta_change_type) {
     lines.push(`סוג: ${rollup.last_meta_change_type}`);
-  if (rollup.last_meta_change_object)
+  }
+  if (rollup.last_meta_change_object) {
     lines.push(`אובייקט: ${rollup.last_meta_change_object}`);
-  if (rollup.last_meta_change_actor)
+  }
+  if (rollup.last_meta_change_actor) {
     lines.push(`מי ביצע: ${rollup.last_meta_change_actor}`);
+  }
   if (rollup.campaigns.length > 1) {
     lines.push(
       `קמפיינים בקבוצה: ${rollup.campaigns.map((row) => row.campaign_name).join(", ")}`,
@@ -768,15 +825,21 @@ export function formatCampaignTouchDetails(
 export function formatRollupEfficiency(
   row: Pick<PulseClientGoalRollup, "efficiency_kind" | "efficiency">,
 ): string {
-  if (row.efficiency === null || row.efficiency === undefined) return "—";
-  if (row.efficiency_kind === "roas") return `ROAS ${row.efficiency}`;
+  if (row.efficiency === null || row.efficiency === undefined) {
+    return "—";
+  }
+  if (row.efficiency_kind === "roas") {
+    return `ROAS ${row.efficiency}`;
+  }
   return `₪${row.efficiency}`;
 }
 
 export function formatRollupOutcomes(
   row: Pick<PulseClientGoalRollup, "goal" | "outcomes_7d">,
 ): string {
-  if (row.outcomes_7d === null) return "—";
+  if (row.outcomes_7d === null) {
+    return "—";
+  }
   return String(row.outcomes_7d);
 }
 
@@ -794,7 +857,7 @@ export function resolveCampaignOperatorTouch(
     PulseCampaignGoalRow,
     "campaign_id" | "campaign_name" | "last_change_at" | "delivery_status"
   >,
-  alerts: PulseCampaignAlertAck[],
+  alerts: Array<PulseCampaignAlertAck>,
 ): { at: string | null; label: string } {
   const matches = alerts.filter(
     (alert) =>
@@ -820,7 +883,9 @@ export function resolveCampaignOperatorTouch(
 }
 
 export function formatOperatorTouch(at: string | null): string {
-  if (!at) return "לא תועד";
+  if (!at) {
+    return "לא תועד";
+  }
   return new Date(at).toLocaleString("he-IL", {
     timeZone: "Asia/Jerusalem",
     dateStyle: "short",
@@ -853,7 +918,9 @@ function resolveLastSyncAt(table: PulseCampaignTable): string | null {
   const candidates = [table.last_sync_at, settings.last_sync_at]
     .map((value) => (typeof value === "string" && value.trim() ? value : null))
     .filter((value): value is string => !!value);
-  if (!candidates.length) return null;
+  if (!candidates.length) {
+    return null;
+  }
   return candidates.sort(
     (a, b) => new Date(b).getTime() - new Date(a).getTime(),
   )[0];
@@ -861,13 +928,17 @@ function resolveLastSyncAt(table: PulseCampaignTable): string | null {
 
 /** One active table per platform — freshest sync wins. */
 export function pickFreshestTablePerPlatform(
-  tables: PulseCampaignTable[],
-): PulseCampaignTable[] {
+  tables: Array<PulseCampaignTable>,
+): Array<PulseCampaignTable> {
   const best = new Map<PulsePlatform, PulseCampaignTable>();
   for (const table of tables) {
-    if (table.campaign_active === false) continue;
+    if (table.campaign_active === false) {
+      continue;
+    }
     const key = pulsePlatformOf(table.integration_type);
-    if (!key) continue;
+    if (!key) {
+      continue;
+    }
     const prev = best.get(key);
     if (!prev) {
       best.set(key, table);
@@ -891,7 +962,9 @@ export function pickFreshestTablePerPlatform(
 }
 
 function roundMetric(value: number | null, digits = 2): number | null {
-  if (value === null || Number.isNaN(value)) return null;
+  if (value === null || Number.isNaN(value)) {
+    return null;
+  }
   const factor = 10 ** digits;
   return Math.round(value * factor) / factor;
 }
@@ -903,13 +976,15 @@ export function platformGoalLabel(
 }
 
 function snapshotGoalMode(row: PulseSnapshotRow): CampaignGoalMode {
-  if (row.campaign_goal_mode) return row.campaign_goal_mode;
+  if (row.campaign_goal_mode) {
+    return row.campaign_goal_mode;
+  }
   return row.is_ecommerce ? "ecommerce" : "leads";
 }
 
 export function expandPulseSnapshotToGoalRows(
   snapshot: PulseSnapshotRow,
-): PulseGoalDisplayRow[] {
+): Array<PulseGoalDisplayRow> {
   const mode = snapshotGoalMode(snapshot);
   const shared = {
     client_id: snapshot.client_id,
@@ -971,8 +1046,12 @@ export function expandPulseSnapshotToGoalRows(
     efficiency_kind: "roas",
   };
 
-  if (mode === "hybrid") return [leadRow, ecommerceRow];
-  if (mode === "ecommerce") return [ecommerceRow];
+  if (mode === "hybrid") {
+    return [leadRow, ecommerceRow];
+  }
+  if (mode === "ecommerce") {
+    return [ecommerceRow];
+  }
   return [leadRow];
 }
 
@@ -985,7 +1064,9 @@ export function formatGoalOutcomes(
 export function formatGoalEfficiency(
   row: Pick<PulseGoalDisplayRow, "efficiency_kind" | "efficiency">,
 ): string {
-  if (row.efficiency === null || row.efficiency === undefined) return "—";
+  if (row.efficiency === null || row.efficiency === undefined) {
+    return "—";
+  }
   return row.efficiency_kind === "roas"
     ? `ROAS ${row.efficiency}`
     : `₪${row.efficiency}`;
@@ -1000,7 +1081,9 @@ export function formatGoalChange(
 export function formatMetaChangeDate(
   row: PulseSnapshotRow | PulseGoalDisplayRow,
 ): string | null {
-  if (!row.last_meta_change_at) return null;
+  if (!row.last_meta_change_at) {
+    return null;
+  }
   return new Date(row.last_meta_change_at).toLocaleDateString("he-IL", {
     timeZone: "Asia/Jerusalem",
     day: "numeric",
@@ -1022,25 +1105,35 @@ export function formatMetaChangeDetails(
       `תאריך: ${when}`,
       `סוג: ${row.last_meta_change_type || "שינוי"}`,
     ];
-    if (row.last_meta_change_object)
+    if (row.last_meta_change_object) {
       lines.push(`אובייקט: ${row.last_meta_change_object}`);
-    if (row.last_meta_change_actor)
+    }
+    if (row.last_meta_change_actor) {
       lines.push(`מי ביצע: ${row.last_meta_change_actor}`);
+    }
     return lines.join("\n");
   }
-  if (row.meta_change_availability === "no_campaign_change_in_30d")
+  if (row.meta_change_availability === "no_campaign_change_in_30d") {
     return "לא נמצא שינוי במטה ב-30 הימים האחרונים";
-  if (row.meta_change_availability === "not_applicable") return "לא רלוונטי";
+  }
+  if (row.meta_change_availability === "not_applicable") {
+    return "לא רלוונטי";
+  }
   return "לא זמין";
 }
 
 export function metaChangeSummary(
   row: PulseSnapshotRow | PulseGoalDisplayRow,
 ): string {
-  if (row.last_meta_change_at) return formatMetaChangeDate(row) || "—";
-  if (row.meta_change_availability === "no_campaign_change_in_30d")
+  if (row.last_meta_change_at) {
+    return formatMetaChangeDate(row) || "—";
+  }
+  if (row.meta_change_availability === "no_campaign_change_in_30d") {
     return "לא נמצא";
-  if (row.meta_change_availability === "not_applicable") return "—";
+  }
+  if (row.meta_change_availability === "not_applicable") {
+    return "—";
+  }
   return "לא זמין";
 }
 
@@ -1073,7 +1166,9 @@ export function formatPulseEfficiency(
 export function formatPulseChange(
   cplChangePct: number | null | undefined,
 ): string {
-  if (cplChangePct === null || cplChangePct === undefined) return "—";
+  if (cplChangePct === null || cplChangePct === undefined) {
+    return "—";
+  }
   const sign = cplChangePct > 0 ? "+" : "";
   return `${sign}${cplChangePct}%`;
 }
@@ -1091,16 +1186,21 @@ export function formatMetaChange(row: PulseSnapshotRow): string {
       : "";
     return `${when} — ${type}${object}`;
   }
-  if (row.meta_change_availability === "no_campaign_change_in_30d")
+  if (row.meta_change_availability === "no_campaign_change_in_30d") {
     return "לא נמצא ב-30 יום";
-  if (row.meta_change_availability === "not_applicable") return "—";
+  }
+  if (row.meta_change_availability === "not_applicable") {
+    return "—";
+  }
   return "לא זמין";
 }
 
 export function formatLastClientCall(
   row: Pick<PulseSnapshotRow, "last_client_call_at">,
 ): string {
-  if (!row.last_client_call_at) return "לא תועדה שיחה";
+  if (!row.last_client_call_at) {
+    return "לא תועדה שיחה";
+  }
   return new Date(row.last_client_call_at).toLocaleString("he-IL", {
     timeZone: "Asia/Jerusalem",
     dateStyle: "short",
@@ -1110,9 +1210,11 @@ export function formatLastClientCall(
 
 /** Call-freshness flags are shown in the dedicated call column, not under הערה. */
 export function filterPulseCallFlags(
-  flags: string[] | null | undefined,
-): string[] {
-  if (!Array.isArray(flags)) return [];
+  flags: Array<string> | null | undefined,
+): Array<string> {
+  if (!Array.isArray(flags)) {
+    return [];
+  }
   return flags.filter((flag) => !isLegacyClientCallFlag(flag));
 }
 
@@ -1127,10 +1229,18 @@ function isPulseNoDataFlag(flag: string): boolean {
 }
 
 /** Infer pulse status from non-call flags (mirrors campaign-pulse classification). */
-export function inferPulseStatusFromFlags(flags: string[]): PulseStatus | null {
-  if (flags.some(isPulseCriticalFlag)) return "critical";
-  if (flags.some(isPulseNoDataFlag)) return "no_data";
-  if (flags.length > 0) return "warning";
+export function inferPulseStatusFromFlags(
+  flags: Array<string>,
+): PulseStatus | null {
+  if (flags.some(isPulseCriticalFlag)) {
+    return "critical";
+  }
+  if (flags.some(isPulseNoDataFlag)) {
+    return "no_data";
+  }
+  if (flags.length > 0) {
+    return "warning";
+  }
   return null;
 }
 
@@ -1243,15 +1353,19 @@ export function getPulsePeriodBounds(
 }
 
 export function pulseSpendColumnLabel(period: PulsePeriod): string {
-  if (period === "last_week") return "הוצאה שבוע שעבר";
-  if (period === "this_week") return "הוצאה השבוע";
+  if (period === "last_week") {
+    return "הוצאה שבוע שעבר";
+  }
+  if (period === "this_week") {
+    return "הוצאה השבוע";
+  }
   return "הוצאה 7 ימים";
 }
 
 /** Skip facebook_insights when the same client also has facebook_ecommerce (avoid double cards). */
 export function filterDuplicateFacebookPulseTables<
   T extends { id: string; client_id: string; integration_type: string },
->(tables: T[]): T[] {
+>(tables: Array<T>): Array<T> {
   const clientFbTypes = new Map<string, Set<string>>();
   for (const table of tables) {
     if (
@@ -1260,15 +1374,18 @@ export function filterDuplicateFacebookPulseTables<
     ) {
       continue;
     }
-    if (!clientFbTypes.has(table.client_id))
+    if (!clientFbTypes.has(table.client_id)) {
       clientFbTypes.set(table.client_id, new Set());
+    }
     clientFbTypes.get(table.client_id)!.add(table.integration_type);
   }
   const skipTableIds = new Set<string>();
   for (const table of tables) {
     if (table.integration_type === "facebook_insights") {
       const types = clientFbTypes.get(table.client_id);
-      if (types?.has("facebook_ecommerce")) skipTableIds.add(table.id);
+      if (types?.has("facebook_ecommerce")) {
+        skipTableIds.add(table.id);
+      }
     }
   }
   return tables.filter((table) => !skipTableIds.has(table.id));
@@ -1279,10 +1396,10 @@ const PULSE_RECORD_MAX_ROWS = 100_000;
 const PULSE_TABLE_ID_CHUNK = 40;
 
 async function fetchPulseCampaignRecordsChunk(
-  tableIds: string[],
+  tableIds: Array<string>,
   bounds: PulsePeriodBounds,
-): Promise<PulseCrmRecord[]> {
-  const rows: PulseCrmRecord[] = [];
+): Promise<Array<PulseCrmRecord>> {
+  const rows: Array<PulseCrmRecord> = [];
   for (
     let from = 0;
     from < PULSE_RECORD_MAX_ROWS;
@@ -1296,10 +1413,16 @@ async function fetchPulseCampaignRecordsChunk(
       .filter("data->>date", "gte", bounds.prevStartDate)
       .filter("data->>date", "lte", bounds.endDate)
       .range(from, to);
-    if (error) throw error;
-    if (!data?.length) break;
-    rows.push(...(data as PulseCrmRecord[]));
-    if (data.length < PULSE_RECORD_PAGE_SIZE) break;
+    if (error) {
+      throw error;
+    }
+    if (!data?.length) {
+      break;
+    }
+    rows.push(...(data as Array<PulseCrmRecord>));
+    if (data.length < PULSE_RECORD_PAGE_SIZE) {
+      break;
+    }
   }
   return rows;
 }
@@ -1310,12 +1433,14 @@ async function fetchPulseCampaignRecordsChunk(
  * single-query 20k row cap that dropped clients.
  */
 export async function fetchPulseCampaignRecords(
-  tableIds: string[],
+  tableIds: Array<string>,
   bounds: PulsePeriodBounds,
-): Promise<PulseCrmRecord[]> {
-  if (!tableIds.length) return [];
+): Promise<Array<PulseCrmRecord>> {
+  if (!tableIds.length) {
+    return [];
+  }
 
-  const chunks: string[][] = [];
+  const chunks: Array<Array<string>> = [];
   for (
     let offset = 0;
     offset < tableIds.length;

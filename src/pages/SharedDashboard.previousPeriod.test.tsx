@@ -138,11 +138,17 @@ describe("SharedDashboard previous-period comparison", () => {
     expect(previousCall?.searchParams.get("custom_start")).toBe(daysAgo(60));
     // Leads went up from 5 to 10 and cost per lead down from 20 to 10.
     const leadsRow = screen.getByRole("row", { name: /לידים.*10/ });
-    const cells = within(leadsRow)
+    const textOf = (cell: HTMLElement) =>
+      cell.textContent?.replace(/\s+/g, " ").trim() ?? "";
+    // The previous values are plain; the arrows mark this period's values.
+    const previousCells = within(leadsRow)
       .getAllByTitle("תקופה קודמת")
-      .map((cell) => cell.textContent?.replace(/\s+/g, " ").trim());
-    expect(cells).toContain("▲ 5");
-    expect(cells.some((cell) => /^▼ .*20/.test(cell ?? ""))).toBe(true);
+      .map(textOf);
+    expect(previousCells).toContain("5");
+    expect(previousCells.some((cell) => /^[^▲▼]*20/.test(cell))).toBe(true);
+    const rowCells = within(leadsRow).getAllByRole("cell").map(textOf);
+    expect(rowCells).toContain("▲ 10");
+    expect(rowCells.some((cell) => /^▼ .*10/.test(cell))).toBe(true);
   });
 
   it("does not show the sync status or a back button to the client", async () => {

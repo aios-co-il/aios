@@ -11,12 +11,16 @@ export type Write = {
   table: string;
   op: "update" | "insert" | "delete";
   values: unknown;
-  filters: Filter[];
+  filters: Array<Filter>;
 };
 
 const passes = (row: Row, f: Filter) => {
-  if (f.kind === "eq") return row[f.col] === f.val;
-  if (f.kind === "is") return (row[f.col] ?? null) === f.val;
+  if (f.kind === "eq") {
+    return row[f.col] === f.val;
+  }
+  if (f.kind === "is") {
+    return (row[f.col] ?? null) === f.val;
+  }
   return Array.isArray(f.val) && f.val.includes(row[f.col]);
 };
 
@@ -27,16 +31,16 @@ const first = (data: unknown) =>
   Array.isArray(data) ? (data[0] ?? null) : data;
 
 export function fakeDb(
-  tables: Record<string, Row[]>,
+  tables: Record<string, Array<Row>>,
   rpcs: Record<string, (args: Row) => unknown> = {},
 ) {
-  const writes: Write[] = [];
-  const rpcCalls: { fn: string; args: Row }[] = [];
+  const writes: Array<Write> = [];
+  const rpcCalls: Array<{ fn: string; args: Row }> = [];
 
   function from(table: string) {
     let op: "select" | Write["op"] = "select";
     let values: unknown = null;
-    const filters: Filter[] = [];
+    const filters: Array<Filter> = [];
     let orderBy: { col: string; asc: boolean } | null = null;
     let span: [number, number] | null = null;
 
@@ -101,7 +105,9 @@ export function fakeDb(
   function rpc(fn: string, args: Row) {
     rpcCalls.push({ fn, args });
     const handler = rpcs[fn];
-    if (!handler) throw new Error(`unexpected rpc ${fn}`);
+    if (!handler) {
+      throw new Error(`unexpected rpc ${fn}`);
+    }
     const value = handler(args);
     return {
       range: (a: number, z: number) =>

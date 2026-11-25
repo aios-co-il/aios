@@ -32,7 +32,9 @@ const cors = {
 };
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: cors });
+  }
 
   try {
     const auth = await requireAuth(req);
@@ -65,11 +67,17 @@ serve(async (req) => {
         .select("*")
         .eq("tenant_id", tenantId)
         .order("updated_at", { ascending: false });
-      if (body.status) q = q.eq("status", body.status);
-      if (body.priority) q = q.eq("priority", body.priority);
+      if (body.status) {
+        q = q.eq("status", body.status);
+      }
+      if (body.priority) {
+        q = q.eq("priority", body.priority);
+      }
       const limit = Math.min(Number(body.limit) || 50, 100);
       const { data, error } = await q.limit(limit);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return json({ tasks: data || [] });
     }
 
@@ -81,7 +89,9 @@ serve(async (req) => {
         .eq("id", id)
         .eq("tenant_id", tenantId)
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       const { data: events } = await supabase
         .from("dev_task_events")
         .select("*")
@@ -93,14 +103,18 @@ serve(async (req) => {
 
     if (action === "find_duplicates") {
       const title = String(body.title || "").trim();
-      if (!title) return json({ duplicates: [] });
+      if (!title) {
+        return json({ duplicates: [] });
+      }
       const duplicates = await findDuplicateDevTasks(supabase, tenantId, title);
       return json({ duplicates });
     }
 
     if (action === "create") {
       const brief = body.brief as DevTaskBrief;
-      if (!brief?.title?.trim()) throw new Error("brief.title required");
+      if (!brief?.title?.trim()) {
+        throw new Error("brief.title required");
+      }
       const duplicates = await findDuplicateDevTasks(
         supabase,
         tenantId,
@@ -142,7 +156,9 @@ serve(async (req) => {
         "pr_url",
         "owner_user_id",
       ]) {
-        if (body[key] !== undefined) patch[key] = body[key];
+        if (body[key] !== undefined) {
+          patch[key] = body[key];
+        }
       }
       const { data, error } = await supabase
         .from("dev_tasks")
@@ -151,7 +167,9 @@ serve(async (req) => {
         .eq("tenant_id", tenantId)
         .select("*")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       await logDevTaskEvent(supabase, {
         devTaskId: id,
         tenantId,
@@ -175,11 +193,12 @@ serve(async (req) => {
         await devTaskCenterCaller(supabase, auth, tenantId),
         target,
       );
-      if (!verdict.ok)
+      if (!verdict.ok) {
         return json(
           { error: verdict.error, code: verdict.code },
           verdict.status,
         );
+      }
     }
 
     if (action === "approve") {
@@ -223,7 +242,9 @@ serve(async (req) => {
         .eq("tenant_id", tenantId)
         .select("*")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       await logDevTaskEvent(supabase, {
         devTaskId: id,
         tenantId,
@@ -242,7 +263,9 @@ serve(async (req) => {
         .eq("tenant_id", tenantId)
         .select("*")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       await logDevTaskEvent(supabase, {
         devTaskId: id,
         tenantId,
@@ -287,7 +310,9 @@ async function devTaskCenterCaller(
   auth: { kind: "user" | "service"; userId: string | null },
   tenantId: string,
 ): Promise<DevTaskCenterCaller> {
-  if (auth.kind === "service") return { kind: "service" };
+  if (auth.kind === "service") {
+    return { kind: "service" };
+  }
   const userId = auth.userId ?? "";
   const carmen = await resolveCarmenAgent(supabase, tenantId);
   const [tenantAccess, tier] = await Promise.all([

@@ -89,7 +89,7 @@ export function leadsTable(
 /** The pulse rows of these records; the test expects exactly one campaign. */
 export function onlyRow(
   records: Array<{ table_id: string; data: Record<string, unknown> }>,
-  tables: object[],
+  tables: Array<object>,
   alertRules: unknown,
 ) {
   const rows = buildPulseCampaignRows({
@@ -117,7 +117,7 @@ export function attentionClient(clientId: string) {
 }
 
 /** The value at `path` inside nested objects and arrays; undefined when a step is missing. */
-export function at(value: unknown, ...path: string[]): unknown {
+export function at(value: unknown, ...path: Array<string>): unknown {
   let current = value;
   for (const key of path) {
     current =

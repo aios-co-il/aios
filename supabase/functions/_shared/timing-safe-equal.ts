@@ -6,9 +6,13 @@
 type Subtle = object | undefined;
 
 function subtleEqual(subtle: Subtle, a: Uint8Array, b: Uint8Array) {
-  if (!subtle || !("timingSafeEqual" in subtle)) return null;
+  if (!subtle || !("timingSafeEqual" in subtle)) {
+    return null;
+  }
   const fn = subtle.timingSafeEqual;
-  if (typeof fn !== "function") return null;
+  if (typeof fn !== "function") {
+    return null;
+  }
   return fn.call(subtle, a, b) === true;
 }
 
@@ -20,11 +24,17 @@ export function timingSafeEqualStr(
   const enc = new TextEncoder();
   const x = enc.encode(a);
   const y = enc.encode(b);
-  if (x.length !== y.length) return false;
+  if (x.length !== y.length) {
+    return false;
+  }
   const native = subtleEqual(subtle, x, y);
-  if (native !== null) return native;
+  if (native !== null) {
+    return native;
+  }
   let diff = 0;
-  for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
+  for (let i = 0; i < x.length; i++) {
+    diff |= x[i] ^ y[i];
+  }
   return diff === 0;
 }
 
