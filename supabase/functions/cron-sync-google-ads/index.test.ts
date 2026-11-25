@@ -32,16 +32,20 @@ const tables = {
 /**
  * A two-day Make backfill where the scenario run answers each call with the
  * next status in `runStatuses`. The 5 s pause after a good day runs on fake
- * time.
+ * time. `flow` is the scenario blueprint's modules; `env` adds env vars.
  */
-async function backfill(runStatuses: Array<number>) {
+async function backfill(
+  runStatuses: Array<number>,
+  flow: Array<Record<string, unknown>> = [],
+  env: Record<string, string> = {},
+) {
   const runs = [...runStatuses];
   const http = fakeSupabaseHttp({
     supabaseUrl: SUPABASE_URL,
     tables,
     other: (url) => {
       if (url.pathname.endsWith("/blueprint")) {
-        return Response.json({ response: { blueprint: { flow: [] } } });
+        return Response.json({ response: { blueprint: { flow } } });
       }
       if (url.pathname.endsWith("/run")) {
         const status = runs.shift() ?? 500;
@@ -54,7 +58,7 @@ async function backfill(runStatuses: Array<number>) {
   try {
     const res = await withRuntime(
       {
-        env: { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY: "service-key" },
+        env: { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY: "service-key", ...env },
         fetch: http.fetch,
       },
       async () => {
@@ -78,7 +82,7 @@ async function backfill(runStatuses: Array<number>) {
         return await pending;
       },
     );
-    return { status: res.status, body: await res.json() };
+    return { status: res.status, body: await res.json(), calls: http.calls };
   } finally {
     time.restore();
   }
@@ -119,6 +123,29 @@ Deno.test({
         assertEquals(
           [body.results[0].status, body.results[0].days],
           ["backfilled", 1],
+        );
+      },
+    );
+
+    await t.step(
+      "the blueprint's HTTP module posts to PUBLIC_API_URL, not SUPABASE_URL",
+      async () => {
+        const { calls } = await backfill(
+          [200, 200],
+          [{ id: 4, module: "http:ActionSendData", mapper: {} }],
+          { PUBLIC_API_URL: "https://api.aios.co.il" },
+        );
+        const patch = calls.find(
+          (c) =>
+            c.method === "PATCH" && c.url.pathname.endsWith("/scenarios/42"),
+        );
+        const blueprint = JSON.parse(
+          (patch?.body as { blueprint: string }).blueprint,
+        );
+
+        assertStrictEquals(
+          blueprint.flow[0].mapper.url,
+          "https://api.aios.co.il/functions/v1/webhook-google-ads-sync",
         );
       },
     );
