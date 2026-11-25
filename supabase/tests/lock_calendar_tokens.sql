@@ -1,4 +1,4 @@
--- Google Calendar tokens (20261124100000_lock_calendar_tokens.sql) as each
+-- Google Calendar tokens (20261124103000_lock_calendar_tokens.sql) as each
 -- persona meets them. Synthetic users and rows; full rollback. Runs on a
 -- scratch database, a Preview branch or Staging.
 --
