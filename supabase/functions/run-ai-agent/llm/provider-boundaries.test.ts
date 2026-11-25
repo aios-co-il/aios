@@ -14,13 +14,13 @@ Deno.test(
     const chain = await buildLLMChain(
       fixture.context.supabase,
       "t1",
-      "google/gemini-3-flash-preview",
+      "openai/gpt-5.4-mini",
     );
     assertEquals(
       chain.map((target) => [target.provider, target.key]),
       [
-        ["google", "google"],
         ["openai", "openai"],
+        ["google", "google"],
       ],
     );
     assertEquals(fixture.calls.length, 3);
@@ -44,12 +44,12 @@ Deno.test(
       url: "test",
     };
     const tools = [
+      { function: { name: "create_supplier" } },
       ...Array.from({ length: 140 }, (_, index) => ({
         function: { name: `ordinary_${index}` },
       })),
       { function: { name: "refresh_campaign_pulse" } },
       { function: { name: "execute_pending_approval" } },
-      { function: { name: "create_supplier" } },
     ];
     const capped = capToolsForTarget(target, tools);
     assertEquals(capped.length, 128);
