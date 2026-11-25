@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
@@ -2664,11 +2665,9 @@ function ManageChannelMembersDialog({
     onError: (err: any) => toast.error(err.message),
   });
 
-  const copyInviteLink = () => {
-    if (inviteLink) {
-      navigator.clipboard.writeText(inviteLink);
+  const copyInviteLink = async () => {
+    if (inviteLink && (await copyToClipboard(inviteLink, "הקישור הועתק"))) {
       setCopied(true);
-      toast.success("הקישור הועתק");
       setTimeout(() => setCopied(false), 2000);
     }
   };

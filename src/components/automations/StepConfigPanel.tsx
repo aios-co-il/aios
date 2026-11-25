@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { FacebookDeliveryModeSection } from "@/components/automations/FacebookDeliveryModeSection";
 import { TriggerTestPanel } from "./TriggerTestPanel";
@@ -403,7 +404,6 @@ export function StepConfigPanel({
   automationName,
 }: StepConfigPanelProps) {
   const { tenant } = useCurrentTenant();
-  const { toast } = useToast();
   const tenantId = tenant?.id;
   const [showTriggerTest, setShowTriggerTest] = useState(false);
   const { data: webhookClients = [] } = useQuery({
@@ -926,11 +926,11 @@ export function StepConfigPanel({
                           size="icon"
                           onClick={async () => {
                             const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/automation-flow-webhook?automation_id=${automationId || ""}`;
-                            await navigator.clipboard.writeText(webhookUrl);
-                            toast({
-                              title: "הועתק",
-                              description: "כתובת ה-Webhook הועתקה",
-                            });
+                            await copyToClipboard(
+                              webhookUrl,
+                              "הועתק",
+                              "כתובת ה-Webhook הועתקה",
+                            );
                           }}
                         >
                           <Copy className="h-4 w-4" />
@@ -952,13 +952,11 @@ export function StepConfigPanel({
                           variant="outline"
                           size="icon"
                           onClick={async () => {
-                            await navigator.clipboard.writeText(
+                            await copyToClipboard(
                               node.configuration.webhook_secret,
+                              "הועתק",
+                              "סוד ה-Webhook הועתק",
                             );
-                            toast({
-                              title: "הועתק",
-                              description: "סוד ה-Webhook הועתק",
-                            });
                           }}
                         >
                           <Copy className="h-4 w-4" />
@@ -1068,11 +1066,11 @@ export function StepConfigPanel({
                           size="icon"
                           onClick={async () => {
                             const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/automation-lead-webhook?automation_id=${automationId || ""}`;
-                            await navigator.clipboard.writeText(webhookUrl);
-                            toast({
-                              title: "הועתק",
-                              description: "כתובת ה-Webhook הועתקה",
-                            });
+                            await copyToClipboard(
+                              webhookUrl,
+                              "הועתק",
+                              "כתובת ה-Webhook הועתקה",
+                            );
                           }}
                         >
                           <Copy className="h-4 w-4" />
@@ -1094,13 +1092,11 @@ export function StepConfigPanel({
                           variant="outline"
                           size="icon"
                           onClick={async () => {
-                            await navigator.clipboard.writeText(
+                            await copyToClipboard(
                               node.configuration.webhook_secret,
+                              "הועתק",
+                              "סוד ה-Webhook הועתק",
                             );
-                            toast({
-                              title: "הועתק",
-                              description: "סוד ה-Webhook הועתק",
-                            });
                           }}
                         >
                           <Copy className="h-4 w-4" />
@@ -4675,13 +4671,11 @@ function LeadSourceConfig({
                               type="button"
                               className="w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs hover:bg-accent transition-colors group"
                               onClick={() => {
-                                navigator.clipboard.writeText(
+                                void copyToClipboard(
+                                  `{{fb_${f.key}}}`,
+                                  "הועתק!",
                                   `{{fb_${f.key}}}`,
                                 );
-                                toast({
-                                  title: "הועתק!",
-                                  description: `{{fb_${f.key}}}`,
-                                });
                               }}
                             >
                               <code className="font-mono text-[11px] text-foreground">{`{{fb_${f.key}}}`}</code>
@@ -4797,11 +4791,11 @@ function LeadSourceConfig({
                           type="button"
                           className="font-mono text-[11px] text-primary hover:underline cursor-pointer"
                           onClick={() => {
-                            navigator.clipboard.writeText(`{{${key}}}`);
-                            toast({
-                              title: "הועתק!",
-                              description: `{{${key}}}`,
-                            });
+                            void copyToClipboard(
+                              `{{${key}}}`,
+                              "הועתק!",
+                              `{{${key}}}`,
+                            );
                           }}
                         >
                           {`{{${key}}}`}

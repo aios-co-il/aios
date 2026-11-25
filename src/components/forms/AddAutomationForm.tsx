@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -586,13 +587,11 @@ export function AddAutomationForm() {
                     variant="outline"
                     size="icon"
                     onClick={() => {
-                      navigator.clipboard.writeText(
+                      void copyToClipboard(
                         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webhook-task-intake`,
+                        "הועתק!",
+                        "ה-URL הועתק ללוח",
                       );
-                      toast({
-                        title: "הועתק!",
-                        description: "ה-URL הועתק ללוח",
-                      });
                     }}
                   >
                     <Copy className="h-4 w-4" />
@@ -638,13 +637,11 @@ export function AddAutomationForm() {
                       variant="outline"
                       size="icon"
                       onClick={() => {
-                        navigator.clipboard.writeText(
+                        void copyToClipboard(
                           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webhook-maskyoo-intake?tenant_id=${tenantId || ""}`,
+                          "הועתק!",
+                          "ה-URL הועתק ללוח",
                         );
-                        toast({
-                          title: "הועתק!",
-                          description: "ה-URL הועתק ללוח",
-                        });
                       }}
                     >
                       <Copy className="h-4 w-4" />
