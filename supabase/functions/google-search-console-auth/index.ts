@@ -1,20 +1,30 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { redirectToIntegrations } from "../_shared/google-oauth/app-origin.ts";
 import {
   isCompleteRefusal,
   readTenantCompleteRequest,
 } from "../_shared/google-oauth/connect-handoff.ts";
-import { redirectHandoff } from "../_shared/google-oauth/handoff-response.ts";
+import {
+  redirectHandoff,
+  redirectHandoffError,
+  UNKNOWN_TENANT_SLUG,
+} from "../_shared/google-oauth/handoff-response.ts";
+import {
+  INVALID_STATE_ERROR,
+  MISSING_CODE_ERROR,
+} from "../_shared/google-oauth/handoff-contract.ts";
 import {
   isConnectRefusal,
   readConnectRequest,
 } from "../_shared/google-oauth/connect-request.ts";
 import {
+  claimedStateOrigin,
   oauthStateSecret,
   signOAuthState,
   verifyOAuthState,
 } from "../_shared/google-oauth/oauth-state.ts";
+import { userFacingMessage } from "../_shared/google-oauth/user-facing-error.ts";
 import { storeSearchConsoleConnection } from "./store-connection.ts";
+import { callbackUri } from "../_shared/google-oauth/exchange-code.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,7 +44,6 @@ Deno.serve(async (req) => {
   // OAuth configuration
   const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
   const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
-  const redirectUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/google-search-console-auth?action=oauth_callback`;
 
   if (!clientId || !clientSecret) {
     console.error("Missing Google OAuth credentials");
@@ -70,7 +79,10 @@ Deno.serve(async (req) => {
 
       const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
       authUrl.searchParams.set("client_id", clientId);
-      authUrl.searchParams.set("redirect_uri", redirectUri);
+      authUrl.searchParams.set(
+        "redirect_uri",
+        callbackUri("google-search-console-auth", "oauth_callback"),
+      );
       authUrl.searchParams.set("response_type", "code");
       authUrl.searchParams.set("scope", scopes);
       authUrl.searchParams.set("access_type", "offline");
@@ -111,7 +123,7 @@ Deno.serve(async (req) => {
         .select("slug")
         .eq("id", tenantId)
         .single();
-      return tenant?.slug || "app";
+      return tenant?.slug || UNKNOWN_TENANT_SLUG;
     }
 
     const state = await verifyOAuthState(
@@ -119,17 +131,32 @@ Deno.serve(async (req) => {
       oauthStateSecret(),
     );
     if (!state?.tenantId) {
-      return redirectToIntegrations(null, "app", { error: "invalid_state" });
+      return redirectHandoffError(
+        "google-search-console-auth",
+        claimedStateOrigin(url.searchParams.get("state") ?? ""),
+        null,
+        INVALID_STATE_ERROR,
+      );
     }
 
     const tenantSlug = await getTenantSlug(state.tenantId);
 
     if (error) {
-      return redirectToIntegrations(state.origin, tenantSlug, { error });
+      return redirectHandoffError(
+        "google-search-console-auth",
+        state.origin,
+        tenantSlug,
+        error,
+      );
     }
 
     if (!code) {
-      return new Response("Missing code", { status: 400 });
+      return redirectHandoffError(
+        "google-search-console-auth",
+        state.origin,
+        tenantSlug,
+        MISSING_CODE_ERROR,
+      );
     }
 
     return redirectHandoff(
@@ -164,7 +191,12 @@ Deno.serve(async (req) => {
     } catch (error) {
       console.error("Search Console complete failed:", error);
       return new Response(
-        JSON.stringify({ error: "Could not connect Google Search Console" }),
+        JSON.stringify({
+          error: userFacingMessage(
+            error,
+            "Could not connect Google Search Console",
+          ),
+        }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },

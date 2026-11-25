@@ -1,4 +1,5 @@
 import { z } from "npm:zod@3.25.76";
+import { LOCAL_HOSTS } from "./handoff-contract.ts";
 import { tokenErrorSummary } from "./token-error.ts";
 
 const googleTokensSchema = z.object({
@@ -15,13 +16,19 @@ export async function exchangeGoogleCode(
   code: string,
   redirectUri: string,
 ): Promise<GoogleTokens> {
+  const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
+  const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
+  if (!clientId || !clientSecret) {
+    throw new Error("GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET is not set");
+  }
+
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       code,
-      client_id: Deno.env.get("GOOGLE_CLIENT_ID") ?? "",
-      client_secret: Deno.env.get("GOOGLE_CLIENT_SECRET") ?? "",
+      client_id: clientId,
+      client_secret: clientSecret,
       redirect_uri: redirectUri,
       grant_type: "authorization_code",
     }),
@@ -36,14 +43,48 @@ export async function exchangeGoogleCode(
   return tokens.data;
 }
 
-/** The redirect URI of a connect function's callback, which the code exchange must repeat. */
+/**
+ * The redirect URI of a connect function's callback, which the code exchange
+ * must repeat. PUBLIC_API_URL is the project's custom domain (for example
+ * https://api.aios.co.il), so Google shows our domain; without it the URI
+ * uses SUPABASE_URL, which stays the project's supabase.co address.
+ */
 export function callbackUri(
   functionName: string,
   action: string | null,
 ): string {
-  const uri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/${functionName}`;
+  const uri = `${apiOrigin()}/functions/v1/${functionName}`;
 
   return action ? `${uri}?action=${action}` : uri;
+}
+
+const apiOriginSchema = z
+  .string()
+  .url()
+  .pipe(
+    z
+      .string()
+      .transform((value) => new URL(value))
+      .refine(
+        (url) =>
+          url.protocol === "https:" ||
+          (url.protocol === "http:" && LOCAL_HOSTS.includes(url.hostname)),
+      )
+      .transform((url) => url.origin),
+  );
+
+/** The origin callbacks are served from: PUBLIC_API_URL, else SUPABASE_URL. Throws when neither is an http(s) URL. */
+function apiOrigin(): string {
+  const configured =
+    Deno.env.get("PUBLIC_API_URL") || Deno.env.get("SUPABASE_URL");
+  const origin = apiOriginSchema.safeParse(configured);
+  if (!origin.success) {
+    throw new Error(
+      "PUBLIC_API_URL or SUPABASE_URL must be an https URL (http only on a local host) such as https://api.aios.co.il",
+    );
+  }
+
+  return origin.data;
 }
 
 const userInfoSchema = z.object({ email: z.string().optional() });

@@ -3,14 +3,16 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   completeGoogleConnect,
-  fragmentConnectCode,
+  connectErrorMessage,
 } from "@/lib/googleConnect";
+import { takeStashedConnect } from "@/lib/googleConnectFragment";
 
 /**
  * Finishes a full-page Google connect (Analytics, Search Console, Ads): the
- * callback sends the user to the integrations page with the code in the URL
- * fragment, and this sends it to `complete` with the signed-in session. The
- * fragment is cleared first, so a reload never sends the code twice.
+ * callback sends the user back with the code in the URL fragment, which
+ * main.tsx stashes at startup (googleConnectFragment.ts). Mounted in the
+ * signed-in app shell, so it also runs after a sign-in that dropped the
+ * fragment, and sends the code to `complete` with the user's session.
  */
 export function useGoogleConnectRedirect(): void {
   const queryClient = useQueryClient();
@@ -23,21 +25,22 @@ export function useGoogleConnectRedirect(): void {
     },
     onError: (error) => {
       console.error("Google connect failed:", error);
-      toast.error("החיבור ל-Google נכשל. נסו להתחבר שוב.");
+      toast.error(`החיבור ל-Google נכשל: ${error.message}`);
     },
   });
 
   useEffect(() => {
-    const code = fragmentConnectCode(window.location.hash);
-    if (!code) {
+    const connect = takeStashedConnect();
+    if (!connect) {
       return;
     }
 
-    window.history.replaceState(
-      window.history.state,
-      "",
-      `${window.location.pathname}${window.location.search}`,
-    );
-    mutate(code);
+    if ("error" in connect) {
+      console.error("Google connect returned an error:", connect);
+      toast.error(connectErrorMessage(connect.error));
+      return;
+    }
+
+    mutate(connect.code);
   }, [mutate]);
 }
