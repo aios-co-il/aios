@@ -18,6 +18,7 @@ import {
   fetchAdsets,
 } from "../_shared/fb-insights/adsets.ts";
 import { kickNextBatch } from "../_shared/kick-next-batch.ts";
+import { startBatchBudget } from "../_shared/ads-sync/batch-budget.ts";
 import {
   jerusalemToday,
   planScheduledSyncWindows,
@@ -32,7 +33,6 @@ import {
   saveSyncRun,
 } from "../_shared/ads-sync/save-run.ts";
 import { syncAdsWindow } from "../_shared/ads-sync/write-window.ts";
-import { startBatchBudget } from "../_shared/ads-sync/batch-budget.ts";
 import { runCatchup } from "./catchup.ts";
 
 const SOURCE = "cron-sync-facebook-insights";

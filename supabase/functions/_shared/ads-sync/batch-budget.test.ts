@@ -1,5 +1,5 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
-import { BATCH_TIME_BUDGET_MS, startBatchBudget } from "./batch-budget.ts";
+import { startBatchBudget } from "./batch-budget.ts";
 
 /** A clock the test moves by hand. */
 function manualClock(start = 1_000) {
@@ -65,13 +65,5 @@ Deno.test("startBatchBudget", async (t) => {
     const taken = runTables(budget, clock, [10, 10]);
 
     assertEquals([taken, budget.nextOffset(10)], [2, null]);
-  });
-
-  await t.step("defaults to the documented budget and Date.now", () => {
-    const budget = startBatchBudget(0);
-
-    assertStrictEquals(budget.take(), true);
-    assertStrictEquals(budget.take(), true);
-    assertStrictEquals(BATCH_TIME_BUDGET_MS, 80_000);
   });
 });

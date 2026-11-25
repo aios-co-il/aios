@@ -6,11 +6,15 @@
  */
 
 /**
- * A table starts only while less than this has elapsed. The slowest single
- * Facebook table seen took ~60 s, so a table started just before 80 s ends by
- * ~140 s, leaving ~10 s of the 150 s limit for the kick or the pulse request.
+ * A table starts only while less than this has elapsed, so one started just
+ * before it still has ~90 s of the 150 s limit. The slowest Facebook Insights
+ * table seen took ~60 s; the other ~30 s covers what that figure leaves out:
+ * the one-off history backfill window written before the refresh, a Facebook
+ * Ecommerce table (two sequential sync calls, never timed), and the kick or
+ * the awaited pulse request that ends the run, also never timed. A lower
+ * budget costs only extra invocations.
  */
-export const BATCH_TIME_BUDGET_MS = 80_000;
+export const BATCH_TIME_BUDGET_MS = 60_000;
 
 export type BatchBudget = {
   /** Claims the next table: true for the first, then only while time remains. */
