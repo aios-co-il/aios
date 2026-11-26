@@ -58,6 +58,7 @@ import {
 import { ClientsTitle } from "@/components/ClientsPage/ClientsTitle";
 import { ClientsKpiList } from "@/components/ClientsPage/ClientsKpiList";
 import { ClientsSearchInput } from "@/components/ClientsPage/ClientsSearchInput";
+import { HeaderSearch } from "@/components/layout/HeaderSearch/HeaderSearch";
 import { ClientsSidePanel } from "@/components/ClientsPage/ClientsSidePanel";
 import { ModuleSidePanelItem } from "@/components/shared/ModuleSidePanel/ModuleSidePanelItem";
 import { ClientsToolbar } from "@/components/ClientsPage/ClientsToolbar";
@@ -577,11 +578,12 @@ export default function Clients() {
           </ClientsToolbar>
         </div>
         {viewMode !== "chat" && (
-          <ClientsSearchInput
-            value={filters.search}
-            onChange={(value) => setFilter("search", value)}
-            className="hidden w-72 shrink-0 md:block"
-          />
+          <HeaderSearch>
+            <ClientsSearchInput
+              value={filters.search}
+              onChange={(value) => setFilter("search", value)}
+            />
+          </HeaderSearch>
         )}
 
         {/* Import dialogs opened from the import / export menu */}
