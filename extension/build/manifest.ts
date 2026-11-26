@@ -1,5 +1,7 @@
 import type { Plugin } from "vite";
+import { TAB_SHARING_PERMISSION } from "../src/activeTab";
 import type { BuildEnvironment } from "./environment";
+import { EXTENSION_PUBLIC_KEYS } from "./extensionKey";
 
 const NAME = "AIOS Rec";
 
@@ -33,14 +35,25 @@ function extensionManifest(
     description:
       "Record meetings into the AIOS recordings library with automatic transcription and summary",
     version: "1.0",
+    // The panel's newest API: URL.canParse, in the tab parser it shares with the site.
+    minimum_chrome_version: "120",
+    // Fixes an unpacked build's id, which the site's framing rule (vercel.json) names.
+    key: EXTENSION_PUBLIC_KEYS[environment.name],
     action: {
       default_popup: "popup.html",
       default_icon: TOOLBAR_ICONS,
     },
-    permissions: ["storage"],
-    host_permissions: environment.supabaseOrigins.map(
-      (origin) => `${origin}/*`,
-    ),
+    // Carmen's panel; the popup's button opens it, so the toolbar icon keeps opening the popup.
+    side_panel: { default_path: "sidepanel.html" },
+    permissions: ["storage", "sidePanel"],
+    // Asked for from the panel's "Carmen sees the tab" switch.
+    optional_permissions: [TAB_SHARING_PERMISSION],
+    // The app's origin makes Chrome treat the framed site as first-party, so the user's
+    // sign-in on the site also holds inside the panel.
+    host_permissions: [
+      ...environment.supabaseOrigins,
+      environment.appOrigin,
+    ].map((origin) => `${origin}/*`),
     icons: { ...TOOLBAR_ICONS, "128": "icons/icon128.png" },
   };
 }

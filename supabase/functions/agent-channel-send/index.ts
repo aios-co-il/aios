@@ -14,6 +14,7 @@ import {
   activeSkinBlock,
   parseActiveSkin,
 } from "../_shared/carmen/active-skin.ts";
+import { withBrowserTab } from "../_shared/carmen/screen-context.ts";
 import { requireAuth } from "../_shared/security.ts";
 import { noCarmenReply } from "./no-carmen.ts";
 import { dispatchSend } from "../_shared/agent-channel/adapters.ts";
@@ -421,9 +422,15 @@ Deno.serve(async (req) => {
       conversationId: conv.id,
       route,
       // A "bug fixes only" grant writes the limit into the task.
-      content: applyBrainLimit(
-        level,
-        skin ? `${skin.trim()}\n\n---\n\n${content}` : content,
+      content: withBrowserTab(
+        applyBrainLimit(
+          level,
+          skin ? `${skin.trim()}\n\n---\n\n${content}` : content,
+        ),
+        // The extension panel's browser tab joins the user's text for a brain dispatched
+        // here. A model brain runs Carmen's loop: run-ai-agent adds the tab there, and
+        // the smart router must pick a brain from the user's words alone.
+        route.route_type === "model" ? null : body.context_metadata,
       ),
       attachments,
       inputMode: (body.input_mode || "typed") as InputMode,

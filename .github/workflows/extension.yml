@@ -13,6 +13,9 @@ on:
       # The build reads Production's address and key, and each environment's app address, from these.
       - ".env"
       - "supabase/config.toml"
+      # The two pure modules the panel shares with the site and the server; the type-check and build compile them.
+      - "supabase/functions/_shared/carmen/screen-context.ts"
+      - "supabase/functions/_shared/carmen/device/panel-envelope.ts"
       - ".github/workflows/extension.yml"
   workflow_dispatch:
 
