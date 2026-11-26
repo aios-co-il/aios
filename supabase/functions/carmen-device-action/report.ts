@@ -29,7 +29,9 @@ export type PanelStatus = (typeof PANEL_STATUSES)[number];
 
 /**
  * A step runs only free or after a card, a user declines only a card, and a refused step
- * asked nobody: the never-list, the act floor and a field rule all report `never`.
+ * asked nobody: the never-list, the act floor, a field rule and a picture of a sensitive
+ * page without the permission all report `never`. With the permission that picture is a
+ * card (`ask`), so it ends `done` or `denied` like any other card.
  */
 const RULES_BY_STATUS: Partial<
   Record<PanelStatus, ReadonlyArray<DeviceCardRule>>
