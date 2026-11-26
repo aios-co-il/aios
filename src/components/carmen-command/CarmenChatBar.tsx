@@ -145,10 +145,11 @@ import { useBrowserSteps } from "./device/useBrowserSteps";
 import {
   COMMAND_CENTER_FILE_ACCEPT,
   COMMAND_CENTER_MAX_FILES,
-  formatAttachmentsForPrompt,
+  carmenTurn,
   uploadCommandCenterAttachments,
   type CommandCenterAttachment,
 } from "@/lib/commandCenterAttachments";
+import type { TurnPictureAttachment } from "../../../supabase/functions/run-ai-agent/attachments/contract.ts";
 
 /** Shown while a browser step waits for the extension's panel (AIO-656). */
 const BROWSER_STEP_LABEL = "עובדת בדפדפן שלך…";
@@ -542,6 +543,8 @@ export const CarmenChatBar = forwardRef<
       runBrain?: string,
       // The panel's tools to offer, or the browser step this request continues (AIO-656).
       device?: StreamDevice,
+      // The pictures attached to this message, by storage path (AIO-675).
+      pictures: Array<TurnPictureAttachment> = [],
     ) => {
       // The reply belongs to the brain that started it, even if the picker changes.
       const persistSlug = runBrain ?? brain.selected?.slug;
@@ -582,6 +585,7 @@ export const CarmenChatBar = forwardRef<
           },
           body: JSON.stringify({
             ...stepRequestFields(trimmed, device),
+            attachments: pictures.length ? pictures : undefined,
             tenant_id: tenantId,
             surface: "internal_chat",
             stream: true,
@@ -845,9 +849,11 @@ export const CarmenChatBar = forwardRef<
       const sendRoute = brain.selected;
       const displayText =
         trimmed || (pendingAttachments.length ? "📎 קבצים מצורפים" : "");
-      const agentText = pendingAttachments.length
-        ? formatAttachmentsForPrompt(pendingAttachments, trimmed)
-        : trimmed;
+      // Carmen's own loop also reads each picture from storage, by its path (AIO-675).
+      const { commandText: agentText, pictures } = carmenTurn(
+        pendingAttachments,
+        trimmed,
+      );
       setMessages((prev) => [
         ...prev,
         {
@@ -905,6 +911,7 @@ export const CarmenChatBar = forwardRef<
             ctxMeta,
             routed.run_brain,
             { tools: offered },
+            pictures,
           );
           if (streamed.deviceAction) {
             const end = await browserSteps.run({

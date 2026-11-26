@@ -9,6 +9,7 @@ import {
   type ConversationChannelStatus,
 } from "@/lib/agentChannelRouting";
 import type { ScreenContextMetadata } from "@/lib/systemFixContext";
+import type { ChannelAttachment } from "../../../supabase/functions/_shared/agent-channel/types.ts";
 
 export type ChannelSendResult = {
   ok: boolean;
@@ -137,11 +138,5 @@ export type ChannelSendArgs = {
   idempotencyKey: string;
   route?: BrainRoute;
   contextMetadata?: ScreenContextMetadata | null;
-  attachments?: Array<{
-    name: string;
-    url: string;
-    type: "image" | "file";
-    size?: number;
-    path?: string;
-  }>;
+  attachments?: Array<ChannelAttachment>;
 };

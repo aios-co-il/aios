@@ -31,7 +31,10 @@ Deno.test(
           runAiAgent.indexOf("const manusRes"),
         );
 
-        assert(manusTask.includes("prompt: userTurn,"));
+        // With the line about attached pictures after it, when there are any (attachments/).
+        assert(
+          manusTask.includes("prompt: textOnlyTurn(userTurn, pictureRequest),"),
+        );
         assertStrictEquals(manusTask.includes("command_text"), false);
       },
     );
