@@ -1,6 +1,7 @@
+import { readRunStages } from "./run-source.test-fixture.ts";
 import { assert, assertStrictEquals } from "jsr:@std/assert@1";
 
-const runAiAgent = read("./index.ts");
+const runAiAgent = readRunStages();
 const channelSend = read("../agent-channel-send/index.ts");
 
 /** A handler's source, as text. */
@@ -17,7 +18,7 @@ Deno.test(
     await t.step("Carmen's loop adds it to the user message it sends", () => {
       assert(
         runAiAgent.includes(
-          "const userTurn = deviceTurn.userTurn(\n      withBrowserTab(command_text, bodyJson.context_metadata),\n    );",
+          "const userTurn = deviceTurn.userTurn(\n    withBrowserTab(command_text, bodyJson.context_metadata),\n  );",
         ),
       );
       assert(runAiAgent.includes('{ role: "user", content: userTurn }'));

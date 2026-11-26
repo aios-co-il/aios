@@ -5,7 +5,7 @@ import {
   assertStrictEquals,
 } from "jsr:@std/assert@1";
 import { describe, it } from "jsr:@std/testing@1/bdd";
-import { readFileSync } from "node:fs";
+import { readRunSource } from "../run-source.test-fixture.ts";
 import { movesToNextLink } from "../../_shared/carmen/brain-engine/openrouter-tail.ts";
 import { fakeFetch } from "../../_shared/testing/fake-fetch.ts";
 import { fetchChainLink } from "./link-fetch.ts";
@@ -57,7 +57,7 @@ describe("fetchChainLink", () => {
 
 describe("run-ai-agent model loop: source guard", () => {
   it("sends every round through fetchChainLink, never a bare fetch", () => {
-    const agent = readFileSync(new URL("../index.ts", import.meta.url), "utf8");
+    const agent = readRunSource("request-model-round");
 
     assert(
       agent.includes("res = await fetchChainLink(llm, {"),

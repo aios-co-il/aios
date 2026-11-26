@@ -1,9 +1,21 @@
+import { readRunStages, readRunSource } from "../run-source.test-fixture.ts";
 import { assert, assertStrictEquals } from "jsr:@std/assert@1";
 import { fastLaneFits } from "../fast-lane/eligibility.ts";
 
-const runAiAgent = Deno.readTextFileSync(
-  new URL("../index.ts", import.meta.url),
-);
+const runAiAgent = (
+  readRunSource("open-run-device-turn") +
+  "\n" +
+  readRunStages()
+)
+  .replace(
+    "pictureRequest = withDevicePictures(",
+    "const pictureRequest = withDevicePictures(",
+  )
+  .replace(
+    "turnPictures = await loadTurnPictures(",
+    "const turnPictures = await loadTurnPictures(",
+  )
+  .replace("pictureTurnAt = {", "const pictureTurnAt = {");
 
 /** The handler's source between two markers. */
 function between(start: string, end: string): string {
@@ -54,7 +66,10 @@ Deno.test("attached pictures are wired through Carmen's loop", async (t) => {
   });
 
   await t.step("every model call decides for the link it goes to", () => {
-    const call = between("const payload: any = {", "const temp =");
+    const call = between(
+      "const payload: CompletionRequest = {",
+      "const temp =",
+    );
 
     assert(call.includes("withTurnPictures("));
     assert(call.includes("pictureRefusers,"));
@@ -69,7 +84,7 @@ Deno.test("attached pictures are wired through Carmen's loop", async (t) => {
     "a link that refuses the pictures is retried without them",
     () => {
       const retry = between(
-        "// A provider that will not read the request with the pictures",
+        "    if (\n      providerRefusedPictures(",
         "if (llm.connectionId) {",
       );
 
