@@ -91,9 +91,8 @@ import {
   leadArrivalSourceChanged,
   leadCreatedAtWasBumped,
   leadFirstSourceDisplay,
-  leadSourceDisplay,
   leadSourceFieldLabel,
-  LEAD_SOURCE_SELECT_OPTIONS,
+  leadSourceSelectOptions,
   resolveResponseStatusKey,
   responseStatusSelectValue,
   unmatchedResponseStatusValue,
@@ -1199,7 +1198,7 @@ export function EditLeadDialog({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {sourceSelectOptions(lead.source).map((opt) => (
+                        {leadSourceSelectOptions(lead.source).map((opt) => (
                           <SelectItem key={opt.value} value={opt.value}>
                             {opt.label}
                           </SelectItem>
@@ -1920,23 +1919,4 @@ export function EditLeadDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-/**
- * The fixed source options, plus the lead's own source when a webhook sent
- * free text (e.g. "FB"), so the select shows it and saving keeps it.
- */
-function sourceSelectOptions(
-  current: string | null | undefined,
-): Array<{ value: string; label: string }> {
-  const options: Array<{ value: string; label: string }> = [
-    ...LEAD_SOURCE_SELECT_OPTIONS,
-  ];
-  if (current && !options.some((opt) => opt.value === current)) {
-    options.unshift({
-      value: current,
-      label: leadSourceDisplay({ source: current }),
-    });
-  }
-  return options;
 }

@@ -10,6 +10,7 @@ import { assertPublicTarget } from "../../agent-channel/chat-model-api.ts";
 import { BRAIN, brainLevel } from "../brain-access.ts";
 import { isCarmenAgentRow } from "../carmen-agent.ts";
 import { loadCarmenAccessRow } from "../brain-guard.ts";
+import { loadCarmenAgent } from "../load-carmen-agent.ts";
 import { connectionSecret } from "../brain-connections/overrides.ts";
 import { sanitizeProfile } from "../brain-connections/profile.ts";
 import { chatCompletionsUrl } from "../brain-connections/url.ts";
@@ -40,6 +41,13 @@ export type BrainEngine =
   | { kind: "refused"; message: string };
 
 /**
+ * `strictGrant`: a failed read of the tenant's Carmen or of the user's
+ * permissions row throws, instead of counting the user as unrestricted. For
+ * a user who is not present to see which brain answered (AIO-654).
+ */
+export type BrainEngineOptions = { strictGrant?: boolean };
+
+/**
  * The engine for this request. "internal" also covers requests with no slug,
  * for another agent, or for a brain that is not a model route; the caller
  * then applies the usual internal-brain check.
@@ -48,6 +56,7 @@ export async function resolveBrainEngine(
   sb: SupabaseClient,
   auth: { kind: "user" | "service"; userId: string | null } | null,
   body: { brain_slug?: unknown; tenant_id?: unknown; agent_id?: unknown },
+  { strictGrant = false }: BrainEngineOptions = {},
 ): Promise<BrainEngine> {
   const slug = typeof body.brain_slug === "string" ? body.brain_slug : "";
   if (!slug || slug === BRAIN.internal) {
@@ -93,13 +102,18 @@ export async function resolveBrainEngine(
 
   let allowed = (_slug: string) => true;
   if (auth?.kind === "user" && auth.userId) {
-    const carmenId = (await resolveCarmenAgent(sb, tenantId))?.id;
+    // resolveCarmenAgent reads a failed lookup as "no Carmen"; loadCarmenAgent throws.
+    const carmen = strictGrant
+      ? await loadCarmenAgent(sb, tenantId, { activeOnly: true })
+      : await resolveCarmenAgent(sb, tenantId);
+    const carmenId = carmen?.id;
     if (carmenId) {
       const row = await loadCarmenAccessRow(
         sb,
         tenantId,
         carmenId,
         auth.userId,
+        { strict: strictGrant },
       );
       allowed = (s) => brainLevel(row, s) !== null;
     }
