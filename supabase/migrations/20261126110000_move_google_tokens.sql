@@ -1,5 +1,5 @@
 -- Google tokens out of the browser's reach, step 3 of 3 (AIO-608, security
--- finding B). Steps 1 and 2: 20261124110000_integration_secrets.sql copies the
+-- finding B). Steps 1 and 2: 20261126100000_integration_secrets.sql copies the
 -- tokens into integration_secrets, and the edge functions read them from there
 -- (withGoogleTokens, which falls back to the row).
 --
@@ -11,6 +11,8 @@
 --     Console site or an Analytics property from the browser never see the
 --     refresh token, so their save used to drop it from the row.
 --   - The tokens still on Google rows are moved, and the rows cleared.
+--   - Settings saved double-encoded (a JSON string holding the object) are
+--     decoded, so a refresh token inside the text is moved as well.
 --
 -- Deploy after step 2's functions are live: they read integration_secrets.
 
@@ -30,8 +32,21 @@ set search_path to 'public'
 as $$
 declare
   v_access text := nullif(new.api_key, '');
-  v_refresh text := nullif(new.settings ->> 'refresh_token', '');
+  v_refresh text;
+  v_decoded jsonb;
 begin
+  if jsonb_typeof(new.settings) = 'string' then
+    begin
+      v_decoded := (new.settings #>> '{}')::jsonb;
+    exception when invalid_text_representation then
+      v_decoded := null;
+    end;
+    if jsonb_typeof(v_decoded) = 'object' then
+      new.settings := v_decoded;
+    end if;
+  end if;
+  v_refresh := nullif(new.settings ->> 'refresh_token', '');
+
   -- An insert with an existing connection's id is refused here: under ON
   -- CONFLICT DO NOTHING the insert is skipped only after this trigger has run,
   -- so a member could otherwise replace another member's tokens.
@@ -74,6 +89,11 @@ create trigger move_google_integration_secrets
 -- which stores them and clears the row. A connection that only its tokens
 -- marked as connected gets connected_at, which the browser reads instead
 -- (src/lib/tenantIntegrationsClient.ts integrationHasCredential).
+--
+-- updated_at keeps its value: the sync functions pick the newest connection
+-- by it, and one statement would give every moved row the same time.
+alter table public.tenant_integrations disable trigger update_tenant_integrations_updated_at;
+
 update public.tenant_integrations ti
 set api_key = ti.api_key,
     settings = case
@@ -85,7 +105,13 @@ set api_key = ti.api_key,
       else ti.settings
     end
 where public.is_google_integration_type(ti.integration_type)
-  and (ti.api_key is not null or ti.settings ? 'refresh_token');
+  and (
+    ti.api_key is not null
+    or ti.settings ? 'refresh_token'
+    or jsonb_typeof(ti.settings) = 'string'
+  );
+
+alter table public.tenant_integrations enable trigger update_tenant_integrations_updated_at;
 
 -- Guard: no Google row holds a token, and every Google row has its secrets row.
 do $$
@@ -93,7 +119,14 @@ begin
   if exists (
     select 1 from public.tenant_integrations ti
     where public.is_google_integration_type(ti.integration_type)
-      and (ti.api_key is not null or ti.settings ? 'refresh_token')
+      and (
+        ti.api_key is not null
+        or ti.settings ? 'refresh_token'
+        or (
+          jsonb_typeof(ti.settings) = 'string'
+          and (ti.settings #>> '{}') like '%refresh_token%'
+        )
+      )
   ) then
     raise exception 'move_google_tokens: a Google row still holds a token';
   end if;

@@ -1,4 +1,4 @@
--- Google tokens moved to integration_secrets (20261124120000_move_google_tokens.sql).
+-- Google tokens moved to integration_secrets (20261126110000_move_google_tokens.sql).
 -- Synthetic tenant, users and rows; full rollback. Runs on a scratch database,
 -- a Preview branch or Staging.
 --
@@ -6,6 +6,7 @@
 --   holds them. This holds for the owner writing from the browser too.
 -- - A write without a token keeps the stored one (a member saving a setting).
 -- - A member reading the row sees no token.
+-- - Double-encoded settings (a JSON string) are decoded and lose their token.
 -- - Other integration types keep their api_key.
 BEGIN;
 DO $test$
@@ -105,6 +106,22 @@ BEGIN
   FROM public.integration_secrets WHERE integration_id = google_id;
   IF got IS DISTINCT FROM '-/access-2/refresh-1' THEN
     failures := failures || format('refresh: got %s, want -/access-2/refresh-1', coalesce(got, 'no row'));
+  END IF;
+
+  -- Settings saved as a JSON string: the row gets the object without the
+  -- refresh token, and the token is stored.
+  UPDATE public.tenant_integrations
+    SET settings = to_jsonb('{"refresh_token": "refresh-2", "site": "sc-domain:qa.invalid"}'::text)
+    WHERE id = google_id;
+  SELECT jsonb_typeof(settings) || '/' || coalesce(settings ->> 'site', '-')
+    || '/' || (settings::text LIKE '%refresh-2%')::text INTO got
+  FROM public.tenant_integrations WHERE id = google_id;
+  IF got IS DISTINCT FROM 'object/sc-domain:qa.invalid/false' THEN
+    failures := failures || format('string settings: the row has %s, want object/sc-domain:qa.invalid/false', coalesce(got, 'null'));
+  END IF;
+  SELECT refresh_token INTO got FROM public.integration_secrets WHERE integration_id = google_id;
+  IF got IS DISTINCT FROM 'refresh-2' THEN
+    failures := failures || format('string settings: secrets got %s, want refresh-2', coalesce(got, 'null'));
   END IF;
 
   -- Other integration types keep their api_key on the row.
