@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fireIntegrationAlert } from "../_shared/fireIntegrationAlert.ts";
+import { withGoogleTokens } from "../_shared/google-oauth/integration-tokens.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,15 +43,18 @@ serve(async (req) => {
       throw new Error("Missing integration settings");
     }
 
-    const { data: integration, error: integrationError } = await supabase
+    const { data: storedIntegration, error: integrationError } = await supabase
       .from("tenant_integrations")
       .select("*")
       .eq("id", integrationId)
       .single();
 
-    if (integrationError || !integration) {
+    if (integrationError || !storedIntegration) {
       throw new Error("Integration not found");
     }
+    const [integration] = await withGoogleTokens(serviceClient(), [
+      storedIntegration,
+    ]);
 
     let accessToken = integration.api_key;
     const integrationSettings = integration.settings as any;

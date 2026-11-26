@@ -9,6 +9,8 @@ import {
   gscPeriodBounds,
   readGscSnapshots,
 } from "../_shared/gscKeywords.ts";
+import { withGoogleTokens } from "../_shared/google-oauth/integration-tokens.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -62,18 +64,21 @@ serve(async (req) => {
     );
 
     // Get integration
-    const { data: integration, error: intErr } = await supabase
+    const { data: storedIntegration, error: intErr } = await supabase
       .from("tenant_integrations")
       .select("*")
       .eq("id", integrationId)
       .single();
 
-    if (intErr || !integration) {
+    if (intErr || !storedIntegration) {
       return new Response(JSON.stringify({ error: "Integration not found" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const [integration] = await withGoogleTokens(serviceClient(), [
+      storedIntegration,
+    ]);
 
     // Refresh token if needed
     let accessToken = integration.api_key;
