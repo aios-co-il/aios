@@ -45,6 +45,7 @@ describe("LandingSettingsPanel", () => {
     mocks.rpc.mockResolvedValue({ error: null });
     mocks.page = null;
     mocks.site = null;
+    localStorage.clear();
   });
 
   test("an existing page shows its live address and locks it", async () => {
@@ -104,5 +105,31 @@ describe("LandingSettingsPanel", () => {
       p_lead_to_webhook: true,
       p_webhook_url: "https://hooks.example/a",
     });
+  });
+
+  test("the panel closes to show the page below, keeps the draft and stays closed next time", async () => {
+    mocks.site = { subdomain: "acme" };
+    const user = userEvent.setup();
+    const { unmount } = panel();
+    const slug = await screen.findByLabelText("כתובת העמוד");
+    await user.clear(slug);
+    await user.type(slug, "offer");
+    await user.click(
+      screen.getByRole("button", { name: "הסתרת הגדרות עמוד נחיתה" }),
+    );
+    expect(screen.queryByRole("button", { name: "שמירה" })).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: "הצגת הגדרות עמוד נחיתה" }),
+    );
+    expect(screen.getByLabelText("כתובת העמוד")).toHaveValue("offer");
+
+    await user.click(
+      screen.getByRole("button", { name: "הסתרת הגדרות עמוד נחיתה" }),
+    );
+    unmount();
+    panel();
+    expect(
+      await screen.findByRole("button", { name: "הצגת הגדרות עמוד נחיתה" }),
+    ).toBeInTheDocument();
   });
 });
