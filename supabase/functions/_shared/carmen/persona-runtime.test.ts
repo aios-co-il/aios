@@ -1,8 +1,15 @@
-import { assertEquals, assertMatch, assertNotMatch } from "jsr:@std/assert@1";
-import { describe, it } from "jsr:@std/testing@1/bdd";
 import {
+  assertEquals,
+  assertMatch,
+  assertNotMatch,
+  assertStringIncludes,
+} from "jsr:@std/assert@1";
+import { describe, it } from "jsr:@std/testing@1/bdd";
+import { withConsoleErrors } from "../testing/console-errors.ts";
+import {
+  callWordsOf,
   loadCallerPersona,
-  loadCallWords,
+  loadPersona,
   personaPromptSection,
 } from "./persona-runtime.ts";
 import { BUILTIN_PERSONAS } from "./personas.ts";
@@ -130,18 +137,116 @@ describe("loadCallerPersona", () => {
   });
 });
 
-describe("loadCallWords", () => {
-  it("gives the picked character's call words, lowercased", async () => {
-    const client = db({
-      carmen_persona_choices: { data: { persona_key: "aios" }, error: null },
-    });
-    assertEquals(await loadCallWords(client, "t1", "u1"), ["aios", "איוס"]);
+describe("callWordsOf", () => {
+  it("gives the character's call words, lowercased", () => {
+    assertEquals(callWordsOf(BUILTIN_PERSONAS.aios), ["aios", "איוס"]);
   });
 
-  it("is empty without a line owner or a pick", async () => {
-    const none = db({ carmen_persona_choices: { data: null, error: null } });
-    assertEquals(await loadCallWords(none, "t1", null), []);
-    assertEquals(await loadCallWords(none, "t1", "u1"), []);
+  it("is empty without a character", () => {
+    assertEquals(callWordsOf(null), []);
+  });
+});
+
+describe("loadPersona", () => {
+  const minimeStyle = {
+    data: { setting_value: { style: "minime" } },
+    error: null,
+  };
+
+  it("gives a member's pick for a user source", async () => {
+    const client = db({
+      carmen_persona_choices: { data: { persona_key: "aios" }, error: null },
+      tenant_settings: minimeStyle,
+    });
+    assertEquals(
+      await loadPersona(client, "t1", { kind: "user", userId: "u1" }),
+      BUILTIN_PERSONAS.aios,
+    );
+  });
+
+  it("gives the Mini Me to the organization when its style is the Mini Me", async () => {
+    const client = db({ tenant_settings: minimeStyle });
+    assertEquals(
+      await loadPersona(client, "t1", { kind: "organization" }),
+      BUILTIN_PERSONAS.minime,
+    );
+  });
+
+  it("applies the organization's edit of the Mini Me, never a member's own version", async () => {
+    const client = db({
+      tenant_settings: minimeStyle,
+      carmen_personas: {
+        data: [
+          row({
+            id: "mine",
+            builtin_key: "minime",
+            owner_user_id: "u1",
+            display_name: "של חבר צוות",
+          }),
+          row({
+            id: "org",
+            builtin_key: "minime",
+            display_name: "מיני של הארגון",
+            call_words: ["מיני בוס"],
+          }),
+        ],
+        error: null,
+      },
+    });
+    const persona = await loadPersona(client, "t1", { kind: "organization" });
+    assertEquals(persona?.displayName, "מיני של הארגון");
+    assertEquals(persona?.callWords, ["מיני בוס"]);
+  });
+
+  it("keeps Carmen herself (null) for the orbs, the illustrated character and no setting", async () => {
+    for (const answer of [
+      { data: { setting_value: { style: "orbs" } }, error: null },
+      { data: { setting_value: { style: "character" } }, error: null },
+      { data: null, error: null },
+    ]) {
+      const client = db({ tenant_settings: answer });
+      assertEquals(
+        await loadPersona(client, "t1", { kind: "organization" }),
+        null,
+      );
+    }
+  });
+
+  it("keeps Carmen herself and logs when the organization's style cannot be read", async () => {
+    const client = db({
+      tenant_settings: { data: null, error: { message: "down" } },
+    });
+    const { result, logged } = await withConsoleErrors(() =>
+      loadPersona(client, "t1", { kind: "organization" }),
+    );
+    assertEquals(result, null);
+    assertStringIncludes(logged, "[persona] organization style lookup failed");
+    assertStringIncludes(logged, "down");
+  });
+
+  it("is nobody's without a source or an organization", async () => {
+    const client = db({ tenant_settings: minimeStyle });
+    assertEquals(await loadPersona(client, "t1", null), null);
+    assertEquals(
+      await loadPersona(client, null, { kind: "organization" }),
+      null,
+    );
+  });
+});
+
+describe("persona-runtime.ts source", () => {
+  it("only reads: it writes no row, calls no function and sends nothing", async () => {
+    const source = await Deno.readTextFile(
+      new URL("./persona-runtime.ts", import.meta.url),
+    );
+    assertNotMatch(
+      source,
+      /\.(insert|update|upsert|delete|rpc)\(|fetch\(|functions\.invoke/,
+    );
+    assertEquals(
+      [...source.matchAll(/from "([^"]+)"/g)].map((match) => match[1]).sort(),
+      ["../supabase-clients.ts", "./personas.ts"],
+    );
   });
 });
 

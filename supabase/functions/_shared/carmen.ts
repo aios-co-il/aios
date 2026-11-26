@@ -77,7 +77,13 @@ import type { Tables } from "./database.types.ts";
 import type { DbClient } from "./supabase-clients.ts";
 import { loadCarmenAgent } from "./carmen/load-carmen-agent.ts";
 import { USE_BRAIN_PICK } from "./carmen/brain-engine/stored-pick.ts";
-import { loadCallWords, loadCallerPersona } from "./carmen/persona-runtime.ts";
+import {
+  ORG_PERSONA_FIELD,
+  type PersonaSource,
+  callWordsOf,
+  loadPersona,
+} from "./carmen/persona-runtime.ts";
+import type { PersonaProfile } from "./carmen/personas.ts";
 import {
   DEFAULT_ASSISTANT_NAME,
   orgAssistantName,
@@ -325,16 +331,15 @@ function carmenPersonaWords(
   return runsCarmen ? persona.words : [];
 }
 
-// The call words of the character the line's owner picked, and Carmen's agent
-// id (looked up only when there are call words to place). Only a personal line
-// (a secondary connection) has an owner here; the org's main Carmen line keeps
-// its own keywords, so `lineOwnerId` is null there (AIO-576).
+// The call words of the line's character, and Carmen's agent id (looked up
+// only when there are call words to place): a personal line's owner's pick
+// (AIO-576) or the organization's character on its main line (AIO-654).
 async function loadPersonaTrigger(
   supabase: DbClient,
   tenantId: string,
-  lineOwnerId: string | null,
+  linePersona: PersonaProfile | null,
 ): Promise<PersonaTrigger> {
-  const words = await loadCallWords(supabase, tenantId, lineOwnerId);
+  const words = callWordsOf(linePersona);
   const carmenAgentId = words.length
     ? ((await findCarmenAgent(supabase, tenantId))?.id ?? null)
     : null;
@@ -1375,8 +1380,8 @@ export async function runCarmenAI(
   senderName?: string | null,
   waNotify?: CarmenWaNotify | null,
   automationCtx?: CarmenAutomationContext | null,
-  /** The personal line's owner, whose character Carmen speaks as; null on the main line. */
-  personaUserId?: string | null,
+  /** Whose character Carmen speaks as: the personal line's owner, or the org on its main line. */
+  personaSource?: PersonaSource | null,
   /**
    * Whether the turn also runs on that owner's stored brain (AIO-654): asked
    * with the flag the in-app surfaces send, and resolved in run-ai-agent
@@ -1416,9 +1421,8 @@ export async function runCarmenAI(
     wa_notify: waNotify || null,
     // Admin-authored per-automation instructions (service-only in run-ai-agent).
     ...(automationCtx ? { carmen_automation: automationCtx } : {}),
-    // Whose character to speak as on a personal line (service-only in run-ai-agent).
-    ...(personaUserId ? { persona_user_id: personaUserId } : {}),
-    ...(personaUserId && followOwnerBrain ? { [USE_BRAIN_PICK]: true } : {}),
+    // Whose character to speak as (service-only in run-ai-agent).
+    ...personaRequestFields(personaSource ?? null, followOwnerBrain),
   });
 
   // Try once; retry once after 1s ONLY for transient failures (network error, 5xx,
@@ -1465,6 +1469,40 @@ export async function runCarmenAI(
       throw secondErr;
     }
   }
+}
+
+/**
+ * The run-ai-agent fields that name the turn's character: the personal line's
+ * owner (and their stored brain when the webhook vouched for them), or the
+ * organization on its main line, whose brain stays the agent's own.
+ */
+function personaRequestFields(
+  source: PersonaSource | null,
+  followOwnerBrain: boolean,
+): Record<string, string | boolean> {
+  if (source?.kind === "user") {
+    return {
+      persona_user_id: source.userId,
+      ...(followOwnerBrain ? { [USE_BRAIN_PICK]: true } : {}),
+    };
+  }
+  return source?.kind === "organization" ? { [ORG_PERSONA_FIELD]: true } : {};
+}
+
+/**
+ * Whose character a line speaks as: a personal (secondary) line its owner's
+ * pick, the organization's main line the organization's choice (AIO-654), and
+ * an ownerless personal line or a line Carmen does not answer on nobody's.
+ * Where the line wakes stays with the existing settings; this only names it.
+ */
+function linePersonaSource(
+  role: CarmenConnectionRole | undefined,
+  ownerId: string | null,
+): PersonaSource | null {
+  if (role === "secondary") {
+    return ownerId ? { kind: "user", userId: ownerId } : null;
+  }
+  return role === "none" ? null : { kind: "organization" };
 }
 
 export async function syncCarmenToAIConversation(
@@ -2061,13 +2099,13 @@ export async function handleCarmenMessage(
   }
 
   const normalizedMsg = (messageText || "").trim().toLowerCase();
-  // A personal line answers as its owner's character; the main Carmen line as the org's Carmen.
-  const personaUserId =
-    connectionRole === "secondary" ? (connectionUserId ?? null) : null;
+  // A personal line answers as its owner's character; the main line as the org's choice.
+  const personaSource = linePersonaSource(connectionRole, connectionUserId);
+  const linePersona = await loadPersona(supabase, tenantId, personaSource);
   const personaTrigger = await loadPersonaTrigger(
     supabase,
     tenantId,
-    personaUserId,
+    linePersona,
   );
 
   // Read configured timeout (defaults to 5 minutes). We need it both for find-active and start-session paths.
@@ -2704,7 +2742,7 @@ export async function handleCarmenMessage(
         // Only the automation that routes this session may contribute
         // instructions — never another automation's.
         routingAutomationId === earlyAutomation?.id ? automationCtx : null,
-        personaUserId,
+        personaSource,
         followOwnerBrain === true,
       );
     } catch (err) {
@@ -2898,11 +2936,9 @@ export async function handleCarmenMessage(
       agentName = orgAssistantName(agentRow);
     }
   }
-  // On the owner's own line the agent greets as their character (AIO-592).
-  if (personaUserId) {
-    const persona = await loadCallerPersona(supabase, tenantId, personaUserId);
-    agentName = personalAssistantName(persona?.displayName, agentName);
-  }
+  // The line's character names the agent: the owner's on their own line
+  // (AIO-592), the org's on the main line (AIO-654).
+  agentName = personalAssistantName(linePersona?.displayName, agentName);
 
   if (!agentId) {
     await routedSend(
@@ -3039,7 +3075,7 @@ export async function handleCarmenMessage(
       senderName,
       waNotify,
       automationCtx,
-      personaUserId,
+      personaSource,
       followOwnerBrain === true,
     );
 
@@ -3117,7 +3153,7 @@ export async function handleCarmenMessage(
         senderName,
         waNotify,
         automationCtx,
-        personaUserId,
+        personaSource,
         followOwnerBrain === true,
       );
     } catch (err) {

@@ -1,6 +1,11 @@
 import { assertEquals, assertNotEquals } from "jsr:@std/assert@1";
 import { describe, it } from "jsr:@std/testing@1/bdd";
-import { callWordProblem, usableCallWords } from "./personas.ts";
+import {
+  callWordProblem,
+  orgStylePersonaKey,
+  parseOrgStyle,
+  usableCallWords,
+} from "./personas.ts";
 
 describe("callWordProblem", () => {
   it("refuses greetings and everyday words that would wake the agent in any chat", () => {
@@ -24,5 +29,27 @@ describe("callWordProblem", () => {
 describe("usableCallWords", () => {
   it("drops refused words and keeps the rest", () => {
     assertEquals(usableCallWords(["היי", "מיני מי", "מי"]), ["מיני מי"]);
+  });
+});
+
+describe("parseOrgStyle", () => {
+  it("reads a stored style", () => {
+    assertEquals(parseOrgStyle({ style: "character" }), "character");
+    assertEquals(parseOrgStyle({ style: "orbs" }), "orbs");
+    assertEquals(parseOrgStyle({ style: "minime" }), "minime");
+  });
+
+  it("falls back to the orbs when nothing valid is stored", () => {
+    assertEquals(parseOrgStyle(null), "orbs");
+    assertEquals(parseOrgStyle({ style: "hologram" }), "orbs");
+    assertEquals(parseOrgStyle("character"), "orbs");
+  });
+});
+
+describe("orgStylePersonaKey", () => {
+  it("makes the organization's Carmen the Mini Me only for the Mini Me style", () => {
+    assertEquals(orgStylePersonaKey("minime"), "minime");
+    assertEquals(orgStylePersonaKey("orbs"), null);
+    assertEquals(orgStylePersonaKey("character"), null);
   });
 });
