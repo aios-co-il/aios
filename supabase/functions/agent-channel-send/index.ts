@@ -16,6 +16,7 @@ import {
 } from "../_shared/carmen/active-skin.ts";
 import { withBrowserTab } from "../_shared/carmen/screen-context.ts";
 import { requireAuth } from "../_shared/security.ts";
+import { recordDispatch } from "./dispatch-record.ts";
 import { noCarmenReply } from "./no-carmen.ts";
 import { dispatchSend } from "../_shared/agent-channel/adapters.ts";
 import { loadBrainEnv } from "../_shared/agent-channel/brain-env.ts";
@@ -353,7 +354,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  const { duplicate } = await insertMessage(sb, {
+  const { row: userMessage, duplicate } = await insertMessage(sb, {
     tenant_id: tenantId,
     conversation_id: conv.id,
     role: "user",
@@ -442,13 +443,12 @@ Deno.serve(async (req) => {
       screenContext: body.context_metadata,
     });
     await setConversationStatus(sb, conv.id, result.status);
-    await sb
-      .from("ai_conversation_messages")
-      .update({
-        metadata: { dispatch: result, input_mode: body.input_mode || "typed" },
-      })
-      .eq("tenant_id", tenantId)
-      .eq("idempotency_key", idempotencyKey);
+    await recordDispatch(sb, {
+      tenantId,
+      idempotencyKey,
+      storedMetadata: userMessage.metadata,
+      result,
+    });
     if (result.inline_reply) {
       await setConversationStatus(sb, conv.id, "idle");
     }
