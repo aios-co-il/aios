@@ -3,6 +3,7 @@ import { shouldUseV2Prompt } from "../../_shared/carmen-prompt-v2.ts";
 import { carmenPulseRulesVersion } from "../pulse-refresh/rules-block.ts";
 import { agencyDataRulesVersion } from "../agency-data/rules-block.ts";
 
+/** Builds shared context for both prompt versions after tenant-data loading completes. */
 export async function buildRunTenantContext(
   run: RunState,
 ): Promise<Response | string | void> {

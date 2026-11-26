@@ -2,8 +2,8 @@ import { orgAssistantName } from "../../_shared/carmen/assistant-name.ts";
 import { buildV1Identity } from "../../_shared/carmen-prompt-v2.ts";
 import type { RunState } from "./state.ts";
 
+/** Preserves a nonempty stored prompt; otherwise builds the Carmen or agent-specific V1 default. */
 export function initializeV1RunPrompt(run: RunState): void {
-  // ─── V1 PROMPT BUILDING (UNCHANGED) ───
   run.systemPrompt = run.agent.system_prompt || "";
 
   if (!run.systemPrompt) {
