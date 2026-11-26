@@ -8,7 +8,6 @@ import {
   recallApiKey,
 } from "../_shared/recall.ts";
 import { loadPersonalAssistantName } from "../_shared/carmen/load-carmen-agent.ts";
-import { appOrigin } from "../_shared/carmen/skin-gallery.ts";
 import { meetingBotName } from "../_shared/meeting-bot/bot-name.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { notifyRecallCreditEmpty } from "../_shared/recall-credit-alert.ts";
@@ -19,7 +18,10 @@ import {
   normalizeMeetingUrl,
   platformLabel,
 } from "../_shared/meeting-url.ts";
-import { loadMeetingBotPicture } from "./bot-picture.ts";
+import {
+  createBotWithPicture,
+  loadMeetingBotPicture,
+} from "./load-bot-picture.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -123,6 +125,14 @@ Deno.serve(async (req) => {
     }
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+    // The bot's tile is the sender's copywriter Mini Me, from this environment's web app
+    // (AIO-668). It loads while the rest is prepared, so it does not delay the bot.
+    const pictureLoading = loadMeetingBotPicture({
+      db: serviceClient(),
+      userId,
+      appUrl: Deno.env.get("APP_URL"),
+      fetch,
+    });
     // The bot joins as the sender's character, else the org's name for its assistant (AIO-592).
     const assistantName = await loadPersonalAssistantName(
       serviceClient(),
@@ -227,26 +237,21 @@ Deno.serve(async (req) => {
       );
     }
 
-    // The bot's tile is the sender's copywriter Mini Me, from this environment's web app (AIO-668).
-    const picture = await loadMeetingBotPicture({
-      db: serviceClient(),
-      userId,
-      origin: appOrigin(req.headers.get("origin"), Deno.env.get("APP_URL")),
-      fetch,
-    });
-
     let bot;
     try {
-      bot = await createRecallBot({
-        meeting_url,
-        bot_name: botName,
-        picture_jpeg_b64: picture,
-        join_at: join_at || null,
-        metadata: {
-          session_id: session.id,
-          tenant_id: tenantId,
+      bot = await createBotWithPicture(
+        pictureLoading,
+        {
+          meeting_url,
+          bot_name: botName,
+          join_at: join_at || null,
+          metadata: {
+            session_id: session.id,
+            tenant_id: tenantId,
+          },
         },
-      });
+        createRecallBot,
+      );
     } catch (botErr) {
       const msg = botErr instanceof Error ? botErr.message : String(botErr);
       await admin

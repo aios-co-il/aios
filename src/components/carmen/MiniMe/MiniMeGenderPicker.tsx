@@ -1,7 +1,10 @@
 import { useMiniMeGender } from "@/hooks/useMiniMeGender";
 import { cn } from "@/lib/utils";
 import { MiniMe } from "./MiniMe";
-import { MINI_ME_GENDERS, type MiniMeGender } from "./miniMeGender";
+import {
+  MINI_ME_GENDERS,
+  type MiniMeGender,
+} from "../../../../supabase/functions/_shared/carmen/minime-gender";
 
 const LABELS: Record<MiniMeGender, string> = { male: "זכר", female: "נקבה" };
 const HEADING_ID = "minime-gender-heading";

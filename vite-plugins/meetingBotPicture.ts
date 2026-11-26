@@ -16,8 +16,11 @@ import {
 /** The one source of Mini Me renders, the folder `miniMeImages.ts` bundles for the site. */
 const RENDERS_DIR = "src/components/carmen/MiniMe/images";
 
-/** The figure's width on the tile: central enough for platforms that crop the video. */
-const FIGURE_SIZE = 576;
+/**
+ * The figure's largest width on the tile: central enough for platforms that crop the video.
+ * A smaller render keeps its own size, since enlarging it would only soften it.
+ */
+const FIGURE_MAX_SIZE = 576;
 
 /** Behind the figure; the renders sit on white (`mini-me.css`). */
 const BACKGROUND = "#ffffff";
@@ -67,16 +70,26 @@ export function meetingBotRenderFile(
   );
 }
 
-/** One render as the bot's tile: the figure in its circle, as the site shows it, centred. */
+/**
+ * One render as the bot's tile: the figure in its circle, centred. The circle and the white
+ * behind it repeat the site's look (`mini-me.css`), which CSS draws and a JPEG has to bake in.
+ */
 export async function renderMeetingBotPicture(
   renderFile: string,
 ): Promise<Buffer> {
-  const radius = FIGURE_SIZE / 2;
+  const { data: square, info } = await sharp(await readFile(renderFile))
+    .resize(FIGURE_MAX_SIZE, FIGURE_MAX_SIZE, {
+      fit: "cover",
+      withoutEnlargement: true,
+    })
+    .toBuffer({ resolveWithObject: true });
+  const size = Math.min(info.width, info.height);
+  const radius = size / 2;
   const circle = Buffer.from(
-    `<svg width="${FIGURE_SIZE}" height="${FIGURE_SIZE}"><circle cx="${radius}" cy="${radius}" r="${radius}"/></svg>`,
+    `<svg width="${size}" height="${size}"><circle cx="${radius}" cy="${radius}" r="${radius}"/></svg>`,
   );
-  const figure = await sharp(await readFile(renderFile))
-    .resize(FIGURE_SIZE, FIGURE_SIZE, { fit: "cover" })
+  const figure = await sharp(square)
+    .resize(size, size, { fit: "cover" })
     .composite([{ input: circle, blend: "dest-in" }])
     .png()
     .toBuffer();

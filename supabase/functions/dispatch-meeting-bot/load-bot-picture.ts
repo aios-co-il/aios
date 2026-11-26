@@ -11,43 +11,55 @@ import {
 } from "../_shared/carmen/minime-gender.ts";
 import { absolutePortraitUrl } from "../_shared/carmen/skin-gallery.ts";
 import { meetingBotPicturePath } from "../_shared/meeting-bot/bot-picture.ts";
-import { RECALL_JPEG_B64_MAX_LENGTH } from "../_shared/recall.ts";
+import type {
+  CreateRecallBotOpts,
+  RecallBotResponse,
+} from "../_shared/recall.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
+import { isJpeg, readPictureBytes } from "./read-picture-bytes.ts";
 
 /** The web app is asked once; a slow answer must not hold the bot back. */
-const PICTURE_TIMEOUT_MS = 5000;
-
-/** Every JPEG file starts with these bytes (the SOI marker and the next marker's prefix). */
-const JPEG_START = [0xff, 0xd8, 0xff];
+const PICTURE_TIMEOUT_MS = 3000;
 
 interface BotPictureDeps {
   db: Pick<DbClient, "from">;
   /** The user who sends the bot; Carmen's tool may send one for nobody. */
   userId: string | null;
-  /** The web app's origin for this environment (`appOrigin`). */
-  origin: string;
+  /**
+   * The web app's address as this environment configures it (`APP_URL`). The function fetches
+   * it, so it never comes from the request: a caller must not choose where the server connects.
+   */
+  appUrl: string | null | undefined;
   fetch: typeof fetch;
 }
 
-/** The sender's picture as Recall takes it (base64 JPEG), or null when it cannot be used. */
+/**
+ * The sender's picture as Recall takes it (base64 JPEG), or null when it cannot be used.
+ * Never rejects, so the handler can start it early and await it when the bot is created.
+ */
 export async function loadMeetingBotPicture(
   deps: BotPictureDeps,
 ): Promise<string | null> {
-  const gender = await senderMiniMeGender(deps.db, deps.userId);
-  const url = meetingBotPictureUrl(deps.origin, gender);
+  let url: string | null = null;
 
   try {
+    const gender = await senderMiniMeGender(deps.db, deps.userId);
+    url = meetingBotPictureUrl(deps.appUrl, gender);
+    if (!url) {
+      throw new Error("APP_URL is not set to a web address");
+    }
+    // The address is ours; a redirect would let the answering host pick another one.
     const res = await deps.fetch(url, {
+      redirect: "error",
       signal: AbortSignal.timeout(PICTURE_TIMEOUT_MS),
     });
     if (!res.ok) {
       await res.body?.cancel();
       throw new Error(`HTTP ${res.status}`);
     }
-    const bytes = new Uint8Array(await res.arrayBuffer());
-    const problem = recallJpegProblem(bytes);
-    if (problem) {
-      throw new Error(problem);
+    const bytes = await readPictureBytes(res);
+    if (!isJpeg(bytes)) {
+      throw new Error("not a JPEG");
     }
     return encodeBase64(bytes);
   } catch (err) {
@@ -60,25 +72,28 @@ export async function loadMeetingBotPicture(
   }
 }
 
-/** The full address of one set's picture on the web app. */
-export function meetingBotPictureUrl(
-  origin: string,
-  gender: MiniMeGender,
-): string {
-  return absolutePortraitUrl(meetingBotPicturePath(gender), origin);
+/** Creates the bot with the picture that was loading meanwhile. */
+export async function createBotWithPicture(
+  picture: Promise<string | null>,
+  bot: Omit<CreateRecallBotOpts, "picture_jpeg_b64">,
+  createBot: (opts: CreateRecallBotOpts) => Promise<RecallBotResponse>,
+): Promise<RecallBotResponse> {
+  return createBot({ ...bot, picture_jpeg_b64: await picture });
 }
 
-/** Why Recall would refuse these bytes as a video output, or null when they fit. */
-export function recallJpegProblem(bytes: Uint8Array): string | null {
-  if (!JPEG_START.every((byte, i) => bytes[i] === byte)) {
-    return "not a JPEG";
+/** The full address of one set's picture on the configured web app, or null without one. */
+export function meetingBotPictureUrl(
+  appUrl: string | null | undefined,
+  gender: MiniMeGender,
+): string | null {
+  if (!appUrl || !URL.canParse(appUrl)) {
+    return null;
   }
-  // Base64 writes every 3 bytes as 4 characters.
-  const b64Length = Math.ceil(bytes.length / 3) * 4;
-  if (b64Length > RECALL_JPEG_B64_MAX_LENGTH) {
-    return `too large for Recall (${bytes.length} bytes)`;
+  const { protocol, origin } = new URL(appUrl);
+  if (protocol !== "https:" && protocol !== "http:") {
+    return null;
   }
-  return null;
+  return absolutePortraitUrl(meetingBotPicturePath(gender), origin);
 }
 
 /** The sender's Mini Me set by the site's rule; male for no sender or an unreadable profile. */
