@@ -44,6 +44,7 @@ class ChatActivity : AppCompatActivity() {
         CarmenLook.showAvatar(findViewById(R.id.chat_avatar))
         voice = CarmenLook.voice(this)
         findViewById<TextView>(R.id.chat_name).text = voice.name
+        input.hint = voice.line(getString(R.string.chat_hint))
         send.setOnClickListener { onSendTapped() }
         input.setOnEditorActionListener { _, action, _ ->
             (action == EditorInfo.IME_ACTION_SEND).also { if (it) onSendTapped() }
@@ -109,7 +110,7 @@ class ChatActivity : AppCompatActivity() {
     }
 
     private fun stopAnswer() {
-        typing?.bubble?.text = getString(R.string.chat_stopping)
+        typing?.bubble?.text = voice.line(getString(R.string.chat_stopping))
         val brain = CarmenChat.brain(this)
         thread(name = "carmen-chat-stop") {
             if (!brain.stop()) {

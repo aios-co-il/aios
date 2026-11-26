@@ -118,7 +118,8 @@ class SettingsActivity : AppCompatActivity() {
     private fun pickVoice() {
         val account = AiosAccount(this)
         if (!account.isSignedIn) {
-            Toast.makeText(this, R.string.sign_in_to_talk, Toast.LENGTH_SHORT).show()
+            val signInFirst = CarmenLook.voice(this).line(getString(R.string.sign_in_to_talk))
+            Toast.makeText(this, signInFirst, Toast.LENGTH_SHORT).show()
             return
         }
         Toast.makeText(this, R.string.voice_loading, Toast.LENGTH_SHORT).show()

@@ -20,12 +20,12 @@
     <!-- Lines about the assistant use the site's slots (AssistantVoice.line): {name}, and
          {feminine|masculine} for whoever the look names (CarmenLook.voice). -->
     <string name="carmen_name">כרמן</string>
-    <string name="chat_hint">כתבו לכרמן…</string>
+    <string name="chat_hint">כתבו ל{name}…</string>
     <string name="chat_send">שליחה</string>
     <string name="chat_typing">{name} {כותבת|כותב}…</string>
     <string name="chat_greeting">היי, כאן {name}. במה אפשר לעזור?</string>
     <string name="chat_stop">עצירה</string>
-    <string name="chat_stopping">עוצרת…</string>
+    <string name="chat_stopping">{עוצרת|עוצר}…</string>
     <string name="chat_stop_failed">לא הצלחתי לעצור</string>
     <string name="call_name">שיחה עם {name}</string>
     <string name="call_tile_name">כרמן · מנהלת השיווק</string>
@@ -70,8 +70,8 @@
     <string name="state_thinking">{בודקת|בודק} במערכת…</string>
     <string name="state_speaking">{name} {מדברת|מדבר}</string>
     <string name="state_ended">השיחה הסתיימה</string>
-    <string name="sign_in_to_talk">כדי לדבר עם כרמן יש להתחבר ל-AIOS במסך הראשי</string>
-    <string name="conversation_failed">החיבור לכרמן נכשל: %1$s</string>
+    <string name="sign_in_to_talk">כדי לדבר עם {name} יש להתחבר ל-AIOS במסך הראשי</string>
+    <string name="conversation_failed">החיבור ל{name} נכשל: %1$s</string>
     <string name="conversation_failed_spoken">אין לי חיבור כרגע, נסה שוב בעוד רגע</string>
     <string name="aios_section">חיבור ל-AIOS (%1$s)</string>
     <string name="email_hint">אימייל של AIOS</string>

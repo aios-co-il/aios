@@ -101,7 +101,7 @@ class MiniMeDrawable private constructor(
 }
 
 /**
- * Moves the Mini Me with Carmen's state on the call screen ([MiniMePose.at]). It stays still
+ * Moves the Mini Me with Carmen's state on the call screen ([MiniMePose.of]). It stays still
  * when the phone has animations turned off, as the site does for reduced motion.
  */
 class MiniMeMotion(private val figure: MiniMeDrawable) : Choreographer.FrameCallback {
@@ -122,7 +122,7 @@ class MiniMeMotion(private val figure: MiniMeDrawable) : Choreographer.FrameCall
 
     override fun doFrame(frameTimeNanos: Long) {
         if (!running) return
-        val target = MiniMePose.at(CarmenClips.clipFor(state), frameTimeNanos / 1_000_000_000.0)
+        val target = MiniMePose.of(state, frameTimeNanos / 1_000_000_000.0)
         figure.pose = figure.pose.toward(target, EASE)
         Choreographer.getInstance().postFrameCallback(this)
     }

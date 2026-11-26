@@ -133,10 +133,14 @@ class AiosAccount(context: Context) {
         return CarmenLook.parseStyle(rows)
     }
 
-    /** The user's Mini Me set, from their own profile row (`profiles.minime_gender`, `profiles.gender`). */
-    fun miniMeSet(): MiniMeSet {
-        val userId = session().userId
-        return MiniMeSet.fromProfile(restGet("profiles?id=eq.$userId&select=minime_gender,gender"))
+    /**
+     * The user's Mini Me set, from their own profile row (`profiles.minime_gender`,
+     * `profiles.gender`), stamped with whose it is.
+     */
+    fun miniMeSet(): MiniMeSet.Stored {
+        val session = session()
+        val set = MiniMeSet.fromProfile(restGet("profiles?id=eq.${session.userId}&select=minime_gender,gender"))
+        return MiniMeSet.Stored(StoredVoice.owner(session.userId, session.tenantId), set.value)
     }
 
     /**
@@ -176,6 +180,7 @@ class AiosAccount(context: Context) {
     fun signOut() {
         prefs.edit { clear() }
         VoicePreference.forget(app)
+        CarmenLook.forget(app)
     }
 
     /**

@@ -13,6 +13,17 @@ enum class MiniMeSet(val value: String, val render: Int) {
     MALE("male", R.drawable.minime_male),
     FEMALE("female", R.drawable.minime_female);
 
+    /**
+     * The phone's copy of a user's set as it lies in storage: its [value], and the user and
+     * organization it was read for ([StoredVoice.owner]).
+     */
+    data class Stored(val owner: String?, val value: String?) {
+
+        /** The set to show [currentOwner]: the stored one if it is theirs, else the site's default. */
+        fun setFor(currentOwner: String?): MiniMeSet =
+            resolve(value.takeIf { currentOwner != null && currentOwner == owner }, null)
+    }
+
     companion object {
         /**
          * The site's rule, `resolveMiniMeGender` in
@@ -42,6 +53,10 @@ data class MiniMePose(val scale: Float = 1f, val tilt: Float = 0f) {
 
     companion object {
         val REST = MiniMePose()
+
+        /** The pose for [state] at [seconds]: at rest once the call ended, else its clip's motion. */
+        fun of(state: CarmenSession.State, seconds: Double): MiniMePose =
+            if (state == CarmenSession.State.ENDED) REST else at(CarmenClips.clipFor(state), seconds)
 
         /**
          * The site's motion (`mini-me.css`): speaking pulses, listening tilts slowly and

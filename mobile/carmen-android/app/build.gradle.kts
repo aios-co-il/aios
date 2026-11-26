@@ -61,11 +61,18 @@ abstract class MiniMeResources : DefaultTask() {
         val name = Regex("""minime:\s*builtin\(\{\s*displayName:\s*"([^"]+)"""").find(source.readText())
             ?.groupValues?.get(1)
             ?: throw GradleException("The built-in Mini Me's displayName was not found in $source.")
-        val escaped = name.replace("&", "&amp;").replace("<", "&lt;").replace("'", "\\'")
         res.get().dir("values").asFile.apply { mkdirs() }.resolve("minime.xml").writeText(
             "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n" +
-                "<resources>\n    <string name=\"minime_name\">$escaped</string>\n</resources>\n",
+                "<resources>\n    <string name=\"minime_name\">${stringResource(name)}</string>\n</resources>\n",
         )
+    }
+
+    /** [text] as the body of a `<string>`: XML's own characters, then the ones aapt reads specially. */
+    private fun stringResource(text: String): String {
+        val xml = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        val quoted = xml.replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"")
+        // A leading @ or ? would read as a reference to another resource.
+        return if (quoted.startsWith("@") || quoted.startsWith("?")) "\\$quoted" else quoted
     }
 }
 
@@ -150,6 +157,7 @@ android {
 
 // Each variant gets the Mini Me's resources (MiniMeResources) among its own. The site shows its
 // "classic" skin wherever no role is on screen, and the app has no roles, so that is the one skin.
+// The sets are the entries of MiniMeSet (MiniMe.kt), which names each one's render.
 androidComponents {
     onVariants { variant ->
         val variantName = variant.name.replaceFirstChar { it.uppercase() }

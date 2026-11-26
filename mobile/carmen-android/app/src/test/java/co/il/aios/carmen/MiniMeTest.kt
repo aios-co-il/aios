@@ -25,9 +25,22 @@ class MiniMeTest {
     }
 
     @Test
-    fun eachSetShowsItsOwnRender() {
-        assertEquals(R.drawable.minime_male, MiniMeSet.MALE.render)
-        assertEquals(R.drawable.minime_female, MiniMeSet.FEMALE.render)
+    fun aStoredSetShowsOnlyToTheUserAndOrganizationItWasReadFor() {
+        val owner = StoredVoice.owner(userId = "user-1", tenantId = "tenant-1")
+        val stored = MiniMeSet.Stored(owner, MiniMeSet.FEMALE.value)
+
+        assertEquals(MiniMeSet.FEMALE, stored.setFor(owner))
+        assertEquals(MiniMeSet.MALE, stored.setFor(StoredVoice.owner(userId = "user-2", tenantId = "tenant-1")))
+        assertEquals(MiniMeSet.MALE, stored.setFor(StoredVoice.owner(userId = "user-1", tenantId = "tenant-2")))
+        assertEquals(MiniMeSet.MALE, stored.setFor(null))
+    }
+
+    @Test
+    fun aSetWithoutAnOwnerOrAnOwnerWithoutASetIsTheDefault() {
+        val owner = StoredVoice.owner(userId = "user-1", tenantId = "tenant-1")
+
+        assertEquals(MiniMeSet.MALE, MiniMeSet.Stored(owner = null, value = MiniMeSet.FEMALE.value).setFor(owner))
+        assertEquals(MiniMeSet.MALE, MiniMeSet.Stored(owner, value = null).setFor(owner))
     }
 
     @Test
@@ -50,6 +63,13 @@ class MiniMeTest {
         assertEquals(3f, MiniMePose.at(CarmenClips.Clip.LISTENING, 2.6).tilt, 1e-4f)
         assertEquals(3f, MiniMePose.at(CarmenClips.Clip.WORKING, 1.2).tilt, 1e-4f)
         assertEquals(1f, MiniMePose.at(CarmenClips.Clip.WORKING, 1.2).scale, 0f)
+    }
+
+    @Test
+    fun theFigureMovesWithTheCallAndRestsOnceItEnded() {
+        assertEquals(3f, MiniMePose.of(CarmenSession.State.THINKING, 1.2).tilt, 1e-4f)
+        assertEquals(1.05f, MiniMePose.of(CarmenSession.State.SPEAKING, 0.5).scale, 1e-4f)
+        assertEquals(MiniMePose.REST, MiniMePose.of(CarmenSession.State.ENDED, 1.3))
     }
 
     @Test

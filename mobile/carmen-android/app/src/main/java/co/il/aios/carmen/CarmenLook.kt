@@ -58,7 +58,7 @@ object CarmenLook {
             val now = runCatching {
                 val style = account.carmenAvatarStyle()
                 // Only the Mini Me has sets; under another style the last one read stays.
-                Look(style, if (style == MINIME) account.miniMeSet().value else was.set)
+                Look(style, if (style == MINIME) account.miniMeSet() else was.set)
             }
                 .onFailure { Log.w(TAG, "Reading Carmen's look failed; keeping the last one", it) }
                 .getOrNull() ?: return@thread
@@ -66,9 +66,18 @@ object CarmenLook {
 
             prefs(app).edit {
                 putString(KEY_STYLE, now.style)
-                putString(KEY_SET, now.set)
+                putString(KEY_SET, now.set.value)
+                putString(KEY_SET_OWNER, now.set.owner)
             }
             Handler(Looper.getMainLooper()).post(onChanged)
+        }
+    }
+
+    /** Forgets the user's Mini Me set, for sign-out. The style is the organization's and stays. */
+    fun forget(context: Context) {
+        prefs(context.applicationContext).edit {
+            remove(KEY_SET)
+            remove(KEY_SET_OWNER)
         }
     }
 
@@ -81,16 +90,20 @@ object CarmenLook {
         return DRAWN_STYLES.firstOrNull { it == style } ?: ORBS
     }
 
-    /** The look as last read: the organization's style and the user's stored Mini Me set. */
-    private data class Look(val style: String, val set: String?)
+    /** The look as last read: the organization's style and a user's stored Mini Me set. */
+    private data class Look(val style: String, val set: MiniMeSet.Stored)
 
     private fun stored(context: Context): Look {
         val prefs = prefs(context)
-        return Look(prefs.getString(KEY_STYLE, ORBS) ?: ORBS, prefs.getString(KEY_SET, null))
+        return Look(
+            prefs.getString(KEY_STYLE, ORBS) ?: ORBS,
+            MiniMeSet.Stored(prefs.getString(KEY_SET_OWNER, null), prefs.getString(KEY_SET, null)),
+        )
     }
 
-    /** The user's Mini Me set as last read; the site's default set until then. */
-    private fun miniMeSet(context: Context): MiniMeSet = MiniMeSet.resolve(stored(context).set, null)
+    /** The signed-in user's Mini Me set as last read; the site's default set until then. */
+    private fun miniMeSet(context: Context): MiniMeSet =
+        stored(context).set.setFor(AiosAccount(context).choiceOwner)
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -101,5 +114,6 @@ object CarmenLook {
     private const val PREFS = "carmen_look"
     private const val KEY_STYLE = "style"
     private const val KEY_SET = "minime_set"
+    private const val KEY_SET_OWNER = "minime_set_owner"
     private const val TAG = "CarmenLook"
 }
