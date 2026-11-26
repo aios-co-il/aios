@@ -1,7 +1,8 @@
 // Carmen's list_updates for a client card (AIO-232): every entry on a client
 // whose card the caller's tenant may read, with the author, update_type and
 // source, so Carmen can tell who logged what and which entries were written
-// automatically.
+// automatically, and the names of the files attached to each entry (never a
+// link: the files are private to the card's readers).
 
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import { callerCanReadClientCard } from "./client-card-scope.ts";
@@ -21,6 +22,13 @@ export interface ClientCardListRow {
   source_label: string;
   author: string | null;
   counts_as_contact: boolean | null;
+  attachments: Array<ClientCardAttachmentName>;
+}
+
+/** A file attached to an entry, by name only. */
+export interface ClientCardAttachmentName {
+  name: string;
+  kind: "picture" | "document";
 }
 
 export type ClientCardListResult =
@@ -62,7 +70,7 @@ export async function listClientCardEntries(
   const { data, error } = await supabase
     .from("client_updates")
     .select(
-      "id, content, created_at, update_type, source, counts_as_contact, user_id, profiles:user_id (full_name, email, deleted_at)",
+      "id, content, created_at, update_type, source, counts_as_contact, user_id, profiles:user_id (full_name, email, deleted_at), client_update_attachments (file_name, mime_type)",
     )
     .eq("client_id", input.clientId)
     .order("created_at", { ascending: false })
@@ -92,6 +100,10 @@ interface ClientCardRow {
   source?: string | null;
   counts_as_contact?: boolean | null;
   profiles?: AuthorProfile | Array<AuthorProfile> | null;
+  client_update_attachments?: Array<{
+    file_name: string;
+    mime_type: string;
+  }> | null;
 }
 
 /** Shape one client_updates row, with its author's profile, for Carmen. */
@@ -115,6 +127,10 @@ export function mapClientCardRow(row: ClientCardRow): ClientCardListRow {
     source_label: clientCardSourceLabel(source) ?? "צוות",
     author,
     counts_as_contact: row.counts_as_contact ?? null,
+    attachments: (row.client_update_attachments ?? []).map((file) => ({
+      name: file.file_name,
+      kind: file.mime_type.startsWith("image/") ? "picture" : "document",
+    })),
   };
 }
 
@@ -124,5 +140,5 @@ function listInstructions(): string {
     (source) => !clientCardSourceCanCountAsContact(source),
   );
   const last = automatic[automatic.length - 1];
-  return `author הוא האדם שהעדכון משויך אליו. כש-source הוא ${automatic.slice(0, -1).join(", ")} או ${last} — העדכון נכתב אוטומטית ולא על ידי אותו אדם. carmen_confirmed הוא עדכון שרשמת לבקשתו.`;
+  return `author הוא האדם שהעדכון משויך אליו. כש-source הוא ${automatic.slice(0, -1).join(", ")} או ${last} — העדכון נכתב אוטומטית ולא על ידי אותו אדם. carmen_confirmed הוא עדכון שרשמת לבקשתו. attachments הם שמות הקבצים שצורפו לעדכון (picture תמונה, document מסמך): אפשר לציין אותם בשמם, אבל אין לך קישור או גישה לתוכנם, ואין להמציא קישור.`;
 }

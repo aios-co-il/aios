@@ -6004,6 +6004,53 @@ export type Database = {
           },
         ]
       }
+      client_update_attachments: {
+        Row: {
+          client_id: string
+          created_at: string
+          created_by: string
+          file_name: string
+          id: string
+          mime_type: string
+          size_bytes: number
+          storage_path: string
+          tenant_id: string
+          update_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          created_by?: string
+          file_name: string
+          id?: string
+          mime_type: string
+          size_bytes: number
+          storage_path: string
+          tenant_id: string
+          update_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          created_by?: string
+          file_name?: string
+          id?: string
+          mime_type?: string
+          size_bytes?: number
+          storage_path?: string
+          tenant_id?: string
+          update_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_update_attachments_update_id_fkey"
+            columns: ["update_id"]
+            isOneToOne: false
+            referencedRelation: "client_updates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_updates: {
         Row: {
           client_id: string

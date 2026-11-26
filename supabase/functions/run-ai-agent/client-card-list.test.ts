@@ -82,9 +82,30 @@ Deno.test("mapClientCardRow", async (t) => {
         source_label: "כרמן",
         author: "דנה",
         counts_as_contact: true,
+        attachments: [],
       },
     );
   });
+
+  await t.step(
+    "names attached files without their storage path or a link",
+    () => {
+      const row = mapClientCardRow({
+        id: "u4",
+        content: "הצעת מחיר נשלחה",
+        created_at: "2026-11-26T08:00:00Z",
+        client_update_attachments: [
+          { file_name: "חזית.jpg", mime_type: "image/jpeg" },
+          { file_name: "הצעה.pdf", mime_type: "application/pdf" },
+        ],
+      });
+      assertEquals(row.attachments, [
+        { name: "חזית.jpg", kind: "picture" },
+        { name: "הצעה.pdf", kind: "document" },
+      ]);
+      assertStrictEquals(JSON.stringify(row).includes("storage_path"), false);
+    },
+  );
 
   await t.step("reads a legacy row as a human entry", () => {
     const legacy = mapClientCardRow({
@@ -208,7 +229,7 @@ Deno.test("listClientCardEntries", async (t) => {
       assert("instructions_to_agent" in result);
       assertStrictEquals(
         result.instructions_to_agent,
-        "author הוא האדם שהעדכון משויך אליו. כש-source הוא carmen, system_send, group_digest או automation — העדכון נכתב אוטומטית ולא על ידי אותו אדם. carmen_confirmed הוא עדכון שרשמת לבקשתו.",
+        "author הוא האדם שהעדכון משויך אליו. כש-source הוא carmen, system_send, group_digest או automation — העדכון נכתב אוטומטית ולא על ידי אותו אדם. carmen_confirmed הוא עדכון שרשמת לבקשתו. attachments הם שמות הקבצים שצורפו לעדכון (picture תמונה, document מסמך): אפשר לציין אותם בשמם, אבל אין לך קישור או גישה לתוכנם, ואין להמציא קישור.",
       );
     },
   );
