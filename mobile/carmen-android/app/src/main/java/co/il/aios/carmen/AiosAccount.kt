@@ -124,13 +124,19 @@ class AiosAccount(context: Context) {
     fun webStorageKey(): String =
         "sb-${BuildConfig.SUPABASE_URL.substringAfter("://").substringBefore('.')}-auth-token"
 
-    /** The organization's Carmen style, [CarmenLook.ORBS] unless it chose the character. */
+    /** The organization's Carmen style, [CarmenLook.ORBS] unless it chose another one the app draws. */
     fun carmenAvatarStyle(): String {
         val tenantId = session().tenantId
         val rows = restGet(
             "tenant_settings?tenant_id=eq.$tenantId&setting_key=eq.carmen_avatar_style&select=setting_value",
         )
         return CarmenLook.parseStyle(rows)
+    }
+
+    /** The user's Mini Me set, from their own profile row (`profiles.minime_gender`, `profiles.gender`). */
+    fun miniMeSet(): MiniMeSet {
+        val userId = session().userId
+        return MiniMeSet.fromProfile(restGet("profiles?id=eq.$userId&select=minime_gender,gender"))
     }
 
     /**

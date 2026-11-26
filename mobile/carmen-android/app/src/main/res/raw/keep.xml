@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Looked up by name, so resource shrinking must keep them: the working clip (ChatActivity)
-     and each voice's activation line (ActivationCue). -->
-<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@raw/carmen_working,@raw/carmen_with_you_*" />
+     and each voice's activation line (ActivationCue). The Mini Me renders are named in code
+     (MiniMeSet), which keeps them already; they are listed because the build generates them. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@raw/carmen_working,@raw/carmen_with_you_*,@drawable/minime_*" />

@@ -17,15 +17,17 @@
     <string name="home_active">כרמן איתך בשיחה</string>
     <string name="write_to_carmen">כתבו לכרמן</string>
     <string name="command_center_short">מרכז הפיקוד</string>
-    <string name="chat_title">כרמן</string>
+    <!-- Lines about the assistant use the site's slots (AssistantVoice.line): {name}, and
+         {feminine|masculine} for whoever the look names (CarmenLook.voice). -->
+    <string name="carmen_name">כרמן</string>
     <string name="chat_hint">כתבו לכרמן…</string>
     <string name="chat_send">שליחה</string>
-    <string name="chat_typing">כרמן כותבת…</string>
-    <string name="chat_greeting">היי, כאן כרמן. במה אפשר לעזור?</string>
+    <string name="chat_typing">{name} {כותבת|כותב}…</string>
+    <string name="chat_greeting">היי, כאן {name}. במה אפשר לעזור?</string>
     <string name="chat_stop">עצירה</string>
     <string name="chat_stopping">עוצרת…</string>
     <string name="chat_stop_failed">לא הצלחתי לעצור</string>
-    <string name="call_name">שיחה עם כרמן</string>
+    <string name="call_name">שיחה עם {name}</string>
     <string name="call_tile_name">כרמן · מנהלת השיווק</string>
     <string name="mute">השתקת המיקרופון</string>
     <string name="settings">הגדרות כרמן</string>
@@ -63,10 +65,10 @@
     <string name="false_activation">זו הפעלת שווא</string>
     <string name="false_activation_recorded">הפעלת השווא נרשמה ביומן</string>
     <string name="state_acknowledging">אני כבר איתך</string>
-    <string name="state_connecting">מתחברת למערכת…</string>
-    <string name="state_listening">מקשיבה…</string>
-    <string name="state_thinking">בודקת במערכת…</string>
-    <string name="state_speaking">כרמן מדברת</string>
+    <string name="state_connecting">{מתחברת|מתחבר} למערכת…</string>
+    <string name="state_listening">{מקשיבה|מקשיב}…</string>
+    <string name="state_thinking">{בודקת|בודק} במערכת…</string>
+    <string name="state_speaking">{name} {מדברת|מדבר}</string>
     <string name="state_ended">השיחה הסתיימה</string>
     <string name="sign_in_to_talk">כדי לדבר עם כרמן יש להתחבר ל-AIOS במסך הראשי</string>
     <string name="conversation_failed">החיבור לכרמן נכשל: %1$s</string>

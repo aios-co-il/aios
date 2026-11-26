@@ -22,10 +22,11 @@
             android:src="@drawable/carmen_orb_icon" />
 
         <TextView
+            android:id="@+id/chat_name"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
-            android:text="@string/chat_title"
+            android:text="@string/carmen_name"
             android:textColor="@color/carmen_text"
             android:textSize="18sp"
             android:textStyle="bold" />
