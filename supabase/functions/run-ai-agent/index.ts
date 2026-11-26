@@ -1818,7 +1818,8 @@ import { bindRunAgentCaller, runCallerPhone } from "./caller-trust.ts";
 import { personalLineOwner } from "./line-owner-pick.ts";
 import { runTenantDenied } from "../_shared/agent-runs/run-tenant-access.ts";
 import { INSTRUCTION_TRIGGER_RE } from "./instruction-trigger.ts";
-import { runStopCheck, stoppedReply } from "./run-cancel.ts";
+import { runStopCheck } from "../_shared/carmen/run-stop.ts";
+import { stoppedReply } from "./run-cancel.ts";
 import { type FastLaneChannel, fastLaneFits } from "./fast-lane/eligibility.ts";
 import { fastLaneInstructions } from "./fast-lane/instructions.ts";
 import {
@@ -4157,7 +4158,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     };
     let silentNudges = 0;
     let roundsRun = 0;
-    // The chat's stop button: checked before each round and each tool (run-cancel.ts).
+    // The chat's stop button: checked before each round and each tool (_shared/carmen/run-stop.ts).
     const runStopped = runStopCheck(supabase, bodyJson.run_id, callerUserId);
     let stoppedByUser = false;
     for (let round = 0; round < maxRounds; round++) {
