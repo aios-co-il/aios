@@ -83,6 +83,16 @@ export function cutAtCodePoint(text: string, max: number): string {
   return /[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut;
 }
 
+/**
+ * The position in the read's element list that a ref names, or null for anything that is
+ * not a ref `pageElement` writes: the inverse of its naming.
+ */
+export function refIndex(ref: string): number | null {
+  const match = /^e([1-9]\d{0,3})$/.exec(ref);
+
+  return match ? Number(match[1]) - 1 : null;
+}
+
 /** One element: a ref in document order, and the role and name cut to their limit. */
 function pageElement(
   element: CollectedPage["elements"][number],

@@ -5,6 +5,7 @@
 import { DEVICE_STEP_UNAVAILABLE } from "../../_shared/carmen/device/contract.ts";
 import { corsHeaders } from "../../_shared/cors.ts";
 import { stoppedReply } from "../run-cancel.ts";
+import { actTarget } from "./act-target.ts";
 import { resumeFromStep } from "./continuation.ts";
 import { offeredDeviceTools } from "./eligibility.ts";
 import {
@@ -55,7 +56,13 @@ export async function continuedTurn(
     }
     return deviceTurn(
       turn,
-      offeredDeviceTools(verdict, announced, continuation.stepsUsed),
+      offeredDeviceTools(
+        verdict,
+        announced,
+        continuation.steps.length,
+        verdict.tabUrl !== null &&
+          actTarget(continuation.steps, verdict.tabUrl).refusal === null,
+      ),
       continuation.outcome,
     );
   } catch (error) {

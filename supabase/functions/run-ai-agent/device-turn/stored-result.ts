@@ -47,9 +47,10 @@ export function checkStoredResult(
   if (isNeverControllable(address, origins)) {
     return { result: null, refusal: "never_controllable" };
   }
-  // A navigation that lands on the act floor (a redirect to a bank, say) reports nothing
-  // of that page: the panel refuses it, and a report that says otherwise is not believed.
-  if (step.tool === "browser_navigate" && isActNeverHost(address, [])) {
+  // A navigation, click or type that lands on the act floor (a redirect to a bank, a link
+  // to one) reports nothing of that page: the panel refuses it, and a report that says
+  // otherwise is not believed. A read of it is allowed: the floor refuses acting only.
+  if (step.tool !== "browser_read_page" && isActNeverHost(address, [])) {
     return { result: null, refusal: "act_floor" };
   }
   return { result, refusal: null };

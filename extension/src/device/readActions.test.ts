@@ -97,7 +97,10 @@ describe("createReadActions: one read", () => {
 
   it("refuses a tool this panel does not run", async () => {
     const device = fakeDevice({
-      claim: vi.fn(async () => ({ ok: true as const, tool: "browser_click" })),
+      claim: vi.fn(async () => ({
+        ok: true as const,
+        tool: "browser_screenshot" as const,
+      })),
     });
 
     await createReadActions(device.deps).onAction(ACTION_ID);

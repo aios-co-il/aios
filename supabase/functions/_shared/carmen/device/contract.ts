@@ -24,6 +24,12 @@ type DeviceToolDefinition = {
   parameters: DeviceToolParameters;
 };
 
+/**
+ * The most text one `browser_type` step types, in UTF-16 units: all of it is shown on the
+ * card, so the user reads what they approve.
+ */
+export const DEVICE_TYPE_TEXT_MAX = 1000;
+
 const SNAPSHOT_ID = {
   type: "string",
   description: "ה-snapshot_id שהחזיר browser_read_page האחרון",
@@ -64,7 +70,7 @@ export const DEVICE_TOOLS = {
   browser_click: {
     risk: "act",
     description:
-      "לחיצה על אלמנט בלשונית הפתוחה, לפי ref מהקריאה האחרונה של הדף. המשתמש מאשר בכרטיס בתוסף.",
+      "לחיצה על אלמנט בלשונית הפתוחה, לפי ref מהקריאה האחרונה של אותו דף. המשתמש מאשר כל לחיצה בכרטיס בתוסף. התוצאה היא רק הכתובת, הכותרת והאם הדף השתנה; כדי לדעת מה מוצג אחרי הלחיצה קוראים שוב עם browser_read_page.",
     parameters: {
       type: "object",
       properties: { snapshot_id: SNAPSHOT_ID, ref: ELEMENT_REF },
@@ -74,13 +80,16 @@ export const DEVICE_TOOLS = {
   browser_type: {
     risk: "act",
     description:
-      "הקלדת טקסט בשדה בלשונית הפתוחה, לפי ref מהקריאה האחרונה של הדף. המשתמש רואה את הטקסט המלא ומאשר בכרטיס בתוסף. לא לשדות סיסמה, כרטיס אשראי, קוד חד-פעמי או קובץ.",
+      "הקלדת טקסט בשדה טקסט בלשונית הפתוחה, לפי ref מהקריאה האחרונה של אותו דף. המשתמש רואה את הטקסט המלא ומאשר כל הקלדה בכרטיס בתוסף. לא לשדות סיסמה, כרטיס אשראי, קוד חד-פעמי או קובץ, ולא בדף שיש בו שדה כזה. התוצאה היא רק הכתובת, הכותרת והאם הדף השתנה.",
     parameters: {
       type: "object",
       properties: {
         snapshot_id: SNAPSHOT_ID,
         ref: ELEMENT_REF,
-        text: { type: "string", description: "הטקסט המלא להקלדה" },
+        text: {
+          type: "string",
+          description: `הטקסט המלא להקלדה, עד ${DEVICE_TYPE_TEXT_MAX} תווים; הוא מחליף את מה שכתוב בשדה`,
+        },
       },
       required: ["snapshot_id", "ref", "text"],
     },

@@ -270,6 +270,18 @@ body.panel {
   /* The full address, which may be one long word. */
   overflow-wrap: anywhere;
 }
+.grant-quote {
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  /* Every character the user approves, line breaks kept; a long text scrolls. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+  max-height: 12em;
+  overflow-y: auto;
+}
 .grant-actions {
   display: flex;
   gap: 8px;

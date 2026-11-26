@@ -1,5 +1,5 @@
 /**
- * Wires the panel's read and navigate actions to Chrome, the panel's card and carmen-device-action.
+ * Wires the panel's read, navigate, click and type actions to Chrome, the panel's card and carmen-device-action.
  * The decisions live in the modules this file passes them to.
  */
 import {
@@ -23,6 +23,12 @@ import {
   requestSiteGrant,
   tabById,
 } from "./chromeDevice.ts";
+import {
+  actOnTarget,
+  holdsSnapshot,
+  inspectTarget,
+  settleTab,
+} from "./chromeAct.ts";
 import { deviceActionApi } from "./deviceActionApi.ts";
 import { navigateCardWords } from "./cardWords.ts";
 import {
@@ -57,6 +63,12 @@ export function panelReadActions(
     askNavigate: (step, signal) =>
       askOnCard(card, navigateCardWords(step), signal, async () => true),
     navigateTab,
+    // Clicking and typing need no new Chrome permission: the read's site grant covers them.
+    askAct: (words, signal) => askOnCard(card, words, signal, async () => true),
+    inspectTarget,
+    actOnTarget,
+    settleTab,
+    holdsSnapshot,
     readPage,
     newSnapshotId: () => crypto.randomUUID(),
     postResult: (id) => post(panelActionRef(PANEL_MESSAGE.result, id)),
@@ -73,6 +85,7 @@ function grantCardElements(): GrantCardElements {
     card: element("grant-card", HTMLElement),
     title: element("grant-title", HTMLElement),
     address: element("grant-address", HTMLElement),
+    quote: element("grant-quote", HTMLElement),
     text: element("grant-text", HTMLElement),
     allow: element("grant-allow", HTMLButtonElement),
     decline: element("grant-decline", HTMLButtonElement),

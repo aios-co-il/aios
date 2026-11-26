@@ -22,7 +22,7 @@ export function stoppable(deps: ReadDeps, progress: ReadProgress): ReadDeps {
     tab: (tabId) => until(deps.tab(tabId)),
     hasGrant: (pattern) => until(deps.hasGrant(pattern)),
     askGrant: (site, stop) => until(deps.askGrant(site, stop)),
-    readPage: (tabId) => until(deps.readPage(tabId)),
+    readPage: (tabId, snapshotId) => until(deps.readPage(tabId, snapshotId)),
   };
 }
 

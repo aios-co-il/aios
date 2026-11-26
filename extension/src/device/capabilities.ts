@@ -13,6 +13,8 @@ import {
 const DEVICE_CAPABILITIES: ReadonlyArray<DeviceToolName> = [
   "browser_read_page",
   "browser_navigate",
+  "browser_click",
+  "browser_type",
 ];
 
 /** The capabilities message for the current tab-sharing state. */

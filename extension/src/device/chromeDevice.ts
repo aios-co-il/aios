@@ -9,7 +9,12 @@ import {
   PAGE_ELEMENT_FIELD_MAX,
 } from "../../../supabase/functions/_shared/carmen/device/results.ts";
 import { queryActiveTab } from "../activeTab";
-import { collectPage, type CollectorLimits } from "./pageCollector.ts";
+import {
+  COLLECTOR_RULES,
+  type CollectorLimits,
+  PAGE_SNAPSHOT_KEY,
+} from "./keptSnapshot.ts";
+import { collectPage } from "./pageCollector.ts";
 import type { TabFacts } from "./readFlow.ts";
 import { grantsToDrop } from "./siteGrant.ts";
 
@@ -18,6 +23,8 @@ const COLLECTOR_LIMITS: CollectorLimits = {
   textBudget: READ_PAGE_TEXT_MAX * 2,
   elementsMax: READ_PAGE_ELEMENTS_MAX,
   nameBudget: PAGE_ELEMENT_FIELD_MAX * 2,
+  snapshotKey: PAGE_SNAPSHOT_KEY,
+  rules: COLLECTOR_RULES,
 };
 
 /** The active tab of the panel's window. */
@@ -44,12 +51,15 @@ export function requestSiteGrant(pattern: string): Promise<boolean> {
   return chrome.permissions.request({ origins: [pattern] });
 }
 
-/** Runs the collector in the tab's top frame and returns its raw answer. */
-export async function readPage(tabId: number): Promise<unknown> {
+/** Runs the collector in the tab's top frame, keeping its snapshot as `snapshotId`, and returns its raw answer. */
+export async function readPage(
+  tabId: number,
+  snapshotId: string,
+): Promise<unknown> {
   const [injection] = await chrome.scripting.executeScript({
     target: { tabId },
     func: collectPage,
-    args: [COLLECTOR_LIMITS],
+    args: [COLLECTOR_LIMITS, snapshotId],
   });
 
   return injection?.result;

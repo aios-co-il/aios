@@ -11,13 +11,15 @@ import type {
 } from "../../../supabase/functions/_shared/carmen/device/results.ts";
 import type { ActionReport } from "../../../supabase/functions/carmen-device-action/report.ts";
 
-/** What a done step reports: a read's page, or where a navigation landed. */
+/** What a done step reports: a read's page, where a navigation landed, or where a click or type left the tab. */
 export type StepResult =
-  DeviceToolResult["browser_read_page"] | DeviceToolResult["browser_navigate"];
+  | DeviceToolResult["browser_read_page"]
+  | DeviceToolResult["browser_navigate"]
+  | DeviceToolResult["browser_click"];
 
-/** How one claimed read or navigation ended. */
+/** How one claimed step ended. */
 export type ReadOutcome =
-  /** `asked`: the panel showed its card first (a read of a site not granted yet, every navigation). */
+  /** `asked`: the panel showed its card first (a read of a site not granted yet, every navigation, click and type). */
   | { status: "done"; asked: boolean; result: StepResult }
   /**
    * The user declined the card or Chrome's prompt. The contract's rule for a read is

@@ -1,8 +1,9 @@
 /**
- * A fake Chrome, card and carmen-device-action for the read and navigate tests: each call is
+ * A fake Chrome, card and carmen-device-action for the read, navigate, click and type tests: each call is
  * recorded, and each answer can be replaced per test.
  */
 import { vi } from "vitest";
+import type { CardWords } from "./cardWords.ts";
 import type { CompleteBody } from "./completion.ts";
 import type { ClaimAnswer, ReadActionDeps } from "./readActions.ts";
 import type { GrantAnswer, TabFacts } from "./readFlow.ts";
@@ -15,6 +16,8 @@ export type FakeCard = {
   shown: Array<{ host: string; pattern: string }>;
   /** The navigation cards shown, in order. */
   navigations: Array<{ fromHost: string; host: string; href: string }>;
+  /** The click and typing cards shown, in order. */
+  acts: Array<CardWords>;
   answer: (answer: GrantAnswer) => void;
 };
 
@@ -56,6 +59,7 @@ export function fakeDevice(
   const card: FakeCard = {
     shown: [],
     navigations: [],
+    acts: [],
     answer: (answer) => answerCard?.(answer),
   };
 
@@ -115,6 +119,18 @@ export function fakeDevice(
       elements: [{ role: "button", name: "Buy" }],
     })),
     newSnapshotId: () => "snapshot-1",
+    askAct: vi.fn(
+      (words: CardWords, signal: AbortSignal) =>
+        new Promise<GrantAnswer>((resolve) => {
+          card.acts.push(words);
+          answerCard = resolve;
+          signal.addEventListener("abort", () => resolve("stopped"));
+        }),
+    ),
+    inspectTarget: vi.fn(async () => ({ documentId: "doc-1", answer: null })),
+    actOnTarget: vi.fn(async () => null),
+    settleTab: vi.fn(async () => {}),
+    holdsSnapshot: vi.fn(async () => true),
     setTimer: (run: () => void) => {
       expiry = run;
       return () => {

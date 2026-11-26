@@ -58,7 +58,8 @@ export async function openDeviceTurn(
   await closeUnfinishedSteps(turn);
   return deviceTurn(
     turn,
-    offeredDeviceTools(verdict, request.announced, 0),
+    // A typed message starts a run, which holds no read whose elements could be named.
+    offeredDeviceTools(verdict, request.announced, 0, false),
     null,
   );
 }

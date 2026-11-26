@@ -18,6 +18,7 @@ import { decideReadStep } from "./readStep.ts";
 export async function readSameSite(
   tabId: number,
   origin: string,
+  snapshotId: string,
   deps: ReadDeps,
 ): Promise<{
   location: PageLocation;
@@ -36,7 +37,7 @@ export async function readSameSite(
   ) {
     return null;
   }
-  const raw = await deps.readPage(tabId);
+  const raw = await deps.readPage(tabId, snapshotId);
   const afterTab = await deps.tab(tabId);
   const after = decideReadStep(afterTab?.url, deps.origins);
   if (!afterTab || after.kind !== "read" || after.location.origin !== origin) {

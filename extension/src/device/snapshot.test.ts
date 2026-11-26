@@ -8,6 +8,7 @@ import {
   cutAtCodePoint,
   oneLineUpTo,
   pageSnapshot,
+  refIndex,
   textUpTo,
 } from "./snapshot.ts";
 
@@ -107,5 +108,43 @@ describe("pageSnapshot", () => {
     expect(snapshot.elements[149].ref).toBe("e150");
     expect(snapshot.elements[0].name).toBe("n".repeat(199));
     expect(toolResult("browser_read_page", snapshot, "")).not.toBeNull();
+  });
+});
+
+describe("refIndex", () => {
+  it("reads back the position of every ref a snapshot writes", () => {
+    const snapshot = pageSnapshot({
+      location: { origin: "https://shop.example", path: "/" },
+      tabTitle: "Shop",
+      page: {
+        origin: "https://shop.example",
+        text: "",
+        elements: Array(READ_PAGE_ELEMENTS_MAX).fill({
+          role: "link",
+          name: "x",
+        }),
+      },
+      snapshotId: "s1",
+    });
+
+    snapshot.elements.forEach((element, index) => {
+      expect(refIndex(element.ref)).toBe(index);
+    });
+  });
+
+  it("refuses anything else", () => {
+    for (const ref of [
+      "e0",
+      "e01",
+      "E1",
+      "e",
+      "1",
+      "e1 ",
+      "e-1",
+      "e99999",
+      "x",
+    ]) {
+      expect(refIndex(ref)).toBeNull();
+    }
   });
 });

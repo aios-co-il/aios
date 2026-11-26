@@ -30,13 +30,21 @@ export type PageSnapshot = PageLocation & {
   text: string;
 };
 
+/**
+ * Where the tab is after a click or a typing step, Chrome's title, and whether the page
+ * changed under the step (another address, or the read's document replaced): then the
+ * read's refs no longer name anything, and the run reads the page again before it acts.
+ * Never page text.
+ */
+export type ActedPage = PageLocation & { title: string; changed: boolean };
+
 /** The result of each tool in `DEVICE_TOOLS`, by tool name. */
 export type DeviceToolResult = ResultOfEveryTool<{
   browser_read_page: PageSnapshot;
   browser_navigate: PageLocation & { title: string };
-  browser_click: PageLocation;
-  /** Where the text went; never the text. */
-  browser_type: PageLocation;
+  browser_click: ActedPage;
+  /** Where the tab is after typing; never the text, and never what the field held. */
+  browser_type: ActedPage;
   /**
    * The picture's path in the user's private folder; the server describes it and deletes
    * the file. Provisional: the screenshot PR of AIO-656 settles this field.

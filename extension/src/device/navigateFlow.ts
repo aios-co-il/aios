@@ -153,7 +153,7 @@ async function landedOutcome(
  * a title): that address holds the query and fragment, which the result leaves out because
  * they may carry tokens.
  */
-function pageTitle(tab: TabFacts): string {
+export function pageTitle(tab: TabFacts): string {
   const address = tab.url ?? "";
   const shown = address.replace(/^https?:\/\//, "");
 

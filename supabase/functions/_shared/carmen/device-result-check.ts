@@ -14,6 +14,7 @@
  */
 import { type DeviceToolName, isDeviceToolName } from "./device/contract.ts";
 import {
+  type ActedPage,
   type DeviceToolResult,
   PAGE_ELEMENT_FIELD_MAX,
   type PageElement,
@@ -32,6 +33,12 @@ type Checks<Shape> = { [Field in keyof Shape]-?: Check };
 export type AnyToolResult = DeviceToolResult[DeviceToolName];
 
 const LOCATION: Checks<PageLocation> = { origin: isWebOrigin, path: isPath };
+
+const ACTED: Checks<ActedPage> = {
+  ...LOCATION,
+  title: textUpTo(RESULT_FIELD_MAX),
+  changed: (value) => typeof value === "boolean",
+};
 
 const ELEMENT: Checks<PageElement> = {
   ref: textUpTo(PAGE_ELEMENT_FIELD_MAX),
@@ -80,8 +87,8 @@ function resultChecks(userId: string): {
       text: textUpTo(READ_PAGE_TEXT_MAX),
     },
     browser_navigate: { ...LOCATION, title: textUpTo(RESULT_FIELD_MAX) },
-    browser_click: LOCATION,
-    browser_type: LOCATION,
+    browser_click: ACTED,
+    browser_type: ACTED,
     browser_screenshot: { ...LOCATION, storage_path: ownFilePath(userId) },
   };
 }

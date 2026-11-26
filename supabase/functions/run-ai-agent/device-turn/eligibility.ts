@@ -25,12 +25,20 @@ import type { Surface } from "../surface.ts";
 
 /**
  * The device tools the server offers, beside a readable tab and only those the panel
- * announced. Click, type and the screenshot join with the extension pull requests that
- * draw their cards (AIO-656).
+ * announced. The screenshot joins with the extension pull request that draws its card
+ * (AIO-656).
  */
 export const OFFERED_DEVICE_TOOLS: ReadonlyArray<DeviceToolName> = [
   "browser_read_page",
   "browser_navigate",
+  "browser_click",
+  "browser_type",
+];
+
+/** The tools that name an element of the run's latest read: offered only while one may be named (`actTarget`). */
+const ELEMENT_TOOLS: ReadonlyArray<DeviceToolName> = [
+  "browser_click",
+  "browser_type",
 ];
 
 /** What decides whether a turn may hold a device step, as handleRunAgent knows it. */
@@ -114,11 +122,16 @@ function readableTab(facts: DeviceTurnFacts): string | null {
   }
 }
 
-/** The tools to offer: beside a readable tab, those the panel announced and the server offers, while steps remain. */
+/**
+ * The tools to offer: beside a readable tab, those the panel announced and the server
+ * offers, while steps remain. A click or type only when `elementsNamable`: the run holds a
+ * read of the tab's page that nothing changed since and no other site's page beside it.
+ */
 export function offeredDeviceTools(
   verdict: DeviceTurnVerdict,
   announced: ReadonlyArray<DeviceToolName>,
   stepsUsed: number,
+  elementsNamable: boolean,
 ): Array<DeviceToolName> {
   if (
     verdict.refusal !== null ||
@@ -127,7 +140,11 @@ export function offeredDeviceTools(
   ) {
     return [];
   }
-  return OFFERED_DEVICE_TOOLS.filter((tool) => announced.includes(tool));
+  return OFFERED_DEVICE_TOOLS.filter(
+    (tool) =>
+      announced.includes(tool) &&
+      (elementsNamable || !ELEMENT_TOOLS.includes(tool)),
+  );
 }
 
 /** Who sent the turn: only a signed-in user's own Command Center message on Carmen. */

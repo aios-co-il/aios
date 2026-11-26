@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { navigateCardWords } from "./cardWords.ts";
+import { navigateCardWords, typeCardWords } from "./cardWords.ts";
 import {
   askGrantOnCard,
   askOnCard,
@@ -15,12 +15,13 @@ let elements: GrantCardElements;
 beforeEach(() => {
   vi.useFakeTimers();
   document.body.innerHTML = `
-    <div id="card" class="hidden"><div id="title"></div><p id="address"></p><p id="text"></p>
+    <div id="card" class="hidden"><div id="title"></div><p id="address"></p><p id="quote"></p><p id="text"></p>
       <button id="allow">allow</button><button id="decline">decline</button></div>`;
   elements = {
     card: byId("card", HTMLElement),
     title: byId("title", HTMLElement),
     address: byId("address", HTMLElement),
+    quote: byId("quote", HTMLElement),
     text: byId("text", HTMLElement),
     allow: byId("allow", HTMLButtonElement),
     decline: byId("decline", HTMLButtonElement),
@@ -144,6 +145,36 @@ describe("askOnCard for a navigation", () => {
     void askGrantOnCard(elements, SITE, new AbortController().signal, vi.fn());
 
     expect(elements.address.classList.contains("hidden")).toBe(true);
+  });
+
+  it("shows every character to be typed on its own lines, and hides them on the next card", () => {
+    const typing = new AbortController();
+    const text = "line one\nשורה שתיים";
+    void askOnCard(
+      elements,
+      typeCardWords({
+        host: "shop.example",
+        role: "textbox",
+        name: "Name",
+        text,
+      }),
+      typing.signal,
+      vi.fn(),
+    );
+
+    expect(elements.quote.textContent).toBe(text);
+    expect(elements.quote.classList.contains("hidden")).toBe(false);
+
+    typing.abort("cancelled");
+    void askOnCard(
+      elements,
+      navigateCardWords(STEP),
+      new AbortController().signal,
+      vi.fn(),
+    );
+
+    expect(elements.quote.textContent).toBe("");
+    expect(elements.quote.classList.contains("hidden")).toBe(true);
   });
 
   it("answers declined, and never runs the allow action, when the user says no", async () => {

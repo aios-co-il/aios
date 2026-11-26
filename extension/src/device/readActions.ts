@@ -1,5 +1,5 @@
 /**
- * The panel's device actions (a read or a navigation): one open action at a time, claimed from carmen-device-action
+ * The panel's device actions (a read, a navigation, a click or a type): one open action at a time, claimed from carmen-device-action
  * with the user's own session before anything else (plan rule 3), completed once, and
  * announced to the site with a result message that carries the id only. A cancel for the
  * open action, the card's life running out and the panel closing each stop it.
@@ -13,6 +13,7 @@ import {
   completeBody,
   type ReadOutcome,
 } from "./completion.ts";
+import { type ActDeps, actOutcome } from "./actFlow.ts";
 import { type NavigateDeps, navigateOutcome } from "./navigateFlow.ts";
 import {
   type ReadDeps,
@@ -31,7 +32,8 @@ export type ClaimAnswer =
   | { ok: false; reason: string };
 
 export type ReadActionDeps = ReadDeps &
-  NavigateDeps & {
+  NavigateDeps &
+  ActDeps & {
     claim: (id: string) => Promise<ClaimAnswer>;
     /** Sends `complete`; rejects on a refusal or a failure that outlived its one retry, which is logged. */
     complete: (body: CompleteBody) => Promise<void>;
@@ -113,14 +115,18 @@ export function createReadActions(deps: ReadActionDeps): ReadActions {
     }
   }
 
-  /** The claimed tool's flow: a navigation, or a read (which refuses every other tool). */
+  /** The claimed tool's flow: a navigation, a click or a type, or a read (which refuses every other tool). */
   function stepOutcome(
     claim: { tool: DeviceToolName; arguments?: unknown },
     action: OpenAction,
   ): Promise<ReadOutcome> {
-    return claim.tool === "browser_navigate"
-      ? navigateOutcome(claim.arguments, action, deps)
-      : readOutcome(claim.tool, action, deps);
+    if (claim.tool === "browser_navigate") {
+      return navigateOutcome(claim.arguments, action, deps);
+    }
+    if (claim.tool === "browser_click" || claim.tool === "browser_type") {
+      return actOutcome(claim.tool, claim.arguments, action, deps);
+    }
+    return readOutcome(claim.tool, action, deps);
   }
 
   /** Completes the row, then tells the site whatever the completion's fate, so the run never hangs on the panel. */

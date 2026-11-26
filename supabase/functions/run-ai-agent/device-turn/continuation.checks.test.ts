@@ -148,7 +148,7 @@ Deno.test(
             result: null,
             tainted: false,
           },
-          stepsUsed: 1,
+          steps: [step],
         });
         assertStrictEquals(errors.length, 1);
         assertStrictEquals(step.status, "refused");

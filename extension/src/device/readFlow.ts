@@ -44,8 +44,8 @@ export type ReadDeps = {
     site: { host: string; pattern: string },
     signal: AbortSignal,
   ) => Promise<GrantAnswer>;
-  /** Runs the page collector in the tab and returns its raw answer. */
-  readPage: (tabId: number) => Promise<unknown>;
+  /** Runs the page collector in the tab, which keeps the snapshot as `snapshotId`, and returns its raw answer. */
+  readPage: (tabId: number, snapshotId: string) => Promise<unknown>;
   newSnapshotId: () => string;
 };
 
@@ -114,7 +114,13 @@ async function readUnlessStopped(
     }
   }
 
-  const read = await readSameSite(tab.id, step.location.origin, deps);
+  const snapshotId = deps.newSnapshotId();
+  const read = await readSameSite(
+    tab.id,
+    step.location.origin,
+    snapshotId,
+    deps,
+  );
   if (!read) {
     return {
       status: "target_changed",
@@ -125,7 +131,7 @@ async function readUnlessStopped(
   return {
     status: "done",
     asked,
-    result: pageSnapshot({ ...read, snapshotId: deps.newSnapshotId() }),
+    result: pageSnapshot({ ...read, snapshotId }),
   };
 }
 

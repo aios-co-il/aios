@@ -1,6 +1,6 @@
 /**
  * The card the panel draws itself (plan rule 6): before Carmen reads a site for the first
- * time in this panel, and before every navigation. It names the site from the tab's real
+ * time in this panel, and before every navigation, click and typing step. It names the site from the tab's real
  * address or the claimed row, never from the framed site. The read card's allow button
  * asks Chrome for that one site from the tap, the user gesture Chrome requires. The
  * buttons wake after a short delay, so a tap meant for the chat below does not land on it.
@@ -14,8 +14,10 @@ const BUTTON_DELAY_MS = 500;
 export type GrantCardElements = {
   card: HTMLElement;
   title: HTMLElement;
-  /** The address a navigation card is about; hidden on a read card. */
+  /** The address a navigation or click card is about; hidden when the card has none. */
   address: HTMLElement;
+  /** The text a typing card would type; hidden on every other card. */
+  quote: HTMLElement;
   text: HTMLElement;
   allow: HTMLButtonElement;
   decline: HTMLButtonElement;
@@ -104,6 +106,8 @@ export function askOnCard(
     elements.title.textContent = words.title;
     elements.address.textContent = words.address ?? "";
     elements.address.classList.toggle("hidden", words.address === null);
+    elements.quote.textContent = words.quote ?? "";
+    elements.quote.classList.toggle("hidden", words.quote === null);
     elements.text.textContent = words.text;
     elements.allow.textContent = words.allow;
     setEnabled(false);

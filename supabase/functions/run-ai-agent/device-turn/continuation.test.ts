@@ -56,12 +56,15 @@ Deno.test("a continuation resumes the run from the stored row", async (t) => {
   );
 
   await t.step(
-    "the page text is cleared and the step is used once",
+    "the page text is cleared, the snapshot id and refs kept, and the step is used once",
     async () => {
       const step = doneRow();
       await continueOver([step]);
 
-      assertStrictEquals(step.result, null);
+      assertEquals(step.result, {
+        snapshot_id: SNAPSHOT.snapshot_id,
+        refs: SNAPSHOT.elements.map((element) => element.ref),
+      });
       assertEquals(step.consumed_at, NOW.toISOString());
       assertStrictEquals(step.status, "done");
     },

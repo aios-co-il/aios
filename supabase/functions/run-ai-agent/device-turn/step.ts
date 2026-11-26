@@ -1,7 +1,8 @@
 /**
- * The model called a device tool (AIO-686). The server checks the call and the page (and a
- * navigation's destination), writes one pending `carmen_device_actions` row and ends the
- * turn; the panel claims the row by its id. A call that fails a check writes no row and goes back to the model as a tool error,
+ * The model called a device tool (AIO-686). The server checks the call and the page (a
+ * navigation's destination, a click's or type's element in the run's latest read), writes
+ * one pending `carmen_device_actions` row and ends the turn; the panel claims the row by
+ * its id. A call that fails a check writes no row and goes back to the model as a tool error,
  * so the turn goes on without a step.
  */
 import {
@@ -17,6 +18,7 @@ import {
 } from "../../_shared/carmen/device/contract.ts";
 import { navigateDestination } from "../../_shared/carmen/device/navigate-destination.ts";
 import type { EnvironmentOrigins } from "../../_shared/carmen/device/never-controllable.ts";
+import { ACT_REFUSAL_MESSAGE, actArgumentsRefusal } from "./act-target.ts";
 import {
   type DeviceDb,
   insertStep,
@@ -60,6 +62,10 @@ export async function startDeviceStep(
       "step_limit",
       "הגעתי למספר הפעולות בדפדפן להודעה אחת.",
     );
+  }
+  const actRefusal = actArgumentsRefusal(toolName, stored, steps, turn.tabUrl);
+  if (actRefusal) {
+    return refusal(toolName, actRefusal, ACT_REFUSAL_MESSAGE[actRefusal]);
   }
   const tainted = tabTainted(turn, steps);
   // A navigation is ruled on twice: the tab it leaves and the destination it opens.

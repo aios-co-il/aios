@@ -42,6 +42,7 @@ function offered(overrides: Partial<DeviceTurnFacts> = {}) {
     deviceTurnVerdict(facts(overrides)),
     ["browser_read_page"],
     0,
+    false,
   );
 }
 
@@ -132,7 +133,7 @@ Deno.test(
         const announced = ["browser_read_page", "browser_navigate"] as const;
 
         assertEquals(
-          offeredDeviceTools(deviceTurnVerdict(facts()), announced, 0),
+          offeredDeviceTools(deviceTurnVerdict(facts()), announced, 0, false),
           ["browser_read_page", "browser_navigate"],
         );
         assertEquals(
@@ -140,6 +141,7 @@ Deno.test(
             deviceTurnVerdict(facts({ authKind: "service" })),
             announced,
             0,
+            false,
           ),
           [],
         );
@@ -148,10 +150,18 @@ Deno.test(
 
     await t.step("not when the panel did not announce the read", () => {
       assertEquals(
-        offeredDeviceTools(deviceTurnVerdict(facts()), ["browser_click"], 0),
+        offeredDeviceTools(
+          deviceTurnVerdict(facts()),
+          ["browser_click"],
+          0,
+          false,
+        ),
         [],
       );
-      assertEquals(offeredDeviceTools(deviceTurnVerdict(facts()), [], 0), []);
+      assertEquals(
+        offeredDeviceTools(deviceTurnVerdict(facts()), [], 0, true),
+        [],
+      );
     });
 
     await t.step("not once the message used its steps", () => {
@@ -162,6 +172,7 @@ Deno.test(
           verdict,
           ["browser_read_page"],
           DEVICE_STEPS_PER_MESSAGE - 1,
+          false,
         ),
         ["browser_read_page"],
       );
@@ -170,6 +181,7 @@ Deno.test(
           verdict,
           ["browser_read_page"],
           DEVICE_STEPS_PER_MESSAGE,
+          false,
         ),
         [],
       );
@@ -190,7 +202,10 @@ Deno.test(
           conversationId: CONVERSATION,
           tabUrl: null,
         });
-        assertEquals(offeredDeviceTools(verdict, ["browser_read_page"], 0), []);
+        assertEquals(
+          offeredDeviceTools(verdict, ["browser_read_page"], 0, false),
+          [],
+        );
         assertStrictEquals(errors.length, 1);
       },
     );
