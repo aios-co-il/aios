@@ -128,10 +128,17 @@ Deno.test("runTenantDenied: ids that are not uuid strings", async (t) => {
   await t.step(
     "refuses another tenant's id wrapped in an array, before any read",
     async () => {
-      assertEquals(await refusalAndReads({ tenant_id: [TENANT_B] }), {
-        denied: MALFORMED_IDS,
-        reads: [],
-      });
+      for (const body of [
+        { tenant_id: [TENANT_B] },
+        // A well-formed agent must not be looked up before the refusal either.
+        { tenant_id: [TENANT_B], agent_id: AGENT_B },
+      ]) {
+        assertEquals(
+          await refusalAndReads(body),
+          { denied: MALFORMED_IDS, reads: [] },
+          JSON.stringify(body),
+        );
+      }
     },
   );
 
@@ -170,6 +177,7 @@ Deno.test("runTenantDenied: ids that are not uuid strings", async (t) => {
 
   for (const [shape, tenantId] of Object.entries({
     "an object": { id: TENANT_B },
+    "an object with a toString that is no function": { toString: "x" },
     "a number": 7,
     zero: 0,
     padded: ` ${TENANT_A} `,
