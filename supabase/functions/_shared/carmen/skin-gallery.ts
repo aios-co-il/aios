@@ -123,6 +123,16 @@ export const DEFAULT_APP_ORIGIN = "https://aios.co.il";
 const APP_HOST =
   /^(?:aios\.co\.il|[a-z0-9-]+(?:\.[a-z0-9-]+)*\.aios\.co\.il|[a-z0-9-]+\.vercel\.app)$/i;
 
+/**
+ * Whether a host could be serving the AIOS web app. Broad on purpose (any aios.co.il
+ * subdomain, any Vercel preview): it answers "may this be the app", for portrait links and
+ * for the pages Carmen must never control. Where sign-in may return is the narrow list in
+ * google-oauth/app-origin.ts; the two are not interchangeable.
+ */
+export function isAppHost(hostname: string): boolean {
+  return APP_HOST.test(hostname);
+}
+
 const originOf = (value: string | null | undefined): URL | null => {
   try {
     return value ? new URL(value) : null;
@@ -142,7 +152,7 @@ export function appOrigin(
   const request = originOf(requestOrigin);
   if (
     request &&
-    ((request.protocol === "https:" && APP_HOST.test(request.hostname)) ||
+    ((request.protocol === "https:" && isAppHost(request.hostname)) ||
       (request.protocol === "http:" &&
         /^(localhost|127\.0\.0\.1)$/.test(request.hostname)))
   ) {
