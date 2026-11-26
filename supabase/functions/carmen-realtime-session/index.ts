@@ -7,12 +7,13 @@
 // the caller's active tenant. Her persona, tone and mood come from the same agent settings
 // as the text chat.
 // Response (OpenAI, the default for clients that send no provider): { client_secret, model }.
-// Response (ElevenLabs, the Android app, AIO-505): ElevenLabsSession, or { voices } with
-// list_voices for the app's voice picker.
+// Response (ElevenLabs, AIO-505): ElevenLabsSession.
+// Response (list_voices, for a voice picker): { voices } from voice-list.ts, and no session.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { getCaller, getUserOpenAIKey } from "../_shared/userKey.ts";
 import { orgVoiceKeyAllowed } from "../_shared/carmen/voice-access.ts";
 import { chooseRealtimeVoice } from "./voice-choice.ts";
+import { voiceListReply } from "./voice-list.ts";
 import { elevenLabsReply } from "./elevenlabs-reply.ts";
 import { SAVE_PRONUNCIATION_TOOL } from "./pronunciations.ts";
 import {
@@ -108,13 +109,18 @@ Deno.serve(async (req) => {
     const { voice, tenant_id, provider, list_voices } = await req
       .json()
       .catch(() => ({}) as Record<string, unknown>);
+
+    // The voice list is the same for every caller: no tenant, key or provider access.
+    if (list_voices === true) {
+      return json(200, voiceListReply(provider));
+    }
+
     const isOwner = orgVoiceKeyAllowed(caller.email, Deno.env.get("APP_ENV"));
 
     if (provider === "elevenlabs") {
       const reply = await elevenLabsReply(caller.id, isOwner, {
         voice,
         tenant_id,
-        list_voices,
       });
       return json(reply.status, reply.body);
     }
