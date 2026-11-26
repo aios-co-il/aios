@@ -131,7 +131,7 @@ function browserTabBlock(tab: BrowserTab): string {
 }
 
 /** Control characters and runs of white space become one space. */
-function oneLine(text: string): string {
+export function oneLine(text: string): string {
   return text.replace(/[\s\p{Cc}]+/gu, " ").trim();
 }
 
@@ -139,7 +139,7 @@ function oneLine(text: string): string {
  * Removes Unicode format characters: direction overrides and isolates reorder the text a
  * person reads, and zero-width ones hide in it.
  */
-function withoutFormatCharacters(text: string): string {
+export function withoutFormatCharacters(text: string): string {
   return text.replace(/\p{Cf}+/gu, "");
 }
 

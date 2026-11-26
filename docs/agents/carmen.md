@@ -112,6 +112,17 @@ We use the org's own connected models. Standardized helper: `supabase/functions/
 - **Not covered yet:** a question asked by voice (the realtime `ask_carmen` tool) carries no browser tab (AIO-656).
 - **The panel's channel:** the side panel and the framed Command Center talk through the versioned `carmen:` messages in `_shared/carmen/device/panel-envelope.ts`; a new device ability adds a message kind there. Each side accepts only the other's exact origin: the extension ids come from `extension/build/extensionKey.ts`, and `pnpm test:guards` fails when `vercel.json`'s `frame-ancestors` disagrees with them.
 
+## Pictures attached in the chat (`attachments`, AIO-675)
+
+- **Where:** the Command Center chat's stream to `run-ai-agent` (`CarmenChatBar` → `splitTurnAttachments` in `src/lib/commandCenterAttachments.ts`); the Chrome side panel frames that chat. Every other surface sends text only: WhatsApp, the Android app, voice, the in-app dialog and brains dispatched by `agent-channel-send` (which still get `attachmentBlock`'s text).
+- **The request:** `attachments` lists pictures by storage path (`TurnPictureAttachment` in `run-ai-agent/attachments/contract.ts`, which also holds the per-message limits); the typed text travels without a link. A PDF or any other file stays a line of text with its link.
+- **What the server accepts** (`attachments/picture-request.ts`): a signed-in user's own request, a path of the form `<caller user id>/<file>` in `COMMAND_CENTER_FILES_BUCKET`, and nothing that carries an address. A service caller sends no pictures.
+- **What the brain gets** (`attachments/picture-store.ts`, `picture-turn.ts`): the bytes are read with the service client, the type is decided from the bytes (`_shared/image-data-url.ts`) and each picture goes inline as an `image_url` part with a block that labels it the user's content, not instructions. No link is signed and nothing outside our storage is fetched.
+- **Which brains see** (`attachments/vision.ts`): Carmen's own engine on a model whose `MODEL_CATALOG` entry lists `vision`, decided for each model call. Any other link (a connected or model brain, Manus, a model without `vision`, a link the turn failed over to) gets no image part and a fixed line telling Carmen to say that this brain cannot read pictures and where they are read. A turn with pictures skips the fast lane.
+- **Refusals:** each refused picture is logged (`[AGENT] attached picture refused`) and named with its reason in the user's turn, so Carmen tells the user.
+- **History:** `ai_conversations` keeps `[תמונה: <name>]` after the message, never bytes or a link, and a picture is sent with its own turn only: a later question about it needs the picture attached again.
+- **Adding a surface or a brain:** send the same `attachments` field; widen `targetCanSee` only after that endpoint is checked with a real picture.
+
 ## Client card writes (`client_updates`)
 
 - Every server-side write goes through `recordClientCardEntry` (`supabase/functions/_shared/client-card/entry.ts`), which calls the service-role RPC `record_client_card_entry`: it checks the tenant with `tenant_can_write_client` (the tenant's own client, or one of an agency shared with it `read_write`), dedupes on `source_ref` and attributes the row to a person. Browser writes follow the RLS in `20261030092000_client_card_provenance.sql`.

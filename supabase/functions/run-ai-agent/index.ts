@@ -1828,6 +1828,18 @@ import {
 } from "./fast-lane/answer.ts";
 import { loadOrgBrief } from "../_shared/carmen/org-brief/brief.ts";
 import { type FastLaneCaller, fastLaneBriefScope } from "./fast-lane/scope.ts";
+import { readPictureRequest } from "./attachments/picture-request.ts";
+import {
+  commandCenterPictureStore,
+  loadTurnPictures,
+} from "./attachments/picture-store.ts";
+import {
+  historyTextWithPictures,
+  textOnlyTurn,
+  withTurnPictures,
+} from "./attachments/picture-turn.ts";
+import { asksForPictures } from "./attachments/turn-pictures.ts";
+import { targetCanSee } from "./attachments/vision.ts";
 
 // Emit function used by the streaming wrapper to push SSE events to the client.
 // In non-streaming mode it's a no-op.
@@ -2152,6 +2164,13 @@ async function handleRunAgent(
       }
     }
 
+    // Pictures attached in the site chat (attachments/, AIO-675): storage paths in the
+    // signed-in caller's own folder only. Read later, once the brains of the turn are known.
+    const pictureRequest = readPictureRequest(bodyJson.attachments, {
+      authKind: request.authKind,
+      userId: callerUserId,
+    });
+
     // A quick model answers small talk and what the org brief already covers before the full
     // setup (memory, skills, tools) runs; anything else falls through unchanged (fast-lane/).
     const fastLaneChannel: FastLaneChannel | null =
@@ -2179,6 +2198,8 @@ async function handleRunAgent(
           bodyJson.carmen_automation ||
           findingDraftReply.shortCode ||
           findingDraftReply.approveCode ||
+          // The fast lane's models are not chosen for sight: pictures go to the full brain.
+          asksForPictures(pictureRequest) ||
           (Array.isArray(task_skills) && task_skills.length > 0),
         ),
       })
@@ -4030,6 +4051,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     // the page wrote its title and address, so they never reach the system prompt.
     const userTurn = withBrowserTab(command_text, bodyJson.context_metadata);
     messages.push({ role: "user", content: userTurn });
+    // Where each model call puts this turn's pictures, or the line saying they were not read.
+    const pictureTurnAt = { at: messages.length - 1, text: userTurn };
 
     let finalOutput = "";
     const toolLog: Array<any> = [];
@@ -4047,6 +4070,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         tenantId: agent.tenant_id,
         prompt: userTurn,
       };
+      // Manus takes text only: attached pictures become the line saying they were not read.
+      manusBody.prompt = textOnlyTurn(userTurn, pictureRequest);
       const manusRes = await fetch(`${SUPABASE_URL}/functions/v1/manus-api`, {
         method: "POST",
         headers: {
@@ -4113,6 +4138,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     if (llmChain.length === 0) {
       throw new Error("לא מוגדר אף מפתח מודל AI פעיל באינטגרציית מודלי AI");
     }
+    // The pictures' bytes, read from our own storage only when a brain of this turn can see.
+    const turnPictures = await loadTurnPictures(
+      commandCenterPictureStore(supabase),
+      pictureRequest,
+      { wanted: llmChain.some(targetCanSee), userId: callerUserId },
+    );
     let activeIdx = 0;
     let llm = llmChain[activeIdx];
     console.log(
@@ -4172,7 +4203,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         const cappedTools = capToolsForTarget(llm, toolsForAPI);
         const payload: any = {
           model: llm.model,
-          messages: messagesForProvider(messages, llm.provider),
+          // Per call: a link that cannot see (the first, or one failed over to) gets no
+          // image part, only the line saying so.
+          messages: messagesForProvider(
+            withTurnPictures(messages, pictureTurnAt, turnPictures, llm),
+            llm.provider,
+          ),
         };
         const temp = safeTemp ?? llm.temperature;
         if (temp !== undefined) {
@@ -4619,7 +4655,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         userId: callerUserId,
         conversationId: serverConversationId,
         history: serverConversationHistory,
-        message: String(command_text),
+        // A picture is kept as a short marker: never its bytes or a link to it.
+        message: historyTextWithPictures(String(command_text), turnPictures),
         answer: String(finalOutput || ""),
       });
     }

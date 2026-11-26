@@ -126,10 +126,11 @@ import { systemFixPromptAddon } from "@/lib/systemFixContext";
 import {
   COMMAND_CENTER_FILE_ACCEPT,
   COMMAND_CENTER_MAX_FILES,
-  formatAttachmentsForPrompt,
+  splitTurnAttachments,
   uploadCommandCenterAttachments,
   type CommandCenterAttachment,
 } from "@/lib/commandCenterAttachments";
+import type { TurnPictureAttachment } from "../../../supabase/functions/run-ai-agent/attachments/contract.ts";
 
 interface ChatMessage {
   id?: string;
@@ -512,6 +513,8 @@ export const CarmenChatBar = forwardRef<
       ctxMeta: ScreenContextMetadata | null,
       // A model brain or "נתב חכם" that runs Carmen's loop (server re-checks it).
       runBrain?: string,
+      // The pictures attached to this message, by storage path (AIO-675).
+      pictures: Array<TurnPictureAttachment> = [],
     ) => {
       // The reply belongs to the brain that started it, even if the picker changes.
       const persistSlug = runBrain ?? brain.selected?.slug;
@@ -545,6 +548,7 @@ export const CarmenChatBar = forwardRef<
           },
           body: JSON.stringify({
             command_text: trimmed,
+            attachments: pictures.length ? pictures : undefined,
             tenant_id: tenantId,
             surface: "internal_chat",
             stream: true,
@@ -776,9 +780,12 @@ export const CarmenChatBar = forwardRef<
       const sendRoute = brain.selected;
       const displayText =
         trimmed || (pendingAttachments.length ? "📎 קבצים מצורפים" : "");
-      const agentText = pendingAttachments.length
-        ? formatAttachmentsForPrompt(pendingAttachments, trimmed)
-        : trimmed;
+      // Carmen's own loop reads pictures from storage by path; other files stay links in text.
+      const { commandText: agentText, pictures } = splitTurnAttachments(
+        pendingAttachments,
+        trimmed,
+        displayText,
+      );
       setMessages((prev) => [
         ...prev,
         {
@@ -832,6 +839,7 @@ export const CarmenChatBar = forwardRef<
             boundId || "",
             ctxMeta,
             routed.run_brain,
+            pictures,
           );
           if (mode === "transcribe_only") {
             logTranscribeOnlyEvent("text_response", { stream: true });
