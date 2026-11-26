@@ -19,8 +19,7 @@ type Db = Pick<DbClient, "from">;
  * WhatsApp line (AIO-654).
  */
 export type PersonaSource =
-  | { kind: "user"; userId: string }
-  | { kind: "organization" };
+  { kind: "user"; userId: string } | { kind: "organization" };
 
 /**
  * The service-only run-ai-agent request field that says a turn arrived on the
