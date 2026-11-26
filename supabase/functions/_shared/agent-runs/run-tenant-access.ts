@@ -64,8 +64,8 @@ export async function runTenantDenied(
   return "Not a member of this organization";
 }
 
-/** The agent's tenant; "" when there is no such agent or it has none. */
-async function agentTenantOf(
+/** The agent's tenant; "" when there is no such agent or it has none. Throws when the read fails. */
+export async function agentTenantOf(
   sb: Pick<DbClient, "from">,
   agentId: string,
 ): Promise<string> {
