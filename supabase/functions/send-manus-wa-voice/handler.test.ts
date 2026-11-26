@@ -7,8 +7,9 @@ import {
 
 const SERVICE_KEY = "service-role-key";
 const TENANT = "11111111-1111-4111-8111-111111111111";
+const LINE_ID = "22222222-2222-4222-8222-222222222222";
 const LINE: VoiceLine = {
-  id: "line-1",
+  id: LINE_ID,
   tenantId: TENANT,
   apiKey: "manus-key",
   instanceId: "instance-1",
@@ -37,6 +38,7 @@ function voiceRequest(
   authorization: string | null,
   body: Record<string, unknown> = {
     tenant_id: TENANT,
+    integration_id: LINE_ID,
     to: "972501234567@c.us",
     text: "שלום",
   },
@@ -119,6 +121,7 @@ Deno.test("send-manus-wa-voice request", async (t) => {
     const res = await createVoiceNoteHandler(deps)(
       voiceRequest(`Bearer ${SERVICE_KEY}`, {
         tenant_id: TENANT,
+        integration_id: LINE_ID,
         to: "x",
         text: "**",
       }),
@@ -153,4 +156,69 @@ Deno.test("send-manus-wa-voice request", async (t) => {
     assertEquals(res.status, 500);
     assertEquals(await res.json(), { error: "Internal error" });
   });
+});
+
+Deno.test("send-manus-wa-voice receiving line (AIO-654)", async (t) => {
+  await t.step("the note leaves from the line the request names", async () => {
+    const reads: Array<[string, string]> = [];
+    const { deps, sent } = fakeDeps({
+      loadLine: (tenantId, integrationId) => {
+        reads.push([tenantId, integrationId]);
+        return Promise.resolve(LINE);
+      },
+    });
+
+    const res = await createVoiceNoteHandler(deps)(
+      voiceRequest(`Bearer ${SERVICE_KEY}`),
+    );
+
+    assertEquals(res.status, 200);
+    assertEquals(reads, [[TENANT, LINE_ID]]);
+    assertEquals(
+      sent.map((send) => send.line.id),
+      [LINE_ID],
+    );
+  });
+
+  await t.step(
+    "a line that cannot send sends nothing, from no other line",
+    async () => {
+      const { deps, sent } = fakeDeps({
+        loadLine: () => Promise.resolve(null),
+      });
+
+      const res = await createVoiceNoteHandler(deps)(
+        voiceRequest(`Bearer ${SERVICE_KEY}`),
+      );
+
+      assertEquals(res.status, 404);
+      assertEquals(await res.json(), { error: "Line not available" });
+      assertEquals(sent, []);
+    },
+  );
+
+  await t.step(
+    "a request without the line is refused before any read",
+    async () => {
+      let lineReads = 0;
+      const { deps, sent } = fakeDeps({
+        loadLine: () => {
+          lineReads++;
+          return Promise.resolve(LINE);
+        },
+      });
+
+      const res = await createVoiceNoteHandler(deps)(
+        voiceRequest(`Bearer ${SERVICE_KEY}`, {
+          tenant_id: TENANT,
+          to: "972501234567@c.us",
+          text: "שלום",
+        }),
+      );
+
+      assertEquals(res.status, 400);
+      assertEquals(lineReads, 0);
+      assertEquals(sent, []);
+    },
+  );
 });

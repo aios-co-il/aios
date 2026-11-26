@@ -3,7 +3,12 @@
  * that holds this project's service-role key may call it (AIO-246): the
  * function runs with `verify_jwt = false`, so the check lives here.
  *
- * POST body: { tenant_id: string, to: string, text: string, voice?: string }
+ * The note leaves only from the line that received the message, named by
+ * `integration_id` (AIO-654): with no such active Manus line of the tenant it
+ * is not sent, never from another line.
+ *
+ * POST body: { tenant_id: string, integration_id: string, to: string,
+ * text: string, voice?: string }
  */
 import { isServiceRoleRequest } from "../_shared/auth/edge-caller-auth.ts";
 
@@ -19,7 +24,11 @@ export type VoiceLine = {
 /** What the handler reads, speaks, stores and sends through; injected so tests use fakes. */
 export type VoiceNoteDeps = {
   serviceRoleKey: string;
-  loadLine: (tenantId: string) => Promise<VoiceLine | null>;
+  /** The tenant's active Manus line with this id, or null. */
+  loadLine: (
+    tenantId: string,
+    integrationId: string,
+  ) => Promise<VoiceLine | null>;
   speak: (text: string, voice: string) => Promise<Uint8Array | null>;
   /** Stores the audio and returns the URL the gateway fetches it from. */
   storeAudio: (tenantId: string, audio: Uint8Array) => Promise<string>;
@@ -29,6 +38,7 @@ export type VoiceNoteDeps = {
 
 type VoiceNoteRequest = {
   tenantId: string;
+  integrationId: string;
   to: string;
   text: string;
   voice: string;
@@ -54,7 +64,13 @@ export function createVoiceNoteHandler(
     try {
       const request = await readRequest(req);
       if (!request) {
-        return json({ error: "tenant_id, to and text are required" }, 400);
+        console.warn(
+          "[send-manus-wa-voice] no voice note: tenant_id, integration_id, to or text missing",
+        );
+        return json(
+          { error: "tenant_id, integration_id, to and text are required" },
+          400,
+        );
       }
 
       return await sendVoiceNote(deps, request);
@@ -71,11 +87,16 @@ async function readRequest(req: Request): Promise<VoiceNoteRequest | null> {
   if (typeof body !== "object" || body === null) {
     return null;
   }
-  const { tenant_id, to, text, voice } = body as Record<string, unknown>;
+  const { tenant_id, integration_id, to, text, voice } = body as Record<
+    string,
+    unknown
+  >;
   const clean = typeof text === "string" ? cleanForSpeech(text) : "";
   if (
     typeof tenant_id !== "string" ||
     !tenant_id ||
+    typeof integration_id !== "string" ||
+    !integration_id ||
     typeof to !== "string" ||
     !to ||
     !clean
@@ -85,6 +106,7 @@ async function readRequest(req: Request): Promise<VoiceNoteRequest | null> {
 
   return {
     tenantId: tenant_id,
+    integrationId: integration_id,
     to,
     text: clean,
     voice: typeof voice === "string" && voice ? voice : "shimmer",
@@ -96,12 +118,12 @@ async function sendVoiceNote(
   deps: VoiceNoteDeps,
   request: VoiceNoteRequest,
 ): Promise<Response> {
-  const line = await deps.loadLine(request.tenantId);
+  const line = await deps.loadLine(request.tenantId, request.integrationId);
   if (!line) {
-    return json(
-      { error: "Manus WhatsApp not configured for this tenant" },
-      400,
+    console.error(
+      `[send-manus-wa-voice] no voice note: line ${request.integrationId} is not an active Manus line of tenant ${request.tenantId} with a key and an instance`,
     );
+    return json({ error: "Line not available" }, 404);
   }
 
   const audio = await deps.speak(request.text, request.voice);

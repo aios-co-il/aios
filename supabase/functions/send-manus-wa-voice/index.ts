@@ -6,6 +6,7 @@
 import { aiSpeak } from "../_shared/ai.ts";
 import { type DbClient, serviceClient } from "../_shared/supabase-clients.ts";
 import { createVoiceNoteHandler, type VoiceLine } from "./handler.ts";
+import { loadVoiceLine } from "./line.ts";
 
 const DEFAULT_GATEWAY = "https://whatsappgw-pzpyrrww.manus.space";
 const BUCKET = "wa-voice";
@@ -15,59 +16,13 @@ const db = serviceClient();
 Deno.serve(
   createVoiceNoteHandler({
     serviceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    loadLine: (tenantId) => loadLine(db, tenantId),
+    loadLine: (tenantId, integrationId) =>
+      loadVoiceLine(db, tenantId, integrationId),
     speak: (text, voice) => aiSpeak(text, { voice, format: "opus" }),
     storeAudio: (tenantId, audio) => storeAudio(db, tenantId, audio),
     sendFile,
   }),
 );
-
-/** The tenant's oldest active Manus line, or null when none has a key and an instance. */
-async function loadLine(
-  sb: DbClient,
-  tenantId: string,
-): Promise<VoiceLine | null> {
-  const { data: integ, error } = await sb
-    .from("tenant_integrations")
-    .select("id, tenant_id, api_key, settings")
-    .eq("tenant_id", tenantId)
-    .eq("integration_type", "manus_wa")
-    .eq("is_active", true)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  if (error) {
-    throw new Error(`tenant_integrations read failed: ${error.message}`);
-  }
-  return gatewayLine(integ);
-}
-
-/** The line's gateway fields, or null when its key or instance is missing. */
-function gatewayLine(
-  integ: {
-    id: string;
-    tenant_id: string;
-    api_key: string | null;
-    settings: unknown;
-  } | null,
-): VoiceLine | null {
-  const settings =
-    typeof integ?.settings === "object" && integ.settings !== null
-      ? (integ.settings as Record<string, unknown>)
-      : {};
-  const instanceId = settings.instance_id;
-  if (!integ?.api_key || typeof instanceId !== "string" || !instanceId) {
-    return null;
-  }
-  return {
-    id: integ.id,
-    tenantId: integ.tenant_id,
-    apiKey: integ.api_key,
-    instanceId,
-    gatewayUrl:
-      typeof settings.gateway_url === "string" ? settings.gateway_url : null,
-  };
-}
 
 /** Uploads the ogg/opus audio and returns its public URL for the gateway. */
 async function storeAudio(
