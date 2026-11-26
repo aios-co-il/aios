@@ -164,6 +164,25 @@ test("when no model in the list is served the refusal says so and is marked befo
   expect(error.modelUnavailable).toBe(true);
 });
 
+test("a replacement model that costs more than the chosen one is never submitted", async () => {
+  const { openRouterProvider } = await import("../src/providers/openrouter.ts");
+  const sent: Array<string> = [];
+  const p = openRouterProvider({
+    apiKey: "sk-or",
+    // $0.03 a second; Grok Imagine costs $0.07.
+    model: "google/veo-3.1-lite",
+    fetchImpl: fakeFetch(async (_url, init) => {
+      sent.push(jsonBodyOf<{ model: string }>(init).model);
+      return json(404, { message: "No endpoints found for the model." });
+    }),
+  });
+  const error = await p
+    .submit({ prompt: "p", imageUrl: "https://x/a.png", durationS: 4 })
+    .catch((caught) => caught);
+  expect(sent).toStrictEqual(["google/veo-3.1-lite"]);
+  expect(error.modelUnavailable).toBe(true);
+});
+
 test("a refusal other than a missing model never tries another model", async () => {
   const { openRouterProvider } = await import("../src/providers/openrouter.ts");
   let calls = 0;

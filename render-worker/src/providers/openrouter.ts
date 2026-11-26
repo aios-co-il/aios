@@ -106,6 +106,13 @@ export function openRouterClipBody({
   };
 }
 
+/** A clip's planning price on `model`; a Kling clip is billed for 5 s at least (3 s cost $0.42). */
+function clipUsd(model: string, durationS: unknown) {
+  const seconds = openRouterClipSeconds(durationS, model);
+  const billed = family(model) === "kling" ? Math.max(5, seconds) : seconds;
+  return +(billed * videoUsdPerSecond(model)).toFixed(2);
+}
+
 /** Raised before OpenRouter accepted a job: nothing was charged, so the clip may fall back. */
 const beforeSubmit = (message: string, status?: number) =>
   Object.assign(new Error(message), { submitted: false, status });
@@ -166,22 +173,19 @@ export function openRouterProvider({
           usd: +(seconds * TALKING_USD_PER_SECOND()).toFixed(2),
         };
       }
-      // A Kling clip is billed for 5 s at least (a 3 s clip cost $0.42 on OpenRouter).
-      const seconds = openRouterClipSeconds(durationS, chosen);
-      const billed =
-        family(chosen) === "kling" ? Math.max(5, seconds) : seconds;
-      return {
-        credits: 0,
-        usd: +(billed * videoUsdPerSecond(chosen)).toFixed(2),
-      };
+      return { credits: 0, usd: clipUsd(chosen, durationS) };
     },
     async submit(input: MediaInput): Promise<SubmitResult> {
       const talking = input.talking === true;
       // A clip moves to the next model only when OpenRouter refused the one before it, so
       // nothing was accepted or charged yet.
+      // A replacement never costs more than the chosen model the user approved the price of.
+      const approvedUsd = clipUsd(chosen, input.durationS);
       const models = talking
         ? [TALKING_MODEL()]
-        : [...new Set([chosen, ...fallbackVideoModels()])];
+        : [...new Set([chosen, ...fallbackVideoModels()])].filter(
+            (model) => clipUsd(model, input.durationS) <= approvedUsd + 0.005,
+          );
       let refusal: unknown = null;
       for (const submitModel of models) {
         try {
