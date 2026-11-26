@@ -141,7 +141,7 @@ async function tryConversationFastLane(run: RunState) {
       {
         tenantId: run.resolvedTenantId,
         userId: run.callerUserId,
-        personaUserId: run.personaUserId,
+        personaSource: run.personaSource,
         callerName: run.callerName,
         agentId: run.agent_id as string,
         agentName: run.agent.name || "כרמן",

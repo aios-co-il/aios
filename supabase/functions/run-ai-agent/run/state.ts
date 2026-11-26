@@ -1,5 +1,8 @@
 import type { DbClient } from "../../_shared/supabase-clients.ts";
-import type { loadCallerPersona } from "../../_shared/carmen/persona-runtime.ts";
+import type {
+  loadPersona,
+  PersonaSource,
+} from "../../_shared/carmen/persona-runtime.ts";
 import type * as types from "./contracts.ts";
 
 type SharedAgency = {
@@ -73,8 +76,8 @@ export class RunState {
   declare callerPhone: string | null;
   declare callerRole: string | null;
   declare callerUserId: string | null;
-  declare personaUserId: string | null;
-  declare callerPersona: Awaited<ReturnType<typeof loadCallerPersona>>;
+  declare personaSource: PersonaSource | null;
+  declare callerPersona: Awaited<ReturnType<typeof loadPersona>>;
   declare callerManagedAgencyIds: Array<string>;
   declare isManagerRoleCaller: boolean;
   declare isTeamManagerCaller: boolean;

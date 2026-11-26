@@ -5,7 +5,7 @@ import { MANAGER_ROLES } from "../../_shared/carmen/manager-roles.ts";
 import { resolveHumanRequesterUserId } from "../client-card-contact-policy.ts";
 import { findingDraftReplyOf } from "../finding-draft/reply.ts";
 import { loadDevEscalationTierFromDb } from "../../_shared/carmen-access-policy.ts";
-import { personalLineOwner } from "../line-owner-pick.ts";
+import { turnPersonaSource } from "../turn-persona.ts";
 import { asUuidOrNull } from "../../_shared/uuid.ts";
 
 /** Resolves caller identity, persona and permission scope in order. */
@@ -85,12 +85,11 @@ async function selectActingUser(run: RunState): Promise<void> {
 
 /** Selects the presentation persona separately from the acting user. */
 function selectCallerPersona(run: RunState): void {
-  run.personaUserId =
-    run.input.surface === "whatsapp"
-      ? personalLineOwner(run.input.bodyJson)
-      : run.input.surface === "internal_chat" || run.input.surface === "aios"
-        ? run.callerUserId
-        : null;
+  run.personaSource = turnPersonaSource(
+    run.input.surface,
+    run.input.bodyJson,
+    run.callerUserId,
+  );
 }
 
 /** Loads roles and managed agencies for the acting user. */

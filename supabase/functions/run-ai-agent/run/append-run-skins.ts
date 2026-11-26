@@ -1,5 +1,5 @@
 import {
-  loadCallerPersona,
+  loadPersona,
   personaPromptSection,
 } from "../../_shared/carmen/persona-runtime.ts";
 import type { RunState } from "./state.ts";
@@ -71,11 +71,7 @@ export async function appendRunSkins(
     run.callerName,
   );
   run.callerPersona = run.isCarmenAgent
-    ? await loadCallerPersona(
-        run.supabase,
-        run.resolvedTenantId,
-        run.personaUserId,
-      )
+    ? await loadPersona(run.supabase, run.resolvedTenantId, run.personaSource)
     : null;
 
   if (run.callerPersona) {
