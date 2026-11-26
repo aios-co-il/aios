@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fireIntegrationAlert } from "../_shared/fireIntegrationAlert.ts";
 import { withGoogleTokens } from "../_shared/google-oauth/integration-tokens.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
+import { refuseGscSync } from "./sync-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -52,6 +53,20 @@ serve(async (req) => {
     if (integrationError || !storedIntegration) {
       throw new Error("Integration not found");
     }
+
+    const refusal = await refuseGscSync(
+      serviceClient(),
+      req.headers.get("Authorization"),
+      table.tenant_id,
+      storedIntegration.tenant_id,
+    );
+    if (refusal) {
+      return new Response(JSON.stringify({ error: refusal.error }), {
+        status: refusal.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const [integration] = await withGoogleTokens(serviceClient(), [
       storedIntegration,
     ]);
