@@ -1,7 +1,6 @@
 // Live GSC data fetch for the Search Console dashboard tab. Must be deployed to
 // production — the SEO dashboard calls it directly; when it is missing the tab
 // shows an "edge function" error (404 on the OPTIONS preflight).
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   GSC_PERIOD_DEFINITIONS,
@@ -10,6 +9,10 @@ import {
   readGscSnapshots,
 } from "../_shared/gscKeywords.ts";
 import { withGoogleTokens } from "../_shared/google-oauth/integration-tokens.ts";
+import {
+  isGscRefusal,
+  readClientGscAccess,
+} from "../_shared/seo/client-gsc-access.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 
 const corsHeaders = {
@@ -18,7 +21,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -39,6 +42,7 @@ serve(async (req) => {
 
   try {
     const {
+      clientId: seoClientId,
       integrationId,
       siteUrl,
       startDate,
@@ -58,19 +62,33 @@ serve(async (req) => {
       );
     }
 
+    const access = await readClientGscAccess(authHeader, seoClientId);
+    if (isGscRefusal(access)) {
+      return new Response(JSON.stringify({ error: access.error }), {
+        status: access.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    // Get integration
+    // Only a Search Console connection that serves this client.
     const { data: storedIntegration, error: intErr } = await supabase
       .from("tenant_integrations")
       .select("*")
       .eq("id", integrationId)
-      .single();
+      .eq("integration_type", "google_search_console")
+      .in("tenant_id", access.tenantIds)
+      .maybeSingle();
 
-    if (intErr || !storedIntegration) {
+    if (intErr) {
+      console.error("tenant_integrations lookup failed:", intErr.message);
+      throw new Error("Could not read the Search Console connection");
+    }
+    if (!storedIntegration) {
       return new Response(JSON.stringify({ error: "Integration not found" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
