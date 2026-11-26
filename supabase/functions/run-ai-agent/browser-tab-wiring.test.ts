@@ -12,7 +12,7 @@ function read(path: string): string {
 // large to run with fakes here (AIO-123). The block itself is tested in
 // _shared/carmen/screen-context.test.ts.
 Deno.test(
-  "the browser tab reaches every brain in the user's turn",
+  "the browser tab reaches each typed-chat brain in the user's turn",
   async (t) => {
     await t.step("Carmen's loop adds it to the user message it sends", () => {
       assert(

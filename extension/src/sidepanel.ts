@@ -35,9 +35,11 @@ let siteListening = false;
 /** The tab the site was last told about; undefined when it has not been told since its hello. */
 let sentTab: BrowserTab | null | undefined;
 
+// A start that fails frames nothing, so the line to show is the sign-in one: the notice
+// about a site that did not answer is for a framed site (frameSite).
 main().catch((error) => {
   console.error("[carmen-panel] failed to start", error);
-  notice.classList.remove("hidden");
+  el<HTMLDivElement>("signin-notice").classList.remove("hidden");
 });
 
 /**
@@ -128,9 +130,15 @@ async function onShareSwitch(): Promise<void> {
   await syncTabSharing();
 }
 
-/** Sets the switch to the grant Chrome holds, which another window's panel may have changed. */
+/**
+ * Sets the switch to the grant Chrome holds, which another window's panel may have changed.
+ * A failed read is logged and counts as not shared, so no address is sent.
+ */
 async function syncTabSharing(): Promise<void> {
-  tabShared = await isTabShared();
+  tabShared = await isTabShared().catch((error) => {
+    console.error("[carmen-panel] reading tab sharing failed", error);
+    return false;
+  });
   shareSwitch.checked = tabShared;
   await refreshTab();
 }
