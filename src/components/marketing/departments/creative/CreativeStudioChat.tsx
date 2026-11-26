@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { Check, Loader2, Paperclip, Send, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
+import { ReplyMarkdown } from "@/components/ReplyMarkdown/ReplyMarkdown";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { uploadCreativeAsset } from "./brandKit";
 import {
-  chatParts,
   fileLine,
   needsChatApproval,
   parseSseBuffer,
@@ -48,23 +48,17 @@ const greeting = (mode: "video" | "static") =>
     ? "היי, אני כאן איתך על הסרטון. אפשר לבקש ממני לערוך סצנות, להחליף מנוע, להעלות לוגו או רפרנס (פשוט גררו לכאן), או להפיק את כל הסרט."
     : "היי, אני כאן איתך על הפוסט. גררו לכאן לוגו או רפרנס, בקשו וריאציות או תיקון לוריאציה שעל המסך, ואני אדאג לשאר.";
 
-/** Carmen's answer: its text as written, and the pictures she shows (skin portraits) as images. */
+/**
+ * Carmen's answer, through the one reply renderer: the skin portraits she shows are AIOS
+ * addresses and appear as pictures; a picture from anywhere else appears as a link (AIO-665).
+ */
 function AssistantText({ text }: { text: string }) {
   return (
-    <div className="me-6 whitespace-pre-wrap break-words rounded-lg bg-muted px-3 py-2 leading-relaxed">
-      {chatParts(text).map((part, index) =>
-        part.kind === "image" ? (
-          <img
-            key={index}
-            src={part.url}
-            alt={part.alt}
-            loading="lazy"
-            className="my-1 max-h-40 rounded-md"
-          />
-        ) : (
-          <span key={index}>{part.text}</span>
-        ),
-      )}
+    <div
+      data-testid="studio-answer"
+      className="prose prose-sm me-6 max-w-none break-words rounded-lg bg-muted px-3 py-2 leading-relaxed dark:prose-invert [&_img]:my-1 [&_img]:max-h-40 [&_img]:rounded-md [&_p]:my-1 [&_p]:whitespace-pre-wrap"
+    >
+      <ReplyMarkdown>{text}</ReplyMarkdown>
     </div>
   );
 }

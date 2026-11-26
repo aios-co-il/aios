@@ -15,6 +15,9 @@ export interface AiosAddressConfig {
 /** Storage is the only part of the Supabase API that serves pictures. */
 const STORAGE_PATH = "/storage/v1/";
 
+/** Every Supabase project is served at `<ref>` plus this. */
+const PROJECT_HOST_SUFFIX = ".supabase.co";
+
 /**
  * Whether AIOS itself serves this address: the app's own origin, or the
  * storage of this environment's Supabase project (public and signed links).
@@ -38,18 +41,30 @@ export function isAiosImageAddress(
 
 /**
  * The origins of this environment's Supabase project: the configured address
- * and the project's own supabase.co address. Edge functions write storage
- * links on the supabase.co address even where the app uses a custom domain
+ * and the project's own address. Edge functions write storage links on the
+ * project's own address even where the app uses a custom domain
  * (docs/ENVIRONMENTS.md § Public API address).
  */
 function supabaseOrigins(config: AiosAddressConfig): Array<string> {
-  const projectRef = projectRefOf(config.publishableKey);
-  const candidates = [
-    originOf(config.supabaseUrl),
-    projectRef ? `https://${projectRef}.supabase.co` : null,
-  ];
+  const candidates = [originOf(config.supabaseUrl), projectOriginOf(config)];
 
   return candidates.filter((origin) => origin !== null);
+}
+
+/**
+ * The project's own supabase.co origin: the configured address when the app
+ * talks to it directly, else the project the publishable key names. Null when
+ * neither says, and then pictures stored on that address cannot be shown.
+ */
+export function projectOriginOf(config: AiosAddressConfig): string | null {
+  const configured = originOf(config.supabaseUrl);
+  if (configured?.endsWith(PROJECT_HOST_SUFFIX)) {
+    return configured;
+  }
+
+  const projectRef = projectRefOf(config.publishableKey);
+
+  return projectRef ? `https://${projectRef}${PROJECT_HOST_SUFFIX}` : null;
 }
 
 /** The project ref a Supabase JWT key carries, or null for any other key. */
@@ -68,7 +83,7 @@ function projectRefOf(key: string | undefined): string | null {
         ? claims.ref
         : null;
 
-    return typeof ref === "string" && /^[a-z0-9]+$/.test(ref) ? ref : null;
+    return typeof ref === "string" ? ref : null;
   } catch {
     // Not a JWT (for example an sb_publishable_ key): no project ref to read.
     return null;

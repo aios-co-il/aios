@@ -4,6 +4,9 @@ import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
+const REPLY_MARKDOWN_ONLY =
+  "Render Markdown with ReplyMarkdown (src/components/ReplyMarkdown).";
+
 export default tseslint.config(
   {
     ignores: [
@@ -51,19 +54,24 @@ export default tseslint.config(
   },
   {
     // Model-written Markdown has one renderer, which decides what an image may load (AIO-665).
+    // A renderer written by hand, with no Markdown library, is outside what this can catch.
     files: ["**/*.{ts,tsx}"],
     ignores: ["src/components/ReplyMarkdown/ReplyMarkdown.tsx"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
-          paths: [
-            {
-              name: "react-markdown",
-              message:
-                "Render Markdown with ReplyMarkdown (src/components/ReplyMarkdown).",
-            },
+          paths: [{ name: "react-markdown", message: REPLY_MARKDOWN_ONLY }],
+          patterns: [
+            { group: ["react-markdown/*"], message: REPLY_MARKDOWN_ONLY },
           ],
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "ImportExpression[source.value=/^react-markdown(\\/|$)/]",
+          message: REPLY_MARKDOWN_ONLY,
         },
       ],
     },

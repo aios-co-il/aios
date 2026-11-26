@@ -4,7 +4,11 @@ import ReactMarkdown, {
   type ExtraProps,
 } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { isAiosImageAddress, type AiosAddressConfig } from "./replyImageSource";
+import {
+  isAiosImageAddress,
+  projectOriginOf,
+  type AiosAddressConfig,
+} from "./replyImageSource";
 
 /**
  * Text a model wrote, rendered as Markdown. The one renderer for replies,
@@ -75,12 +79,35 @@ function domProps<Props extends ExtraProps>(props: Props): Omit<Props, "node"> {
 
 /** The addresses this build and this page are served with. */
 function aiosAddressConfig(): AiosAddressConfig {
-  return {
+  const config: AiosAddressConfig = {
     supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
     publishableKey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
     appOrigin: window.location.origin,
   };
+  reportUnknownProjectOrigin(config);
+
+  return config;
 }
+
+/**
+ * Says once, loudly, that this build cannot tell its project's own address:
+ * the pictures Carmen generates are stored there, and they would otherwise
+ * turn into links with nothing to explain why.
+ */
+function reportUnknownProjectOrigin(config: AiosAddressConfig): void {
+  if (projectOriginReported || projectOriginOf(config) !== null) {
+    return;
+  }
+
+  projectOriginReported = true;
+  console.error(
+    "[ReplyMarkdown] This build cannot tell its Supabase project's own address: " +
+      "VITE_SUPABASE_URL is a custom domain and VITE_SUPABASE_PUBLISHABLE_KEY is not a JWT that names the project. " +
+      "Pictures stored on the project's supabase.co address (generated creatives, custom Carmen portraits) show as links, not images.",
+  );
+}
+
+let projectOriginReported = false;
 
 const REMARK_PLUGINS = [remarkGfm];
 const COMPONENTS: Components = { a: ReplyLink, img: ReplyImage };

@@ -1,27 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { isAiosImageAddress, type AiosAddressConfig } from "./replyImageSource";
-
-const PROJECT_REF = "abcdefghijklmnopqrst";
-
-/** A Supabase publishable key in its JWT shape: the payload names the project. */
-function publishableKey(claims: object): string {
-  const payload = btoa(JSON.stringify(claims))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-
-  return `eyJhbGciOiJIUzI1NiJ9.${payload}.signature`;
-}
+import {
+  isAiosImageAddress,
+  projectOriginOf,
+  type AiosAddressConfig,
+} from "./replyImageSource";
+import {
+  JWT_PUBLISHABLE_KEY,
+  OPAQUE_PUBLISHABLE_KEY,
+  PROJECT_ORIGIN,
+  publishableKey,
+} from "./replyImageSource.test-fixture";
 
 /** Production's shape: the app talks to the custom domain (docs/ENVIRONMENTS.md). */
 const PRODUCTION: AiosAddressConfig = {
   supabaseUrl: "https://api.aios.co.il",
-  publishableKey: publishableKey({
-    iss: "supabase",
-    ref: PROJECT_REF,
-    role: "anon",
-  }),
+  publishableKey: JWT_PUBLISHABLE_KEY,
   appOrigin: "https://app.aios.co.il",
+};
+
+/** The app talks to the project's own address, with a key that names no project. */
+const DIRECT: AiosAddressConfig = {
+  supabaseUrl: PROJECT_ORIGIN,
+  publishableKey: OPAQUE_PUBLISHABLE_KEY,
+  appOrigin: "http://localhost:8080",
 };
 
 describe("isAiosImageAddress", () => {
@@ -37,7 +38,7 @@ describe("isAiosImageAddress", () => {
       ],
       [
         "a generated picture's public link, written by an edge function on the supabase.co address",
-        `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/social-media/workshop-imports/tenant-1/item-1/1764150000000_ab12cd34.jpg`,
+        `${PROJECT_ORIGIN}/storage/v1/object/public/social-media/workshop-imports/tenant-1/item-1/1764150000000_ab12cd34.jpg`,
       ],
       [
         "a resized storage picture",
@@ -53,19 +54,13 @@ describe("isAiosImageAddress", () => {
     });
 
     it("allows the configured supabase.co address when no custom domain is set", () => {
-      const staging: AiosAddressConfig = {
-        supabaseUrl: `https://${PROJECT_REF}.supabase.co`,
-        publishableKey: "sb_publishable_not-a-jwt",
-        appOrigin: "http://localhost:8080",
-      };
-
       expect(
         isAiosImageAddress(
-          `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/social-media/a.png`,
-          staging,
+          `${PROJECT_ORIGIN}/storage/v1/object/public/social-media/a.png`,
+          DIRECT,
         ),
       ).toBe(true);
-      expect(isAiosImageAddress("/logo.png", staging)).toBe(true);
+      expect(isAiosImageAddress("/logo.png", DIRECT)).toBe(true);
     });
   });
 
@@ -88,6 +83,14 @@ describe("isAiosImageAddress", () => {
         "our host used as a user name",
         "https://api.aios.co.il@collect.example/storage/v1/object/public/a.png",
       ],
+      [
+        "a host that only starts with the app's",
+        "https://app.aios.co.il.collect.example/a.png",
+      ],
+      [
+        "the app's host used as a user name",
+        "https://app.aios.co.il@collect.example/a.png",
+      ],
       ["a protocol-relative address", "//collect.example/pixel.png"],
       ["backslashes for slashes", "https:\\\\collect.example\\pixel.png"],
       [
@@ -97,6 +100,14 @@ describe("isAiosImageAddress", () => {
       [
         "our Supabase host outside storage",
         "https://api.aios.co.il/functions/v1/anything?d=secret",
+      ],
+      [
+        "a storage path that is not where the address starts",
+        "https://api.aios.co.il/functions/v1/x/storage/v1/a.png",
+      ],
+      [
+        "a path that only starts like storage",
+        "https://api.aios.co.il/storage/v1beta/a.png",
       ],
       ["an address that is not a URL", "https://"],
     ])("refuses %s", (_what, address) => {
@@ -118,18 +129,48 @@ describe("isAiosImageAddress", () => {
       expect(isAiosImageAddress("/logo.png", {})).toBe(false);
     });
 
-    it("reads no project from a key whose ref is not a plain project id", () => {
-      const forged: AiosAddressConfig = {
+    it("counts only a web address as the environment's own", () => {
+      const misconfigured: AiosAddressConfig = {
         ...PRODUCTION,
-        publishableKey: publishableKey({ ref: "collect.example/x" }),
+        supabaseUrl: "ftp://files.example",
       };
 
       expect(
         isAiosImageAddress(
-          "https://collect.example/storage/v1/object/public/a.png",
-          forged,
+          "ftp://files.example/storage/v1/object/public/a.png",
+          misconfigured,
         ),
       ).toBe(false);
     });
+  });
+});
+
+describe("projectOriginOf", () => {
+  it("reads the project from a JWT key behind a custom domain", () => {
+    expect(JWT_PUBLISHABLE_KEY).toMatch(/-.*_|_.*-/);
+    expect(projectOriginOf(PRODUCTION)).toBe(PROJECT_ORIGIN);
+  });
+
+  it("is the configured address when the app talks to the project directly", () => {
+    expect(projectOriginOf(DIRECT)).toBe(PROJECT_ORIGIN);
+  });
+
+  it.each([
+    ["a key that is no JWT", OPAQUE_PUBLISHABLE_KEY],
+    ["a JWT without a project", publishableKey({ role: "anon" })],
+    ["a JWT whose project is not text", publishableKey({ ref: 12345 })],
+    ["a JWT whose payload is not JSON", "eyJhbGciOiJIUzI1NiJ9.e30x.signature"],
+    ["no key", undefined],
+  ])("is unknown behind a custom domain with %s", (_what, key) => {
+    expect(projectOriginOf({ ...PRODUCTION, publishableKey: key })).toBeNull();
+  });
+
+  it("does not take a custom domain for the project's address by its name", () => {
+    const lookalike: AiosAddressConfig = {
+      ...DIRECT,
+      supabaseUrl: "https://notsupabase.co",
+    };
+
+    expect(projectOriginOf(lookalike)).toBeNull();
   });
 });
