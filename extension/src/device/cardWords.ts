@@ -3,6 +3,7 @@
  * rule 6), so every address on it comes from Chrome's tab or from the claimed row, never
  * from the framed site. Hosts are punycode, as Chrome's own prompt shows them.
  */
+import { INVISIBLE_FORMAT } from "../../../supabase/functions/_shared/carmen/device/typed-text.ts";
 
 /**
  * The card's lines: its title, the address it is about (shown left to right on a line of
@@ -24,9 +25,6 @@ export type CardTarget = {
   role: string;
   name: string;
 };
-
-/** Bidirectional controls a page could put in a name to reorder the card around it. */
-const BIDI_CONTROLS = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
 
 /** The card before Carmen reads a site for the first time in this panel. */
 export function readCardWords(host: string): CardWords {
@@ -95,11 +93,12 @@ export function typeCardWords(
 
 /**
  * The element as the card names it: its visible name in quotes, isolated from the Hebrew
- * around it with its own direction and stripped of direction controls; its role when the
- * page gave it no name.
+ * around it with its own direction and stripped of invisible format characters (direction
+ * controls among them); its role, the same way, when the page gave it no name.
  */
 function elementLabel(target: CardTarget): string {
-  const name = target.name.replace(BIDI_CONTROLS, "").trim();
+  const name = target.name.replace(INVISIBLE_FORMAT, "").trim();
+  const role = target.role.replace(INVISIBLE_FORMAT, "").trim();
 
-  return name ? `"\u2068${name}\u2069"` : `(${target.role} ללא שם)`;
+  return name ? `"\u2068${name}\u2069"` : `(\u2068${role}\u2069 ללא שם)`;
 }

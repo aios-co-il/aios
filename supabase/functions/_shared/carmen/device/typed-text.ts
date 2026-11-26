@@ -12,8 +12,12 @@ const CONTROL = /[^\P{Cc}\n\t]/u;
 const LONE_SURROGATE =
   /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
 
-/** Bidirectional controls, which could reorder what the card shows around them. */
-const BIDI_CONTROL = /[؜‎‏‪-‮⁦-⁩]/;
+/**
+ * Invisible format characters: direction controls, which could reorder what the card shows
+ * around them, and zero-width and tag characters, which could carry text the user never
+ * sees. The two joiners stay: emoji sequences and Persian script need them.
+ */
+export const INVISIBLE_FORMAT = /(?![\u200C\u200D])\p{Cf}/gu;
 
 /**
  * Whether the text may be typed: not empty, within `DEVICE_TYPE_TEXT_MAX`, and nothing the
@@ -26,6 +30,6 @@ export function isTypableText(text: unknown): text is string {
     text.length <= DEVICE_TYPE_TEXT_MAX &&
     !CONTROL.test(text) &&
     !LONE_SURROGATE.test(text) &&
-    !BIDI_CONTROL.test(text)
+    text.search(INVISIBLE_FORMAT) === -1
   );
 }

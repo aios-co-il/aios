@@ -8,6 +8,8 @@ Deno.test("isTypableText", async (t) => {
       "שלום",
       "a\nb\tc",
       "😀",
+      "👨\u200D👩\u200D👧",
+      "می\u200Cخواهم",
       "x".repeat(DEVICE_TYPE_TEXT_MAX),
     ]) {
       assertEquals(isTypableText(text), true, JSON.stringify(text));
@@ -23,9 +25,13 @@ Deno.test("isTypableText", async (t) => {
       "a\u001bb",
       "\uD83D",
       "a\uDE00",
-      "a‮b",
-      "a⁧b",
-      "a‏b",
+      "a\u202Eb",
+      "a\u2067b",
+      "a\u200Fb",
+      "a\u200Bb",
+      "a\uFEFFb",
+      "a\u{E0041}b",
+      "a\u00ADb",
       null,
       42,
     ]) {

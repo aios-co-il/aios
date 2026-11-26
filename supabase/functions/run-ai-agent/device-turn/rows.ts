@@ -125,7 +125,8 @@ export async function readStep(
  * Marks a closed step used and clears its page text, once: false when another request
  * used it first or its state moved. A step whose result the server will not hand to the
  * model is closed as `refused` in the same write. `keep` replaces the result: what a
- * later click or type is checked against, never page text (`stepResidue`).
+ * later click or type is checked against, never page text (`stepResidue`). The arguments
+ * are cleared too.
  */
 export async function consumeStep(
   db: DeviceDb,
@@ -140,6 +141,8 @@ export async function consumeStep(
     .update({
       consumed_at: now.toISOString(),
       result: keep,
+      // Nothing reads a used step's arguments again, and a type's are the text it typed.
+      arguments: {},
       ...(refuse ? { status: "refused", decision: "never" } : {}),
     })
     .eq("id", step.id)

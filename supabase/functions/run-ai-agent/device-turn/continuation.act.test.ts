@@ -103,6 +103,19 @@ Deno.test(
       },
     );
 
+    await t.step("a used typing step keeps no typed text", async () => {
+      const typing = doneRow({
+        tool: "browser_type",
+        arguments: { ...CLICK, text: "secret words" },
+        result: { ...PAGE, title: "Pricing", changed: false },
+      });
+
+      await continueOver([typing], [], continuationBody(ACTION, ALL_TOOLS));
+
+      assertEquals(typing.arguments, {});
+      assertEquals(typing.result, { changed: false });
+    });
+
     await t.step(
       "a click that landed on the act floor is not believed",
       async () => {

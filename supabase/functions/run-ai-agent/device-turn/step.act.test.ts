@@ -176,7 +176,7 @@ Deno.test(
       "",
       "x".repeat(DEVICE_TYPE_TEXT_MAX + 1),
       "a\u0000b",
-      "a‮b",
+      "a\u202Eb",
     ]) {
       await t.step(
         `typing refuses text ${JSON.stringify(

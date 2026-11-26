@@ -119,9 +119,8 @@ export async function holdsSnapshot(
 
 /** The id of the snapshot the isolated world keeps. Runs in the tab. */
 function keptSnapshotId(snapshotKey: string): string | null {
-  const kept: Partial<KeptSnapshot> | undefined = Reflect.get(
-    globalThis,
-    snapshotKey,
-  );
+  // Own properties only, as in pageAct.ts: never an element the page named so.
+  const kept: Partial<KeptSnapshot> | undefined =
+    Object.getOwnPropertyDescriptor(globalThis, snapshotKey)?.value;
   return typeof kept?.id === "string" ? kept.id : null;
 }

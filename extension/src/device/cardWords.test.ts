@@ -52,7 +52,7 @@ describe("cardWords", () => {
     });
 
     expect(words.title).toBe(
-      "כרמן מבקשת ללחוץ על (button ללא שם) באתר shop.example",
+      "כרמן מבקשת ללחוץ על (\u2068button\u2069 ללא שם) באתר shop.example",
     );
     expect(words.address).toBeNull();
   });
@@ -61,11 +61,11 @@ describe("cardWords", () => {
     const words = clickCardWords({
       host: "shop.example",
       role: "button",
-      name: "\u202Egnp.exe\u202C Pay",
+      name: "\u202Egnp.exe\u202C\u200B Pay",
       destination: null,
     });
 
-    expect(words.title).not.toMatch(/[\u202A-\u202E]/);
+    expect(words.title).not.toMatch(/[\u202A-\u202E\u200B]/);
     expect(words.title).toContain("gnp.exe Pay");
   });
 

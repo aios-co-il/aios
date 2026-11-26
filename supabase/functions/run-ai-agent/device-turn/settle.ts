@@ -81,7 +81,7 @@ export async function settleOpenSteps(
 const CLOSED: ReadonlyArray<DeviceActionStatus> =
   DEVICE_ACTION_STATUS.filter(isClosedStatus);
 
-/** Marks the conversation's closed, unused steps used and clears their page text. */
+/** Marks the conversation's closed, unused steps used and clears their page text and their arguments (a type's text). */
 async function retireClosedSteps(
   db: DeviceDb,
   owner: Owner & { conversationId: string },
@@ -89,7 +89,7 @@ async function retireClosedSteps(
 ): Promise<void> {
   const { error } = await db
     .from(TABLE)
-    .update({ consumed_at: now.toISOString(), result: null })
+    .update({ consumed_at: now.toISOString(), result: null, arguments: {} })
     .eq("tenant_id", owner.tenantId)
     .eq("user_id", owner.userId)
     .eq("conversation_id", owner.conversationId)

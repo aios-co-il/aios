@@ -25,10 +25,10 @@ import type {
 /** Describes the element, or checks it again and acts. Runs in the tab, not in the panel. */
 export function actOnPage(request: PageActRequest): PageActAnswer {
   const { textTypes: TEXT_TYPES, fields: FIELDS } = request.rules;
-  const kept: Partial<KeptSnapshot> | undefined = Reflect.get(
-    globalThis,
-    request.snapshotKey,
-  );
+  // Own properties only: an element with that id would answer through the window's
+  // named properties, which the page controls.
+  const kept: Partial<KeptSnapshot> | undefined =
+    Object.getOwnPropertyDescriptor(globalThis, request.snapshotKey)?.value;
 
   /** The facts of a field the field rule reads: attributes, never the value. */
   function fieldFacts(element: Element, label: string): FieldFacts {
@@ -37,7 +37,7 @@ export function actOnPage(request: PageActRequest): PageActAnswer {
       autocomplete: element.getAttribute("autocomplete"),
       names: [
         element.getAttribute("name"),
-        element.id,
+        element.getAttribute("id"),
         element.getAttribute("aria-label"),
         element.getAttribute("placeholder"),
         label,
@@ -72,10 +72,16 @@ export function actOnPage(request: PageActRequest): PageActAnswer {
     if (!submits || !element.form) {
       return null;
     }
-    // A button's own `formaction` overrides its form's address.
-    return element.hasAttribute("formaction")
-      ? element.formAction
-      : element.form.action;
+    // A button's own `formaction` overrides its form's address. The form's is read through
+    // the prototype's getter: a field named "action" would answer `form.action` instead.
+    if (element.hasAttribute("formaction")) {
+      return element.formAction;
+    }
+    const action = Object.getOwnPropertyDescriptor(
+      HTMLFormElement.prototype,
+      "action",
+    )?.get?.call(element.form);
+    return typeof action === "string" ? action : null;
   }
 
   /** The topmost element at the centre of the element's box, when it is the element or inside it. */
@@ -152,10 +158,10 @@ export function actOnPage(request: PageActRequest): PageActAnswer {
   if (fingerprint !== request.expected) {
     return changed("moved");
   }
-  const input: Partial<PageInput> | undefined = Reflect.get(
+  const input: Partial<PageInput> | undefined = Object.getOwnPropertyDescriptor(
     globalThis,
     request.inputKey,
-  );
+  )?.value;
   if (!input?.click || !input.type) {
     return changed("gone");
   }

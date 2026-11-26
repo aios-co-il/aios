@@ -140,6 +140,42 @@ describe("actOnPage before the card", () => {
   });
 });
 
+describe("actOnPage against a page that names things like the panel's", () => {
+  it("never takes an element with the snapshot's id for the snapshot", () => {
+    document.body.innerHTML = `<div id="${PAGE_SNAPSHOT_KEY}"></div><button>Go</button>`;
+    Reflect.deleteProperty(globalThis, PAGE_SNAPSHOT_KEY);
+    Object.defineProperty(Window.prototype, PAGE_SNAPSHOT_KEY, {
+      configurable: true,
+      get: () => ({
+        id: "snapshot-1",
+        elements: [document.body],
+        described: [],
+      }),
+    });
+
+    try {
+      expect(act(0, "browser_click")).toEqual({
+        kind: "changed",
+        reason: "gone",
+      });
+    } finally {
+      Reflect.deleteProperty(Window.prototype, PAGE_SNAPSHOT_KEY);
+    }
+  });
+
+  it('shows the form\'s real address when a field is named "action"', () => {
+    readPage(
+      `<form action="/real"><input name="action"><button type="submit">Pay</button></form>`,
+      1,
+    );
+    topmost = () => byTag("button");
+
+    expect(inspect(1, "browser_click").destination).toBe(
+      `${location.origin}/real`,
+    );
+  });
+});
+
 describe("actOnPage after the tap", () => {
   it("types through the setter and tells the page, without reading what was there", () => {
     const field = readPage(FORM, 0) as HTMLInputElement;
