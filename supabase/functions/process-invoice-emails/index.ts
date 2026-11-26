@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { gmailGoogleClient } from "../_shared/google-oauth/google-client.ts";
+import { invoiceAttachments, toStandardBase64 } from "./gmail-attachments.ts";
+import { invoiceRequestSchema } from "./request.ts";
+import { storeInvoiceFiles } from "./store-files.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -51,27 +54,6 @@ function parseEmailHeader(payload: any, headerName: string): string {
   );
 }
 
-// Find attachments recursively in MIME parts
-function findAttachments(
-  parts: Array<any>,
-  result: Array<any> = [],
-): Array<any> {
-  for (const part of parts || []) {
-    if (part.filename && part.body?.attachmentId) {
-      result.push({
-        filename: part.filename,
-        mimeType: part.mimeType,
-        attachmentId: part.body.attachmentId,
-        size: part.body.size || 0,
-      });
-    }
-    if (part.parts) {
-      findAttachments(part.parts, result);
-    }
-  }
-  return result;
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -111,17 +93,35 @@ serve(async (req) => {
     }
 
     const accessToken = await refreshTokenIfNeeded(serviceClient, tokenData);
-    const { messageIds, tenantId } = await req.json();
-
-    if (!messageIds?.length || !tenantId) {
+    const request = invoiceRequestSchema.safeParse(await req.json());
+    if (!request.success) {
       throw new Error("Missing messageIds or tenantId");
     }
+    const { tenantId } = request.data;
 
-    // Get suppliers for matching
-    const { data: suppliers } = await serviceClient
+    // Files are stored as the user, so storage rules decide who may upload where.
+    if ("files" in request.data) {
+      const results = await storeInvoiceFiles(
+        anonClient.storage.from("supplier-invoices"),
+        accessToken,
+        tenantId,
+        request.data.files,
+      );
+
+      return new Response(JSON.stringify({ results }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const { messageIds } = request.data;
+
+    // Suppliers are read as the user, so only a tenant they may see is matched.
+    const { data: suppliers, error: suppliersError } = await anonClient
       .from("suppliers")
       .select("id, name, email")
       .eq("tenant_id", tenantId);
+    if (suppliersError) {
+      throw new Error(`suppliers read failed: ${suppliersError.message}`);
+    }
 
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     const results: Array<any> = [];
@@ -149,15 +149,9 @@ serve(async (req) => {
           from.match(/<([^>]+)>/)?.[1]?.toLowerCase() || from.toLowerCase();
 
         // 2. Find attachments (PDF, images)
-        const attachments = findAttachments(msgData.payload?.parts || []);
-        const invoiceAttachments = attachments.filter(
-          (a: any) =>
-            /\.(pdf|png|jpg|jpeg|gif|webp|tiff|bmp)$/i.test(a.filename) ||
-            a.mimeType.startsWith("image/") ||
-            a.mimeType === "application/pdf",
-        );
+        const attachments = invoiceAttachments(msgData.payload);
 
-        if (invoiceAttachments.length === 0) {
+        if (attachments.length === 0) {
           results.push({
             messageId,
             subject,
@@ -175,7 +169,7 @@ serve(async (req) => {
           ) || null;
 
         // 4. Process each attachment
-        for (const att of invoiceAttachments) {
+        for (const att of attachments) {
           try {
             // Download attachment
             const attRes = await fetch(
@@ -194,33 +188,10 @@ serve(async (req) => {
               continue;
             }
 
-            // Convert from URL-safe base64 to standard base64
-            const base64Data = attData.data
-              .replace(/-/g, "+")
-              .replace(/_/g, "/");
+            // The file is stored only when the user saves the row (the store action).
+            const base64Data = toStandardBase64(attData.data);
 
-            // 5. Upload to storage
-            const ext = att.filename.split(".").pop() || "pdf";
-            const storagePath = `${tenantId}/gmail-invoices/${Date.now()}-${att.filename}`;
-            const binaryStr = atob(base64Data);
-            const bytes = new Uint8Array(binaryStr.length);
-            for (let i = 0; i < binaryStr.length; i++) {
-              bytes[i] = binaryStr.charCodeAt(i);
-            }
-
-            const { error: uploadError } = await serviceClient.storage
-              .from("supplier-invoices")
-              .upload(storagePath, bytes, { contentType: att.mimeType });
-
-            let fileUrl: string | null = null;
-            if (!uploadError) {
-              const { data: urlData } = await serviceClient.storage
-                .from("supplier-invoices")
-                .createSignedUrl(storagePath, 60 * 60 * 24 * 365 * 10);
-              fileUrl = urlData?.signedUrl ?? null;
-            }
-
-            // 6. Extract invoice data with AI
+            // 5. Extract invoice data with AI
             let invoiceName = subject || att.filename;
             let invoiceAmount = 0;
             let aiExtracted = false;
@@ -339,7 +310,7 @@ serve(async (req) => {
               }
             }
 
-            // 7. Parse date from email
+            // 6. Parse date from email
             let invoiceDate: string | null = null;
             try {
               const d = new Date(date);
@@ -360,7 +331,7 @@ serve(async (req) => {
               from,
               fromEmail,
               filename: att.filename,
-              fileUrl,
+              partId: att.partId,
               invoiceName,
               invoiceAmount,
               invoiceDate,

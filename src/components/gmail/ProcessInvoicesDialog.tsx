@@ -34,10 +34,14 @@ import {
   Check,
   AlertCircle,
   Sparkles,
-  Download,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  gmailInvoiceKey,
+  saveGmailInvoices,
+  type GmailInvoiceToSave,
+} from "./saveGmailInvoices";
 
 interface InvoiceResult {
   messageId: string;
@@ -45,7 +49,7 @@ interface InvoiceResult {
   from?: string;
   fromEmail?: string;
   filename?: string;
-  fileUrl?: string | null;
+  partId?: string;
   invoiceName?: string;
   invoiceAmount?: number;
   invoiceDate?: string | null;
@@ -74,7 +78,6 @@ export function ProcessInvoicesDialog({
   const { tenantId } = useCurrentTenant();
   const [results, setResults] = useState<Array<InvoiceResult>>([]);
   const [processing, setProcessing] = useState(false);
-  const [saving, setSaving] = useState(false);
 
   const { data: suppliers = [] } = useQuery({
     queryKey: ["suppliers-for-invoices", tenantId],
@@ -136,46 +139,45 @@ export function ProcessInvoicesDialog({
     );
   };
 
-  const handleSaveAll = async () => {
-    const toSave = results.filter(
-      (r) => !r.error && !r.skipped && !r.saved && r.selectedSupplierId,
-    );
-    if (toSave.length === 0) {
+  const saveMutation = useMutation({
+    mutationFn: (rows: Array<GmailInvoiceToSave>) => {
+      if (!tenantId) {
+        throw new Error("No tenant is selected");
+      }
+
+      return saveGmailInvoices(tenantId, rows);
+    },
+    onSuccess: (savedKeys, rows) => {
+      setResults((previous) =>
+        previous.map((result) =>
+          result.partId && savedKeys.includes(gmailInvoiceKey(result))
+            ? { ...result, saved: true }
+            : result,
+        ),
+      );
+      if (savedKeys.length > 0) {
+        toast.success(`${savedKeys.length} חשבוניות נשמרו בהצלחה!`);
+      }
+      if (savedKeys.length < rows.length) {
+        toast.error(
+          `${rows.length - savedKeys.length} חשבוניות לא נשמרו. אפשר לנסות שוב.`,
+        );
+      }
+    },
+    onError: (error) => {
+      console.error("Gmail invoices save failed:", error);
+      toast.error("שגיאה בשמירת החשבוניות");
+    },
+  });
+
+  function handleSaveAll() {
+    const rows = results.flatMap((result) => invoiceToSave(result));
+    if (rows.length === 0) {
       toast.error("אין חשבוניות לשמירה. וודא ששייכת ספק לכל חשבונית.");
       return;
     }
-
-    setSaving(true);
-    let savedCount = 0;
-    for (const r of toSave) {
-      try {
-        const { error } = await supabase.from("supplier_invoices").insert({
-          tenant_id: tenantId!,
-          supplier_id: r.selectedSupplierId!,
-          invoice_name: r.invoiceName || r.filename || "חשבונית",
-          invoice_amount: r.invoiceAmount || 0,
-          invoice_date: r.invoiceDate || null,
-          invoice_month:
-            r.invoiceMonth || new Date().toISOString().substring(0, 7),
-          file_url: r.fileUrl || null,
-          file_name: r.filename || null,
-          ai_extracted: r.aiExtracted || false,
-          notes: `מקור: ${r.from || ""} | נושא: ${r.subject || ""}`,
-        });
-        if (!error) {
-          const idx = results.indexOf(r);
-          if (idx >= 0) {
-            updateResult(idx, { saved: true });
-          }
-          savedCount++;
-        }
-      } catch (e) {
-        console.error("Save error:", e);
-      }
-    }
-    setSaving(false);
-    toast.success(`${savedCount} חשבוניות נשמרו בהצלחה!`);
-  };
+    saveMutation.mutate(rows);
+  }
 
   const validResults = results.filter((r) => !r.error && !r.skipped);
   const skippedResults = results.filter((r) => r.skipped);
@@ -201,6 +203,9 @@ export function ProcessInvoicesDialog({
               {messageIds.length} אימיילים נבחרו לעיבוד.
               <br />
               הסוכן ישלוף קבצים מצורפים, יחלץ נתונים עם AI, ויתאים לספקים.
+              <br />
+              הקבצים המצורפים נשלחים ל-OpenAI לצורך חילוץ הנתונים, ונשמרים
+              במערכת רק עבור חשבוניות שתשמרו.
             </p>
             <Button onClick={handleProcess} disabled={processing} size="lg">
               {processing ? (
@@ -228,7 +233,7 @@ export function ProcessInvoicesDialog({
                       <TableHead className="w-24">סכום</TableHead>
                       <TableHead>שולח</TableHead>
                       <TableHead className="w-48">ספק</TableHead>
-                      <TableHead className="w-16">קובץ</TableHead>
+                      <TableHead className="w-32">קובץ</TableHead>
                       <TableHead className="w-16">סטטוס</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -301,18 +306,8 @@ export function ProcessInvoicesDialog({
                               </Select>
                             )}
                           </TableCell>
-                          <TableCell>
-                            {r.fileUrl ? (
-                              <a
-                                href={r.fileUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                              >
-                                <Download className="h-4 w-4 text-primary" />
-                              </a>
-                            ) : (
-                              "-"
-                            )}
+                          <TableCell className="text-xs text-muted-foreground truncate max-w-[120px]">
+                            {r.filename || "-"}
                           </TableCell>
                           <TableCell>
                             {r.saved ? (
@@ -359,12 +354,12 @@ export function ProcessInvoicesDialog({
               <Button
                 onClick={handleSaveAll}
                 disabled={
-                  saving ||
+                  saveMutation.isPending ||
                   validResults.filter((r) => !r.saved && r.selectedSupplierId)
                     .length === 0
                 }
               >
-                {saving ? (
+                {saveMutation.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin me-2" />
                 ) : (
                   <Check className="h-4 w-4 me-2" />
@@ -382,4 +377,31 @@ export function ProcessInvoicesDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+/** The row as an invoice to save, when it is a valid, unsaved row with a supplier. */
+function invoiceToSave(result: InvoiceResult): Array<GmailInvoiceToSave> {
+  const { partId, selectedSupplierId: supplierId } = result;
+  if (result.error || result.skipped || result.saved) {
+    return [];
+  }
+  if (!partId || !supplierId) {
+    return [];
+  }
+
+  return [
+    {
+      messageId: result.messageId,
+      partId,
+      supplierId,
+      invoiceName: result.invoiceName || result.filename || "חשבונית",
+      invoiceAmount: result.invoiceAmount || 0,
+      invoiceDate: result.invoiceDate || null,
+      invoiceMonth:
+        result.invoiceMonth || new Date().toISOString().substring(0, 7),
+      fileName: result.filename || null,
+      aiExtracted: result.aiExtracted || false,
+      notes: `מקור: ${result.from || ""} | נושא: ${result.subject || ""}`,
+    },
+  ];
 }
