@@ -4,13 +4,22 @@
  * from the framed site. Hosts are punycode, as Chrome's own prompt shows them.
  */
 
-/** The card's lines: its title, its explanation and the allow button. */
-export type CardWords = { title: string; text: string; allow: string };
+/**
+ * The card's lines: its title, the address it is about (shown left to right on a line of
+ * its own, or null), its explanation and the allow button.
+ */
+export type CardWords = {
+  title: string;
+  address: string | null;
+  text: string;
+  allow: string;
+};
 
 /** The card before Carmen reads a site for the first time in this panel. */
 export function readCardWords(host: string): CardWords {
   return {
     title: `כרמן מבקשת לקרוא את הדף באתר ${host}`,
+    address: null,
     text: 'כרמן תקרא את הכותרת, את הטקסט ואת שמות הכפתורים, הקישורים והשדות שמוצגים בדף, בלי מה שמוקלד בשדות. Chrome יבקש לאשר לתוסף "לקרוא ולשנות" את האתר הזה; כרמן רק קוראת, וההרשאה תוסר כשהחלונית תיפתח מחדש.',
     allow: "לאפשר קריאה",
   };
@@ -18,8 +27,8 @@ export function readCardWords(host: string): CardWords {
 
 /**
  * The card before every navigation: the destination's host in the title, and the full
- * address in the text. The address is isolated left to right, so right-to-left characters
- * in it cannot reorder what the user reads.
+ * address on its own left-to-right line, so right-to-left text around it cannot reorder or
+ * split what the user approves.
  */
 export function navigateCardWords(step: {
   fromHost: string;
@@ -28,7 +37,8 @@ export function navigateCardWords(step: {
 }): CardWords {
   return {
     title: `כרמן מבקשת לעבור לאתר ${step.host}`,
-    text: `הלשונית שפתוחה עכשיו ב-${step.fromHost} תעבור לכתובת ⁦${step.href}⁩. אחרי המעבר כרמן תדע רק את הכתובת ואת הכותרת של הדף החדש; כדי לקרוא אותו היא תבקש בנפרד.`,
+    address: step.href,
+    text: `הלשונית שפתוחה עכשיו ב-${step.fromHost} תעבור לכתובת הזו. אחרי המעבר כרמן תדע רק את הכתובת ואת הכותרת של הדף החדש; כדי לקרוא אותו היא תבקש בנפרד.`,
     allow: "לעבור לאתר",
   };
 }

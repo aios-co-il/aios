@@ -140,12 +140,24 @@ async function landedOutcome(
 
   const result: StepResult = {
     ...location,
-    title: oneLineUpTo(landed.title, RESULT_FIELD_MAX),
+    title: oneLineUpTo(pageTitle(landed), RESULT_FIELD_MAX),
   };
   if (!toolResult("browser_navigate", result, "")) {
     throw new Error("The navigation result does not fit the contract's result");
   }
   return { status: "done", asked: true, result };
+}
+
+/**
+ * The page's own title, or "" when Chrome shows the address in its place (a page without
+ * a title): that address holds the query and fragment, which the result leaves out because
+ * they may carry tokens.
+ */
+function pageTitle(tab: TabFacts): string {
+  const address = tab.url ?? "";
+  const shown = address.replace(/^https?:\/\//, "");
+
+  return tab.title === address || tab.title === shown ? "" : tab.title;
 }
 
 /** The deps with every wait raced against the step's stop, as the read's are. */

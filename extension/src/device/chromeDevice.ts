@@ -70,14 +70,21 @@ export function navigateTab(
     // A `complete` before this load started belongs to the page being left.
     let loading = false;
 
-    /** Follows the tab's load. */
-    function onUpdated(id: number, change: chrome.tabs.TabChangeInfo): void {
+    /**
+     * Follows the tab's load. A `complete` while a navigation is still pending is the page
+     * being left finishing its own load, not the destination.
+     */
+    function onUpdated(
+      id: number,
+      change: chrome.tabs.TabChangeInfo,
+      tab: chrome.tabs.Tab,
+    ): void {
       if (id !== tabId) {
         return;
       }
       if (change.status === "loading") {
         loading = true;
-      } else if (change.status === "complete" && loading) {
+      } else if (change.status === "complete" && loading && !tab.pendingUrl) {
         finish();
       }
     }

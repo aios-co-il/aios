@@ -14,6 +14,8 @@ const BUTTON_DELAY_MS = 500;
 export type GrantCardElements = {
   card: HTMLElement;
   title: HTMLElement;
+  /** The address a navigation card is about; hidden on a read card. */
+  address: HTMLElement;
   text: HTMLElement;
   allow: HTMLButtonElement;
   decline: HTMLButtonElement;
@@ -100,6 +102,8 @@ export function askOnCard(
       return;
     }
     elements.title.textContent = words.title;
+    elements.address.textContent = words.address ?? "";
+    elements.address.classList.toggle("hidden", words.address === null);
     elements.text.textContent = words.text;
     elements.allow.textContent = words.allow;
     setEnabled(false);

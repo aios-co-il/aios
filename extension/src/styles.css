@@ -262,7 +262,12 @@ body.panel {
 .grant-text {
   margin: 4px 0 8px;
   color: var(--text-muted);
-  /* A navigation card shows the full address, which may be one long word. */
+}
+.grant-address {
+  margin: 4px 0 0;
+  font-family: ui-monospace, monospace;
+  text-align: left;
+  /* The full address, which may be one long word. */
   overflow-wrap: anywhere;
 }
 .grant-actions {

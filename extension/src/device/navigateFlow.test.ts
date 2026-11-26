@@ -60,6 +60,27 @@ describe("a navigation after the card", () => {
     expect(device.posted).toEqual([ACTION_ID]);
   });
 
+  it("reports no title for a page without one, where Chrome shows the address with its query", async () => {
+    const device = navigatingDevice();
+    const landed = vi.fn(async () => ({
+      id: 7,
+      url: DESTINATION,
+      pendingUrl: undefined,
+      title: DESTINATION.replace("https://", ""),
+    }));
+    const { running } = await untilTheCard(device);
+    device.deps.tab = landed;
+
+    device.card.answer("allowed");
+    await running;
+
+    expect(device.completed[0]).toMatchObject({
+      status: "done",
+      result: { title: "" },
+    });
+    expect(JSON.stringify(device.completed)).not.toContain("secret");
+  });
+
   it("asks again for a second navigation in the same panel", async () => {
     const device = navigatingDevice();
     const actions = createReadActions(device.deps);

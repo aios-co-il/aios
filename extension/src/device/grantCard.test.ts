@@ -1,7 +1,12 @@
 // @vitest-environment happy-dom
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { askGrantOnCard, type GrantCardElements } from "./grantCard.ts";
+import { navigateCardWords } from "./cardWords.ts";
+import {
+  askGrantOnCard,
+  askOnCard,
+  type GrantCardElements,
+} from "./grantCard.ts";
 
 const SITE = { host: "shop.example", pattern: "https://shop.example/*" };
 
@@ -10,11 +15,12 @@ let elements: GrantCardElements;
 beforeEach(() => {
   vi.useFakeTimers();
   document.body.innerHTML = `
-    <div id="card" class="hidden"><div id="title"></div><p id="text"></p>
+    <div id="card" class="hidden"><div id="title"></div><p id="address"></p><p id="text"></p>
       <button id="allow">allow</button><button id="decline">decline</button></div>`;
   elements = {
     card: byId("card", HTMLElement),
     title: byId("title", HTMLElement),
+    address: byId("address", HTMLElement),
     text: byId("text", HTMLElement),
     allow: byId("allow", HTMLButtonElement),
     decline: byId("decline", HTMLButtonElement),
@@ -111,5 +117,48 @@ describe("askGrantOnCard", () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(elements.card.classList.contains("hidden")).toBe(false);
+  });
+});
+
+describe("askOnCard for a navigation", () => {
+  const STEP = {
+    fromHost: "shop.example",
+    host: "store.example",
+    href: "https://store.example/cart",
+  };
+
+  it("shows the full address on its own line, and hides it again on a read card", () => {
+    const navigation = new AbortController();
+    void askOnCard(
+      elements,
+      navigateCardWords(STEP),
+      navigation.signal,
+      vi.fn(),
+    );
+
+    expect(elements.address.textContent).toBe(STEP.href);
+    expect(elements.address.classList.contains("hidden")).toBe(false);
+    expect(elements.allow.textContent).toBe("לעבור לאתר");
+
+    navigation.abort("cancelled");
+    void askGrantOnCard(elements, SITE, new AbortController().signal, vi.fn());
+
+    expect(elements.address.classList.contains("hidden")).toBe(true);
+  });
+
+  it("answers declined, and never runs the allow action, when the user says no", async () => {
+    const onAllow = vi.fn(async () => true);
+    const answer = askOnCard(
+      elements,
+      navigateCardWords(STEP),
+      new AbortController().signal,
+      onAllow,
+    );
+    vi.advanceTimersByTime(500);
+
+    await user().click(elements.decline);
+
+    expect(await answer).toBe("declined");
+    expect(onAllow).not.toHaveBeenCalled();
   });
 });

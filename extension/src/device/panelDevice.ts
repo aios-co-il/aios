@@ -72,6 +72,7 @@ function grantCardElements(): GrantCardElements {
   return {
     card: element("grant-card", HTMLElement),
     title: element("grant-title", HTMLElement),
+    address: element("grant-address", HTMLElement),
     text: element("grant-text", HTMLElement),
     allow: element("grant-allow", HTMLButtonElement),
     decline: element("grant-decline", HTMLButtonElement),
