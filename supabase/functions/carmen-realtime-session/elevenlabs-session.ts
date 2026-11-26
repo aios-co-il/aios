@@ -1,4 +1,4 @@
-import type { ElevenLabsVoice } from "./elevenlabs-voices.ts";
+import type { ElevenLabsVoice } from "../_shared/carmen/voices/elevenlabs-voices.ts";
 import { pickGreeting } from "./greetings.ts";
 
 /** What the app needs to open Carmen's ElevenLabs conversation. */

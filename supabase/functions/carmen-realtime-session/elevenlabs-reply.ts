@@ -2,7 +2,7 @@ import {
   elevenLabsConfig,
   mintElevenLabsSession,
 } from "./elevenlabs-session.ts";
-import { chooseElevenLabsVoice } from "./elevenlabs-voices.ts";
+import { chooseElevenLabsVoice } from "../_shared/carmen/voices/elevenlabs-voices.ts";
 import {
   loadCallerAddress,
   loadSessionContext,

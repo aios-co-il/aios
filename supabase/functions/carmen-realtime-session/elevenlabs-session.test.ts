@@ -3,7 +3,7 @@ import {
   elevenLabsConfig,
   mintElevenLabsSession,
 } from "./elevenlabs-session.ts";
-import { ELEVENLABS_VOICES } from "./elevenlabs-voices.ts";
+import { ELEVENLABS_VOICES } from "../_shared/carmen/voices/elevenlabs-voices.ts";
 
 const CONFIG = { apiKey: "key", agentId: "agent_1" };
 const VOICE = ELEVENLABS_VOICES[1];
