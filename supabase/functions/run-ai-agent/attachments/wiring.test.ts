@@ -8,8 +8,8 @@ const runAiAgent = (
   readRunStages()
 )
   .replace(
-    "pictureRequest = readPictureRequest(",
-    "const pictureRequest = readPictureRequest(",
+    "pictureRequest = withDevicePictures(",
+    "const pictureRequest = withDevicePictures(",
   )
   .replace(
     "turnPictures = await loadTurnPictures(",

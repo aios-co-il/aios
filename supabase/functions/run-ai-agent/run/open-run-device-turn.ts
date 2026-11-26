@@ -1,3 +1,5 @@
+import { withDevicePictures } from "../attachments/turn-pictures.ts";
+import { commandCenterScreenshotStore } from "../device-turn/screenshot.ts";
 import type { RunState } from "./state.ts";
 import { openDeviceTurn } from "../device-turn/turn.ts";
 import { readPictureRequest } from "../attachments/picture-request.ts";
@@ -20,12 +22,16 @@ export async function openRunDeviceTurn(
     tenantId: run.resolvedTenantId,
     userId: run.callerUserId,
     conversationId: run.serverConversationId,
+    screenshotStore: commandCenterScreenshotStore(run.supabase),
   });
   if (run.deviceTurn.reply) {
     return run.deviceTurn.reply;
   }
-  run.pictureRequest = readPictureRequest(run.input.bodyJson.attachments, {
-    authKind: run.input.request.authKind,
-    userId: run.callerUserId,
-  });
+  run.pictureRequest = withDevicePictures(
+    readPictureRequest(run.input.bodyJson.attachments, {
+      authKind: run.input.request.authKind,
+      userId: run.callerUserId,
+    }),
+    run.deviceTurn.pictures,
+  );
 }
