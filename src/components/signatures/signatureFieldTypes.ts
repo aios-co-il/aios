@@ -90,7 +90,7 @@ export function createDocumentField(
     // Generic fields have no title — the PDF already shows what to fill.
     label: type === "text" ? "" : getFieldLabel(type),
     position,
-    required: type === "text" ? false : true,
+    required: type !== "text",
     autofill:
       type === "company_name"
         ? "company_name"

@@ -142,7 +142,7 @@ export function mapAgentTask(t: AnyRow): CarmenTaskRow {
     subtitle: t.description ? String(t.description).slice(0, 140) : null,
     scheduleLabel: agentTaskScheduleLabel(t),
     status: agentTaskStatus(t),
-    enabled: t.enabled === false ? false : true,
+    enabled: t.enabled !== false,
     lastRunAt: t.last_run ?? null,
     nextRunAt:
       t.next_run ??

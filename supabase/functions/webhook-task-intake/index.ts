@@ -480,10 +480,10 @@ Deno.serve(async (req) => {
         task_id: task.id,
         message: "Task created successfully",
         matched: {
-          campaigner: campaignerId ? true : false,
-          client: clientId ? true : false,
-          lead: leadId ? true : false,
-          sales_person: salesPersonId ? true : false,
+          campaigner: !!campaignerId,
+          client: !!clientId,
+          lead: !!leadId,
+          sales_person: !!salesPersonId,
         },
       }),
       {
