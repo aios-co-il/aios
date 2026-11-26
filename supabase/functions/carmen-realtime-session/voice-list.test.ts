@@ -1,6 +1,9 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { ELEVENLABS_VOICES } from "./elevenlabs-voices.ts";
-import { OPENAI_VOICES, REALTIME_VOICES } from "./voice-choice.ts";
+import { ELEVENLABS_VOICES } from "../_shared/carmen/voices/elevenlabs-voices.ts";
+import {
+  OPENAI_VOICES,
+  REALTIME_VOICES,
+} from "../_shared/carmen/voices/voice-choice.ts";
 import { CARMEN_VOICES, voiceListReply } from "./voice-list.ts";
 
 Deno.test("the list holds every ElevenLabs and OpenAI voice once", () => {
