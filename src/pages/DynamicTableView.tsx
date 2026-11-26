@@ -640,7 +640,7 @@ export default function DynamicTableView({
     return previousReportRecords(
       filterRecordsByCampaign(
         previousPeriod.records,
-        adsCampaignFilter.campaignKey,
+        adsCampaignFilter.control.value,
       ),
       adsEntityLevel,
       {
@@ -651,7 +651,7 @@ export default function DynamicTableView({
   }, [
     previousPeriod.records,
     recordsPlaceholder,
-    adsCampaignFilter.campaignKey,
+    adsCampaignFilter.control.value,
     adsEntityLevel,
     debouncedCampaignSearch,
     filteredRecords,

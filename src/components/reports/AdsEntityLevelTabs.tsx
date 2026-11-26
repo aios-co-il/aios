@@ -11,8 +11,11 @@ interface AdsEntityLevelTabsProps {
   value: AdsEntityLevel;
   onChange: (level: AdsEntityLevel) => void;
   className?: string;
-  /** The campaign pick, shown beside the tabs on the ad set and ad levels. */
-  campaignFilter?: AdsCampaignFilterControl;
+  /**
+   * The campaign pick beside the tabs. The picker hides itself with fewer than
+   * two campaigns, so the campaign level, which lists none, shows no picker.
+   */
+  campaignFilter: AdsCampaignFilterControl;
 }
 
 /** The report's campaign / ad set / ad tabs, with the campaign picker. */
@@ -42,9 +45,7 @@ export function AdsEntityLevelTabs({
           ))}
         </TabsList>
       </Tabs>
-      {campaignFilter && value !== "campaign" && (
-        <AdsCampaignPicker {...campaignFilter} />
-      )}
+      <AdsCampaignPicker {...campaignFilter} />
     </div>
   );
 }

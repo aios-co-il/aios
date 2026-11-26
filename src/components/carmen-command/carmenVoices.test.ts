@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { isElevenLabsVoice, toCarmenVoice } from "./carmenVoices";
+import { CARMEN_VOICES } from "../../../supabase/functions/carmen-realtime-session/voice-list.ts";
+import {
+  carmenVoiceGroups,
+  isElevenLabsVoice,
+  toCarmenVoice,
+} from "./carmenVoices";
 
 describe("carmenVoices", () => {
   it("keeps known OpenAI and ElevenLabs voices", () => {
@@ -11,6 +16,27 @@ describe("carmenVoices", () => {
     expect(toCarmenVoice("nova")).toBeNull();
     expect(toCarmenVoice(null)).toBeNull();
     expect(toCarmenVoice("")).toBeNull();
+  });
+
+  it("keeps every voice of the server's list, of both providers", () => {
+    const listIds = CARMEN_VOICES.map((voice) => voice.id);
+
+    expect(listIds.map(toCarmenVoice)).toEqual(listIds);
+  });
+
+  it("groups the server's list by provider, ElevenLabs first, in list order", () => {
+    const groups = carmenVoiceGroups();
+
+    expect(groups.map((group) => [group.provider, group.label])).toEqual([
+      ["elevenlabs", "ElevenLabs"],
+      ["openai", "OpenAI"],
+    ]);
+    expect(groups.flatMap((group) => group.voices)).toEqual(CARMEN_VOICES);
+    expect(
+      groups.every((group) =>
+        group.voices.every((voice) => voice.provider === group.provider),
+      ),
+    ).toBe(true);
   });
 
   it("tells ElevenLabs voices from OpenAI ones", () => {

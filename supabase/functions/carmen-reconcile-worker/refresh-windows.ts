@@ -1,18 +1,34 @@
 /**
- * When an auto-resync may run (AIO-238): never inside the scheduled sync and
- * pulse refresh windows, and never so close to one that it would race the
+ * When an auto-resync may run (AIO-238): never inside a scheduled ads sync and
+ * its pulse refresh, and never so close to one that it would race the
  * scheduled sync's delete + insert on the same table.
  */
+import {
+  ADS_SYNC_SCHEDULES,
+  dailyRunMinutes,
+} from "../_shared/ads-sync/schedules.ts";
+
+/** A refresh window opens this long before a scheduled run starts. */
+const WINDOW_BEFORE_RUN_MINUTES = 10;
 
 /**
- * Sync + snapshot refresh windows (UTC): syncs run 02:40–02:50 and
- * 11:40–11:50, the pulse refresh at 04:00 and 13:00. These mirror the DB cron
- * schedules by hand.
+ * And stays shut this long after it: the batch chain (up to about 20 batches
+ * of up to 150 s) and the pulse refresh that follows it.
  */
-export const REFRESH_WINDOWS_UTC: Array<[number, number]> = [
-  [2 * 60 + 30, 4 * 60 + 30],
-  [11 * 60 + 30, 13 * 60 + 30],
-];
+const WINDOW_AFTER_RUN_MINUTES = 80;
+
+/**
+ * Refresh windows (minutes after midnight UTC), one per scheduled run of each
+ * ads sync in ADS_SYNC_SCHEDULES; overlapping windows are merged.
+ */
+export const REFRESH_WINDOWS_UTC: Array<[number, number]> = mergeWindows(
+  ADS_SYNC_SCHEDULES.flatMap((job) =>
+    dailyRunMinutes(job.cron).map((start): [number, number] => [
+      start - WINDOW_BEFORE_RUN_MINUTES,
+      start + WINDOW_AFTER_RUN_MINUTES,
+    ]),
+  ),
+);
 
 /** A resync must also finish before the next refresh window starts. */
 export const RESYNC_LEAD_MS = 30 * 60_000;
@@ -31,4 +47,20 @@ export function insideRefreshWindow(now: Date): boolean {
   return REFRESH_WINDOWS_UTC.some(
     ([from, to]) => minute >= from && minute < to,
   );
+}
+
+/** Sorted windows with every overlap joined into one. */
+function mergeWindows(
+  windows: Array<[number, number]>,
+): Array<[number, number]> {
+  const merged: Array<[number, number]> = [];
+  for (const [from, to] of [...windows].sort((a, b) => a[0] - b[0])) {
+    const last = merged.at(-1);
+    if (last && from <= last[1]) {
+      last[1] = Math.max(last[1], to);
+    } else {
+      merged.push([from, to]);
+    }
+  }
+  return merged;
 }

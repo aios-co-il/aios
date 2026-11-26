@@ -22,10 +22,10 @@ import {
   Archive,
   ChevronLeft,
   ChevronRight,
+  Pencil,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { AddLeadForm } from "@/components/forms/AddLeadForm";
-import { EditLeadDialog } from "@/components/forms/EditLeadDialog";
 import { ImportLeadsWithMapping } from "@/components/forms/ImportLeadsWithMapping";
 import { ManageLeadStatusesDialog } from "@/components/forms/ManageLeadStatusesDialog";
 import { ManagePipelineStagesDialog } from "@/components/forms/ManagePipelineStagesDialog";
@@ -134,6 +134,13 @@ import {
 import { LeadsKanbanStage } from "@/components/LeadsPage/LeadsKanbanStage";
 import { LeadsPaginationBar } from "@/components/LeadsPage/LeadsPaginationBar";
 import { LeadsSearchInput } from "@/components/LeadsPage/LeadsSearchInput";
+import { LeadFieldCell } from "@/components/LeadsPage/LeadFieldCell";
+import { LeadCustomFieldCell } from "@/components/LeadsPage/LeadCustomFieldCell";
+import { LeadSelectCell } from "@/components/LeadsPage/LeadSelectCell";
+import { isEditableLeadField } from "@/components/LeadsPage/leadCellValues";
+import { useSaveLeadFields } from "@/components/LeadsPage/useSaveLeadFields";
+import { leadSourceSelectOptions } from "@/lib/leadFields";
+import { HeaderSearch } from "@/components/layout/HeaderSearch/HeaderSearch";
 import { LeadsSidePanel } from "@/components/LeadsPage/LeadsSidePanel";
 import { LeadsSummaryList } from "@/components/LeadsPage/LeadsSummaryList";
 import { LeadsTableCard } from "@/components/LeadsPage/LeadsTableCard";
@@ -190,8 +197,20 @@ import {
 } from "@/lib/leadRecordings";
 import { buildLeadSalesPersonAssignments } from "@/components/LeadsPage/leadSalesPersonAssignments";
 
-// Kanban opens the chat view. The CRM table opens the same record as a popup.
+// Opens a lead's record: a popup over the table and the pipeline, in place in the chat view.
 const LeadEditContext = createContext<((leadId: string) => void) | null>(null);
+
+/** The popup's leads, plus the lead a link opened when the list does not hold it. */
+function withLinkedLead<Lead extends { id: string }>(
+  leads: Array<Lead>,
+  linked: Lead | null | undefined,
+): Array<Lead> {
+  if (!linked || leads.some((lead) => lead.id === linked.id)) {
+    return leads;
+  }
+
+  return [...leads, linked];
+}
 
 function keepCrmLeadDialogOpen(event: {
   target: EventTarget | null;
@@ -305,7 +324,6 @@ function LeadCardContent({
 }) {
   const { toast } = useToast();
   const openLeadInChat = useContext(LeadEditContext);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [stageSelectOpen, setStageSelectOpen] = useState(false);
   const [responseSelectOpen, setResponseSelectOpen] = useState(false);
   const [manageStagesOpen, setManageStagesOpen] = useState(false);
@@ -347,11 +365,7 @@ function LeadCardContent({
             className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer hover:opacity-70 transition-opacity"
             onClick={(e) => {
               e.stopPropagation();
-              if (openLeadInChat) {
-                openLeadInChat(lead.id);
-              } else {
-                setEditDialogOpen(true);
-              }
+              openLeadInChat?.(lead.id);
             }}
           >
             <User className="h-4 w-4 text-primary shrink-0" />
@@ -442,11 +456,15 @@ function LeadCardContent({
           className="flex gap-2 pt-2 border-t"
           onClick={(e) => e.stopPropagation()}
         >
-          <EditLeadDialog
-            lead={lead}
-            open={editDialogOpen}
-            onOpenChange={setEditDialogOpen}
-          />
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            title="פרטי ליד"
+            onClick={() => openLeadInChat?.(lead.id)}
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
           <LeadTagSelector leadId={lead.id} initialTagIds={leadTagIds} />
           <AddTaskForm
             leadId={lead.id}
@@ -788,23 +806,20 @@ export default function Leads() {
   const [pendingChatLeadId, setPendingChatLeadId] = useState<string | null>(
     null,
   );
-  const [tableDialogLeadId, setTableDialogLeadId] = useState<string | null>(
-    null,
-  );
+  const [clickedLeadId, setClickedLeadId] = useState<string | null>(null);
 
-  // Table stays put and opens the chat record as a popup. Other views switch to chat.
+  // Table and pipeline stay put and open the chat record as a popup. The chat view selects it in place.
   const openLeadInChat = (leadId: string) => {
     if (leadOpenSurface(viewMode) === "popup") {
-      setTableDialogLeadId(leadId);
+      setClickedLeadId(leadId);
       return;
     }
     setPendingChatLeadId(leadId);
-    setViewMode("chat");
   };
 
   useEffect(() => {
-    if (viewMode !== "table") {
-      setTableDialogLeadId(null);
+    if (leadOpenSurface(viewMode) !== "popup") {
+      setClickedLeadId(null);
     }
   }, [viewMode]);
   const [openTables, setOpenTables] = useState<Record<string, boolean>>({});
@@ -919,6 +934,22 @@ export default function Leads() {
       return updated;
     });
   };
+
+  /** Shows a follow-up date changed in the lead popup on the list behind it. */
+  function showFollowUpDateBehindPopup(leadId: string, newDate: string | null) {
+    if (viewMode === "kanban") {
+      handleFollowUpDateUpdate(leadId, newDate);
+      return;
+    }
+
+    queryClient.setQueriesData({ queryKey: ["leads-table"] }, (old: unknown) =>
+      Array.isArray(old)
+        ? old.map((lead: { id: string }) =>
+            lead.id === leadId ? { ...lead, follow_up_date: newDate } : lead,
+          )
+        : old,
+    );
+  }
 
   // Fetch lead data for auto-open from URL
   const { data: autoOpenLead } = useQuery({
@@ -2387,6 +2418,13 @@ export default function Leads() {
     optimisticStatusByLeadId,
   ]);
 
+  // A lead from a `?leadId=` link opens the same popup, in every view.
+  const popupLeadId = autoOpenLead ? autoOpenLead.id : clickedLeadId;
+  const popupLeads = useMemo(
+    () => withLinkedLead(filteredLeads, autoOpenLead),
+    [filteredLeads, autoOpenLead],
+  );
+
   const dateSortedLeads = useMemo(
     () => sortLeadsByDate(filteredLeads || []),
     [filteredLeads],
@@ -3198,24 +3236,10 @@ export default function Leads() {
             </Sheet>
           </div>
 
-          {/* Desktop: search and add above the list; the rest is in the side panel */}
-          <div
-            className={cn(
-              "hidden shrink-0 items-center gap-2 md:flex",
-              viewMode === "table" && "pb-2.5",
-              // Kanban scrolls this column, so the row stays on top as the old header did.
-              !fillsScreen && "sticky top-0 z-40 bg-background py-2",
-            )}
-          >
-            <LeadsSearchInput
-              value={searchQuery}
-              onChange={setSearchQuery}
-              className="w-72"
-            />
-            <div className="ms-auto">
-              <AddLeadForm />
-            </div>
-          </div>
+          {/* Desktop: search is in the app header; the rest is in the side panel */}
+          <HeaderSearch>
+            <LeadsSearchInput value={searchQuery} onChange={setSearchQuery} />
+          </HeaderSearch>
 
           {/* Filters Dialog */}
           <LeadFiltersDialog
@@ -3654,7 +3678,6 @@ export default function Leads() {
                 leadStatuses={leadStatuses}
                 allTags={allTags}
                 leadsTagsMap={leadsTagsMap}
-                productsLookup={productsLookup}
                 onStatusChange={(leadId, newStatus) =>
                   updateLeadStatus.mutate({ leadId, newStatus })
                 }
@@ -3781,20 +3804,12 @@ export default function Leads() {
             </div>
           )}
 
-          {/* Auto-open lead dialog from URL parameter */}
-          {autoOpenLead && (
-            <EditLeadDialog
-              lead={autoOpenLead}
-              open={!!autoOpenLeadId}
-              onOpenChange={(open) => !open && setAutoOpenLeadId(null)}
-            />
-          )}
-
           <Dialog
-            open={!!tableDialogLeadId}
+            open={!!popupLeadId}
             onOpenChange={(open) => {
               if (!open) {
-                setTableDialogLeadId(null);
+                setClickedLeadId(null);
+                setAutoOpenLeadId(null);
               }
             }}
           >
@@ -3810,18 +3825,17 @@ export default function Leads() {
                   אותו כרטיס ליד כמו בתצוגת הצ׳אט
                 </DialogDescription>
               </DialogHeader>
-              {tableDialogLeadId && (
+              {popupLeadId && (
                 <div className="min-h-0 flex-1">
                   <LeadsChatView
-                    key={tableDialogLeadId}
+                    key={popupLeadId}
                     presentation="dialog"
-                    initialLeadId={tableDialogLeadId}
-                    leads={filteredLeads || []}
+                    initialLeadId={popupLeadId}
+                    leads={popupLeads}
                     pipelineStages={PIPELINE_STAGES}
                     leadStatuses={leadStatuses}
                     allTags={allTags}
                     leadsTagsMap={leadsTagsMap}
-                    productsLookup={productsLookup}
                     onStatusChange={(leadId, newStatus) =>
                       updateLeadStatus.mutate({ leadId, newStatus })
                     }
@@ -3831,21 +3845,7 @@ export default function Leads() {
                         responseStatus: responseStatus as any,
                       })
                     }
-                    onFollowUpDateUpdate={(leadId, newDate) => {
-                      queryClient.setQueriesData(
-                        { queryKey: ["leads-table"] },
-                        (old: any) => {
-                          if (!old || !Array.isArray(old)) {
-                            return old;
-                          }
-                          return old.map((lead: any) =>
-                            lead.id === leadId
-                              ? { ...lead, follow_up_date: newDate }
-                              : lead,
-                          );
-                        },
-                      );
-                    }}
+                    onFollowUpDateUpdate={showFollowUpDateBehindPopup}
                     isCompanyNameVisible={isFieldVisible("company_name")}
                     searchQuery=""
                   />
@@ -4095,6 +4095,7 @@ function TableWithStickyScroll({
     "call_recording",
     isFieldVisible,
   );
+  const saveLeadFields = useSaveLeadFields();
   const customTableColumns = getLeadTableCustomColumns(
     fieldDefinitions,
     LEAD_SYSTEM_FIELD_KEYS,
@@ -4645,10 +4646,18 @@ function TableWithStickyScroll({
               width: 170,
               sticky: true,
               render: (lead: any) => (
-                <LeadNameCell
-                  name={lead.contact_name}
-                  onOpen={() => openLeadInChat?.(lead.id)}
-                />
+                <LeadFieldCell
+                  lead={lead}
+                  field="contact_name"
+                  label={getFieldLabel("contact_name", "שם")}
+                  trigger="icon"
+                  onSave={saveLeadFields.mutate}
+                >
+                  <LeadNameCell
+                    name={lead.contact_name}
+                    onOpen={() => openLeadInChat?.(lead.id)}
+                  />
+                </LeadFieldCell>
               ),
             },
             ...(isLeadTableColumnVisible("created_at", isFieldVisible)
@@ -4690,7 +4699,15 @@ function TableWithStickyScroll({
                     label: getFieldLabel("phone", "טלפון"),
                     width: 150,
                     render: (lead: LeadTableRow) => (
-                      <LeadPhoneCell phone={lead.phone} />
+                      <LeadFieldCell
+                        lead={lead}
+                        field="phone"
+                        label={getFieldLabel("phone", "טלפון")}
+                        trigger="icon"
+                        onSave={saveLeadFields.mutate}
+                      >
+                        <LeadPhoneCell phone={lead.phone} />
+                      </LeadFieldCell>
                     ),
                   },
                 ]
@@ -4702,7 +4719,14 @@ function TableWithStickyScroll({
                     label: getFieldLabel("company_name", "שם חברה"),
                     width: 170,
                     render: (lead: any) => (
-                      <LeadCompanyCell company={lead.company_name} />
+                      <LeadFieldCell
+                        lead={lead}
+                        field="company_name"
+                        label={getFieldLabel("company_name", "שם חברה")}
+                        onSave={saveLeadFields.mutate}
+                      >
+                        <LeadCompanyCell company={lead.company_name} />
+                      </LeadFieldCell>
                     ),
                   },
                 ]
@@ -4714,12 +4738,14 @@ function TableWithStickyScroll({
                     label: getFieldLabel("campaign_name", "שם קמפיין"),
                     width: 180,
                     render: (lead: any) => (
-                      <span
-                        className="truncate"
-                        title={lead.campaign_name || ""}
+                      <LeadFieldCell
+                        lead={lead}
+                        field="campaign_name"
+                        label={getFieldLabel("campaign_name", "שם קמפיין")}
+                        onSave={saveLeadFields.mutate}
                       >
-                        {lead.campaign_name || "—"}
-                      </span>
+                        <LeadPlainCell text={lead.campaign_name || "—"} />
+                      </LeadFieldCell>
                     ),
                   },
                 ]
@@ -4731,7 +4757,19 @@ function TableWithStickyScroll({
                     label: getFieldLabel("source", "מקור הליד"),
                     width: 140,
                     render: (lead: LeadTableRow) => (
-                      <LeadSourceBadge lead={lead} />
+                      <LeadSelectCell
+                        value={lead.source ?? undefined}
+                        options={leadSourceSelectOptions(lead.source)}
+                        label={getFieldLabel("source", "מקור הליד")}
+                        onSave={(source) =>
+                          saveLeadFields.mutate({
+                            leadId: lead.id,
+                            patch: { source },
+                          })
+                        }
+                      >
+                        <LeadSourceBadge lead={lead} />
+                      </LeadSelectCell>
                     ),
                   },
                 ]
@@ -4844,15 +4882,17 @@ function TableWithStickyScroll({
                   lead[field.key],
                   field.type,
                 );
-                if (field.key === "email" && text !== "—") {
-                  return <ContactValue kind="email" value={text} />;
-                }
                 const link =
                   field.key === "folder_link" && /^https?:\/\//i.test(text)
                     ? text
                     : null;
-                if (link) {
-                  return (
+                // A mail address and a link keep their own clicks, so they edit from the pencil.
+                const hasOwnClicks =
+                  (field.key === "email" && text !== "—") || !!link;
+                const content =
+                  field.key === "email" && text !== "—" ? (
+                    <ContactValue kind="email" value={text} />
+                  ) : link ? (
                     <a
                       href={link}
                       target="_blank"
@@ -4863,9 +4903,23 @@ function TableWithStickyScroll({
                     >
                       {text}
                     </a>
+                  ) : (
+                    <LeadPlainCell text={text} />
                   );
+                if (!isEditableLeadField(field.key)) {
+                  return content;
                 }
-                return <LeadPlainCell text={text} />;
+                return (
+                  <LeadFieldCell
+                    lead={lead}
+                    field={field.key}
+                    label={getFieldLabel(field.key, field.label)}
+                    trigger={hasOwnClicks ? "icon" : "cell"}
+                    onSave={saveLeadFields.mutate}
+                  >
+                    {content}
+                  </LeadFieldCell>
+                );
               },
             })),
             ...customTableColumns.map((field) => ({
@@ -4873,12 +4927,21 @@ function TableWithStickyScroll({
               label: field.field_label,
               width: 160,
               render: (lead: any) => (
-                <LeadPlainCell
-                  text={formatLeadTableFieldValue(
-                    readLeadCustomColumnValue(lead.form_data, field.field_key),
-                    field.field_type,
-                  )}
-                />
+                <LeadCustomFieldCell
+                  lead={lead}
+                  field={field}
+                  onSave={saveLeadFields.mutate}
+                >
+                  <LeadPlainCell
+                    text={formatLeadTableFieldValue(
+                      readLeadCustomColumnValue(
+                        lead.form_data,
+                        field.field_key,
+                      ),
+                      field.field_type,
+                    )}
+                  />
+                </LeadCustomFieldCell>
               ),
             })),
             {

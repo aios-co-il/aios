@@ -1,7 +1,8 @@
 /**
  * Minimal in-memory stand-in for the supabase-js query builder, for Deno tests.
  * Supports select/insert with eq, neq, in, order, limit, maybeSingle, single
- * and await. Every query is recorded in `queries` so tests can assert what
+ * and await; or() is accepted and not applied, so a test seeds only the rows
+ * its or() should match. Every query is recorded in `queries` so tests can assert what
  * was asked (for example, which integration types were requested).
  * A plain column list in select() is honoured: rows come back with only those
  * columns, so code that forgets to select a column it reads fails its test.
@@ -68,6 +69,7 @@ export function fakeSupabase(
       eq: (col: string, val: unknown) => filter(["eq", col, val]),
       neq: (col: string, val: unknown) => filter(["neq", col, val]),
       in: (col: string, vals: Array<unknown>) => filter(["in", col, vals]),
+      or: () => builder,
       order(col: string, opts: { ascending?: boolean } = {}) {
         q.order = { col, asc: opts.ascending !== false };
         return builder;

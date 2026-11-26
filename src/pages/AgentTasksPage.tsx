@@ -62,7 +62,7 @@ import {
   Pencil,
   RotateCcw,
 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
+import { ReplyMarkdown } from "@/components/ReplyMarkdown/ReplyMarkdown";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useTenantPath } from "@/hooks/useTenantPath";
@@ -365,7 +365,7 @@ function TaskResultDisplay({ result }: { result: any }) {
           className={`p-3 rounded-xl text-xs whitespace-pre-wrap ${hasVisualContent ? "bg-muted/40 text-foreground" : "bg-green-50 text-green-900"}`}
         >
           <div className="prose prose-xs prose-green max-w-none">
-            <ReactMarkdown>{output}</ReactMarkdown>
+            <ReplyMarkdown>{output}</ReplyMarkdown>
           </div>
         </div>
       )}

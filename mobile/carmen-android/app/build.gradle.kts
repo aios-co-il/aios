@@ -21,6 +21,61 @@ val webEnv = Properties().apply {
 }
 fun webEnvValue(key: String): String = webEnv.getProperty(key).orEmpty().trim().removeSurrounding("\"")
 
+/**
+ * The Mini Me's resources, generated from the site's own files so the app never holds a copy:
+ * the render of [skin] in each set (`<skin>-<set>.webp`, as `miniMeRenderFile` in
+ * `supabase/functions/_shared/carmen/minime-gender.ts` names them) becomes
+ * `R.drawable.minime_<set>`, and the built-in Mini Me's name becomes `R.string.minime_name`.
+ * A missing render or name fails the build.
+ */
+abstract class MiniMeResources : DefaultTask() {
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val renders: DirectoryProperty
+
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val personas: RegularFileProperty
+
+    @get:Input
+    abstract val skin: Property<String>
+
+    @get:Input
+    abstract val sets: ListProperty<String>
+
+    @get:OutputDirectory
+    abstract val res: DirectoryProperty
+
+    @TaskAction
+    fun generate() {
+        // Start empty, so a set dropped from the list leaves no picture behind.
+        res.get().asFile.deleteRecursively()
+        val drawables = res.get().dir("drawable-nodpi").asFile.apply { mkdirs() }
+        sets.get().forEach { set ->
+            val render = renders.get().file("${skin.get()}-$set.webp").asFile
+            if (!render.isFile) throw GradleException("The Mini Me render $render is missing.")
+            render.copyTo(drawables.resolve("minime_$set.webp"), overwrite = true)
+        }
+
+        val source = personas.get().asFile
+        val name = Regex("""minime:\s*builtin\(\{\s*displayName:\s*"([^"]+)"""").find(source.readText())
+            ?.groupValues?.get(1)
+            ?: throw GradleException("The built-in Mini Me's displayName was not found in $source.")
+        res.get().dir("values").asFile.apply { mkdirs() }.resolve("minime.xml").writeText(
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n" +
+                "<resources>\n    <string name=\"minime_name\">${stringResource(name)}</string>\n</resources>\n",
+        )
+    }
+
+    /** [text] as the body of a `<string>`: XML's own characters, then the ones aapt reads specially. */
+    private fun stringResource(text: String): String {
+        val xml = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        val quoted = xml.replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"")
+        // A leading @ or ? would read as a reference to another resource.
+        return if (quoted.startsWith("@") || quoted.startsWith("?")) "\\$quoted" else quoted
+    }
+}
+
 /** Release signing from local.properties (carmen.release.*) or CARMEN_RELEASE_* env vars in CI. */
 val releaseStoreFile = backendSetting("carmen.release.storeFile", "CARMEN_RELEASE_STORE_FILE")
 
@@ -32,8 +87,8 @@ android {
         applicationId = "co.il.aios.carmen"
         minSdk = 30
         targetSdk = 35
-        versionCode = 26
-        versionName = "0.9.11"
+        versionCode = 28
+        versionName = "0.9.13"
         // 64-bit phones only: keeps the APK small enough to download reliably to a phone.
         ndk { abiFilters += listOf("arm64-v8a") }
     }
@@ -98,6 +153,22 @@ android {
     buildFeatures { buildConfig = true }
     // Compress the native speech library inside the APK (~10 MB stored, a few MB compressed).
     packaging { jniLibs { useLegacyPackaging = true } }
+}
+
+// Each variant gets the Mini Me's resources (MiniMeResources) among its own. The site shows its
+// "classic" skin wherever no role is on screen, and the app has no roles, so that is the one skin.
+// The sets are the entries of MiniMeSet (MiniMe.kt), which names each one's render.
+androidComponents {
+    onVariants { variant ->
+        val variantName = variant.name.replaceFirstChar { it.uppercase() }
+        val miniMe = tasks.register<MiniMeResources>("generate${variantName}MiniMeResources") {
+            renders.set(rootProject.file("../../src/components/carmen/MiniMe/images"))
+            personas.set(rootProject.file("../../supabase/functions/_shared/carmen/personas.ts"))
+            skin.set("classic")
+            sets.set(listOf("male", "female"))
+        }
+        variant.sources.res?.addGeneratedSourceDirectory(miniMe, MiniMeResources::res)
+    }
 }
 
 // Fail loudly instead of producing an unsigned or debug-signed Production APK.

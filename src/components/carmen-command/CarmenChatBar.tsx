@@ -59,8 +59,10 @@ import {
   type CarmenVoice,
   isElevenLabsVoice,
   toCarmenVoice,
-  VOICE_STORAGE_KEY,
 } from "./carmenVoices";
+import { isQuietChat } from "./choices/brainPickDecision";
+import { useApplyBrainPick } from "./choices/useApplyBrainPick";
+import { useCarmenVoicePick } from "./choices/useCarmenVoicePick";
 import { CarmenVoiceOptions } from "./CarmenVoiceOptions";
 import { SendOrStopButton } from "./SendOrStopButton";
 import { useRunControl } from "./useRunControl";
@@ -118,15 +120,17 @@ import {
   transcribeAudioBlob,
   type MicCaptureMode,
 } from "@/lib/carmenTranscribeOnly";
-import type { SystemFixContextMetadata } from "@/lib/systemFixContext";
+import type { ScreenContextMetadata } from "@/lib/systemFixContext";
+import { SCREEN_CONTEXT_SOURCE } from "@functions/_shared/carmen/screen-context.ts";
 import { systemFixPromptAddon } from "@/lib/systemFixContext";
 import {
   COMMAND_CENTER_FILE_ACCEPT,
   COMMAND_CENTER_MAX_FILES,
-  formatAttachmentsForPrompt,
+  carmenTurn,
   uploadCommandCenterAttachments,
   type CommandCenterAttachment,
 } from "@/lib/commandCenterAttachments";
+import type { TurnPictureAttachment } from "../../../supabase/functions/run-ai-agent/attachments/contract.ts";
 
 interface ChatMessage {
   id?: string;
@@ -163,7 +167,7 @@ interface CarmenChatBarProps {
   onHudModeChange?: (mode: HudStage) => void;
   /** sidecar = system-fix panel with screen context (text + attachments + transcribe) */
   mode?: "default" | "sidecar";
-  contextMetadata?: SystemFixContextMetadata | null;
+  contextMetadata?: ScreenContextMetadata | null;
   sidecarPlaceholder?: string;
   /** Extra controls shown inside the composer, above the input row. */
   composerAccessory?: ReactNode;
@@ -231,10 +235,8 @@ export const CarmenChatBar = forwardRef<
   const [isMuted, setIsMuted] = useState(false);
   const [isOutputMuted, setIsOutputMuted] = useState(false);
   const [isPreviewingVoice, setIsPreviewingVoice] = useState(false);
-  // null = no pick saved: live voice speaks Carmen's configured voice (ai_agents.voice).
-  const [selectedVoice, setSelectedVoice] = useState<CarmenVoice | null>(() =>
-    toCarmenVoice(localStorage.getItem(VOICE_STORAGE_KEY)),
-  );
+  // null = no pick stored: live voice speaks Carmen's configured voice (ai_agents.voice).
+  const { voice: selectedVoice, saveVoice } = useCarmenVoicePick(tenantId);
   const [showHistory, setShowHistory] = useState(false);
   const historyVisible = historyOpen ?? showHistory;
   const setHistory = (open: boolean) => {
@@ -265,6 +267,15 @@ export const CarmenChatBar = forwardRef<
   const { userId } = useCurrentUser();
   const queryClient = useQueryClient();
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const chatIsQuiet = isQuietChat({
+    messageCount: messages.length,
+    conversationId,
+    streaming: isStreaming,
+    liveVoice: isConvMode,
+    voiceNote: isTranscribeRecording || isTranscribing,
+    channelStatus: brain.status,
+  });
+  useApplyBrainPick(brain, tenantId, chatIsQuiet);
   const hud = hudStage({
     routeType: brain.selected.route_type,
     debating: brain.status === "debating",
@@ -499,9 +510,11 @@ export const CarmenChatBar = forwardRef<
       trimmed: string,
       history: Array<{ role: string; content: string }>,
       boundConvId: string,
-      ctxMeta: SystemFixContextMetadata | null,
+      ctxMeta: ScreenContextMetadata | null,
       // A model brain or "נתב חכם" that runs Carmen's loop (server re-checks it).
       runBrain?: string,
+      // The pictures attached to this message, by storage path (AIO-675).
+      pictures: Array<TurnPictureAttachment> = [],
     ) => {
       // The reply belongs to the brain that started it, even if the picker changes.
       const persistSlug = runBrain ?? brain.selected?.slug;
@@ -513,7 +526,14 @@ export const CarmenChatBar = forwardRef<
       }
       const workshop = workshopRequestParts(getWorkshopContext());
       const promptAddon =
-        [ctxMeta ? systemFixPromptAddon(ctxMeta) : "", workshop?.promptAddon]
+        [
+          // Only an AIOS screen joins the system prompt. A browser tab is the page's own
+          // words, which the server adds to the user's turn as data.
+          ctxMeta?.source === SCREEN_CONTEXT_SOURCE.commandCenterSidebar
+            ? systemFixPromptAddon(ctxMeta)
+            : "",
+          workshop?.promptAddon,
+        ]
           .filter(Boolean)
           .join("\n\n") || undefined;
       // The server saves the answer under this key too, even if the panel closes.
@@ -528,6 +548,7 @@ export const CarmenChatBar = forwardRef<
           },
           body: JSON.stringify({
             command_text: trimmed,
+            attachments: pictures.length ? pictures : undefined,
             tenant_id: tenantId,
             surface: "internal_chat",
             stream: true,
@@ -759,9 +780,11 @@ export const CarmenChatBar = forwardRef<
       const sendRoute = brain.selected;
       const displayText =
         trimmed || (pendingAttachments.length ? "📎 קבצים מצורפים" : "");
-      const agentText = pendingAttachments.length
-        ? formatAttachmentsForPrompt(pendingAttachments, trimmed)
-        : trimmed;
+      // Carmen's own loop also reads each picture from storage, by its path (AIO-675).
+      const { commandText: agentText, pictures } = carmenTurn(
+        pendingAttachments,
+        trimmed,
+      );
       setMessages((prev) => [
         ...prev,
         {
@@ -815,6 +838,7 @@ export const CarmenChatBar = forwardRef<
             boundId || "",
             ctxMeta,
             routed.run_brain,
+            pictures,
           );
           if (mode === "transcribe_only") {
             logTranscribeOnlyEvent("text_response", { stream: true });
@@ -1656,6 +1680,9 @@ export const CarmenChatBar = forwardRef<
   const resumeRef = useRef(startFresh ? readResumeChat(tenantId) : null);
   const restoredRef = useRef(startFresh && !resumeRef.current);
   const seatSlugRef = useRef(brain.selected.slug);
+  // The selection on screen when a conversation was last opened: the render
+  // that still shows it has not caught up with the conversation's own seat.
+  const openedFromRef = useRef<BrainChannel["selected"] | null>(null);
   const loadConversation = useCallback(
     async (conv: TopicChat) => {
       learnFromConversation();
@@ -1663,6 +1690,7 @@ export const CarmenChatBar = forwardRef<
       const nextRoute = routeForRestoredChat(brain.routes, conv);
       // This chat picks its own seat; the seat-switch effect must not reset it.
       seatSlugRef.current = nextRoute.slug;
+      openedFromRef.current = brain.selected;
       brain.selectRoute(nextRoute, conv.id);
       const status = liveTopicStatus(conv.status, conv.updated_at);
       brain.setStatus(
@@ -1747,7 +1775,14 @@ export const CarmenChatBar = forwardRef<
   );
 
   useEffect(() => {
-    if (!tenantId || restoredRef.current || conversationIdRef.current) {
+    // The placeholder brain list cannot name a conversation's own brain, so
+    // the restore waits for the user's real list.
+    if (
+      !tenantId ||
+      !brain.routesReady ||
+      restoredRef.current ||
+      conversationIdRef.current
+    ) {
       return;
     }
     const seat = brain.selected.slug || "cursor";
@@ -1774,11 +1809,18 @@ export const CarmenChatBar = forwardRef<
     loadConversation,
     brain.selected,
     brain.routes,
+    brain.routesReady,
   ]);
 
   /** Switching seats must open that seat's thread — never keep Carmen lines inside Cursor Direct. */
   useEffect(() => {
     const nextSlug = brain.selected.slug;
+    // A conversation being opened selects its own seat. A render that still
+    // shows the selection it was opened from is not a seat switch.
+    if (openedFromRef.current === brain.selected) {
+      return;
+    }
+    openedFromRef.current = null;
     const prevSlug = seatSlugRef.current;
     if (prevSlug === nextSlug) {
       return;
@@ -1857,12 +1899,7 @@ export const CarmenChatBar = forwardRef<
 
   const selectVoice = useCallback(
     async (voice: CarmenVoice | null) => {
-      setSelectedVoice(voice);
-      if (voice) {
-        localStorage.setItem(VOICE_STORAGE_KEY, voice);
-      } else {
-        localStorage.removeItem(VOICE_STORAGE_KEY);
-      }
+      saveVoice(voice);
       if (!convModeRef.current || !realtimeRef.current) {
         return;
       }
@@ -1883,7 +1920,7 @@ export const CarmenChatBar = forwardRef<
         onFaceState("idle");
       }
     },
-    [beginRealtime, endConversation, onFaceState, toast],
+    [beginRealtime, endConversation, onFaceState, saveVoice, toast],
   );
 
   const previewVoice = useCallback(async () => {

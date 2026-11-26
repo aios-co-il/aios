@@ -11,6 +11,8 @@ import type { CarmenFaceState } from "./CarmenFace";
 import { CommandCenterSidecarHeader } from "./CommandCenterSidecarHeader";
 import { CarmenSessionVideoCard } from "./CarmenSessionVideoCard";
 import { useSidecarSessionDefaults } from "./useSidecarSessionDefaults";
+import { useCarmenChoicesRealtime } from "./choices/useCarmenChoicesRealtime";
+import { useExtensionTabContext } from "./useExtensionTabContext";
 import { WorkshopModeToggle } from "@/components/workshop/WorkshopModeToggle";
 import { useOpenWorkshopProject } from "@/components/workshop/useOpenWorkshopProject";
 import "@/components/carmen-command/command-center.css";
@@ -37,6 +39,8 @@ export function CommandCenterSidecar({
   const identity = useCarmenIdentity();
   const contextMetadata = useSystemFixContext();
   const tenantId = contextMetadata.tenant_id ?? null;
+  // Framed by the Chrome extension's side panel, the chat sends the tab beside it instead.
+  const browserTabContext = useExtensionTabContext();
   const brain = useBrainChannel(tenantId);
   // The workshop board's open project: the chat shows its automatic / semi-automatic switch.
   const workshopProjectId = useOpenWorkshopProject();
@@ -47,7 +51,8 @@ export function CommandCenterSidecar({
     x: 24,
     y: 88,
   });
-  useSidecarSessionDefaults(brain, session);
+  useSidecarSessionDefaults(session);
+  useCarmenChoicesRealtime(tenantId);
 
   return (
     <div
@@ -90,7 +95,7 @@ export function CommandCenterSidecar({
           mode="sidecar"
           startFresh={session}
           wide={page}
-          contextMetadata={contextMetadata}
+          contextMetadata={browserTabContext ?? contextMetadata}
           composerAccessory={
             session || workshopProjectId ? (
               <div className="flex w-full flex-col gap-2">
@@ -101,7 +106,7 @@ export function CommandCenterSidecar({
                       value={brain.selected.id}
                       status={brain.status}
                       externalUrl={brain.externalUrl}
-                      onChange={(route) => brain.selectRoute(route, null)}
+                      onChange={brain.pickRoute}
                       compact
                       className="min-w-0"
                     />

@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { kickNextBatch } from "../_shared/kick-next-batch.ts";
+import { startBatchBudget } from "../_shared/ads-sync/batch-budget.ts";
 import {
   jerusalemToday,
   planScheduledSyncWindows,
@@ -30,7 +31,7 @@ Deno.serve(async (req) => {
       /* cron posts an empty body */
     }
     const batchOffset = Number(body.batch_offset) || 0;
-    const BATCH_SIZE = 4;
+    const budget = startBatchBudget(batchOffset);
 
     // Skip explicitly paused campaigns (campaign_active = false) — those are
     // excluded from pulse/health too, so there is no point refreshing them.
@@ -45,13 +46,8 @@ Deno.serve(async (req) => {
       throw error;
     }
 
-    const tables = (allTables || []).slice(
-      batchOffset,
-      batchOffset + BATCH_SIZE,
-    );
-    const hasMore = (allTables || []).length > batchOffset + BATCH_SIZE;
     console.log(
-      `[cron-sync-facebook-ecommerce] batch offset=${batchOffset} size=${tables.length} of ${allTables?.length || 0}`,
+      `[cron-sync-facebook-ecommerce] batch offset=${batchOffset} of ${allTables?.length || 0}`,
     );
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -76,7 +72,10 @@ Deno.serve(async (req) => {
       return { ok: res.ok, status: res.status, body: responseBody };
     };
 
-    for (const table of tables) {
+    for (const table of (allTables || []).slice(batchOffset)) {
+      if (!budget.take()) {
+        break;
+      }
       try {
         const settings = (table.integration_settings || {}) as {
           scheduled_history_from?: string;
@@ -137,9 +136,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (hasMore) {
+    const nextOffset = budget.nextOffset(allTables?.length || 0);
+    if (nextOffset !== null) {
       await kickNextBatch(supabaseAdmin, "cron-sync-facebook-ecommerce", {
-        batch_offset: batchOffset + BATCH_SIZE,
+        batch_offset: nextOffset,
       });
     } else {
       // Pulse reads these rows. Refresh the snapshot after the chain finishes;

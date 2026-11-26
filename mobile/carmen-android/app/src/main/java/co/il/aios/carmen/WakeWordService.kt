@@ -29,6 +29,9 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
     private var engine: WakeWordEngine? = null
     private var conversation: LiveConversation? = null
     private var cue: ActivationCue? = null
+
+    /** The stored voice this activation speaks in, read once so the cue and the call agree. */
+    private var callVoice: VoicePreference.Choice? = null
     private var talkWhenReady = false
     private var wakeLock: PowerManager.WakeLock? = null
 
@@ -121,7 +124,11 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
         val activatedAt = System.currentTimeMillis()
         // Typing and "אני כבר איתך" at once; once connected Carmen greets herself (AIO-543).
         cue?.release()
-        cue = ActivationCue(this, VoicePreference(this).selected?.id).also { activationCue ->
+        val voices = VoicePreference(this, account)
+        callVoice = voices.selected
+        // A pick made elsewhere meanwhile reaches the phone here and applies from the next call.
+        voices.refresh()
+        cue = ActivationCue(this, callVoice?.id).also { activationCue ->
             activationCue.play { if (!account.isSignedIn) startConversation(activatedAt) }
         }
         if (account.isSignedIn) startConversation(activatedAt)
@@ -132,7 +139,7 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
     private fun startConversation(activatedAt: Long) {
         if (gate.state != ActivationGate.State.ACTIVE || conversation != null) return
         if (!account.isSignedIn) {
-            CarmenSession.notice(getString(R.string.sign_in_to_talk))
+            CarmenSession.notice(CarmenLook.voice(this).line(getString(R.string.sign_in_to_talk)))
             handler.removeCallbacks(endSessionOnTimeout)
             handler.postDelayed(endSessionOnTimeout, SIGNED_OUT_SESSION_MS)
             return
@@ -140,18 +147,21 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
         conversation = newConversation(activatedAt).also { it.start() }
     }
 
-    /** The provider the voice picker chose; ElevenLabs hands over to OpenAI when unavailable. */
+    /**
+     * The provider of the stored voice, OpenAI when nothing is picked; ElevenLabs hands over to
+     * OpenAI in Carmen's configured voice when unavailable.
+     */
     private fun newConversation(activatedAt: Long): LiveConversation {
-        val preference = VoicePreference(this)
-        if (preference.usesOpenAi) return openAiConversation(activatedAt)
+        val pick = callVoice
+        if (pick == null || !pick.usesElevenLabs) return openAiConversation(activatedAt, pick?.id)
         lateinit var elevenLabs: ElevenLabsConversation
         elevenLabs = ElevenLabsConversation(
-            this, account, log, conversationListener, activatedAt, preference.selected?.id,
+            this, account, log, conversationListener, activatedAt, pick.id,
             onUnavailable = {
                 handler.post {
                     // Only if this activation is still waiting on that conversation.
                     if (gate.state == ActivationGate.State.ACTIVE && conversation === elevenLabs) {
-                        conversation = openAiConversation(activatedAt).also { it.start() }
+                        conversation = openAiConversation(activatedAt, voice = null).also { it.start() }
                     }
                 }
             },
@@ -159,8 +169,8 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
         return elevenLabs
     }
 
-    private fun openAiConversation(activatedAt: Long) =
-        RealtimeConversation(this, account, log, conversationListener, activatedAt)
+    private fun openAiConversation(activatedAt: Long, voice: String?) =
+        RealtimeConversation(this, account, log, conversationListener, activatedAt, voice)
 
     private val conversationListener = object : LiveConversation.Listener {
         override fun onState(state: CarmenSession.State) {
@@ -171,7 +181,9 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
         override fun onTranscript(line: String) = CarmenSession.addLine(line)
         override fun onEnded(reason: String) {
             if (reason.startsWith("error")) {
-                CarmenSession.notice(getString(R.string.conversation_failed, reason))
+                // The name goes in before the reason, so nothing in the reason reads as a slot.
+                val failed = CarmenLook.voice(this@WakeWordService).line(getString(R.string.conversation_failed))
+                CarmenSession.notice(failed.format(reason))
                 voice.say(getString(R.string.conversation_failed_spoken))
             }
             handler.post {

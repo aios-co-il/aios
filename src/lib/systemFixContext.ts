@@ -1,6 +1,15 @@
+import {
+  type BrowserTabContextMetadata,
+  SCREEN_CONTEXT_SOURCE,
+} from "@functions/_shared/carmen/screen-context.ts";
+
+/** What a sidecar message says the user is looking at: an AIOS screen, or the browser tab beside the extension's panel. */
+export type ScreenContextMetadata =
+  SystemFixContextMetadata | BrowserTabContextMetadata;
+
 /** Context payload for Carmen system-fix chat from the Command Center sidecar. */
 export interface SystemFixContextMetadata {
-  source: "command_center_sidebar";
+  source: typeof SCREEN_CONTEXT_SOURCE.commandCenterSidebar;
   context_type: "system_fix_context";
   path: string;
   search?: string;
@@ -35,7 +44,7 @@ export function buildSystemFixContext(args: {
   const task_id = routeParams.taskId || routeParams.task_id || undefined;
 
   return {
-    source: "command_center_sidebar",
+    source: SCREEN_CONTEXT_SOURCE.commandCenterSidebar,
     context_type: "system_fix_context",
     path: args.pathname,
     search: args.search || undefined,

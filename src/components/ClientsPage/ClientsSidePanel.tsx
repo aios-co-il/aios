@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
-import { SlidersHorizontal, Users } from "lucide-react";
+import { Plus, SlidersHorizontal, Users } from "lucide-react";
 
+import { AddClientForm } from "@/components/forms/AddClientForm";
 import { ModuleSidePanel } from "@/components/shared/ModuleSidePanel/ModuleSidePanel";
 import { ModuleSidePanelItem } from "@/components/shared/ModuleSidePanel/ModuleSidePanelItem";
 import { badgeCount } from "@/components/shared/ModuleSidePanel/panelRowClassName";
@@ -35,7 +36,8 @@ interface ClientsSidePanelProps {
 
 /**
  * The desktop controls of the Clients screen as a side panel: title and
- * count, the views, the headline figures, the filters and import / export.
+ * count, add client, the views, the headline figures, the filters and
+ * import / export.
  */
 export function ClientsSidePanel({
   shownCount,
@@ -59,6 +61,9 @@ export function ClientsSidePanel({
       subtitle={shownCount === undefined ? undefined : `${shownCount} מוצגים`}
       footer={footer}
     >
+      <AddClientForm
+        trigger={<ModuleSidePanelItem primary icon={Plus} label="הוסף לקוח" />}
+      />
       <ModuleSidePanelSection label="תצוגה">
         {CLIENT_VIEW_OPTIONS.map(({ value, label, icon }) => (
           <ModuleSidePanelItem

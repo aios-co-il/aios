@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -68,6 +68,11 @@ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useLeadStatuses } from "@/hooks/useLeadStatuses";
 import { useLeadPipelineStages } from "@/hooks/useLeadPipelineStages";
 import { ManagePipelineStagesDialog } from "./ManagePipelineStagesDialog";
+import { LeadSourceHistory } from "@/components/leads/LeadSourceHistory";
+import {
+  useLeadStageAndStatusSync,
+  type LeadStageAndStatus,
+} from "./useLeadStageAndStatusSync";
 import { LeadUpdatesTab } from "@/components/leads/LeadUpdatesTab";
 import { SendSignatureFromLeadPanel } from "@/components/leads/SendSignatureFromLeadPanel";
 import {
@@ -86,9 +91,8 @@ import {
   leadArrivalSourceChanged,
   leadCreatedAtWasBumped,
   leadFirstSourceDisplay,
-  leadSourceDisplay,
   leadSourceFieldLabel,
-  LEAD_SOURCE_SELECT_OPTIONS,
+  leadSourceSelectOptions,
   resolveResponseStatusKey,
   responseStatusSelectValue,
   unmatchedResponseStatusValue,
@@ -351,6 +355,21 @@ export function EditLeadDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lead.id, open]);
 
+  // The lead record's header changes stage and status while this form stays
+  // open beside it. Carry the change into the form and the fetched row.
+  const applyOutsideStageAndStatus = useCallback(
+    ({ status, response_status }: LeadStageAndStatus) => {
+      form.setValue("status", status || "new");
+      form.setValue("response_status", response_status || "");
+      queryClient.setQueryData(
+        ["lead-detail", initialLead.id],
+        (row: typeof freshLead) => row && { ...row, status, response_status },
+      );
+    },
+    [form, queryClient, initialLead.id],
+  );
+  useLeadStageAndStatusSync(initialLead, applyOutsideStageAndStatus);
+
   useEffect(() => {
     if (!open) {
       return;
@@ -612,9 +631,7 @@ export function EditLeadDialog({
       queryClient.invalidateQueries({
         queryKey: ["lead-sales-people", tenantId, lead.id],
       });
-      queryClient.invalidateQueries({
-        queryKey: ["lead-detail", tenantId, lead.id],
-      });
+      queryClient.invalidateQueries({ queryKey: ["lead-detail", lead.id] });
       queryClient.invalidateQueries({ queryKey: ["chat-tags", tenantId] });
       queryClient.invalidateQueries({ queryKey: ["lead-tags", lead.id] });
       sonnerToast.success("ליד עודכן בהצלחה");
@@ -1181,7 +1198,7 @@ export function EditLeadDialog({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {sourceSelectOptions(lead.source).map((opt) => (
+                        {leadSourceSelectOptions(lead.source).map((opt) => (
                           <SelectItem key={opt.value} value={opt.value}>
                             {opt.label}
                           </SelectItem>
@@ -1219,6 +1236,7 @@ export function EditLeadDialog({
                 )}
               />
             </div>
+            <LeadSourceHistory leadId={lead.id} />
 
             <FormField
               control={form.control}
@@ -1901,23 +1919,4 @@ export function EditLeadDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-/**
- * The fixed source options, plus the lead's own source when a webhook sent
- * free text (e.g. "FB"), so the select shows it and saving keeps it.
- */
-function sourceSelectOptions(
-  current: string | null | undefined,
-): Array<{ value: string; label: string }> {
-  const options: Array<{ value: string; label: string }> = [
-    ...LEAD_SOURCE_SELECT_OPTIONS,
-  ];
-  if (current && !options.some((opt) => opt.value === current)) {
-    options.unshift({
-      value: current,
-      label: leadSourceDisplay({ source: current }),
-    });
-  }
-  return options;
 }

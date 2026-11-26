@@ -1,7 +1,6 @@
-import { useState } from "react";
-import { ReportNameCell } from "@/components/report-ui/ReportTable";
-import { AdPreviewDialog } from "./AdPreviewDialog";
 import { useAdPreviewSource } from "./AdPreviewContext";
+import { FacebookAdPreviewFrame } from "./FacebookAdPreviewFrame";
+import { PreviewableNameCell } from "./PreviewableNameCell";
 
 type Props = {
   name: string;
@@ -18,25 +17,17 @@ type Props = {
  */
 export function FacebookEntityNameCell({ name, off, adId }: Props) {
   const source = useAdPreviewSource();
-  const [openAdId, setOpenAdId] = useState<string | null>(null);
-  const previewable = source && adId;
 
   return (
-    <>
-      <ReportNameCell
-        name={name}
-        on={!off}
-        className="p-2 text-right"
-        onNameClick={previewable ? () => setOpenAdId(adId) : undefined}
-      />
-      {previewable && (
-        <AdPreviewDialog
-          source={source}
-          adId={openAdId}
-          adName={name}
-          onClose={() => setOpenAdId(null)}
-        />
-      )}
-    </>
+    <PreviewableNameCell
+      name={name}
+      off={off}
+      description="תצוגה מקדימה של המודעה בפיד במובייל"
+      preview={
+        source && adId ? (
+          <FacebookAdPreviewFrame source={source} adId={adId} adName={name} />
+        ) : null
+      }
+    />
   );
 }

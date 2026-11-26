@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { withGoogleTokens } from "../_shared/google-oauth/integration-tokens.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 import {
   isCompleteRefusal,
   readTenantCompleteRequest,
@@ -25,6 +27,7 @@ import {
 import { userFacingMessage } from "../_shared/google-oauth/user-facing-error.ts";
 import { storeSearchConsoleConnection } from "./store-connection.ts";
 import { callbackUri } from "../_shared/google-oauth/exchange-code.ts";
+import { refuseGscSitesAccess } from "./sites-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -219,22 +222,38 @@ Deno.serve(async (req) => {
     }
 
     try {
-      const { integrationId } = await req.json();
+      const { integrationId, clientId: seoClientId } = await req.json();
+
+      const refusal = await refuseGscSitesAccess(
+        authHeader,
+        integrationId,
+        seoClientId,
+      );
+      if (refusal) {
+        return new Response(JSON.stringify({ error: refusal.error }), {
+          status: refusal.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
       const supabase = createClient(
         Deno.env.get("SUPABASE_URL") ?? "",
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
       );
 
-      const { data: integration, error: integrationError } = await supabase
-        .from("tenant_integrations")
-        .select("*")
-        .eq("id", integrationId)
-        .single();
+      const { data: storedIntegration, error: integrationError } =
+        await supabase
+          .from("tenant_integrations")
+          .select("*")
+          .eq("id", integrationId)
+          .single();
 
-      if (integrationError || !integration) {
+      if (integrationError || !storedIntegration) {
         throw new Error("Integration not found");
       }
+      const [integration] = await withGoogleTokens(serviceClient(), [
+        storedIntegration,
+      ]);
 
       let accessToken = integration.api_key;
       const settings = integration.settings as any;

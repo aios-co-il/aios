@@ -134,17 +134,17 @@ function markerDate(value: string | null | undefined): string | null {
  *
  * `syncedThrough` is the last day a scheduled run finished writing. That day was
  * still in progress at the time, so it is fetched again together with every day
- * after it: the morning run covers yesterday and today, the afternoon run covers
- * today only. A failed run leaves the marker in place and the next run fills the
- * gap (never more than 120 days). Without a marker the run covers yesterday and today.
+ * after it: the first run of the day covers yesterday and today, every later run
+ * covers today only. A failed run leaves the marker in place and the next run fills
+ * the gap (never more than 120 days). Without a marker the run covers yesterday and today.
  *
  * Every {@link SCHEDULED_LOOKBACK_EVERY_DAYS} days (tracked by `lookbackOn`) the
- * first run of the day — the morning run — also re-fetches the last
- * {@link SCHEDULED_LOOKBACK_DAYS} days, so conversions the platforms attribute
- * to earlier days are picked up.
+ * first run of the day also re-fetches the last {@link SCHEDULED_LOOKBACK_DAYS}
+ * days, so conversions the platforms attribute to earlier days are picked up.
  *
- * Until `historyFrom` reaches the 120-day floor, a run also pulls one older slice.
- * Rows outside those slices are not deleted.
+ * Until `historyFrom` reaches the 120-day floor, a run also pulls one older slice,
+ * so more runs a day finish the catch-up sooner. Rows outside those slices are
+ * not deleted.
  */
 export function planScheduledSyncWindows(
   today: string,

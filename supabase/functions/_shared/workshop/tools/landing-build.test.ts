@@ -80,6 +80,7 @@ Deno.test(
     const result = await run(db, "workshop_build_landing_page", repo);
     assertEquals(result.preview_ready, false);
     assertEquals(result.say_to_user.includes(PUBLISH_CHOICE), false);
+    assertStringIncludes(result.say_to_user, "בקשו ממני את הקישור שוב");
   },
 );
 

@@ -24,7 +24,8 @@ class AiosAccount(context: Context) {
 
     data class Session(val accessToken: String, val userId: String, val email: String, val tenantId: String)
 
-    private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val app = context.applicationContext
+    private val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     val isConfigured: Boolean get() = BuildConfig.SUPABASE_URL.isNotEmpty() && BuildConfig.SUPABASE_KEY.isNotEmpty()
     val email: String? get() = prefs.getString(KEY_EMAIL, null)
@@ -32,6 +33,17 @@ class AiosAccount(context: Context) {
 
     /** Signed in with a tenant, the only state in which Carmen can work. */
     val isReady: Boolean get() = isSignedIn && prefs.getString(KEY_TENANT, null) != null
+
+    /**
+     * Whose stored picks this phone follows now ([StoredVoice.owner]), or null when signed out.
+     * Read from storage without a request, so the main thread may ask.
+     */
+    val choiceOwner: String?
+        get() {
+            val userId = prefs.getString(KEY_USER, null)?.ifEmpty { null } ?: return null
+            val tenantId = prefs.getString(KEY_TENANT, null) ?: return null
+            return StoredVoice.owner(userId, tenantId)
+        }
 
     /**
      * Signs in with an AIOS email and password and resolves the user's active tenant. It also
@@ -112,7 +124,7 @@ class AiosAccount(context: Context) {
     fun webStorageKey(): String =
         "sb-${BuildConfig.SUPABASE_URL.substringAfter("://").substringBefore('.')}-auth-token"
 
-    /** The organization's Carmen style, [CarmenLook.ORBS] unless it chose the character. */
+    /** The organization's Carmen style, [CarmenLook.ORBS] unless it chose another one the app draws. */
     fun carmenAvatarStyle(): String {
         val tenantId = session().tenantId
         val rows = restGet(
@@ -121,8 +133,54 @@ class AiosAccount(context: Context) {
         return CarmenLook.parseStyle(rows)
     }
 
+    /**
+     * The user's Mini Me set, from their own profile row (`profiles.minime_gender`,
+     * `profiles.gender`), stamped with whose it is.
+     */
+    fun miniMeSet(): MiniMeSet.Stored {
+        val session = session()
+        val set = MiniMeSet.fromProfile(restGet("profiles?id=eq.${session.userId}&select=minime_gender,gender"))
+        return MiniMeSet.Stored(StoredVoice.owner(session.userId, session.tenantId), set.value)
+    }
+
+    /**
+     * The voice the user stored for Carmen in this organization (`carmen_user_choices`), read
+     * as the user so they see only their own row.
+     */
+    fun carmenVoice(): StoredVoice.Row {
+        val session = session()
+        val rows = restGet(
+            "$CHOICES_TABLE?$COLUMN_TENANT=eq.${session.tenantId}&$COLUMN_USER=eq.${session.userId}&select=$COLUMN_VOICE",
+        )
+        return StoredVoice.Row(StoredVoice.owner(session.userId, session.tenantId), StoredVoice.voiceOf(rows))
+    }
+
+    /**
+     * Stores [voice] in the user's row (null clears the pick) and returns whose row it is.
+     * With [expectedOwner], throws without writing when another user or organization signed in
+     * since that owner's row was read.
+     */
+    fun saveCarmenVoice(voice: String?, expectedOwner: String? = null): String {
+        val session = session()
+        val owner = StoredVoice.owner(session.userId, session.tenantId)
+        if (expectedOwner != null && owner != expectedOwner) {
+            throw IOException("The signed-in account changed; the voice was not stored")
+        }
+
+        restWrite(
+            "POST",
+            "$CHOICES_TABLE?on_conflict=$COLUMN_TENANT,$COLUMN_USER",
+            StoredVoice.rowBody(session.tenantId, voice),
+            prefer = PREFER_UPSERT,
+        )
+        return owner
+    }
+
+    /** Forgets the account and what was cached for it. */
     fun signOut() {
         prefs.edit { clear() }
+        VoicePreference.forget(app)
+        CarmenLook.forget(app)
     }
 
     /**
@@ -252,6 +310,15 @@ class AiosAccount(context: Context) {
         private const val REFRESH_MARGIN_MS = 60_000L
         const val NO_TENANT_MESSAGE = "החשבון הזה לא שייך לאף ארגון ב-AIOS. התחברו עם חשבון של הארגון, או בקשו הזמנה ממנהל הארגון."
         private val REFRESH_LOCK = Any()
+
+        /** The per-user Carmen picks, one row per organization and user. */
+        private const val CHOICES_TABLE = "carmen_user_choices"
+        const val COLUMN_TENANT = "tenant_id"
+        private const val COLUMN_USER = "user_id"
+        const val COLUMN_VOICE = "voice"
+
+        /** `Prefer` for an upsert that updates the row it conflicts with and returns nothing. */
+        const val PREFER_UPSERT = "resolution=merge-duplicates,return=minimal"
         private const val PREFS = "aios_account"
         private const val KEY_ACCESS = "access_token"
         private const val KEY_REFRESH = "refresh_token"
