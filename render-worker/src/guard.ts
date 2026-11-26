@@ -195,10 +195,14 @@ export const finalError = (message: string) =>
   Object.assign(new Error(message), { final: true });
 
 /**
- * Whether `error` carries `flag`: finalError's `final` (a retry would pay again) or a provider
- * job's `submitted` (the provider holds a job, so the run must not switch engines).
+ * Whether `error` carries `flag`: finalError's `final` (a retry would pay again), a provider
+ * job's `submitted` (the provider holds a job, so the run must not switch engines) or
+ * `modelUnavailable` (the provider no longer serves the model, before any job was accepted).
  */
-export function flagged(error: unknown, flag: "final" | "submitted"): boolean {
+export function flagged(
+  error: unknown,
+  flag: "final" | "submitted" | "modelUnavailable",
+): boolean {
   return (
     typeof error === "object" &&
     error !== null &&

@@ -155,6 +155,9 @@ export async function generateClip({
   const aspect = input.aspect || "9:16";
   const estimate = provider.estimate({ durationS, talking: Boolean(talking) });
 
+  // The model a fallback within the engine ran on (an OpenRouter model it no longer serves moves
+  // to the next one); unknown on a resumed job, which records the engine's own.
+  let submittedModel: string | null = null;
   let jobId: string | null =
     run.provider === provider.name && provider.name !== PREVIEW_PROVIDER
       ? run.provider_job_id
@@ -177,7 +180,7 @@ export async function generateClip({
       imageUrl = await db.sign(BUCKET, source, 3600);
     }
     jobId = await submitting(async () => {
-      const { jobId: submittedId } = await provider.submit({
+      const { jobId: submittedId, model } = await provider.submit({
         imageBytes,
         imageUrl,
         prompt: talking
@@ -202,6 +205,7 @@ export async function generateClip({
           ),
         );
       }
+      submittedModel = model ?? null;
       return submittedId;
     });
     log(`[clip] ${run.id} submitted ${provider.name} job ${jobId}`);
@@ -219,6 +223,7 @@ export async function generateClip({
       estimate,
       fallbackFrom,
       talking,
+      submittedModel,
       log,
     });
   } catch (error) {
@@ -247,6 +252,7 @@ async function finishClip({
   estimate,
   fallbackFrom,
   talking = null,
+  submittedModel = null,
   log,
 }: {
   db: Pick<
@@ -263,6 +269,7 @@ async function finishClip({
   estimate: Estimate;
   fallbackFrom: string | null;
   talking?: { line: string; speaker: string | null } | null;
+  submittedModel?: string | null;
   log: (line: string) => void;
 }) {
   const deadline = Date.now() + TIMEOUT_MS();
@@ -300,7 +307,7 @@ async function finishClip({
     bytes = new Uint8Array(await response.arrayBuffer());
   }
   const path = await clipPath(db, run, item.folder);
-  const model = clipModel(provider, Boolean(talking));
+  const model = submittedModel ?? clipModel(provider, Boolean(talking));
   await db.upload(BUCKET, path, bytes, "video/mp4");
   await db.rpc("attach_video_scene_asset", {
     p_scene_id: run.scene_id,
