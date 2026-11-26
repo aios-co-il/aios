@@ -42,6 +42,13 @@ const STATUS_MEANING: Record<ClosedStatus, string> = {
     "The extension took the step and never reported back: it may or may not have run.",
 };
 
+/**
+ * A done navigation reports where the tab landed and its title, never the page's text, so
+ * the model reads the new page before it says anything about it or acts on it.
+ */
+const NAVIGATED =
+  "The user approved the move and the tab loaded a new page; `page` holds only where it landed and its title. Call browser_read_page before you describe the page or act on it.";
+
 /** Whether a status is one a run can resume from. */
 export function isClosedStatus(status: string): status is ClosedStatus {
   return Object.prototype.hasOwnProperty.call(STATUS_MEANING, status);
@@ -49,10 +56,12 @@ export function isClosedStatus(status: string): status is ClosedStatus {
 
 /** The labelled block for one closed step. */
 export function deviceDataBlock(outcome: StepOutcome): string {
+  const navigated =
+    outcome.tool === "browser_navigate" && outcome.status === "done";
   const lines = [
     `tool: ${outcome.tool}`,
     `status: ${outcome.status}`,
-    STATUS_MEANING[outcome.status],
+    navigated ? NAVIGATED : STATUS_MEANING[outcome.status],
   ];
   if (outcome.tainted) {
     lines.push(

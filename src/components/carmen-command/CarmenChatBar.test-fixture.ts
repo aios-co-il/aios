@@ -40,6 +40,12 @@ export const fakeChatSupabase = {
     table === "carmen_user_choices" ? fakeSupabase.from() : tableQuery(table),
   channel: () => feed,
   removeChannel: async () => {},
+  auth: {
+    getSession: async () => ({
+      data: { session: { access_token: "test-token" } },
+    }),
+    getUser: async () => ({ data: { user: { id: "user-1" } } }),
+  },
 };
 
 /**

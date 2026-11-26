@@ -59,7 +59,13 @@ export async function readRunSteps(
 /** Writes a pending step that lives for the card's life; its id. */
 export async function insertStep(
   db: DeviceDb,
-  step: RunKey & { conversationId: string; tool: DeviceToolName; now: Date },
+  step: RunKey & {
+    conversationId: string;
+    tool: DeviceToolName;
+    /** The checked arguments (`step.ts`); the panel gets them only from its claim. */
+    arguments: Record<string, string>;
+    now: Date;
+  },
 ): Promise<string> {
   const { data, error } = await db
     .from(TABLE)
@@ -69,7 +75,7 @@ export async function insertStep(
       run_id: step.runId,
       conversation_id: step.conversationId,
       tool: step.tool,
-      arguments: {},
+      arguments: step.arguments,
       status: "pending",
       expires_at: new Date(
         step.now.getTime() + DEVICE_CARD_LIFE_MS,

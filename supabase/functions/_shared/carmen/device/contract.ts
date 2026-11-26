@@ -49,11 +49,14 @@ export const DEVICE_TOOLS = {
   browser_navigate: {
     risk: "act",
     description:
-      "מעבר של הלשונית הפתוחה לכתובת אחרת. המשתמש מאשר כל מעבר בכרטיס בתוסף.",
+      "מעבר של הלשונית הפתוחה לכתובת אחרת. המשתמש מאשר כל מעבר בכרטיס בתוסף. התוצאה היא רק הכתובת שאליה הגיעה הלשונית והכותרת שלה; כדי לדעת מה כתוב בדף החדש קוראים אותו עם browser_read_page.",
     parameters: {
       type: "object",
       properties: {
-        url: { type: "string", description: "כתובת https מלאה לעבור אליה" },
+        url: {
+          type: "string",
+          description: "כתובת מלאה לעבור אליה, שמתחילה ב-https://",
+        },
       },
       required: ["url"],
     },
