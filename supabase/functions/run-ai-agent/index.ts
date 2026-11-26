@@ -1658,7 +1658,7 @@ async function handleRunAgent(
 type FastLaneRequest = {
   tenantId: string;
   userId: string | null;
-  /** Whose agent character to answer as; null on the org's main Carmen line. */
+  /** Whose agent character to answer as; null when Carmen answers as herself. */
   personaSource: PersonaSource | null;
   callerName: string | null;
   agentId: string;
