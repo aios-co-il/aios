@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { MiniMe } from "./MiniMe";
-import { MiniMeGenderContext, resolveMiniMeGender } from "./miniMeGender";
+import { MiniMeGenderContext } from "./miniMeGender";
 import { CARMEN_ROLES } from "../../../../supabase/functions/_shared/carmen/skin-roles";
 
 describe("MiniMe", () => {
@@ -52,15 +52,6 @@ describe("MiniMe", () => {
       expect.stringContaining("classic-female"),
       expect.stringContaining("classic-male"),
     ]);
-  });
-});
-
-describe("resolveMiniMeGender", () => {
-  it("prefers the user's choice, then their address gender, then male", () => {
-    expect(resolveMiniMeGender("male", "female")).toBe("male");
-    expect(resolveMiniMeGender(null, "female")).toBe("female");
-    expect(resolveMiniMeGender(null, null)).toBe("male");
-    expect(resolveMiniMeGender("other", "male")).toBe("male");
   });
 });
 

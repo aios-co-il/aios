@@ -1,4 +1,7 @@
-import type { MiniMeGender } from "./miniMeGender";
+import {
+  type MiniMeGender,
+  miniMeRenderFile,
+} from "../../../../supabase/functions/_shared/carmen/minime-gender";
 
 /** Every Mini Me render, by file path: `./images/<skin>-<gender>.webp`. */
 const IMAGES = import.meta.glob<string>("./images/*.webp", {
@@ -15,7 +18,7 @@ export function miniMeImage(
   gender: MiniMeGender,
 ): string {
   return (
-    IMAGES[`./images/${skin}-${gender}.webp`] ??
-    IMAGES[`./images/classic-${gender}.webp`]
+    IMAGES[`./images/${miniMeRenderFile(skin, gender)}`] ??
+    IMAGES[`./images/${miniMeRenderFile("classic", gender)}`]
   );
 }
