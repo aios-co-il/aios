@@ -11,5 +11,9 @@
     "types": ["chrome", "vite/client"],
     "lib": ["ES2020", "DOM", "DOM.Iterable"]
   },
-  "include": ["src"]
+  "include": ["src", "../supabase/functions/_shared/carmen/device"],
+  "exclude": [
+    "../supabase/functions/**/*.test.ts",
+    "../supabase/functions/**/*.test-fixture.ts"
+  ]
 }

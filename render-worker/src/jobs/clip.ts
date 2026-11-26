@@ -155,12 +155,15 @@ export async function generateClip({
   const aspect = input.aspect || "9:16";
   const estimate = provider.estimate({ durationS, talking: Boolean(talking) });
 
-  // The model a fallback within the engine ran on (an OpenRouter model it no longer serves moves
-  // to the next one); unknown on a resumed job, which records the engine's own.
-  let submittedModel: string | null = null;
   let jobId: string | null =
     run.provider === provider.name && provider.name !== PREVIEW_PROVIDER
       ? run.provider_job_id
+      : null;
+  // The model a fallback within the engine ran on (an OpenRouter model it no longer serves moves
+  // to the next one), saved with the job so a resumed run records it too.
+  let submittedModel: string | null =
+    jobId && typeof run.output?.provider_model === "string"
+      ? run.output.provider_model
       : null;
   if (jobId) {
     log(`[clip] ${run.id} resumes ${provider.name} job ${jobId}`);
@@ -196,6 +199,9 @@ export async function generateClip({
         await db.update("marketing_runs", `id=eq.${run.id}`, {
           provider: provider.name,
           provider_job_id: submittedId,
+          ...(model
+            ? { output: { ...(run.output ?? {}), provider_model: model } }
+            : {}),
         });
       } catch (error) {
         // The provider already accepted (and charges for) the job: never submit it again.
