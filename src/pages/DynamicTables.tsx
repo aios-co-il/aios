@@ -929,7 +929,10 @@ export default function DynamicTables() {
           {isLoading ? (
             <CarmenLoadingScreen
               variant="card"
-              messages={["כרמן אוספת את הדוחות…", "בודקת שיוך ללקוחות…"]}
+              messages={[
+                "{name} {אוספת|אוסף} את הדוחות…",
+                "{בודקת|בודק} שיוך ללקוחות…",
+              ]}
             />
           ) : !filteredTables || filteredTables.length === 0 ? (
             <Card className="p-12 text-center">
@@ -1348,7 +1351,7 @@ export default function DynamicTables() {
           {dashboardsLoading ? (
             <CarmenLoadingScreen
               variant="card"
-              messages={["כרמן אוספת את הדשבורדים…"]}
+              messages={["{name} {אוספת|אוסף} את הדשבורדים…"]}
             />
           ) : dashboards.length === 0 ? (
             <Card className="p-12 text-center">

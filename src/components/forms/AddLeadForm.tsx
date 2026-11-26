@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, type ReactElement } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -109,7 +109,8 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-export function AddLeadForm() {
+/** The new-lead dialog; `trigger` replaces the default button. */
+export function AddLeadForm({ trigger }: { trigger?: ReactElement } = {}) {
   const [open, setOpen] = useState(false);
   const [responseSelectOpen, setResponseSelectOpen] = useState(false);
   const [stageSelectOpen, setStageSelectOpen] = useState(false);
@@ -393,10 +394,12 @@ export function AddLeadForm() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus className="ml-2 h-4 w-4" />
-          הוסף ליד
-        </Button>
+        {trigger ?? (
+          <Button>
+            <Plus className="ml-2 h-4 w-4" />
+            הוסף ליד
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>

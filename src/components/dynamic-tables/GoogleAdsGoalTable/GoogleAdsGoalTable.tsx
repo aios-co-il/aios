@@ -1,5 +1,6 @@
 import { Fragment } from "react";
-import { ReportNameCell } from "@/components/report-ui/ReportTable";
+import type { GoogleAdContent } from "@functions/sync-google-ads-data/ad-content.ts";
+import { GoogleEntityNameCell } from "@/components/reports/AdPreview/GoogleEntityNameCell";
 import { PreviousValueHead } from "@/components/reports/PreviousPeriod/PreviousValueCell";
 import {
   CAMPAIGN_GOAL_TITLES,
@@ -22,6 +23,8 @@ export type GoogleAdsGoalTableRow = GoogleGoalMetrics & {
   leads?: number;
   /** Campaign switched off; marked with the "כבוי" badge. */
   off?: boolean;
+  /** An ad row's stored copy, which makes its name open the ad card. */
+  adContent?: GoogleAdContent | null;
 };
 
 type Props = {
@@ -108,10 +111,10 @@ export function GoogleAdsGoalTable({
         <tbody>
           {rows.map((row) => (
             <tr key={row.key} className="border-b hover:bg-muted/30">
-              <ReportNameCell
+              <GoogleEntityNameCell
                 name={row.name}
-                on={row.off !== true}
-                className="p-2 text-right"
+                off={row.off === true}
+                adContent={row.adContent}
               />
               <GoogleMetricCells
                 m={row}

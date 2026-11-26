@@ -576,18 +576,13 @@ export default function Clients() {
             <AddClientForm />
           </ClientsToolbar>
         </div>
-        <div className="hidden shrink-0 items-center gap-2 md:flex">
-          {viewMode !== "chat" && (
-            <ClientsSearchInput
-              value={filters.search}
-              onChange={(value) => setFilter("search", value)}
-              className="w-72"
-            />
-          )}
-          <div className="ms-auto">
-            <AddClientForm />
-          </div>
-        </div>
+        {viewMode !== "chat" && (
+          <ClientsSearchInput
+            value={filters.search}
+            onChange={(value) => setFilter("search", value)}
+            className="hidden w-72 shrink-0 md:block"
+          />
+        )}
 
         {/* Import dialogs opened from the import / export menu */}
         {showImportCSV && (
@@ -623,7 +618,10 @@ export default function Clients() {
           {clientsResolving ? (
             <CarmenLoadingScreen
               variant="card"
-              messages={["כרמן אוספת את רשימת הלקוחות…", "מסדרת לפי סוכנות…"]}
+              messages={[
+                "{name} {אוספת|אוסף} את רשימת הלקוחות…",
+                "{מסדרת|מסדר} לפי סוכנות…",
+              ]}
             />
           ) : viewMode === "chat" ? (
             <ClientsChatView

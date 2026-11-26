@@ -640,7 +640,7 @@ export default function DynamicTableView({
     return previousReportRecords(
       filterRecordsByCampaign(
         previousPeriod.records,
-        adsCampaignFilter.campaignKey,
+        adsCampaignFilter.control.value,
       ),
       adsEntityLevel,
       {
@@ -651,7 +651,7 @@ export default function DynamicTableView({
   }, [
     previousPeriod.records,
     recordsPlaceholder,
-    adsCampaignFilter.campaignKey,
+    adsCampaignFilter.control.value,
     adsEntityLevel,
     debouncedCampaignSearch,
     filteredRecords,
@@ -1997,7 +1997,10 @@ export default function DynamicTableView({
     return (
       <div className="container mx-auto py-8 px-4">
         <CarmenLoadingScreen
-          messages={["כרמן פותחת את הטבלה…", "טוענת את השדות והנתונים…"]}
+          messages={[
+            "{name} {פותחת|פותח} את הטבלה…",
+            "{טוענת|טוען} את השדות והנתונים…",
+          ]}
         />
       </div>
     );
@@ -3313,7 +3316,10 @@ export default function DynamicTableView({
         ) ? null : isLoading ? (
           <CarmenLoadingScreen
             variant="card"
-            messages={["כרמן מושכת את נתוני הטבלה…", "מחשבת את התקופה הנבחרת…"]}
+            messages={[
+              "{name} {מושכת|מושך} את נתוני הטבלה…",
+              "{מחשבת|מחשב} את התקופה הנבחרת…",
+            ]}
           />
         ) : (
           <div className="border rounded-lg overflow-hidden bg-background shadow-sm">
@@ -3583,7 +3589,7 @@ export default function DynamicTableView({
                       {recordsFetching ? (
                         <CarmenLoadingScreen
                           variant="inline"
-                          messages={["כרמן מרעננת את הנתונים…"]}
+                          messages={["{name} {מרעננת|מרענן} את הנתונים…"]}
                         />
                       ) : campaignSearch ? (
                         <p className="text-muted-foreground mb-3">

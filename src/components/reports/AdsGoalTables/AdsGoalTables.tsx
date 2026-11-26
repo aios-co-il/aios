@@ -36,7 +36,8 @@ type Props = {
  * and its share link so a design fix reaches both: Facebook sales, leads and
  * traffic tables, or Google Ads tables per campaign goal, each with its
  * previous-period columns while the comparison is on, and the manual ROI card.
- * A Facebook ad row's name opens the ad's preview from both pages.
+ * A Facebook ad row's name opens the ad's preview from both pages, and a
+ * Google ad row with stored copy opens its drawn card.
  */
 export function AdsGoalTables({
   table,

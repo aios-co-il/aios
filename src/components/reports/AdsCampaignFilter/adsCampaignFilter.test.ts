@@ -62,13 +62,13 @@ describe("resolveAdsCampaignKey", () => {
   const campaigns = [{ key: "c1", name: "חורף", spend: 1 }];
 
   it("keeps a pick that has rows", () => {
-    expect(resolveAdsCampaignKey("ad", "c1", campaigns)).toBe("c1");
+    expect(resolveAdsCampaignKey("c1", campaigns)).toBe("c1");
   });
 
-  it("shows every campaign with no pick, a pick without rows, or on the campaign level", () => {
-    expect(resolveAdsCampaignKey("ad", null, campaigns)).toBeNull();
-    expect(resolveAdsCampaignKey("adset", "c9", campaigns)).toBeNull();
-    expect(resolveAdsCampaignKey("campaign", "c1", campaigns)).toBeNull();
+  it("shows every campaign with no pick, a pick without rows, or no campaigns listed", () => {
+    expect(resolveAdsCampaignKey(null, campaigns)).toBeNull();
+    expect(resolveAdsCampaignKey("c9", campaigns)).toBeNull();
+    expect(resolveAdsCampaignKey("c1", [])).toBeNull();
   });
 });
 
