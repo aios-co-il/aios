@@ -282,6 +282,10 @@ body.panel {
   max-height: 12em;
   overflow-y: auto;
 }
+.grant-trust {
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+}
 .grant-actions {
   display: flex;
   gap: 8px;

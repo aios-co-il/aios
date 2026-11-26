@@ -40,6 +40,8 @@ describe("deviceActionApi", () => {
       ok: true,
       tool: "browser_read_page",
       arguments: {},
+      trustedOrigin: null,
+      conversationId: null,
     });
     expect(fetch).toHaveBeenCalledWith(
       ENDPOINT,
@@ -65,6 +67,32 @@ describe("deviceActionApi", () => {
       ok: true,
       tool: "browser_navigate",
       arguments: { url: "https://shop.example/" },
+      trustedOrigin: null,
+      conversationId: null,
+    });
+  });
+
+  it("passes on the claim's trust, and reads anything but a string as none", async () => {
+    const trusted = apiAnswering(200, {
+      tool: "browser_click",
+      arguments: {},
+      trusted_origin: "https://shop.example",
+      conversation_id: "conversation-1",
+    });
+    const malformed = apiAnswering(200, {
+      tool: "browser_click",
+      arguments: {},
+      trusted_origin: ["https://shop.example"],
+      conversation_id: 7,
+    });
+
+    expect(await trusted.api.claim(ID)).toMatchObject({
+      trustedOrigin: "https://shop.example",
+      conversationId: "conversation-1",
+    });
+    expect(await malformed.api.claim(ID)).toMatchObject({
+      trustedOrigin: null,
+      conversationId: null,
     });
   });
 

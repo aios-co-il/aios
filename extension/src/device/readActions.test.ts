@@ -15,6 +15,7 @@ describe("createReadActions: one read", () => {
     expect(device.completed).toEqual([
       {
         action: "complete",
+        trust_origin: null,
         id: ACTION_ID,
         status: "done",
         decision: "free",

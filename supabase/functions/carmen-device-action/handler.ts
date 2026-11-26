@@ -7,8 +7,10 @@
  * the arguments, which no browser can read from the table, so the id that travels through
  * the framed site carries nothing to act on. When the stop cannot be read the claim fails
  * closed: nothing is handed over and the action stays `claimed`, so it cannot be claimed
- * again.
- * complete: claimed becomes the status the panel reports, once, by the same user.
+ * again. A click or a type also learns the origin it may run on without a card (trust.ts).
+ * complete: claimed becomes the status the panel reports, once, by the same user; a click
+ * or a type the user ran after ticking "trust this site" on its card records that trust
+ * for the action's conversation (AIO-656).
  *
  * Every refusal about a row is the same answer, whatever the reason, so a caller learns
  * nothing about a row that is not theirs to take. The reason goes to the log with the
@@ -16,7 +18,10 @@
  * `claimed`: this function never writes `outcome_unknown`; the server decides that when
  * the turn continues or the next one starts.
  */
-import { isDeviceToolName } from "../_shared/carmen/device/contract.ts";
+import {
+  type DeviceClaimReply,
+  isDeviceToolName,
+} from "../_shared/carmen/device/contract.ts";
 import { readRunStopped } from "../_shared/carmen/run-stop.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import type { requireAuth } from "../_shared/security.ts";
@@ -31,6 +36,8 @@ import {
   type OwnAction,
   readOwnAction,
 } from "./rows.ts";
+import { claimTrust } from "./trust.ts";
+import { recordCardTrust } from "./trust-record.ts";
 
 export type DeviceActionDeps = {
   /** Who sent the request, as `requireAuth` reads it. */
@@ -106,7 +113,11 @@ async function claim(
     return refused("claim", action.id, "run stopped");
   }
 
-  return reply({ tool: action.tool, arguments: claimed.arguments });
+  return reply({
+    tool: action.tool,
+    arguments: claimed.arguments,
+    ...(await claimTrust(serviceDb, action)),
+  } satisfies DeviceClaimReply);
 }
 
 /** Stores what the panel reports about the action it claimed. */
@@ -126,12 +137,16 @@ async function complete(
     return reply({ error: "invalid_result" }, 400);
   }
 
+  const serviceDb = deps.serviceDb();
   const completed = await completeAction(
-    deps.serviceDb(),
+    serviceDb,
     action,
     { ...report, result },
     deps.now(),
   );
+  if (completed && report.trust_origin) {
+    await recordCardTrust(serviceDb, action, report.trust_origin);
+  }
   return completed
     ? reply({ ok: true })
     : refused("complete", action.id, "not claimed or already completed");

@@ -11,9 +11,10 @@ type FakeResult = {
 
 /**
  * A stand-in for the Supabase client over in-memory rows: a query matches the rows that
- * pass every filter (`.eq()`, `.gt()`, `.lte()`, `.is()`, `.in()`) and `visible`, which
- * plays row-level security; `.update()` changes exactly those rows and `.insert()` adds one
- * row with a fresh id. A query resolves through `.maybeSingle()`, `.single()` or by being
+ * pass every filter (`.eq()`, `.neq()`, `.gt()`, `.lte()`, `.is()`, `.in()`) and `visible`,
+ * which plays row-level security; `.update()` changes exactly those rows, `.insert()` adds one
+ * row with a fresh id, and `.upsert()` with `ignoreDuplicates` adds one unless a row already
+ * holds the same values in its `onConflict` columns. A query resolves through `.maybeSingle()`, `.single()` or by being
  * awaited for every row. `failing` names a table whose queries return an error.
  */
 export function fakeDb(
@@ -27,6 +28,7 @@ export function fakeDb(
     let patch: FakeRow | null = null;
     let inserted: FakeRow | null = null;
     let orderedBy: string | null = null;
+    let conflictColumns: Array<string> = [];
 
     /** Runs the query: its write, then the rows it matches. */
     function run(): FakeResult {
@@ -34,8 +36,17 @@ export function fakeDb(
         return { data: null, error: { message: "boom" } };
       }
       if (inserted) {
-        (tables[table] ??= []).push(inserted);
-        return { data: [inserted], error: null };
+        const row = inserted;
+        const existing = (tables[table] ?? []).find(
+          (stored) =>
+            conflictColumns.length > 0 &&
+            conflictColumns.every((column) => stored[column] === row[column]),
+        );
+        if (existing) {
+          return { data: [], error: null };
+        }
+        (tables[table] ??= []).push(row);
+        return { data: [row], error: null };
       }
       const rows = (tables[table] ?? []).filter((row) =>
         filters.every((passes) => passes(row)),
@@ -54,12 +65,24 @@ export function fakeDb(
         inserted = { id: crypto.randomUUID(), ...values };
         return query;
       },
+      upsert(
+        values: FakeRow,
+        options: { onConflict: string; ignoreDuplicates: true },
+      ) {
+        inserted = { id: crypto.randomUUID(), ...values };
+        conflictColumns = options.onConflict.split(",");
+        return query;
+      },
       update(values: FakeRow) {
         patch = values;
         return query;
       },
       eq(column: string, value: unknown) {
         filters.push((row) => row[column] === value);
+        return query;
+      },
+      neq(column: string, value: unknown) {
+        filters.push((row) => row[column] !== value);
         return query;
       },
       gt(column: string, value: string) {

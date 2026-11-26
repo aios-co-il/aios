@@ -54,7 +54,7 @@ const NAVIGATED =
  * never the page's text, so the model reads the page before it relies on what the step did.
  */
 const ACTED =
-  "The user approved the step and it ran; `page` holds only where the tab is now, its title, and `changed` (true: another address or a new document, so the read's refs name nothing any more). Call browser_read_page before you tell the user what happened or act again on a changed page.";
+  "The step ran, approved on its card or on a site the user trusted for this conversation; `page` holds only where the tab is now, its title, and `changed` (true: another address or a new document, so the read's refs name nothing any more). Call browser_read_page before you tell the user what happened or act again on a changed page.";
 
 /** Whether a status is one a run can resume from. */
 export function isClosedStatus(status: string): status is ClosedStatus {

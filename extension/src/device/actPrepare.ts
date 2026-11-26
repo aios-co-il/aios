@@ -13,7 +13,12 @@ import {
   isSensitivePage,
   targetRefusal,
 } from "./actStep.ts";
-import { type CardWords, clickCardWords, typeCardWords } from "./cardWords.ts";
+import {
+  type CardWords,
+  clickCardWords,
+  trustWords,
+  typeCardWords,
+} from "./cardWords.ts";
 import type { ReadOutcome } from "./completion.ts";
 import {
   ACT_RULES,
@@ -25,9 +30,19 @@ import {
 import type { TabFacts } from "./readFlow.ts";
 import { decideReadStep, type ReadStep } from "./readStep.ts";
 
+/**
+ * The origin a claimed click or type may run on without a card, or null: the claim named
+ * it as trusted for the run and the user ticked it on a card in this panel opening.
+ */
+export type ActTrust = { origin: string | null };
+
 /** Everything the card and the step after the tap are drawn from. */
 export type PreparedAct = {
   tool: ActTool;
+  /** `free` only on the trusted origin; the same rule must hold again after the tap. */
+  rule: "ask" | "free";
+  /** Whether the step ran on the trusted origin, for the rule's second look after the tap. */
+  trusted: boolean;
   claimed: ActArguments;
   tab: TabFacts;
   page: Extract<ReadStep, { kind: "read" }>;
@@ -44,6 +59,7 @@ export async function prepareAct(
   tool: ActTool,
   args: unknown,
   deps: ActDeps,
+  trust: ActTrust,
 ): Promise<PreparedAct | ReadOutcome> {
   const claimed = actArguments(tool, args);
   if (!claimed) {
@@ -84,13 +100,20 @@ export async function prepareAct(
   }
   const target = found.target;
   const sensitive = isSensitivePage(target.pageFields);
-  const rule = actRule(tool, tab.url ?? "", sensitive, deps.origins);
-  const refusal = rule === "ask" ? targetRefusal(tool, target) : rule;
+  // The claim names an origin, and the tab's real address must be on exactly that one.
+  const trusted = trust.origin === page.location.origin;
+  const rule = actRule(tool, tab.url ?? "", sensitive, deps.origins, trusted);
+  if (rule !== "ask" && rule !== "free") {
+    return refused(tool, rule);
+  }
+  const refusal = targetRefusal(tool, target);
   if (refusal) {
     return refused(tool, refusal);
   }
   return {
     tool,
+    rule,
+    trusted,
     claimed,
     tab,
     page,
@@ -98,14 +121,16 @@ export async function prepareAct(
     documentId: inspected.documentId,
     target,
     sensitive,
-    words:
-      tool === "browser_type"
+    words: {
+      ...(tool === "browser_type"
         ? typeCardWords({
             host: page.host,
             ...target,
             text: claimed.text ?? "",
           })
-        : clickCardWords({ host: page.host, ...target }),
+        : clickCardWords({ host: page.host, ...target })),
+      trust: trustWords(page.location.origin),
+    },
   };
 }
 

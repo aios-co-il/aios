@@ -5,6 +5,7 @@
 import { vi } from "vitest";
 import type { CardWords } from "./cardWords.ts";
 import type { CompleteBody } from "./completion.ts";
+import type { ActCardAnswer } from "./grantCard.ts";
 import type { ClaimAnswer, ReadActionDeps } from "./readActions.ts";
 import type { GrantAnswer, TabFacts } from "./readFlow.ts";
 
@@ -18,7 +19,8 @@ export type FakeCard = {
   navigations: Array<{ fromHost: string; host: string; href: string }>;
   /** The click and typing cards shown, in order. */
   acts: Array<CardWords>;
-  answer: (answer: GrantAnswer) => void;
+  /** Taps the card; `trustSite`: "trust this site" was ticked (click and typing cards). */
+  answer: (answer: GrantAnswer, trustSite?: boolean) => void;
 };
 
 /** The fake deps plus the handles a test inspects. */
@@ -50,7 +52,8 @@ export function fakeDevice(
   let pendingUrl: string | undefined;
   let activeTabId = 7;
   let expiry: (() => void) | null = null;
-  let answerCard: ((answer: GrantAnswer) => void) | null = null;
+  let answerCard: ((answer: GrantAnswer, trustSite: boolean) => void) | null =
+    null;
   let landingUrl: string | null = null;
   const navigatedTo: Array<{ tabId: number; url: string }> = [];
   const completed: Array<CompleteBody> = [];
@@ -60,7 +63,7 @@ export function fakeDevice(
     shown: [],
     navigations: [],
     acts: [],
-    answer: (answer) => answerCard?.(answer),
+    answer: (answer, trustSite = false) => answerCard?.(answer, trustSite),
   };
 
   /** The tab as Chrome reports it now. */
@@ -76,6 +79,8 @@ export function fakeDevice(
     claim: vi.fn(async (): Promise<ClaimAnswer> => ({
       ok: true,
       tool: "browser_read_page",
+      trustedOrigin: null,
+      conversationId: null,
     })),
     complete: vi.fn(async (body: CompleteBody) => {
       completed.push(body);
@@ -121,10 +126,12 @@ export function fakeDevice(
     newSnapshotId: () => "snapshot-1",
     askAct: vi.fn(
       (words: CardWords, signal: AbortSignal) =>
-        new Promise<GrantAnswer>((resolve) => {
+        new Promise<ActCardAnswer>((resolve) => {
           card.acts.push(words);
-          answerCard = resolve;
-          signal.addEventListener("abort", () => resolve("stopped"));
+          answerCard = (answer, trustSite) => resolve({ answer, trustSite });
+          signal.addEventListener("abort", () =>
+            resolve({ answer: "stopped", trustSite: false }),
+          );
         }),
     ),
     inspectTarget: vi.fn(async () => ({ documentId: "doc-1", answer: null })),

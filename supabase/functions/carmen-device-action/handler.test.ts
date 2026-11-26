@@ -28,7 +28,12 @@ Deno.test("claim", async (t) => {
 
     assertEquals(await answer(post(CLAIM), deps), {
       status: 200,
-      body: { tool: "browser_click", arguments: { ref: "e1" } },
+      body: {
+        tool: "browser_click",
+        arguments: { ref: "e1" },
+        trusted_origin: null,
+        conversation_id: null,
+      },
     });
     assertEquals(action.status, "claimed");
     assertEquals(action.claimed_at, NOW.toISOString());

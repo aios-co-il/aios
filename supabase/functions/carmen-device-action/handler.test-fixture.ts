@@ -57,8 +57,9 @@ export function actionRow(overrides: FakeRow = {}): FakeRow {
 }
 
 /**
- * Tables holding one action and the given stops, and deps over them: each caller reads only
- * their own rows. `failing` names a table whose queries fail. `callerReads` is a row the
+ * Tables holding one action, the run's other `steps`, the given stops and trusted sites,
+ * and deps over them: each caller reads only their own rows. `failing` names a table whose
+ * queries fail. `callerReads` is a row the
  * caller's own read returns whatever the table holds: row-level security gone wrong, or a
  * row that changed after it was read.
  */
@@ -66,13 +67,16 @@ export function world(
   action: FakeRow = actionRow(),
   options: {
     stops?: Array<FakeRow>;
+    steps?: Array<FakeRow>;
+    trusted?: Array<FakeRow>;
     failing?: string;
     callerReads?: FakeRow;
   } = {},
 ) {
   const tables: FakeTables = {
-    carmen_device_actions: [action],
+    carmen_device_actions: [action, ...(options.steps ?? [])],
     carmen_run_cancellations: options.stops ?? [],
+    carmen_device_trusted_sites: options.trusted ?? [],
   };
   const deps: DeviceActionDeps = {
     caller: (req) =>
@@ -88,7 +92,7 @@ export function world(
     serviceDb: () => fakeDb(tables, undefined, options.failing),
     now: () => NOW,
   };
-  return { action, deps };
+  return { action, deps, tables };
 }
 
 /** A POST of `body` as the token's user. */

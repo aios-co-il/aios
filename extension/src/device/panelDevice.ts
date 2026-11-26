@@ -32,6 +32,7 @@ import {
 import { deviceActionApi } from "./deviceActionApi.ts";
 import { navigateCardWords } from "./cardWords.ts";
 import {
+  askActOnCard,
   askGrantOnCard,
   askOnCard,
   type GrantCardElements,
@@ -64,7 +65,7 @@ export function panelReadActions(
       askOnCard(card, navigateCardWords(step), signal, async () => true),
     navigateTab,
     // Clicking and typing need no new Chrome permission: the read's site grant covers them.
-    askAct: (words, signal) => askOnCard(card, words, signal, async () => true),
+    askAct: (words, signal) => askActOnCard(card, words, signal),
     inspectTarget,
     actOnTarget,
     settleTab,
@@ -87,6 +88,9 @@ function grantCardElements(): GrantCardElements {
     address: element("grant-address", HTMLElement),
     quote: element("grant-quote", HTMLElement),
     text: element("grant-text", HTMLElement),
+    trust: element("grant-trust", HTMLElement),
+    trustBox: element("grant-trust-box", HTMLInputElement),
+    trustLabel: element("grant-trust-label", HTMLElement),
     allow: element("grant-allow", HTMLButtonElement),
     decline: element("grant-decline", HTMLButtonElement),
   };

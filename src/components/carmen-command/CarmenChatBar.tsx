@@ -141,6 +141,7 @@ import {
   STEP_LIMIT_TEXT,
   withStepReplyKey,
 } from "./device/stepMessages";
+import { TrustedSites } from "./device/TrustedSites";
 import { useBrowserSteps } from "./device/useBrowserSteps";
 import {
   COMMAND_CENTER_FILE_ACCEPT,
@@ -2265,6 +2266,11 @@ export const CarmenChatBar = forwardRef<
           {brain.healthBanner}
         </p>
       )}
+      <TrustedSites
+        conversationId={conversationId}
+        active={browserPanel !== null}
+        waiting={browserSteps.waiting}
+      />
       {composerAccessory && (
         <div className="cc-composer-accessory flex shrink-0 items-center gap-2 border-t border-[var(--cc-line)] px-2 pt-2">
           {composerAccessory}

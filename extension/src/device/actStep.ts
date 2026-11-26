@@ -2,8 +2,9 @@
  * Whether the panel may click or type for a claimed step, decided from the claimed
  * arguments, the tab's raw `chrome.tabs` address and what the acting function found on the
  * page (pageAct.ts). The contract decides: `deviceCardRule` refuses the never-list and the
- * act floor and asks for everything else, and `fieldNeverReason` names the fields nothing
- * is typed into. What the page wrote can only tighten an answer.
+ * act floor, asks for everything else and runs a step without a card only on a site the
+ * user trusted for the conversation, and `fieldNeverReason` names the fields nothing is
+ * typed into. What the page wrote can only tighten an answer.
  */
 import { deviceCardRule } from "../../../supabase/functions/_shared/carmen/device/card-rule.ts";
 import {
@@ -103,29 +104,31 @@ export function targetRefusal(
 }
 
 /**
- * The contract's rule for this step on this address. Trusted mode does not exist yet and
- * the run may hold another site's text, so the answer is `ask` unless the page is out of
- * reach. A TypeError is the contract refusing a misconfigured environment.
+ * The contract's rule for this step on this address. `trusted` is true only when the claim
+ * named this exact origin as trusted for the run (the server found the user's trust and no
+ * other site's page in the run) and the user ticked it in this panel opening: then the run
+ * is untainted and the contract may answer `free`; otherwise the run may hold another
+ * site's text and every click and type asks. A TypeError is the contract refusing a
+ * misconfigured environment.
  */
 export function actRule(
   tool: ActTool,
   url: string,
   sensitivePage: boolean,
   origins: EnvironmentOrigins,
-): "ask" | "never" | "configuration" {
+  trusted: boolean,
+): "ask" | "free" | "never" | "configuration" {
   try {
-    const rule = deviceCardRule({
+    return deviceCardRule({
       tool,
       url,
-      trusted: false,
-      tainted: true,
+      trusted,
+      tainted: !trusted,
       origins,
       addedActNeverHosts: [],
       sensitivePage,
       sensitiveScreenshotsAllowed: false,
     });
-    // Every click and type asks; any other answer is not one the panel acts on.
-    return rule === "ask" ? "ask" : "never";
   } catch (error) {
     if (error instanceof TypeError) {
       console.error("[carmen-panel] the device contract refused", error);

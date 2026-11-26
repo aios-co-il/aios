@@ -25,10 +25,14 @@ export const TEXT_FIELD_TARGET = {
   fingerprint: "fp-1",
 };
 
-/** A fake device whose claim hands over this tool with these arguments. */
+/** A fake device whose claim hands over this tool with these arguments and this trust. */
 export function actingDevice(
   tool: "browser_click" | "browser_type" = "browser_type",
   args: unknown = TYPE_ARGS,
+  trust: { trustedOrigin: string | null; conversationId: string | null } = {
+    trustedOrigin: null,
+    conversationId: null,
+  },
 ) {
   let inspected: unknown = { kind: "target", target: TEXT_FIELD_TARGET };
   const acted: Array<{ documentId: string; request: PageActRequest }> = [];
@@ -37,6 +41,7 @@ export function actingDevice(
       ok: true,
       tool,
       arguments: args,
+      ...trust,
     })),
     inspectTarget: vi.fn(async () => ({
       documentId: "doc-1",
