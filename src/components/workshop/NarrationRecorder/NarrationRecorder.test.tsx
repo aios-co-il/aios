@@ -28,14 +28,20 @@ const scenes = [
   { voiceover: "כרמן מנהלת את הכול.", lipsync: false },
 ] as Array<StoryboardScene>;
 
+/** A promise the test settles by hand; `lib` is ES2020, so no `Promise.withResolvers`. */
+function deferred<T>() {
+  const handle: { resolve: (value: T) => void } = { resolve: () => {} };
+  const promise = new Promise<T>((resolve) => {
+    handle.resolve = resolve;
+  });
+
+  return { promise, resolve: (value: T) => handle.resolve(value) };
+}
+
 describe("NarrationRecorder", () => {
   test("the dialog stays open while the recording uploads, and its line reaches the chat", async () => {
-    let stored!: (value: { error: null }) => void;
-    upload.mockReturnValue(
-      new Promise((resolve) => {
-        stored = resolve;
-      }),
-    );
+    const stored = deferred<{ error: null }>();
+    upload.mockReturnValue(stored.promise);
     const openChat = vi.fn();
     const user = userEvent.setup();
     render(
@@ -59,7 +65,7 @@ describe("NarrationRecorder", () => {
     await user.keyboard("{Escape}");
     expect(screen.getByRole("dialog")).toBeTruthy();
 
-    await act(async () => stored({ error: null }));
+    await act(async () => stored.resolve({ error: null }));
     await waitFor(() => expect(prefillComposer).toHaveBeenCalledTimes(1));
     const line = vi.mocked(prefillComposer).mock.calls[0][0];
     expect(line).toMatch(
@@ -98,12 +104,8 @@ describe("NarrationRecorder", () => {
   });
 
   test("re-recording is blocked while sending and clears a failed send", async () => {
-    let refuse!: (value: { error: Error }) => void;
-    upload.mockReturnValue(
-      new Promise((resolve) => {
-        refuse = resolve;
-      }),
-    );
+    const refuse = deferred<{ error: Error }>();
+    upload.mockReturnValue(refuse.promise);
     const user = userEvent.setup();
     render(
       withTestQuery(
@@ -124,7 +126,7 @@ describe("NarrationRecorder", () => {
     const redo = screen.getByRole("button", { name: /הקלטה מחדש/ });
     expect((redo as HTMLButtonElement).disabled).toBe(true);
 
-    await act(async () => refuse({ error: new Error("network") }));
+    await act(async () => refuse.resolve({ error: new Error("network") }));
     expect(await screen.findByText(/ההקלטה לא נשלחה/)).toBeTruthy();
     await user.click(screen.getByRole("button", { name: /הקלטה מחדש/ }));
 
