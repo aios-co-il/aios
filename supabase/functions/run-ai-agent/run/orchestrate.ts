@@ -7,9 +7,19 @@ import { runErrorResponse } from "./error-response.ts";
 export async function runOrchestratedAgent(
   input: RunInputs,
   dependencies: RunDependencies,
-): Promise<Response | string> {
+): Promise<Response> {
   try {
-    return await runAgent(new RunState(input, dependencies));
+    const result = await runAgent(new RunState(input, dependencies));
+
+    // Manus finishes with confirmation text; both HTTP and SSE callers consume JSON.
+    return typeof result === "string"
+      ? new Response(JSON.stringify({ success: true, output: result }), {
+          headers: {
+            ...dependencies.corsHeaders,
+            "Content-Type": "application/json",
+          },
+        })
+      : result;
   } catch (error) {
     return await runErrorResponse(input, dependencies, error);
   }

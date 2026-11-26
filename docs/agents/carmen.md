@@ -44,6 +44,8 @@ A group is opted in by a `specific_group` scope or by open-member-groups mode on
 
 ## AI providers (replacing the former Lovable AI gateway)
 
+- Agents configured with `manus-1` delegate to `manus-api`; the run boundary returns their task confirmation as JSON `{ success: true, output }`. Streaming also emits the confirmation token and uses this JSON for the final `done` output (`run-ai-agent/run/orchestrate.ts`).
+
 We use the org's own connected models. Standardized helper: `supabase/functions/_shared/ai.ts`.
 
 - **Carmen's own engine:** `ai_agents.engine`, Gemini 3.5 Flash by default (AIO-510); `buildLLMChain` fails over to GPT-5.4 Mini and Claude Sonnet. Gemini 3 needs each tool call's `extra_content` (its thought signature) sent back on the next round: `readStreamedCompletion` keeps it and `messagesForProvider` strips it for any other provider (`run-ai-agent/stream-completion.ts`).

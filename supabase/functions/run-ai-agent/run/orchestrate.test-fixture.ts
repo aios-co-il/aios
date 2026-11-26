@@ -81,7 +81,7 @@ export async function runFixture(options: FixtureOptions = {}) {
       data = options.skills;
     }
 
-    if (url.pathname.endsWith("/chat/completions")) {
+    if (/\/(chat\/completions|manus-api)$/.test(url.pathname)) {
       const response = responses.shift();
       status = response?.status ?? 200;
       data = response?.body ?? {
