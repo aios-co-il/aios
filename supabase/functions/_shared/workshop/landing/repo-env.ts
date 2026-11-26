@@ -1,5 +1,6 @@
 import { isNonProductionAppEnv } from "../../app-env.ts";
 import { githubLandingRepo, type LandingRepo } from "./repo.ts";
+import { vercelPreviewLookup } from "./vercel-preview.ts";
 
 /** The repository Carmen builds pages in, unless LANDING_PAGES_REPO names another. */
 const DEFAULT_REPO = "aios-co-il/landing-pages";
@@ -16,8 +17,23 @@ export function landingRepoFromEnv(
   if (!token || isNonProductionAppEnv(env("APP_ENV"))) {
     return undefined;
   }
-  return githubLandingRepo({
+  const repo = githubLandingRepo({
     token,
     repo: env("LANDING_PAGES_REPO") || DEFAULT_REPO,
   });
+  // The preview is read from the landing-pages Vercel project when its secrets (the ones
+  // landing-domain uses) are set; GitHub's Deployments API never listed it (AIO-680).
+  const vercelToken = env("VERCEL_LANDING_TOKEN")?.trim();
+  const projectId = env("VERCEL_LANDING_PROJECT_ID")?.trim();
+  if (!vercelToken || !projectId) {
+    return repo;
+  }
+  return {
+    ...repo,
+    previewUrl: vercelPreviewLookup({
+      token: vercelToken,
+      projectId,
+      teamId: env("VERCEL_LANDING_TEAM_ID")?.trim() || undefined,
+    }),
+  };
 }

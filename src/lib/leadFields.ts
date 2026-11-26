@@ -74,6 +74,26 @@ export function leadSourceDisplay(
   return LEAD_SOURCE_LABELS[source] || source;
 }
 
+/**
+ * The fixed source options, plus the lead's own source when a webhook sent
+ * free text (e.g. "FB"), so the select shows it and saving keeps it.
+ */
+export function leadSourceSelectOptions(
+  current: string | null | undefined,
+): Array<{ value: string; label: string }> {
+  const options: Array<{ value: string; label: string }> = [
+    ...LEAD_SOURCE_SELECT_OPTIONS,
+  ];
+  if (current && !options.some((opt) => opt.value === current)) {
+    options.unshift({
+      value: current,
+      label: leadSourceDisplay({ source: current }),
+    });
+  }
+
+  return options;
+}
+
 const GENERIC_ORIGIN_TAG_NAMES = new Set(["אחר", "other"]);
 
 /**

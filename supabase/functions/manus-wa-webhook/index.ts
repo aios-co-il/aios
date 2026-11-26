@@ -2140,6 +2140,8 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
         tenantId,
         integrationId: integ.id,
         connectionUserId,
+        // integ.user_id is the line's owner (AIO-654).
+        followOwnerBrain: true,
         chatId: chatIdForCarmen,
         phoneNumber: carmenTargetPhone,
         sourcePhoneNumber,

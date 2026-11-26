@@ -1815,6 +1815,7 @@ async function executeTool(
 import { requireAuth } from "../_shared/security.ts";
 import type { Surface } from "./surface.ts";
 import { bindRunAgentCaller, runCallerPhone } from "./caller-trust.ts";
+import { personalLineOwner } from "./line-owner-pick.ts";
 import { runTenantDenied } from "../_shared/agent-runs/run-tenant-access.ts";
 import { INSTRUCTION_TRIGGER_RE } from "./instruction-trigger.ts";
 import { runStopCheck } from "../_shared/carmen/run-stop.ts";
@@ -2016,7 +2017,7 @@ async function handleRunAgent(
     // and nobody on the org's main Carmen line or in tasks.
     const personaUserId =
       surface === "whatsapp"
-        ? asUuidOrNull(bodyJson.persona_user_id)
+        ? personalLineOwner(bodyJson)
         : surface === "internal_chat" || surface === "aios"
           ? callerUserId
           : null;

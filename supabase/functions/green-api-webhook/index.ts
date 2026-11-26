@@ -1800,6 +1800,7 @@ Deno.serve(async (req) => {
     let carmenOutcome: string | null = null;
     let isKnownBotGroupMessage = false;
     let carmenRole: CarmenConnectionRole = "secondary";
+    let carmenRoleGuessed = false;
     try {
       const { data: manusOwner, error: manusErr } = await supabaseClient
         .from("tenant_integrations")
@@ -1822,6 +1823,7 @@ Deno.serve(async (req) => {
       );
       carmenRole =
         integration?.settings?.carmen_role === "none" ? "none" : "secondary";
+      carmenRoleGuessed = true;
     }
     if (isGroup && isIncoming && sourcePhoneNumber) {
       try {
@@ -1881,6 +1883,9 @@ Deno.serve(async (req) => {
           tenantId,
           integrationId: integration.id,
           connectionUserId,
+          // integration.user_id is the line's owner; a guessed role may be the
+          // main line's, which never follows a user's stored brain (AIO-654).
+          followOwnerBrain: !carmenRoleGuessed,
           chatId: carmenChatId,
           phoneNumber: carmenPhoneNumber,
           sourcePhoneNumber,
