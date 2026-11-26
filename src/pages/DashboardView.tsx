@@ -3,7 +3,7 @@ import { continentPlatforms } from "@/components/dynamic-tables/CampaignContinen
 import { continentsFallbackFilter } from "@/components/dynamic-tables/CampaignContinents/continentsFallback";
 import type { DashboardPlatformFilter } from "@/lib/dashboardPlatformFilter";
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
-import { DashboardTrackedEvents } from "@/components/dynamic-tables/TrackedEvents/DashboardTrackedEvents";
+import { DashboardAnalyticsTab } from "@/components/report-ui/dashboard/DashboardAnalyticsTab";
 import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleAdsCampaignSection/summarizeGoogleAdsCampaigns";
 import { CombinedRoasCard } from "@/components/dynamic-tables/CombinedRoasCard";
 import { DashboardPlatformBreakdown } from "@/components/dynamic-tables/DashboardPlatformBreakdown/DashboardPlatformBreakdown";
@@ -59,7 +59,6 @@ import {
 } from "@/components/ui/table";
 import {
   ArrowRight,
-  ExternalLink,
   Facebook,
   ShoppingCart,
   FileSpreadsheet,
@@ -77,7 +76,8 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
-import { adAccountShortcutLabel, getAdAccountLinks } from "@/lib/adAccountUrl";
+import { getAdAccountLinks } from "@/lib/adAccountUrl";
+import { AdAccountButtons } from "@/components/reports/ReportHeader/AdAccountButtons";
 import { useClientAdLinks } from "@/hooks/useClientAdLinks";
 import { format } from "date-fns";
 import { useTenantPath } from "@/hooks/useTenantPath";
@@ -85,7 +85,6 @@ import { toast } from "sonner";
 import { AgencyDashboardContent } from "@/components/dynamic-tables/AgencyDashboardContent";
 import { ShareDashboardDialog } from "@/components/dynamic-tables/ShareDashboardDialog";
 import { useTenant } from "@/contexts/TenantContext";
-import { GoogleAnalyticsDashboard } from "@/components/dynamic-tables/GoogleAnalyticsDashboard";
 import { SeoDashboardView } from "@/components/dynamic-tables/SeoDashboardView";
 import { SeoDashboardWithGa } from "@/components/dynamic-tables/SeoDashboardWithGa";
 import { SeoReportTabs } from "@/components/dynamic-tables/SeoReportTabs";
@@ -1560,7 +1559,10 @@ export default function DashboardView() {
     return (
       <div className="container mx-auto max-w-full overflow-x-hidden py-4 px-3 sm:py-8 sm:px-4">
         <CarmenLoadingScreen
-          messages={["כרמן מרכיבה את הדשבורד…", "מושכת את נתוני הפלטפורמות…"]}
+          messages={[
+            "{name} {מרכיבה|מרכיב} את הדשבורד…",
+            "{מושכת|מושך} את נתוני הפלטפורמות…",
+          ]}
         />
       </div>
     );
@@ -1656,20 +1658,7 @@ export default function DashboardView() {
                   כרטיס לקוח
                 </Button>
               )}
-              {adAccountLinks.map((link) => (
-                <Button
-                  key={link.url}
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={() =>
-                    window.open(link.url, "_blank", "noopener,noreferrer")
-                  }
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  {adAccountShortcutLabel(link, adAccountLinks.length)}
-                </Button>
-              ))}
+              <AdAccountButtons links={adAccountLinks} />
               {currentTenantId && dashboardId && (
                 <ShareDashboardDialog
                   dashboardId={dashboardId}
@@ -1852,8 +1841,8 @@ export default function DashboardView() {
             <CarmenLoadingScreen
               variant="card"
               messages={[
-                "כרמן מושכת את נתוני הדוח…",
-                "מסכמת לפי טווח התאריכים…",
+                "{name} {מושכת|מושך} את נתוני הדוח…",
+                "{מסכמת|מסכם} לפי טווח התאריכים…",
               ]}
             />
           ) : tables.length === 0 ? (
@@ -1869,30 +1858,23 @@ export default function DashboardView() {
               </Button>
             </Card>
           ) : platformFilter === "google_analytics" ? (
-            /* Analytics tab: render the same GoogleAnalyticsDashboard used in standalone table view */
-            <div className="space-y-4">
-              <DashboardTrackedEvents
-                records={displayAllRecords}
-                settings={dashboard?.settings}
-                // Spend in several currencies has no single cost per event.
-                adsSpend={currencies.mixed ? 0 : globalAdsMetrics.spend}
-                formatCurrency={formatCurrency}
-                formatNumber={formatNumber}
-                source={dashboardId ? { dashboardId } : null}
-                dateFilter={dateFilter}
-                customFrom={customFromStr}
-                customTo={customToStr}
-                editableDashboardId={dashboardId}
-              />
-              <GoogleAnalyticsDashboard
-                records={allAnalyticsRecords}
-                externalDateFilter={dateFilter}
-                dashboardId={dashboardId}
-                tableId={analyticsTableIds[0]}
-                relatedTableIds={analyticsTableIds.slice(1)}
-                defaultReportMode={analyticsReportMode}
-              />
-            </div>
+            /* Analytics tab: the same component as the share link, at the same days */
+            <DashboardAnalyticsTab
+              records={displayAllRecords}
+              analyticsRecords={allAnalyticsRecords}
+              settings={dashboard?.settings}
+              // Spend in several currencies has no single cost per event.
+              adsSpend={currencies.mixed ? 0 : globalAdsMetrics.spend}
+              formatCurrency={formatCurrency}
+              formatNumber={formatNumber}
+              source={dashboardId ? { dashboardId } : null}
+              dateFilter={dateFilter}
+              customDateRange={customDateRange}
+              analyticsTableIds={analyticsTableIds}
+              reportMode={analyticsReportMode}
+              dashboardId={dashboardId}
+              editableDashboardId={dashboardId}
+            />
           ) : (
             <>
               {platformFilter === "all" && (

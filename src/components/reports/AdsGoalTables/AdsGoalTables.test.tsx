@@ -47,6 +47,7 @@ describe("AdsGoalTables", () => {
         level="campaign"
         woo={null}
         manualRoi={{ readOnly: true }}
+        adPreview={null}
         showTrackingWarnings
       />,
     );
@@ -65,6 +66,7 @@ describe("AdsGoalTables", () => {
       level: "campaign" as const,
       woo: null,
       manualRoi: { readOnly: true },
+      adPreview: null,
     };
     const { rerender } = render(
       <AdsGoalTables {...props} showTrackingWarnings />,
@@ -83,6 +85,7 @@ describe("AdsGoalTables", () => {
         level="campaign"
         woo={null}
         manualRoi={{ readOnly: true }}
+        adPreview={null}
         showTrackingWarnings={false}
       />,
     );

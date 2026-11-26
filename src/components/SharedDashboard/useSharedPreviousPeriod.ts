@@ -21,6 +21,11 @@ import {
   sumWooRevenue,
 } from "@/lib/wooOrderRevenue";
 import { fetchSharedPeriod, type SharedPeriod } from "./fetchSharedPeriod";
+import {
+  customDaysOf,
+  isWindowReady,
+  type SharedDashboardWindow,
+} from "./sharedDashboardWindow";
 
 /** The shared dashboard's previous period, as its reports compare with it. */
 export type SharedPrevious = {
@@ -39,20 +44,20 @@ export type SharedPrevious = {
  */
 export function useSharedPreviousPeriod({
   shareToken,
-  dateFilter,
+  dates,
   tables,
   tab,
   hasWooCommerce,
   enabled,
 }: {
   shareToken: string | undefined;
-  dateFilter: string;
+  dates: SharedDashboardWindow;
   tables: ReadonlyArray<DashboardReportTable>;
   tab: string;
   hasWooCommerce: boolean;
   enabled: boolean;
 }): SharedPrevious {
-  const range = previousPeriodOf(getDashboardDateRange(dateFilter));
+  const range = previousRangeOf(dates);
   const { data, isPlaceholderData } = useQuery({
     // Under the page's prefix, so its refresh button reloads this too.
     queryKey: [
@@ -107,6 +112,20 @@ export function useSharedPreviousPeriod({
     tabs,
     loading: enabled && range !== null && !period,
   };
+}
+
+/**
+ * The period before the window, as DashboardView derives it; null while a
+ * custom range waits for both of its days.
+ */
+function previousRangeOf(dates: SharedDashboardWindow): CalendarRange | null {
+  if (!isWindowReady(dates)) {
+    return null;
+  }
+  const { customFrom, customTo } = customDaysOf(dates);
+  return previousPeriodOf(
+    getDashboardDateRange(dates.dateFilter, new Date(), customFrom, customTo),
+  );
 }
 
 /** The store's sales in the period, counted as the page counts the current ones. */

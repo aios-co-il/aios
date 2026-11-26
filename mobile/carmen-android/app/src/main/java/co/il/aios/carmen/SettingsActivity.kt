@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.Log
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
@@ -62,11 +63,10 @@ class SettingsActivity : AppCompatActivity() {
         }
         findViewById<Button>(R.id.full_screen_button).setOnClickListener { openFullScreenSetting() }
         findViewById<Button>(R.id.export_button).setOnClickListener { exportLog() }
-        accountSection = AccountSection(this)
+        accountSection = AccountSection(this, onSignedOut = ::renderVoice)
         voicePreference = VoicePreference(this)
         voiceButton = findViewById(R.id.voice_button)
         voiceButton.setOnClickListener { pickVoice() }
-        renderVoice()
         findViewById<Button>(R.id.clear_button).setOnClickListener {
             log.clear()
             render()
@@ -77,6 +77,10 @@ class SettingsActivity : AppCompatActivity() {
         super.onResume()
         WakeWordService.resumeIfEnabled(this)
         accountSection.render()
+        // The voice may have been picked on the web meanwhile: show the cached one now, and
+        // the row's once it is read.
+        renderVoice()
+        voicePreference.refresh(::renderVoice)
         handler.post(refresh)
     }
 
@@ -110,7 +114,7 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    /** Loads the server's voice list and saves the user's pick for the next conversation. */
+    /** Loads the server's voice list and stores the user's pick in their row, for every surface. */
     private fun pickVoice() {
         val account = AiosAccount(this)
         if (!account.isSignedIn) {
@@ -119,7 +123,7 @@ class SettingsActivity : AppCompatActivity() {
         }
         Toast.makeText(this, R.string.voice_loading, Toast.LENGTH_SHORT).show()
         thread(name = "carmen-voices") {
-            val choices = runCatching { VoicePreference.loadChoices(account, getString(R.string.voice_openai)) }
+            val choices = runCatching { VoicePreference.loadChoices(account) }
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
                 choices.onSuccess(::showVoiceDialog).onFailure {
@@ -129,18 +133,38 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    /** The server's voices after "Carmen's default", which is null here and clears the pick. */
     private fun showVoiceDialog(choices: List<VoicePreference.Choice>) {
-        val current = choices.indexOfFirst { it.id == voicePreference.selected?.id }
+        val options: List<VoicePreference.Choice?> = listOf<VoicePreference.Choice?>(null) + choices
+        val labels = options.map { it?.label ?: getString(R.string.voice_default_option) }
+        val current = options.indexOfFirst { it?.id == voicePreference.selected?.id }
         AlertDialog.Builder(this)
             .setTitle(R.string.voice_title)
-            .setSingleChoiceItems(choices.map { it.label }.toTypedArray(), current) { dialog, which ->
-                val choice = choices[which]
-                voicePreference.select(choice)
-                renderVoice()
-                Toast.makeText(this, getString(R.string.voice_saved, choice.label), Toast.LENGTH_SHORT).show()
+            .setSingleChoiceItems(labels.toTypedArray(), current) { dialog, which ->
+                saveVoice(options[which])
                 dialog.dismiss()
             }
             .show()
+    }
+
+    /** Writes the pick to the user's row; a failed write says so and keeps the voice as it was. */
+    private fun saveVoice(choice: VoicePreference.Choice?) {
+        thread(name = "carmen-voice-save") {
+            val saved = runCatching { voicePreference.select(choice) }
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                saved.onSuccess {
+                    renderVoice()
+                    val message =
+                        if (choice == null) getString(R.string.voice_saved_default)
+                        else getString(R.string.voice_saved, choice.label)
+                    Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+                }.onFailure {
+                    Log.w(TAG, "Storing the voice pick failed", it)
+                    Toast.makeText(this, R.string.voice_save_failed, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
     }
 
     private fun renderVoice() {
@@ -186,5 +210,6 @@ class SettingsActivity : AppCompatActivity() {
 
     private companion object {
         const val REFRESH_MS = 1_000L
+        const val TAG = "SettingsActivity"
     }
 }

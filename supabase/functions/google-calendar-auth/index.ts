@@ -1,6 +1,19 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { allowedAppOrigin } from "../_shared/google-oauth/app-origin.ts";
+import {
+  isCompleteRefusal,
+  readCompleteRequest,
+} from "../_shared/google-oauth/connect-handoff.ts";
+import { popupCallbackResponse } from "../_shared/google-oauth/popup-handoff.ts";
+import {
+  oauthStateSecret,
+  signOAuthState,
+} from "../_shared/google-oauth/oauth-state.ts";
+import { userFacingMessage } from "../_shared/google-oauth/user-facing-error.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 import { buildCalendarAuthorizeUrl } from "./authorize-url.ts";
-import { missingCalendarScopes } from "./scopes.ts";
+import { storeCalendarConnection } from "./store-connection.ts";
+import { callbackUri } from "../_shared/google-oauth/exchange-code.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,164 +32,9 @@ Deno.serve(async (req) => {
 
     // For OAuth callback, action comes from URL
     if (queryAction === "callback") {
-      const code = url.searchParams.get("code");
-      if (!code) {
-        throw new Error("No authorization code provided");
-      }
-
-      const supabaseClient = createClient(
-        Deno.env.get("SUPABASE_URL") ?? "",
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      );
-
-      // Get user from state parameter if needed, or use service role to update
-
-      const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
-      const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
-      const redirectUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/google-calendar-auth?action=callback`;
-      if (!clientId) {
-        throw new Error("Missing GOOGLE_CLIENT_ID secret");
-      }
-
-      // Exchange code for tokens
-      const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          code,
-          client_id: clientId,
-          client_secret: clientSecret!,
-          redirect_uri: redirectUri,
-          grant_type: "authorization_code",
-        }),
+      return await popupCallbackResponse("google-calendar-auth", url, {
+        requireTenant: false,
       });
-
-      const tokens = await tokenResponse.json();
-
-      if (!tokens.access_token) {
-        console.error("Token exchange failed:", tokens);
-        throw new Error("Failed to get tokens from Google");
-      }
-
-      const missingScopes = missingCalendarScopes(tokens);
-      if (missingScopes.length > 0) {
-        throw new Error(
-          "Calendar permission is missing. Close this window and connect Calendar again, allowing both event and calendar list access. Your existing connection has been kept.",
-        );
-      }
-
-      // Get user_id from state or session
-      const stateParam = url.searchParams.get("state");
-      const userId = stateParam; // We'll pass userId in state
-
-      if (!userId) {
-        throw new Error("No user ID in state");
-      }
-
-      // If Google didn't return a refresh_token (re-auth without prompt=consent),
-      // keep the previously stored one so we don't lose offline access.
-      let refreshTokenToStore: string | null = tokens.refresh_token || null;
-      if (!refreshTokenToStore) {
-        const { data: existing } = await supabaseClient
-          .from("calendar_tokens")
-          .select("refresh_token")
-          .eq("user_id", userId)
-          .maybeSingle();
-        refreshTokenToStore = existing?.refresh_token || null;
-      }
-      if (!refreshTokenToStore) {
-        throw new Error(
-          "No refresh token available. Please disconnect and reconnect granting offline access.",
-        );
-      }
-
-      // Fetch the Google user's email
-      let googleEmail = null;
-      try {
-        const userInfoResponse = await fetch(
-          "https://www.googleapis.com/oauth2/v2/userinfo",
-          {
-            headers: { Authorization: `Bearer ${tokens.access_token}` },
-          },
-        );
-        if (userInfoResponse.ok) {
-          const userInfo = await userInfoResponse.json();
-          googleEmail = userInfo.email;
-        }
-      } catch (e) {
-        console.error("Failed to fetch Google user info:", e);
-      }
-
-      // Calculate expiration time
-      const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
-
-      // Store tokens in database
-      const { error: dbError } = await supabaseClient
-        .from("calendar_tokens")
-        .upsert({
-          user_id: userId,
-          access_token: tokens.access_token,
-          refresh_token: refreshTokenToStore,
-          expires_at: expiresAt.toISOString(),
-          updated_at: new Date().toISOString(),
-          google_email: googleEmail,
-          needs_reconnect: false,
-          sync_status: "connected",
-          sync_error: null,
-        });
-
-      if (dbError) {
-        console.error("Database error:", dbError);
-        throw dbError;
-      }
-
-      // Start (or refresh) the Google push notifications channel so changes
-      // made in Google Calendar flow back into the app automatically.
-      try {
-        await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/google-calendar-watch`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""}`,
-            },
-            body: JSON.stringify({ user_id: userId }),
-          },
-        );
-      } catch (e) {
-        console.warn(
-          "Failed to start calendar watch on connect (non-fatal):",
-          e,
-        );
-      }
-
-      // Redirect back to the app - return HTML that closes the popup
-      return new Response(
-        `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Calendar Connected</title>
-            <script>
-              window.opener?.postMessage({ type: 'calendar_connected' }, '*');
-              setTimeout(() => window.close(), 1000);
-            </script>
-          </head>
-          <body style="font-family: system-ui; text-align: center; padding: 50px;">
-            <h1>✅ היומן התחבר בהצלחה!</h1>
-            <p>החלון ייסגר אוטומטית...</p>
-          </body>
-        </html>
-      `,
-        {
-          status: 200,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "text/html; charset=utf-8",
-          },
-        },
-      );
     }
 
     // For all other actions, require authentication
@@ -209,15 +67,12 @@ Deno.serve(async (req) => {
       throw new Error("Unauthorized - user not authenticated");
     }
 
+    // calendar_tokens is server-only; every query below filters by this user.
+    const tokensClient = serviceClient();
+
     // Handle disconnect (DELETE method or action: 'disconnect')
     if (req.method === "DELETE") {
-      // Use service role key to delete (bypasses RLS)
-      const serviceClient = createClient(
-        Deno.env.get("SUPABASE_URL") ?? "",
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      );
-
-      const { error: deleteError } = await serviceClient
+      const { error: deleteError } = await tokensClient
         .from("calendar_tokens")
         .delete()
         .eq("user_id", user.id);
@@ -232,20 +87,28 @@ Deno.serve(async (req) => {
       });
     }
 
-    // For non-DELETE requests, use anon client
-    const supabaseClient = anonClient;
-
     const requestBody = await req.json();
     const action = requestBody.action;
 
+    if (action === "complete") {
+      const request = await readCompleteRequest(requestBody, user.id);
+      if (isCompleteRefusal(request)) {
+        return new Response(JSON.stringify({ error: request.error }), {
+          status: request.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      await storeCalendarConnection(request.code, request.state.userId);
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Handle disconnect via action (for POST requests from supabase.functions.invoke)
     if (action === "disconnect") {
-      const serviceClient = createClient(
-        Deno.env.get("SUPABASE_URL") ?? "",
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      );
-
-      const { error: deleteError } = await serviceClient
+      const { error: deleteError } = await tokensClient
         .from("calendar_tokens")
         .delete()
         .eq("user_id", user.id);
@@ -261,8 +124,6 @@ Deno.serve(async (req) => {
     }
 
     const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
-    const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
-    const redirectUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/google-calendar-auth?action=callback`;
 
     // Initial auth request - redirect to Google
     if (action === "init") {
@@ -271,21 +132,39 @@ Deno.serve(async (req) => {
         throw new Error("Missing GOOGLE_CLIENT_ID secret");
       }
 
-      // Only force consent on the very first connect (so Google issues a refresh_token).
-      // For reconnects we already have a refresh_token, so we skip prompt=consent to
-      // avoid Google rotating/invalidating the existing offline grant unnecessarily.
-      const { data: existingToken } = await supabaseClient
-        .from("calendar_tokens")
-        .select("refresh_token")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      const hasExistingRefresh = !!existingToken?.refresh_token;
+      // Consent (and so a new refresh_token) is skipped only when the stored one
+      // can be reused: a reconnect without consent gets no refresh_token, and
+      // complete reuses the stored one only for the same, known Google account.
+      // A token marked needs_reconnect stopped working, so it is never reused.
+      const { data: existingToken, error: existingTokenError } =
+        await tokensClient
+          .from("calendar_tokens")
+          .select("refresh_token, google_email, needs_reconnect")
+          .eq("user_id", user.id)
+          .maybeSingle();
+      if (existingTokenError) {
+        throw new Error(
+          `calendar_tokens lookup failed: ${existingTokenError.message}`,
+        );
+      }
+      const canReuseRefresh =
+        !!existingToken?.refresh_token &&
+        !!existingToken.google_email &&
+        !existingToken.needs_reconnect;
 
       const authUrl = buildCalendarAuthorizeUrl({
         clientId,
-        redirectUri,
-        state: user.id,
-        forceConsent: !hasExistingRefresh,
+        redirectUri: callbackUri("google-calendar-auth", "callback"),
+        state: await signOAuthState(
+          {
+            userId: user.id,
+            tenantId: null,
+            origin: allowedAppOrigin(req.headers.get("origin")),
+            addNew: false,
+          },
+          oauthStateSecret(),
+        ),
+        forceConsent: !canReuseRefresh,
       });
 
       return new Response(JSON.stringify({ authUrl }), {
@@ -295,11 +174,16 @@ Deno.serve(async (req) => {
 
     // Check connection status
     if (action === "status") {
-      const { data: tokenData } = await supabaseClient
+      const { data: tokenData, error: statusError } = await tokensClient
         .from("calendar_tokens")
-        .select("*")
+        .select("google_email")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
+      if (statusError) {
+        throw new Error(
+          `calendar_tokens status failed: ${statusError.message}`,
+        );
+      }
 
       return new Response(
         JSON.stringify({
@@ -315,9 +199,7 @@ Deno.serve(async (req) => {
     throw new Error("Invalid action");
   } catch (error) {
     console.error("Error:", error);
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    return new Response(JSON.stringify({ error: userFacingMessage(error) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

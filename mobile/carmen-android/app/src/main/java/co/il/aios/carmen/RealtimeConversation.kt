@@ -28,6 +28,8 @@ class RealtimeConversation(
     private val listener: LiveConversation.Listener,
     /** When the wake word or the talk button fired; the first audio logs the delay from it. */
     private val activatedAt: Long,
+    /** The picked OpenAI voice id, or null for Carmen's configured voice. */
+    private val voice: String?,
 ) : LiveConversation {
     private val toolbox = ConversationTools(context, account, log)
     private val memory = VoiceMemory(account, log)
@@ -68,8 +70,9 @@ class RealtimeConversation(
 
     override fun stop(reason: String) = end(reason)
 
-    private fun mintSession(): Pair<String, String> =
-        account.callFunction("carmen-realtime-session", JSONObject()).use { response ->
+    private fun mintSession(): Pair<String, String> {
+        val body = LiveConversation.sessionRequest(account.session().tenantId, voice)
+        return account.callFunction("carmen-realtime-session", body).use { response ->
             val json = JSONObject(response.body?.string() ?: "{}")
             if (!response.isSuccessful) {
                 throw IOException(json.optString("message").ifEmpty { json.optString("error", "HTTP ${response.code}") })
@@ -77,6 +80,7 @@ class RealtimeConversation(
             greeting = json.optString("greeting").ifBlank { FALLBACK_GREETING }
             json.getString("client_secret") to json.optString("model", "gpt-realtime")
         }
+    }
 
     private val events = object : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {

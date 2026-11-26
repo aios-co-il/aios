@@ -12,6 +12,14 @@ spec = importlib.util.spec_from_file_location('mirror', Path(__file__).with_name
 mirror = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mirror)
 
+# The outbound guard and every module it imports (paths under supabase/functions/_shared).
+GUARD_FILES = (
+    'staging-outbound.mjs',
+    'staging-whatsapp-test.ts',
+    'staging-email-test.ts',
+    'public-api/hosts.ts',
+)
+
 def download_function(name, target, destination, *, run=subprocess.run, pause=time.sleep):
     # The CLI's all-functions download bursts above the Management API limit.
     # Pace individual downloads and retry only explicit transient failures.
@@ -103,7 +111,7 @@ def main():
             tracked = root / 'supabase/functions' / name / 'index.ts'
             if not tracked.exists() or original.read_text() != tracked.read_text():
                 raise RuntimeError(f'{name}: deployed source differs from reviewed revision')
-            for guard_file in ('staging-outbound.mjs', 'staging-whatsapp-test.ts'):
+            for guard_file in GUARD_FILES:
                 guard = base / '_shared' / guard_file
                 if not guard.exists() or guard.read_text() != (root / 'supabase/functions/_shared' / guard_file).read_text():
                     raise RuntimeError(f'{name}: deployed outbound guard differs from reviewed source')

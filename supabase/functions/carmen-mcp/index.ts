@@ -23,6 +23,7 @@ import {
   wantsStreamableHttp,
   type McpRpcMessage,
 } from "../_shared/mcp-streamable-http.ts";
+import { publicFunctionUrl } from "../_shared/public-api/url.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -40,8 +41,7 @@ const SERVER_INFO = { name: "carmen-mcp", version: "1.1.0" };
 const PROTOCOL_VERSION = "2024-11-05";
 const MAX_TEXT = 32_000;
 const DEFAULT_USER_ID = "ac7b2493-dcfa-47d8-80cc-b3900a406c46"; // David — full dev-escalation tier
-const GROK_MCP_URL =
-  "https://zvoijyneresvkadpprel.supabase.co/functions/v1/carmen-mcp/mcp";
+const GROK_MCP_URL = publicFunctionUrl("carmen-mcp/mcp");
 
 const TOOLS = [
   {

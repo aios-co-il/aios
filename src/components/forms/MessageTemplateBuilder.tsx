@@ -1,10 +1,10 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Copy, Check, Eye, EyeOff } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 
 const AVAILABLE_VARIABLES = [
   { key: "contact_name", label: "שם איש קשר", example: "יוסי כהן" },
@@ -62,7 +62,6 @@ export function MessageTemplateBuilder({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [showPreview, setShowPreview] = useState(true);
   const [copied, setCopied] = useState<"json" | "text" | null>(null);
-  const { toast } = useToast();
 
   const insertVariable = (variableKey: string) => {
     const textarea = textareaRef.current;
@@ -96,17 +95,17 @@ export function MessageTemplateBuilder({
 
   const copyAsJson = async () => {
     const jsonOutput = JSON.stringify({ message_template: value }, null, 2);
-    await navigator.clipboard.writeText(jsonOutput);
-    setCopied("json");
-    toast({ title: "JSON הועתק ללוח" });
-    setTimeout(() => setCopied(null), 2000);
+    if (await copyToClipboard(jsonOutput, "JSON הועתק ללוח")) {
+      setCopied("json");
+      setTimeout(() => setCopied(null), 2000);
+    }
   };
 
   const copyAsText = async () => {
-    await navigator.clipboard.writeText(value);
-    setCopied("text");
-    toast({ title: "הטקסט הועתק ללוח" });
-    setTimeout(() => setCopied(null), 2000);
+    if (await copyToClipboard(value, "הטקסט הועתק ללוח")) {
+      setCopied("text");
+      setTimeout(() => setCopied(null), 2000);
+    }
   };
 
   return (

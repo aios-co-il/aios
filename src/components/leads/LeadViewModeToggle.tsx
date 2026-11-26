@@ -1,10 +1,5 @@
-import {
-  Check,
-  LayoutGrid,
-  MessageCircle,
-  Star,
-  Table as TableIcon,
-} from "lucide-react";
+import type { ReactElement } from "react";
+import { Check, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -19,12 +14,7 @@ import {
   LEAD_VIEW_MODES,
   type LeadViewMode,
 } from "@/lib/leadViewMode";
-
-const VIEW_ICONS: Record<LeadViewMode, typeof LayoutGrid> = {
-  kanban: LayoutGrid,
-  table: TableIcon,
-  chat: MessageCircle,
-};
+import { LEAD_VIEW_ICONS } from "./leadViewIcons";
 
 export function LeadViewModeToggle({
   viewMode,
@@ -50,7 +40,7 @@ export function LeadViewModeToggle({
         )}
       >
         {LEAD_VIEW_MODES.map((mode) => {
-          const Icon = VIEW_ICONS[mode];
+          const Icon = LEAD_VIEW_ICONS[mode];
           const active = viewMode === mode;
           return (
             <Button
@@ -78,42 +68,65 @@ export function LeadViewModeToggle({
         })}
       </div>
       {hideDefaultMenu ? null : (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 rounded-xl text-muted-foreground"
-              title="תצוגת ברירת מחדל"
-            >
-              <Star
-                className={cn(
-                  "h-4 w-4",
-                  defaultView === viewMode && "fill-current",
-                )}
-              />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuLabel>תצוגת ברירת מחדל</DropdownMenuLabel>
-            {LEAD_VIEW_MODES.map((mode) => {
-              const Icon = VIEW_ICONS[mode];
-              const isDefault = defaultView === mode;
-              return (
-                <DropdownMenuItem
-                  key={mode}
-                  className="gap-2"
-                  onClick={() => onDefaultViewChange(mode)}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span className="flex-1">{LEAD_VIEW_MODE_LABELS[mode]}</span>
-                  {isDefault ? <Check className="h-4 w-4" /> : null}
-                </DropdownMenuItem>
-              );
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <LeadDefaultViewMenu
+          viewMode={viewMode}
+          defaultView={defaultView}
+          onDefaultViewChange={onDefaultViewChange}
+        />
       )}
     </div>
+  );
+}
+
+/** Picks the view the leads screen opens in; `trigger` replaces the star button. */
+export function LeadDefaultViewMenu({
+  viewMode,
+  defaultView,
+  onDefaultViewChange,
+  trigger,
+}: {
+  viewMode: LeadViewMode;
+  defaultView: LeadViewMode | null;
+  onDefaultViewChange: (mode: LeadViewMode) => void;
+  trigger?: ReactElement;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        {trigger ?? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 rounded-xl text-muted-foreground"
+            title="תצוגת ברירת מחדל"
+          >
+            <Star
+              className={cn(
+                "h-4 w-4",
+                defaultView === viewMode && "fill-current",
+              )}
+            />
+          </Button>
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuLabel>תצוגת ברירת מחדל</DropdownMenuLabel>
+        {LEAD_VIEW_MODES.map((mode) => {
+          const Icon = LEAD_VIEW_ICONS[mode];
+          const isDefault = defaultView === mode;
+          return (
+            <DropdownMenuItem
+              key={mode}
+              className="gap-2"
+              onClick={() => onDefaultViewChange(mode)}
+            >
+              <Icon className="h-4 w-4" />
+              <span className="flex-1">{LEAD_VIEW_MODE_LABELS[mode]}</span>
+              {isDefault ? <Check className="h-4 w-4" /> : null}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

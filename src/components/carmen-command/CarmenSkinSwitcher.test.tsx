@@ -10,6 +10,7 @@ import {
 import { CARMEN_CHARACTER } from "@/lib/agentSeats";
 import { getSkinPortrait } from "@/lib/carmenSkinPortraits";
 import { getSessionSkin, setSessionSkin } from "@/lib/carmenSessionSkin";
+import { stubRadixPointer } from "@/test/stubRadixPointer";
 import { CarmenSkinSwitcher } from "./CarmenSkinSwitcher";
 import { CarmenSessionVideoCard } from "./CarmenSessionVideoCard";
 
@@ -79,8 +80,7 @@ beforeEach(() => {
   state.identity.skinAvatars = {};
   setSessionSkin("tenant-a", null);
   setSessionSkin("tenant-b", null);
-  HTMLElement.prototype.hasPointerCapture = () => false;
-  HTMLElement.prototype.scrollIntoView = () => {};
+  stubRadixPointer();
 });
 const card = {
   ref: { current: null },
@@ -145,7 +145,7 @@ test("in the Mini Me style the Zoom window shows the Mini Me", () => {
   const { container } = render(<Session />);
   expect(container.querySelector(".carmen-session-character")).toBeNull();
   expect(container.querySelector(".orb-buddy")).toBeNull();
-  expect(container.querySelector("svg.mini-me")).not.toBeNull();
+  expect(container.querySelector(".mini-me")).not.toBeNull();
 });
 
 test("by default the Zoom window shows the humanised orb in the skin's color", () => {

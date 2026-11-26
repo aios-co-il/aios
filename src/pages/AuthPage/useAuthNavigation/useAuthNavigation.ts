@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { resolveAppHomePath } from "@/lib/appHomePath";
+import { takeAuthReturnPath } from "@/lib/authReturnPath";
 import type { AuthDestination, NavigateToApp } from "../types";
 
 interface NavigationRequest extends AuthDestination {
@@ -72,14 +73,14 @@ export function useAuthNavigation() {
     });
   }
 
-  /** Keep the missing-organization case on the auth page. */
+  /** Enter the page the visitor asked for, else home; keep the missing-organization case on the auth page. */
   function enterHome(homePath: string | null, request: NavigationRequest) {
     if (request.version !== version.current) {
       return;
     }
 
     if (homePath) {
-      navigate(homePath, { replace: true });
+      navigate(takeAuthReturnPath() ?? homePath, { replace: true });
 
       return;
     }

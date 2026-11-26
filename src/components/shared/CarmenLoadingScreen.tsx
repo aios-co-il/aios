@@ -6,6 +6,7 @@ import {
   registerCarmenScene,
   registerCarmenWait,
 } from "@/lib/carmenLoaderSignal";
+import { assistantLine, useAssistantVoice } from "./assistantVoice";
 import { CarmenWorkingScene } from "./CarmenWorkingScene";
 
 /**
@@ -16,9 +17,9 @@ import { CarmenWorkingScene } from "./CarmenWorkingScene";
  */
 
 const DEFAULT_MESSAGES = [
-  "כרמן אוספת את הנתונים…",
-  "מסדרת את הטבלאות…",
-  "בודקת הרשאות…",
+  "{name} {אוספת|אוסף} את הנתונים…",
+  "{מסדרת|מסדר} את הטבלאות…",
+  "{בודקת|בודק} הרשאות…",
   "עוד רגע הכול על המסך…",
 ];
 
@@ -158,8 +159,9 @@ function useFadeOutOnUnmount<T extends HTMLElement>(active: boolean) {
 export interface CarmenLoadingScreenProps {
   /** `page` fills the route area, `card` sits inside a panel, `inline` is a single row. */
   variant?: "page" | "card" | "inline";
+  /** Written for `assistantLine`: `{name}` and `{feminine|masculine}` slots. */
   title?: string;
-  /** Rotating status lines; pass one item to keep it static. */
+  /** Rotating status lines, written like `title`; pass one item to keep it static. */
   messages?: Array<string>;
   /** Wait this long before showing the scene; the thin route bar covers this gap. */
   delayMs?: number;
@@ -168,13 +170,17 @@ export interface CarmenLoadingScreenProps {
 
 export function CarmenLoadingScreen({
   variant = "page",
-  title = "כרמן מכינה לך את המסך",
+  title = "{name} {מכינה|מכין} לך את המסך",
   messages = DEFAULT_MESSAGES,
   delayMs = 450,
   className,
 }: CarmenLoadingScreenProps) {
   const { visible, continued } = useSceneVisible(delayMs);
-  const message = useRotatingMessage(messages, 3400, continued);
+  const voice = useAssistantVoice();
+  const message = assistantLine(
+    useRotatingMessage(messages, 3400, continued),
+    voice,
+  );
   const fadeOutRef = useFadeOutOnUnmount<HTMLDivElement>(visible);
 
   if (!visible) {
@@ -227,7 +233,9 @@ export function CarmenLoadingScreen({
       <CarmenWorkingScene size={variant === "page" ? "lg" : "md"} />
 
       <div className="flex flex-col items-center gap-2 text-center">
-        <p className="text-base font-semibold text-foreground">{title}</p>
+        <p className="text-base font-semibold text-foreground">
+          {assistantLine(title, voice)}
+        </p>
         <div className="flex items-center gap-2">
           <p
             key={message}

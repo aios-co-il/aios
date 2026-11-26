@@ -74,28 +74,36 @@ Deno.test(
 );
 
 Deno.test(
-  "isSyncStale: two runs in a row that did not write are stale, one is not",
+  "isSyncStale: a day of failed runs is stale, two runs 3h apart are not",
   () => {
-    const lastWrite = iso(NOW - 10 * HOUR);
-    const table = (streak: number) => ({
-      last_sync_at: lastWrite,
-      integration_settings: {
+    // The last write came one run before the first failure; runs are 3h apart.
+    /** A table whose last `streak` runs failed. */
+    function table(streak: number) {
+      const lastWrite = iso(NOW - (streak + 1) * 3 * HOUR);
+      return {
         last_sync_at: lastWrite,
-        sync_failed_streak: streak,
-        last_sync_outcome: { status: "failed", rows: 0, at: iso(NOW - HOUR) },
-      },
-    });
+        integration_settings: {
+          last_sync_at: lastWrite,
+          sync_failed_streak: streak,
+          last_sync_outcome: { status: "failed", rows: 0, at: iso(NOW - HOUR) },
+        },
+      };
+    }
     // One failure: the report pages flag it, the pulse does not alert.
     assertStrictEquals(syncOutcomeProblem(table(1)), "failed");
     assertStrictEquals(hasRepeatedSyncFailures(table(1)), false);
     assertStrictEquals(isSyncStale(table(1), NOW), false);
-    // The morning run and the next one both failed.
-    assertStrictEquals(hasRepeatedSyncFailures(table(2)), true);
-    assertStrictEquals(isSyncStale(table(2), NOW), true);
+    // A 3h outage fails two runs in a row: still no connection alert.
+    assertStrictEquals(hasRepeatedSyncFailures(table(2)), false);
+    assertStrictEquals(isSyncStale(table(2), NOW), false);
+    assertStrictEquals(isSyncStale(table(4), NOW), false);
+    // All five scheduled runs of a day failed.
+    assertStrictEquals(hasRepeatedSyncFailures(table(5)), true);
+    assertStrictEquals(isSyncStale(table(5), NOW), true);
     // A stored streak that is not a count reads as none.
     assertStrictEquals(
       hasRepeatedSyncFailures({
-        integration_settings: { sync_failed_streak: "2" },
+        integration_settings: { sync_failed_streak: "5" },
       }),
       false,
     );

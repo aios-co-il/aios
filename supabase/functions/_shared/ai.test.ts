@@ -54,6 +54,46 @@ Deno.test("aiChat", async (t) => {
   );
 });
 
+Deno.test("aiDiarizeTranscribe", async (t) => {
+  await t.step("logs the Scribe usage priced by audio length", async () => {
+    const restoreEnv = setEnv({ ...ENV, ELEVENLABS_API_KEY: "xi-test" });
+    const realFetch = globalThis.fetch;
+    const posts: Array<{ url: string; body: unknown }> = [];
+    globalThis.fetch = (input, init) => {
+      const url = new URL(input instanceof Request ? input.url : input).href;
+      posts.push({
+        url,
+        body: typeof init?.body === "string" ? JSON.parse(init.body) : null,
+      });
+      return Promise.resolve(
+        Response.json({
+          words: [
+            { text: "שלום", start: 0, end: 900, speaker_id: "speaker_0" },
+            { text: " דני", start: 1700, end: 1800, speaker_id: "speaker_1" },
+          ],
+        }),
+      );
+    };
+    try {
+      const { aiDiarizeTranscribe } = await import("./ai.ts");
+
+      const segments = await aiDiarizeTranscribe(new Blob(["audio"]));
+
+      const log = posts.find((post) => post.url.endsWith("/ai_usage_log"));
+      assertEquals(segments?.length, 2);
+      assertEquals(log?.body, {
+        source: "aiDiarizeTranscribe",
+        model: "scribe_v2",
+        cost_usd: 0.1,
+        meta: { bytes: 5, seconds: 1800, estimated: true },
+      });
+    } finally {
+      globalThis.fetch = realFetch;
+      restoreEnv();
+    }
+  });
+});
+
 /** Sets environment variables; the returned function restores the old values. */
 function setEnv(values: Record<string, string>): () => void {
   const old: Array<[string, string | undefined]> = Object.keys(values).map(

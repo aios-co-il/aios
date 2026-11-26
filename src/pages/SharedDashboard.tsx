@@ -3,7 +3,7 @@ import { continentPlatforms } from "@/components/dynamic-tables/CampaignContinen
 import { continentsFallbackFilter } from "@/components/dynamic-tables/CampaignContinents/continentsFallback";
 import type { DashboardPlatformFilter } from "@/lib/dashboardPlatformFilter";
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
-import { DashboardTrackedEvents } from "@/components/dynamic-tables/TrackedEvents/DashboardTrackedEvents";
+import { DashboardAnalyticsTab } from "@/components/report-ui/dashboard/DashboardAnalyticsTab";
 import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleAdsCampaignSection/summarizeGoogleAdsCampaigns";
 import { CombinedRoasCard } from "@/components/dynamic-tables/CombinedRoasCard";
 import { DashboardPlatformBreakdown } from "@/components/dynamic-tables/DashboardPlatformBreakdown/DashboardPlatformBreakdown";
@@ -14,8 +14,11 @@ import { useDashboardGoalTotals } from "@/hooks/useDashboardGoalTotals";
 import { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import type { DashboardDateRange } from "@/components/reports/ReportHeader/DashboardDateControls";
 import { attachTableSettings } from "@/components/SharedDashboard/attachTableSettings";
 import { SharedDashboardHeader } from "@/components/SharedDashboard/SharedDashboardHeader";
+import { RangeRefusedNotice } from "@/components/reports/ReportHeader/RangeRefusedNotice";
+import { useSharedDashboardData } from "@/components/SharedDashboard/useSharedDashboardData";
 import { useSharedPreviousPeriod } from "@/components/SharedDashboard/useSharedPreviousPeriod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReportKpiCard } from "@/components/report-ui/ReportKpiCard";
@@ -209,6 +212,9 @@ interface SharedDashboardProps {
   /** The window, when the host holds it: the client card's live view and its send capture. */
   dateFilter?: string;
   onDateFilterChange?: (filter: string) => void;
+  /** The custom range, when the host holds the window. */
+  customDateRange?: DashboardDateRange;
+  onCustomDateRangeChange?: (range: DashboardDateRange) => void;
 }
 
 export default function SharedDashboard({
@@ -217,6 +223,8 @@ export default function SharedDashboard({
   snapshotMode = false,
   dateFilter: hostDateFilter,
   onDateFilterChange,
+  customDateRange: hostCustomDateRange,
+  onCustomDateRangeChange,
 }: SharedDashboardProps = {}) {
   const params = useParams();
   const shareToken = shareTokenOverride ?? params.shareToken;
@@ -224,46 +232,25 @@ export default function SharedDashboard({
   // The client card holds the window so its send capture shows the same one.
   const dateFilter = hostDateFilter ?? ownDateFilter;
   const setDateFilter = onDateFilterChange ?? setOwnDateFilter;
+  const [ownCustomDateRange, setOwnCustomDateRange] =
+    useState<DashboardDateRange>({});
+  const customDateRange = hostCustomDateRange ?? ownCustomDateRange;
+  const setCustomDateRange = onCustomDateRangeChange ?? setOwnCustomDateRange;
+  const dates = { dateFilter, customDateRange };
   const [platformFilter, setPlatformFilter] =
     useState<DashboardPlatformFilter>("all");
   const [seoActiveTab, setSeoActiveTab] = useState("seo");
   // Off by default, like the signed-in dashboard's "השוואה לתקופה קודמת".
   const [comparePrevious, setComparePrevious] = useState(false);
 
-  const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: ["shared-dashboard", shareToken, dateFilter],
-    queryFn: async () => {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-      if (!supabaseUrl || !apiKey) {
-        throw new Error(
-          "חסרה הגדרת Supabase בסביבת הפיתוח (VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY)",
-        );
-      }
-      const params = new URLSearchParams({
-        token: shareToken!,
-        date_filter: dateFilter,
-      });
-      const baseUrl = `${supabaseUrl}/functions/v1/public-dashboard`;
-      const res = await fetch(`${baseUrl}?${params.toString()}`, {
-        method: "GET",
-        headers: {
-          apikey: apiKey,
-          Authorization: `Bearer ${apiKey}`,
-        },
-      });
-      if (!res.ok) {
-        const body = await res.text();
-        throw new Error(body || `public-dashboard failed (${res.status})`);
-      }
-      return attachTableSettings(await res.json());
-    },
-    enabled: !!shareToken,
-    retry: false,
-    // Keep a warm cache so reopening / date flips don't flash a blank screen.
-    staleTime: 60_000,
-    gcTime: 5 * 60_000,
-  });
+  const {
+    data,
+    isLoading,
+    isFetching,
+    isPlaceholderData,
+    error,
+    rangeRefused,
+  } = useSharedDashboardData(shareToken, dates);
 
   const tables = data?.tables || [];
   const rawRecords = data?.records || [];
@@ -799,7 +786,7 @@ export default function SharedDashboard({
   );
   const previous = useSharedPreviousPeriod({
     shareToken,
-    dateFilter,
+    dates,
     tables,
     tab: platformFilter,
     hasWooCommerce,
@@ -1121,7 +1108,8 @@ export default function SharedDashboard({
     );
   }
 
-  if (error || !data?.dashboard) {
+  // A refused window keeps the last served dashboard's header and dates.
+  if ((error && !rangeRefused) || !data?.dashboard) {
     const detail = error instanceof Error ? error.message : "";
     return (
       <div
@@ -1159,8 +1147,13 @@ export default function SharedDashboard({
 
   // A cached answer that is being refetched (stale, or invalidated by a sync)
   // is not ready: the send capture would photograph the old figures.
+  // Neither is the last window's answer kept while a custom range is picked.
   const isSnapshotReady =
-    !isFetching && !!data?.dashboard && Array.isArray(tables);
+    !isFetching &&
+    !isPlaceholderData &&
+    !rangeRefused &&
+    !!data?.dashboard &&
+    Array.isArray(tables);
 
   return (
     <div
@@ -1172,18 +1165,23 @@ export default function SharedDashboard({
       <SharedDashboardHeader
         shareToken={shareToken}
         dashboard={dashboard}
+        adAccountLinks={data.ad_account_links}
         tabItems={platformTabItems}
         tab={platformFilter}
         onTabChange={(v) => setPlatformFilter(v as DashboardPlatformFilter)}
         dateFilter={dateFilter}
         onDateFilterChange={setDateFilter}
+        customDateRange={customDateRange}
+        onCustomDateRangeChange={setCustomDateRange}
         comparePrevious={comparePrevious}
         onComparePreviousChange={setComparePrevious}
         previous={previous}
         snapshotMode={snapshotMode}
       />
 
-      {platformFilter === "continents" ? (
+      {rangeRefused ? (
+        <RangeRefusedNotice />
+      ) : platformFilter === "continents" ? (
         <DashboardContinentsView
           platforms={continentsBy}
           facebook={{
@@ -1211,25 +1209,20 @@ export default function SharedDashboard({
           sourceModes={weeklySourceModesForTables(tables)}
         />
       ) : platformFilter === "google_analytics" ? (
-        <div className="space-y-4">
-          <DashboardTrackedEvents
-            records={records}
-            settings={data?.dashboard?.settings}
-            // Spend in several currencies has no single cost per event.
-            adsSpend={currencies.mixed ? 0 : globalAdsMetrics.spend}
-            formatCurrency={formatCurrency}
-            formatNumber={formatNumber}
-            source={shareToken ? { shareToken } : null}
-            dateFilter={dateFilter}
-          />
-          <GoogleAnalyticsDashboard
-            records={allAnalyticsRecords}
-            externalDateFilter={dateFilter}
-            tableId={analyticsTableIds[0]}
-            relatedTableIds={analyticsTableIds.slice(1)}
-            defaultReportMode={analyticsReportMode}
-          />
-        </div>
+        <DashboardAnalyticsTab
+          records={records}
+          analyticsRecords={allAnalyticsRecords}
+          settings={data?.dashboard?.settings}
+          // Spend in several currencies has no single cost per event.
+          adsSpend={currencies.mixed ? 0 : globalAdsMetrics.spend}
+          formatCurrency={formatCurrency}
+          formatNumber={formatNumber}
+          source={shareToken ? { shareToken } : null}
+          dateFilter={dateFilter}
+          customDateRange={customDateRange}
+          analyticsTableIds={analyticsTableIds}
+          reportMode={analyticsReportMode}
+        />
       ) : platformFilter === "woocommerce" ? (
         <PublicWooCommerceView sites={wooSites} orders={wooOrders} />
       ) : platformFilter === "seo" ? (

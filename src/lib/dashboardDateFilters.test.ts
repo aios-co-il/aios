@@ -1,7 +1,6 @@
 import { expect, test } from "vitest";
 import {
   COMBINED_DASHBOARD_DATE_FILTERS,
-  SHARED_COMBINED_DASHBOARD_DATE_FILTERS,
   SHARED_TABLE_DATE_FILTERS,
   getDashboardDateRange,
 } from "./dashboardDateFilters.ts";
@@ -10,10 +9,6 @@ const NOW = new Date(2026, 8, 18);
 
 const presetLists = [
   ["COMBINED_DASHBOARD_DATE_FILTERS", COMBINED_DASHBOARD_DATE_FILTERS],
-  [
-    "SHARED_COMBINED_DASHBOARD_DATE_FILTERS",
-    SHARED_COMBINED_DASHBOARD_DATE_FILTERS,
-  ],
   ["SHARED_TABLE_DATE_FILTERS", SHARED_TABLE_DATE_FILTERS],
 ] as const;
 
@@ -81,5 +76,22 @@ test("a custom range is used verbatim", () => {
   ).toStrictEqual({
     startDate: "2026-05-01",
     endDate: "2026-05-31",
+  });
+});
+
+test("the 9-day preset is offered and covers 9 days ending yesterday", () => {
+  for (const [listName, presets] of presetLists) {
+    expect(
+      presets.some(
+        ({ value, label }) =>
+          value === "last_9_days" && label === "9 ימים אחרונים",
+      ),
+      `${listName}: missing "last_9_days"`,
+    ).toBeTruthy();
+  }
+
+  expect(getDashboardDateRange("last_9_days", NOW)).toStrictEqual({
+    startDate: "2026-09-09",
+    endDate: "2026-09-17",
   });
 });

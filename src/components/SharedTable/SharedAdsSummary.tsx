@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import type { AdsCampaignFilterControl } from "@/components/reports/AdsCampaignFilter/useAdsCampaignFilter";
 import { AdsGoalTables } from "@/components/reports/AdsGoalTables/AdsGoalTables";
 import { AdsEntityLevelTabs } from "@/components/reports/AdsEntityLevelTabs";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,6 +23,7 @@ type Props = {
   previousRecords: Array<SharedTableRecord> | undefined;
   level: AdsEntityLevel;
   onLevelChange: (level: AdsEntityLevel) => void;
+  campaignFilter: AdsCampaignFilterControl;
   /** The send capture's summary: no level tabs, and the ROI card reads only. */
   summaryOnly: boolean;
 };
@@ -38,6 +40,7 @@ export function SharedAdsSummary({
   previousRecords,
   level,
   onLevelChange,
+  campaignFilter,
   summaryOnly,
 }: Props) {
   const queryClient = useQueryClient();
@@ -45,7 +48,11 @@ export function SharedAdsSummary({
   return (
     <>
       {hasRows && !summaryOnly && (
-        <AdsEntityLevelTabs value={level} onChange={onLevelChange} />
+        <AdsEntityLevelTabs
+          value={level}
+          onChange={onLevelChange}
+          campaignFilter={campaignFilter}
+        />
       )}
       {hasRows && level !== "campaign" && levelRecords.length === 0 && (
         <Card className="border-dashed">
@@ -75,6 +82,7 @@ export function SharedAdsSummary({
         }}
         // Notes on the account's conversion tracking are for the agency.
         showTrackingWarnings={false}
+        adPreview={{ shareToken }}
       />
     </>
   );
