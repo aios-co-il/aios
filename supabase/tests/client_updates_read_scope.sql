@@ -1,4 +1,4 @@
--- Client update reads (20261126200000_client_updates_read_scope): whoever can
+-- Client update reads (20261126210000_client_updates_read_scope): whoever can
 -- see a client reads every entry on its card, whichever org wrote it; an org
 -- member who cannot see the client (a campaigner not assigned to it) and a
 -- user of an unrelated org read none of its entries.
