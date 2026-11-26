@@ -22,6 +22,7 @@ export async function persistRunCompletion(
       tools_used: run.toolLog.map((t) => t.tool),
       tool_log: run.toolLog,
       conversation_id: run.serverConversationId,
+      device_action: run.deviceAction,
     }),
     {
       headers: {
@@ -40,7 +41,7 @@ async function persistConversation(run: RunState): Promise<void> {
       userId: run.callerUserId,
       conversationId: run.serverConversationId,
       history: run.serverConversationHistory,
-      message: String(run.command_text),
+      message: run.deviceTurn.continuing ? null : String(run.command_text),
       answer: String(run.finalOutput || ""),
     });
   }
@@ -79,6 +80,7 @@ function scheduleMemory(run: RunState): void {
   if (
     run.resolvedTenantId &&
     run.finalOutput &&
+    !run.deviceTurn.continuing &&
     run.command_text?.trim().length >= 10
   ) {
     const memPromise = summarizeAndStoreAgentMemory({

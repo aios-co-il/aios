@@ -1,8 +1,12 @@
-import { readRunStages } from "../run-source.test-fixture.ts";
+import { readRunStages, readRunSource } from "../run-source.test-fixture.ts";
 import { assert, assertStrictEquals } from "jsr:@std/assert@1";
 import { fastLaneFits } from "../fast-lane/eligibility.ts";
 
-const runAiAgent = readRunStages()
+const runAiAgent = (
+  readRunSource("open-run-device-turn") +
+  "\n" +
+  readRunStages()
+)
   .replace(
     "pictureRequest = readPictureRequest(",
     "const pictureRequest = readPictureRequest(",

@@ -6,6 +6,14 @@ import type { RunState } from "./state.ts";
 export async function prepareRunMessages(
   run: RunState,
 ): Promise<Response | string | void> {
+  run.filteredTools = run.deviceTurn.withoutWithheld(run.filteredTools);
+  run.exposedMcpTools.splice(
+    0,
+    run.exposedMcpTools.length,
+    ...run.deviceTurn.withoutWithheld(run.exposedMcpTools),
+  );
+  run.rebuildToolsForApi();
+  run.expandAgentTools(run.deviceTurn.offeredTools);
   run.messages = [{ role: "system", content: run.systemPrompt }];
   // Add conversation history from Carmen WhatsApp sessions
   const history = run.serverConversationId
@@ -21,9 +29,8 @@ export async function prepareRunMessages(
   }
 
   // Add current message
-  const userTurn = withBrowserTab(
-    run.command_text,
-    run.input.bodyJson.context_metadata,
+  const userTurn = run.deviceTurn.userTurn(
+    withBrowserTab(run.command_text, run.input.bodyJson.context_metadata),
   );
   run.messages.push({ role: "user", content: userTurn });
   run.pictureTurnAt = { at: run.messages.length - 1, text: userTurn };

@@ -56,6 +56,8 @@ export async function executeModelTool(
       };
     } else if (workshopRefusal) {
       result = workshopRefusal;
+    } else if (run.deviceTurn.handles(toolName)) {
+      result = await run.deviceTurn.call(toolName, toolArgs);
     } else if (toolName === "search_agent_tools") {
       const discovered = (
         await searchToolsFromIndex(

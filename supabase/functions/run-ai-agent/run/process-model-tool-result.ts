@@ -70,6 +70,10 @@ export function processModelToolResult(
     }
   }
 
+  run.deviceAction = run.deviceTurn.pausedAt(result);
+  if (run.deviceAction) {
+    return;
+  }
   if (
     round === 0 &&
     toolName === "get_latest_campaign_pulse" &&

@@ -1,3 +1,4 @@
+import { deviceRequestOf } from "../device-turn/request.ts";
 import type { RunAgent } from "./contracts.ts";
 import type { RunState } from "./state.ts";
 import { loadCarmenAgent } from "../../_shared/carmen/load-carmen-agent.ts";
@@ -50,7 +51,12 @@ export async function loadRunAgent(
   run.isCarmenAgent = isCarmenAgentRow(run.agent);
   run.tokenOptimize = shouldUseTokenOptimize(run.agent, run.isCarmenAgent);
 
-  if (run.input.emit && run.tokenOptimize && !run.pinSkillsOnly) {
+  if (
+    run.input.emit &&
+    run.tokenOptimize &&
+    !run.pinSkillsOnly &&
+    !deviceRequestOf(run.input.bodyJson).continuation
+  ) {
     run.input.emit({
       type: "status",
       content: buildQuickAck(String(run.command_text || "")),

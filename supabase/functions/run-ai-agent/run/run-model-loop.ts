@@ -1,3 +1,4 @@
+import { devicePauseAnswer } from "../device-turn/turn.ts";
 import { runStopCheck } from "../../_shared/carmen/run-stop.ts";
 import { loadProviderChain } from "./load-provider-chain.ts";
 import { createLoopTextEmitter, finalizeLoopText } from "./emit-loop-text.ts";
@@ -38,6 +39,7 @@ export async function runModelLoop(
     run.callerUserId,
   );
   let stoppedByUser = false;
+  run.deviceAction = null;
 
   for (let round = 0; round < run.maxRounds; round++) {
     if (await runStopped()) {
@@ -145,9 +147,17 @@ export async function runModelLoop(
 
       const execution = await executeModelTool(run, tc, devSendTurn);
       processModelToolResult(run, round, tc, execution, tools);
+      if (run.deviceAction) {
+        break;
+      }
     }
 
     run.messages.push(...tools.toolResults);
+    if (run.deviceAction) {
+      run.finalOutput = devicePauseAnswer(msg.content);
+      emitText(run.finalOutput);
+      break;
+    }
 
     if (tools.budgetSay) {
       tools.sayToUser.push(tools.budgetSay);

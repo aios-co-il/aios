@@ -33,6 +33,9 @@ type QueryResult<Row> = {
 
 /** Mutable run bindings shared by named stages; stages initialize them in execution order. */
 export class RunState {
+  declare deviceTurn: import("../device-turn/turn.ts").DeviceTurn;
+  declare deviceAction:
+    import("../device-turn/turn.ts").DeviceActionReply | null;
   declare pictureRequest: import("../attachments/turn-pictures.ts").TurnPictures;
   declare turnPictures: import("../attachments/turn-pictures.ts").TurnPictures;
   declare pictureTurnAt: { at: number; text: string };

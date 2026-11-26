@@ -14,20 +14,22 @@ export async function appendV1RecallAndLead(run: RunState): Promise<void> {
   // Per-agent memory recall: pull relevant past episodes.
   // Carmen uses fast FTS (cheap, indexed). Other agents use embedding similarity.
   try {
-    const recalled = run.isCarmenAgent
-      ? await recallAgentMemoryFTS(run.supabase, {
-          tenant_id: run.resolvedTenantId,
-          agent_id: run.agent_id as string,
-          query_text: run.command_text,
-          limit: 5,
-          min_importance: 30,
-        })
-      : await recallAgentMemory(
-          run.supabase,
-          run.agent_id as string,
-          run.command_text,
-          6,
-        );
+    const recalled = run.deviceTurn.continuing
+      ? []
+      : run.isCarmenAgent
+        ? await recallAgentMemoryFTS(run.supabase, {
+            tenant_id: run.resolvedTenantId,
+            agent_id: run.agent_id as string,
+            query_text: run.command_text,
+            limit: 5,
+            min_importance: 30,
+          })
+        : await recallAgentMemory(
+            run.supabase,
+            run.agent_id as string,
+            run.command_text,
+            6,
+          );
 
     if (recalled.length > 0) {
       const block = recalled

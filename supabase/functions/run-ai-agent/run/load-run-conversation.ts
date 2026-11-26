@@ -1,21 +1,19 @@
-import { readPictureRequest } from "../attachments/picture-request.ts";
+import { openRunDeviceTurn } from "./open-run-device-turn.ts";
 import { asksForPictures } from "../attachments/turn-pictures.ts";
+import { deviceRequestOf } from "../device-turn/request.ts";
 import type { RunState } from "./state.ts";
 import { nameChatTopicLater } from "../../_shared/carmen/chat-topic.ts";
-import {
-  type FastLaneChannel,
-  fastLaneFits,
-} from "../fast-lane/eligibility.ts";
+import { fastLaneFits } from "../fast-lane/eligibility.ts";
 import { isGroupChat } from "../finding-draft/reply.ts";
 import { chatTurns } from "../fast-lane/answer.ts";
 
 /** Resolves conversation, emits its ID, parses attachments, then attempts the fast lane. */
 export async function loadRunConversation(run: RunState) {
   await loadOrCreateConversation(run);
-  run.pictureRequest = readPictureRequest(run.input.bodyJson.attachments, {
-    authKind: run.input.request.authKind,
-    userId: run.callerUserId,
-  });
+  const reply = await openRunDeviceTurn(run);
+  if (reply) {
+    return reply;
+  }
 
   return await tryConversationFastLane(run);
 }
@@ -57,7 +55,10 @@ async function loadOrCreateConversation(run: RunState): Promise<void> {
       }
     }
 
-    if (!run.serverConversationId) {
+    if (
+      !run.serverConversationId &&
+      !deviceRequestOf(run.input.bodyJson).continuation
+    ) {
       const clientHistory = (
         Array.isArray(run.conversation_history) ? run.conversation_history : []
       )
@@ -96,12 +97,10 @@ async function loadOrCreateConversation(run: RunState): Promise<void> {
 }
 
 /** Attempts the fast lane only after conversation and attachments are resolved. */
-async function tryConversationFastLane(
-  run: RunState,
-): Promise<Response | string | void> {
+async function tryConversationFastLane(run: RunState) {
   // A quick model answers small talk and what the org brief already covers before the full
   // setup (memory, skills, tools) runs; anything else falls through unchanged (fast-lane/).
-  const fastLaneChannel: FastLaneChannel | null =
+  const fastLaneChannel =
     run.input.emit &&
     run.appChatTurn &&
     run.serverConversationId &&
@@ -121,6 +120,7 @@ async function tryConversationFastLane(
       channel: fastLaneChannel,
       isCarmen: run.isCarmenAgent,
       pinned: Boolean(
+        run.deviceTurn.pinsModel ||
         run.input.brainEngine ||
         run.modelOverride ||
         run.pinSkillsOnly ||
