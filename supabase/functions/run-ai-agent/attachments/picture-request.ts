@@ -1,8 +1,15 @@
 /**
  * Reads the unvalidated `attachments` of a run-ai-agent request. A picture is accepted only
- * as a storage path inside the caller's own folder of the Command Center bucket: the server
- * never takes an address, so nothing outside our storage can be named here.
+ * as a storage path, never an address, so nothing outside our storage can be named here, and
+ * by one of two separate rules: a signed-in user's own folder of the Command Center bucket,
+ * or, for the WhatsApp webhooks' service call (AIO-683), the turn's own org folder for
+ * WhatsApp pictures. The service caller is trusted; the path it sends is still checked.
  */
+import { COMMAND_CENTER_FILES_BUCKET } from "../../_shared/agent-channel/attachment-bucket.ts";
+import {
+  WHATSAPP_PICTURES_BUCKET,
+  WHATSAPP_PICTURES_FOLDER,
+} from "../../_shared/carmen/whatsapp-picture/bucket.ts";
 import {
   oneLine,
   withoutFormatCharacters,
@@ -23,6 +30,10 @@ export type PictureCaller = {
   authKind?: string;
   /** The signed-in user (bindRunAgentCaller sets it from the JWT). */
   userId: string | null;
+  /** The request's surface, as run-ai-agent resolved it (a user JWT is never `whatsapp`). */
+  surface?: string;
+  /** The org the turn runs in, as run-ai-agent resolved it. */
+  tenantId?: string | null;
 };
 
 /** Entries past this are counted, not read: a flood of them costs one log line. */
@@ -34,6 +45,24 @@ const NAME_MAX = 80;
  * address fits it: no scheme, no leading slash, no backslash, no second folder.
  */
 const OWN_FILE = /^([0-9a-f-]{36})\/([A-Za-z0-9._-]{1,300})$/i;
+/**
+ * `<tenant id>/whatsapp-inbound/<file name>`: exactly what the WhatsApp webhooks write
+ * (`whatsappPicturePath`), with nothing that reads as an address or climbs a folder.
+ */
+const ORG_WHATSAPP_FILE = new RegExp(
+  `^([0-9a-f-]{36})/${WHATSAPP_PICTURES_FOLDER}/([A-Za-z0-9._-]{1,300})$`,
+  "i",
+);
+
+/**
+ * The bucket the accepted pictures of this caller are read from: the WhatsApp pictures'
+ * bucket for the webhooks' service call, the Command Center bucket for everyone else.
+ */
+export function pictureBucketOf(caller: PictureCaller): string {
+  return isWhatsappService(caller)
+    ? WHATSAPP_PICTURES_BUCKET
+    : COMMAND_CENTER_FILES_BUCKET;
+}
 
 /** The pictures this request may show a brain, and the ones refused with the reason. */
 export function readPictureRequest(
@@ -77,6 +106,9 @@ function checkEntry(
   entry: unknown,
   caller: PictureCaller,
 ): PictureRefusal | { path: string } {
+  if (isWhatsappService(caller)) {
+    return checkOrgEntry(entry, caller.tenantId);
+  }
   if (caller.authKind !== "user" || !caller.userId) {
     return "service_caller";
   }
@@ -105,6 +137,47 @@ function checkEntry(
 }
 
 /**
+ * The WhatsApp webhooks' rule: a picture they stored for this turn, in the turn's own org
+ * folder of the WhatsApp pictures' bucket. A path in another org's folder is refused even
+ * though the caller is the service: the path came with the request.
+ */
+function checkOrgEntry(
+  entry: unknown,
+  tenantId: string,
+): PictureRefusal | { path: string } {
+  if (!isObject(entry) || "url" in entry || !hasPath(entry)) {
+    return "not_a_storage_path";
+  }
+  const file = ORG_WHATSAPP_FILE.exec(entry.path);
+
+  if (!file || file[2] === "." || file[2] === "..") {
+    return "not_a_storage_path";
+  }
+  if (file[1] !== tenantId) {
+    return "other_folder";
+  }
+  if (!("type" in entry) || entry.type !== "image") {
+    return "not_a_picture";
+  }
+  return { path: entry.path };
+}
+
+/**
+ * Whether this is the WhatsApp webhooks' service call (runCarmenAI in `_shared/carmen.ts`):
+ * the service key, the whatsapp surface (which a user JWT never keeps) and a known org.
+ */
+function isWhatsappService(
+  caller: PictureCaller,
+): caller is PictureCaller & { tenantId: string } {
+  return (
+    caller.authKind === "service" &&
+    caller.surface === "whatsapp" &&
+    typeof caller.tenantId === "string" &&
+    caller.tenantId !== ""
+  );
+}
+
+/**
  * The name the user gave the file, safe to quote in a prompt and a log line: one line, no
  * square brackets (the notes about pictures open and close with them), cut between
  * characters so half an emoji never reaches a provider.
@@ -121,8 +194,9 @@ function pictureName(entry: unknown): string {
 
 /** What the log keeps of a refused entry: its path only when it is a path in the bucket. */
 function refusalDetail(entry: unknown, caller: PictureCaller) {
+  const pattern = isWhatsappService(caller) ? ORG_WHATSAPP_FILE : OWN_FILE;
   const isStoragePath =
-    isObject(entry) && hasPath(entry) && OWN_FILE.test(entry.path);
+    isObject(entry) && hasPath(entry) && pattern.test(entry.path);
 
   return {
     userId: caller.userId,

@@ -28,9 +28,18 @@ export interface PictureStore {
  * size comes from the folder listing the workshop's file import already reads (storedFile).
  */
 export function commandCenterPictureStore(supabase: Db): PictureStore {
+  return bucketPictureStore(supabase, COMMAND_CENTER_FILES_BUCKET);
+}
+
+/**
+ * A private bucket read with the service client: the Command Center bucket, or the WhatsApp
+ * pictures' bucket for the webhooks' turns (`pictureBucketOf`). readPictureRequest has
+ * already held every path to the caller's own folder of that bucket.
+ */
+export function bucketPictureStore(supabase: Db, bucket: string): PictureStore {
   return {
     async sizeOf(path) {
-      const stored = await storedFile(supabase, path);
+      const stored = await storedFile(supabase, path, bucket);
       if ("error" in stored) {
         throw new Error(stored.error);
       }
@@ -38,7 +47,7 @@ export function commandCenterPictureStore(supabase: Db): PictureStore {
     },
     async bytesOf(path) {
       const { data, error } = await supabase.storage
-        .from(COMMAND_CENTER_FILES_BUCKET)
+        .from(bucket)
         .download(path);
       if (error || !data) {
         throw error ?? new Error("stored file has no body");

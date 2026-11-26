@@ -1838,9 +1838,12 @@ import {
 } from "./device-turn/turn.ts";
 import { deviceRequestOf, fixContinuationText } from "./device-turn/request.ts";
 import { savedTurnMessages } from "./device-turn/saved-turn.ts";
-import { readPictureRequest } from "./attachments/picture-request.ts";
 import {
-  commandCenterPictureStore,
+  pictureBucketOf,
+  readPictureRequest,
+} from "./attachments/picture-request.ts";
+import {
+  bucketPictureStore,
   loadTurnPictures,
 } from "./attachments/picture-store.ts";
 import {
@@ -2200,13 +2203,17 @@ async function handleRunAgent(
     }
 
     // Pictures attached in the site chat (attachments/, AIO-675): storage paths in the
-    // signed-in caller's own folder only. Read later, once the brains of the turn are known.
+    // signed-in caller's own folder only, or, from the WhatsApp webhooks' service call, in
+    // the turn's own org folder (AIO-683). Read later, once the brains of the turn are known.
     // A resumed browser screenshot joins them, already read and its file deleted.
+    const pictureCaller = {
+      authKind: request.authKind,
+      userId: callerUserId,
+      surface,
+      tenantId: resolvedTenantId,
+    };
     const pictureRequest = withDevicePictures(
-      readPictureRequest(bodyJson.attachments, {
-        authKind: request.authKind,
-        userId: callerUserId,
-      }),
+      readPictureRequest(bodyJson.attachments, pictureCaller),
       deviceTurn.pictures,
     );
 
@@ -4197,7 +4204,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
     // The pictures' bytes, read from our own storage only when a brain of this turn can see.
     const turnPictures = await loadTurnPictures(
-      commandCenterPictureStore(supabase),
+      bucketPictureStore(supabase, pictureBucketOf(pictureCaller)),
       pictureRequest,
       { wanted: llmChain.some(targetCanSee), userId: callerUserId },
     );

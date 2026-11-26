@@ -18,15 +18,17 @@ function between(start: string, end: string): string {
 // to run with fakes here (AIO-123). Each rule itself is tested beside its module.
 Deno.test("attached pictures are wired through Carmen's loop", async (t) => {
   await t.step("the request is read against the verified caller", () => {
-    const read = between(
-      "const pictureRequest = withDevicePictures(",
-      "const fastLaneChannel",
-    );
+    const read = between("const pictureCaller = {", "const fastLaneChannel");
 
     assert(read.includes("bodyJson.attachments"));
     assert(read.includes("authKind: request.authKind,"));
     assert(read.includes("userId: callerUserId,"));
-    assert(read.includes("readPictureRequest(bodyJson.attachments"));
+    // The WhatsApp webhooks' rule binds a path to the org the turn runs in (AIO-683).
+    assert(read.includes("surface,"));
+    assert(read.includes("tenantId: resolvedTenantId,"));
+    assert(
+      read.includes("readPictureRequest(bodyJson.attachments, pictureCaller)"),
+    );
     // The screenshot comes from the device turn, read from the step's row, never the request.
     assert(read.includes("deviceTurn.pictures,"));
   });
@@ -49,7 +51,12 @@ Deno.test("attached pictures are wired through Carmen's loop", async (t) => {
   await t.step("the bytes are read only when a brain of the turn sees", () => {
     const load = between("const turnPictures = await loadTurnPictures(", ");");
 
-    assert(load.includes("commandCenterPictureStore(supabase)"));
+    // From the bucket the caller's own rule accepted the paths in.
+    assert(
+      load.includes(
+        "bucketPictureStore(supabase, pictureBucketOf(pictureCaller))",
+      ),
+    );
     assert(load.includes("wanted: llmChain.some(targetCanSee)"));
   });
 

@@ -35,6 +35,7 @@ import {
   claimAutomationDispatch,
   rememberConnectionWid,
 } from "./automation-dispatch.ts";
+import { greenApiPicture } from "./inbound-picture.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1898,6 +1899,8 @@ Deno.serve(async (req) => {
           // so open-member-groups mode must never activate here.
           sourceChannel: "operator_mirror",
           connectionRole: carmenRole,
+          // Read only if the turn reaches Carmen's brain (AIO-683).
+          picture: greenApiPicture(messageData, instanceId),
         });
         if (result.handled) {
           carmenOutcome = result.outcome;

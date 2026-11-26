@@ -73,16 +73,17 @@ interface StoredEntry {
   metadata?: { mimetype?: string; size?: number };
 }
 
-/** The source object's stored type and size, read from its folder listing without downloading it. */
+/** The object's stored type and size, read from its folder listing without downloading it (the Command Center bucket unless `bucket` names another). */
 export async function storedFile(
   supabase: Db,
   source: string,
+  bucket: string = SOURCE_BUCKET,
 ): Promise<{ mimetype: string; size: number } | { error: string }> {
   const slash = source.lastIndexOf("/");
   const folder = source.slice(0, slash);
   const name = source.slice(slash + 1);
   const { data, error } = await supabase.storage
-    .from(SOURCE_BUCKET)
+    .from(bucket)
     .list(folder, { search: name, limit: 100 });
   const entry: StoredEntry | undefined = (data ?? []).find(
     (row: StoredEntry) => row.name === name,
