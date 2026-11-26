@@ -3998,6 +3998,7 @@ export type Database = {
           arguments: Json
           claimed_at: string | null
           completed_at: string | null
+          consumed_at: string | null
           conversation_id: string | null
           created_at: string
           decision: string | null
@@ -4016,6 +4017,7 @@ export type Database = {
           arguments?: Json
           claimed_at?: string | null
           completed_at?: string | null
+          consumed_at?: string | null
           conversation_id?: string | null
           created_at?: string
           decision?: string | null
@@ -4034,6 +4036,7 @@ export type Database = {
           arguments?: Json
           claimed_at?: string | null
           completed_at?: string | null
+          consumed_at?: string | null
           conversation_id?: string | null
           created_at?: string
           decision?: string | null

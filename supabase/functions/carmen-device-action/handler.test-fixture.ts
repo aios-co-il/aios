@@ -1,8 +1,9 @@
 import { type DeviceActionDeps, handleDeviceAction } from "./handler.ts";
-import type { ActionDb } from "./rows.ts";
-
-export type FakeRow = Record<string, unknown>;
-export type FakeTables = Record<string, Array<FakeRow>>;
+import {
+  fakeDb,
+  type FakeRow,
+  type FakeTables,
+} from "./action-db.test-fixture.ts";
 
 export const ME = "11111111-1111-4111-8111-111111111111";
 export const COLLEAGUE = "22222222-2222-4222-8222-222222222222";
@@ -39,53 +40,6 @@ const USER_BY_TOKEN: Record<string, string> = {
 };
 
 type Caller = Awaited<ReturnType<DeviceActionDeps["caller"]>>;
-
-/**
- * A stand-in for the Supabase client over in-memory rows: a query matches the rows that
- * pass every `.eq()` and `.gt()` filter and `visible`, which plays row-level security, and
- * `.update()` changes exactly those rows. `failing` names a table whose queries return an
- * error.
- */
-export function fakeDb(
-  tables: FakeTables,
-  visible: (row: FakeRow) => boolean = () => true,
-  failing?: string,
-): ActionDb {
-  /** One query on a table. */
-  function from(table: string) {
-    const filters = [visible];
-    let patch: FakeRow | null = null;
-    const query = {
-      select: () => query,
-      update(values: FakeRow) {
-        patch = values;
-        return query;
-      },
-      eq(column: string, value: unknown) {
-        filters.push((row) => row[column] === value);
-        return query;
-      },
-      gt(column: string, value: string) {
-        filters.push((row) => String(row[column]) > value);
-        return query;
-      },
-      maybeSingle() {
-        if (table === failing) {
-          return Promise.resolve({ data: null, error: { message: "boom" } });
-        }
-        const rows = (tables[table] ?? []).filter((row) =>
-          filters.every((passes) => passes(row)),
-        );
-        rows.forEach((row) => Object.assign(row, patch));
-        return Promise.resolve({ data: rows[0] ?? null, error: null });
-      },
-    };
-    return query;
-  }
-
-  // The fake implements only the calls rows.ts and run-stop.ts make, so it is not the full client type.
-  return { from } as unknown as ActionDb;
-}
 
 /** A pending read-page action of mine that expires in two minutes, with `overrides`. */
 export function actionRow(overrides: FakeRow = {}): FakeRow {

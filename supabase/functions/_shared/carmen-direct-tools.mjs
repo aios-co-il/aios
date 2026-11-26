@@ -1,8 +1,12 @@
 // Policy for calling Carmen's tools directly (carmen-tools-mcp → run-ai-agent direct_tool),
 // without Carmen's LLM. Used by Claude Direct / Cursor Direct and other coding agents.
 import { isDevEscalationTool } from "./dev-escalation-auth.mjs";
+import { DEVICE_TOOL_NAMES } from "./carmen/device/contract.ts";
 
-/** Never exposed directly: agent spawning (loops / token burn) and self-approval. */
+/**
+ * Never exposed directly: agent spawning (loops / token burn), self-approval, and the
+ * device tools, which act in a signed-in user's own browser through the extension's panel.
+ */
 export const DIRECT_BLOCKED_TOOLS = Object.freeze([
   "search_agent_tools",
   "delegate_to_subagent",
@@ -14,6 +18,7 @@ export const DIRECT_BLOCKED_TOOLS = Object.freeze([
   "assign_task_to_cursor",
   "execute_pending_approval",
   "reject_pending_approval",
+  ...DEVICE_TOOL_NAMES,
 ]);
 
 /**

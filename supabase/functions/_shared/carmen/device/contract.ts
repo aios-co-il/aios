@@ -144,6 +144,29 @@ export const DEVICE_ACTION_STATUS = [
 
 export type DeviceActionStatus = (typeof DEVICE_ACTION_STATUS)[number];
 
+/** The states a step can still leave; every other state is closed for good. */
+export const DEVICE_OPEN_STATUSES = [
+  "pending",
+  "claimed",
+] as const satisfies ReadonlyArray<DeviceActionStatus>;
+
+/** The fields a run-ai-agent request adds when the extension's panel is beside the chat. */
+export type DeviceRequestFields = {
+  /** The device tools the panel announced. */
+  device?: { tools: ReadonlyArray<DeviceToolName> };
+  /** The action whose outcome the panel reported: the request resumes its run. */
+  device_continuation?: string;
+};
+
+/** What a reply tells the site about a step waiting for the panel: its id and tool, nothing to act on. */
+export type DeviceActionReply = { action_id: string; tool: DeviceToolName };
+
+/** The stream event, and the reply field, that carry a waiting step. */
+export const DEVICE_ACTION_EVENT = "device_action";
+
+/** The one error every refused continuation gets, so a caller learns nothing about a step not theirs. */
+export const DEVICE_STEP_UNAVAILABLE = "device_step_unavailable";
+
 /** How long a pending action, and the card asking about it, stays valid. */
 export const DEVICE_CARD_LIFE_MS = 2 * 60 * 1000;
 
