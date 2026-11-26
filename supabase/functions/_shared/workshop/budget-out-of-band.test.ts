@@ -25,8 +25,15 @@ Deno.test(
       /if \(bodyJson\.direct_tool\) \{\s*if \(auth\.kind !== "service"\)/,
     );
     // The chat turn's approval context names the turn and the user's text, never outOfBand.
-    const turn = agent.indexOf("devTaskTurn: {");
-    const context = agent.slice(agent.lastIndexOf("{", turn), turn + 800);
+    const modelTool = readFileSync(
+      new URL("../../run-ai-agent/run/execute-model-tool.ts", import.meta.url),
+      "utf8",
+    );
+    const turn = modelTool.indexOf("devTaskTurn: {");
+    const context = modelTool.slice(
+      modelTool.lastIndexOf("{", turn),
+      turn + 800,
+    );
     assert(turn > 0 && !context.includes("outOfBand"));
   },
 );

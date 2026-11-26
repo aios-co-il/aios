@@ -1,3 +1,4 @@
+import { readRunSource } from "./run-source.test-fixture.ts";
 import { assertEquals } from "jsr:@std/assert@1";
 import { describe, it } from "jsr:@std/testing@1/bdd";
 import { ORG_PERSONA_FIELD } from "../_shared/carmen/persona-runtime.ts";
@@ -57,13 +58,16 @@ describe("turnPersonaSource", () => {
 
 describe("run-ai-agent index.ts", () => {
   it("loads the turn's character from turnPersonaSource in the full brain and the fast lane", async () => {
-    const source = await Deno.readTextFile(
-      new URL("./index.ts", import.meta.url),
-    );
+    const source = [
+      readRunSource("resolve-run-caller"),
+      readRunSource("append-run-skins"),
+      await Deno.readTextFile(new URL("./index.ts", import.meta.url)),
+    ].join("\n");
 
     assertEquals(
-      source.match(/turnPersonaSource\(surface, bodyJson, callerUserId\)/g)
-        ?.length,
+      source.match(
+        /turnPersonaSource\(\s*surface,\s*bodyJson,\s*callerUserId,?\s*\)/g,
+      )?.length,
       1,
     );
     assertEquals(source.match(/loadPersona\(/g)?.length, 2);

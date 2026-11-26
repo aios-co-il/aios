@@ -1,9 +1,21 @@
+import { readRunStages, readRunSource } from "../run-source.test-fixture.ts";
 import { assert, assertStrictEquals } from "jsr:@std/assert@1";
 import { fastLaneFits } from "../fast-lane/eligibility.ts";
 
-const runAiAgent = Deno.readTextFileSync(
-  new URL("../index.ts", import.meta.url),
-);
+const runAiAgent = (
+  readRunSource("open-run-device-turn") +
+  "\n" +
+  readRunStages()
+)
+  .replace(
+    "pictureRequest = withDevicePictures(",
+    "const pictureRequest = withDevicePictures(",
+  )
+  .replace(
+    "turnPictures = await loadTurnPictures(",
+    "const turnPictures = await loadTurnPictures(",
+  )
+  .replace("pictureTurnAt = {", "const pictureTurnAt = {");
 
 /** The handler's source between two markers. */
 function between(start: string, end: string): string {
@@ -18,17 +30,22 @@ function between(start: string, end: string): string {
 // to run with fakes here (AIO-123). Each rule itself is tested beside its module.
 Deno.test("attached pictures are wired through Carmen's loop", async (t) => {
   await t.step("the request is read against the verified caller", () => {
-    const read = between("const pictureCaller = {", "const fastLaneChannel");
-
-    assert(read.includes("bodyJson.attachments"));
-    assert(read.includes("authKind: request.authKind,"));
-    assert(read.includes("userId: callerUserId,"));
-    // The WhatsApp webhooks' rule binds a path to the org the turn runs in (AIO-683).
-    assert(read.includes("surface,"));
-    assert(read.includes("tenantId: resolvedTenantId,"));
-    assert(
-      read.includes("readPictureRequest(bodyJson.attachments, pictureCaller)"),
+    const read = between(
+      "const pictureRequest = withDevicePictures(",
+      "const fastLaneChannel",
     );
+    const caller = readRunSource("picture-caller");
+
+    assert(
+      read.includes(
+        "readPictureRequest(bodyJson.attachments, pictureCallerOf(run))",
+      ),
+    );
+    assert(caller.includes("authKind: request.authKind,"));
+    assert(caller.includes("userId: callerUserId,"));
+    // The WhatsApp webhooks' rule binds a path to the org the turn runs in (AIO-683).
+    assert(caller.includes("surface,"));
+    assert(caller.includes("tenantId: resolvedTenantId,"));
     // The screenshot comes from the device turn, read from the step's row, never the request.
     assert(read.includes("deviceTurn.pictures,"));
   });
@@ -54,14 +71,17 @@ Deno.test("attached pictures are wired through Carmen's loop", async (t) => {
     // From the bucket the caller's own rule accepted the paths in.
     assert(
       load.includes(
-        "bucketPictureStore(supabase, pictureBucketOf(pictureCaller))",
+        "bucketPictureStore(supabase, pictureBucketOf(pictureCallerOf(run)))",
       ),
     );
     assert(load.includes("wanted: llmChain.some(targetCanSee)"));
   });
 
   await t.step("every model call decides for the link it goes to", () => {
-    const call = between("const payload: any = {", "const temp =");
+    const call = between(
+      "const payload: CompletionRequest = {",
+      "const temp =",
+    );
 
     assert(call.includes("withTurnPictures("));
     assert(call.includes("pictureRefusers,"));
@@ -76,7 +96,7 @@ Deno.test("attached pictures are wired through Carmen's loop", async (t) => {
     "a link that refuses the pictures is retried without them",
     () => {
       const retry = between(
-        "// A provider that will not read the request with the pictures",
+        "    if (\n      providerRefusedPictures(",
         "if (llm.connectionId) {",
       );
 
