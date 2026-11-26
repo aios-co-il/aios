@@ -11,12 +11,15 @@ export type CarmenVoiceOption = {
   provider: CarmenVoiceProvider;
 };
 
-/** A voice in the ElevenLabs-only list reply, the shape installed Android apps parse. */
-type ElevenLabsVoiceOption = { id: string; label: string };
+/**
+ * A voice's picker fields without its provider: what each provider's own list holds, and
+ * the ElevenLabs-only list reply installed Android apps parse.
+ */
+type VoiceLabel = Pick<CarmenVoiceOption, "id" | "label">;
 
 /** The body of a `list_voices` reply. */
-export type VoiceListReply = {
-  voices: ReadonlyArray<CarmenVoiceOption | ElevenLabsVoiceOption>;
+type VoiceListReply = {
+  voices: ReadonlyArray<CarmenVoiceOption | VoiceLabel>;
 };
 
 /**
@@ -45,7 +48,7 @@ export function voiceListReply(provider: unknown): VoiceListReply {
 
 /** The picker fields of each voice, tagged with its provider. */
 function withProvider(
-  voices: ReadonlyArray<{ id: string; label: string }>,
+  voices: ReadonlyArray<VoiceLabel>,
   provider: CarmenVoiceProvider,
 ): Array<CarmenVoiceOption> {
   return voices.map(({ id, label }) => ({ id, label, provider }));

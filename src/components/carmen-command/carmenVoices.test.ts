@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { CARMEN_VOICES } from "../../../supabase/functions/carmen-realtime-session/voice-list.ts";
 import {
-  CARMEN_VOICES,
-  ELEVENLABS_VOICES,
+  carmenVoiceGroups,
   isElevenLabsVoice,
-  OPENAI_VOICES,
   toCarmenVoice,
 } from "./carmenVoices";
 
@@ -20,12 +19,24 @@ describe("carmenVoices", () => {
   });
 
   it("keeps every voice of the server's list, of both providers", () => {
-    const pickerIds = [...ELEVENLABS_VOICES, ...OPENAI_VOICES].map(
-      (voice) => voice.id,
-    );
+    const listIds = CARMEN_VOICES.map((voice) => voice.id);
 
-    expect(CARMEN_VOICES.map((voice) => voice.id)).toEqual(pickerIds);
-    expect(pickerIds.map(toCarmenVoice)).toEqual(pickerIds);
+    expect(listIds.map(toCarmenVoice)).toEqual(listIds);
+  });
+
+  it("groups the server's list by provider, ElevenLabs first, in list order", () => {
+    const groups = carmenVoiceGroups();
+
+    expect(groups.map((group) => [group.provider, group.label])).toEqual([
+      ["elevenlabs", "ElevenLabs"],
+      ["openai", "OpenAI"],
+    ]);
+    expect(groups.flatMap((group) => group.voices)).toEqual(CARMEN_VOICES);
+    expect(
+      groups.every((group) =>
+        group.voices.every((voice) => voice.provider === group.provider),
+      ),
+    ).toBe(true);
   });
 
   it("tells ElevenLabs voices from OpenAI ones", () => {
