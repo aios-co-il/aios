@@ -40,8 +40,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { ReplyMarkdown } from "@/components/ReplyMarkdown/ReplyMarkdown";
 import { invalidateAIEntityQueries } from "@/lib/aiInvalidation";
 import { USE_BRAIN_PICK } from "@functions/_shared/carmen/brain-engine/stored-pick.ts";
 import {
@@ -1107,9 +1106,7 @@ export function AIOSDialog({
                             dir="rtl"
                             className="prose prose-sm dark:prose-invert max-w-none text-sm text-right [&>p]:mb-1 [&>ul]:my-1 [&>ol]:my-1 [&_table]:my-2 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1 [&_th]:bg-muted [&_th]:font-semibold [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1"
                           >
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                              {msg.content || ""}
-                            </ReactMarkdown>
+                            <ReplyMarkdown>{msg.content || ""}</ReplyMarkdown>
                           </div>
                           {(msg.content || "").trim() &&
                             micCaptureMode !== "transcribe_only" && (
@@ -1148,9 +1145,7 @@ export function AIOSDialog({
                       dir="rtl"
                       className="prose prose-sm dark:prose-invert max-w-none text-sm text-right [&>p]:mb-1 [&_table]:my-2 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1 [&_th]:bg-muted [&_th]:font-semibold [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1"
                     >
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {streamingMessage}
-                      </ReactMarkdown>
+                      <ReplyMarkdown>{streamingMessage}</ReplyMarkdown>
                     </div>
                     <Loader2 className="h-3 w-3 animate-spin inline-block mr-1 mt-1" />
                   </Card>
