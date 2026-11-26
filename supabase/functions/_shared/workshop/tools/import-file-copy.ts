@@ -1,3 +1,4 @@
+import { COMMAND_CENTER_FILES_BUCKET } from "../../agent-channel/attachment-bucket.ts";
 import { type Db } from "../db.ts";
 import {
   fileNameOf,
@@ -7,7 +8,7 @@ import {
 } from "./import-file-name.ts";
 
 /** Where a direct brain's files wait (agent-channel-mcp upload_aios_file): private, per tenant. */
-const SOURCE_BUCKET = "command-center-files";
+const SOURCE_BUCKET = COMMAND_CENTER_FILES_BUCKET;
 /**
  * The workshop's private media bucket. The board signs a bare path in it to show it, and the
  * render worker reads a bare path in it with its own key when it assembles the film (guard.ts).
@@ -73,7 +74,7 @@ interface StoredEntry {
 }
 
 /** The source object's stored type and size, read from its folder listing without downloading it. */
-async function storedFile(
+export async function storedFile(
   supabase: Db,
   source: string,
 ): Promise<{ mimetype: string; size: number } | { error: string }> {
