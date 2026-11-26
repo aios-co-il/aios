@@ -108,7 +108,8 @@ Deno.test("attached pictures are wired through Carmen's loop", async (t) => {
         "answer:",
       );
 
-      assert(saved.includes("message: String(command_text),"));
+      // A device continuation saves no message (device-turn/), so the text may sit behind a condition.
+      assert(/message: [^\n]*String\(command_text\),/.test(saved));
     },
   );
 

@@ -27,6 +27,7 @@ import {
 import { userFacingMessage } from "../_shared/google-oauth/user-facing-error.ts";
 import { storeSearchConsoleConnection } from "./store-connection.ts";
 import { callbackUri } from "../_shared/google-oauth/exchange-code.ts";
+import { refuseGscSitesAccess } from "./sites-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -221,7 +222,19 @@ Deno.serve(async (req) => {
     }
 
     try {
-      const { integrationId } = await req.json();
+      const { integrationId, clientId: seoClientId } = await req.json();
+
+      const refusal = await refuseGscSitesAccess(
+        authHeader,
+        integrationId,
+        seoClientId,
+      );
+      if (refusal) {
+        return new Response(JSON.stringify({ error: refusal.error }), {
+          status: refusal.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
       const supabase = createClient(
         Deno.env.get("SUPABASE_URL") ?? "",

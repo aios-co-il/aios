@@ -1,5 +1,8 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  isGscRefusal,
+  readClientGscAccess,
+} from "../_shared/seo/client-gsc-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -25,7 +28,7 @@ function siteMatches(a?: string | null, b?: string | null): boolean {
   return na === nb || na.includes(nb) || nb.includes(na);
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -42,30 +45,14 @@ serve(async (req) => {
       );
     }
 
-    const { clientId, tenantIds, expectedSiteUrl } = await req.json();
+    const { clientId, expectedSiteUrl } = await req.json();
 
-    if (!clientId || !Array.isArray(tenantIds) || tenantIds.length === 0) {
-      return new Response(
-        JSON.stringify({ error: "Missing clientId or tenantIds" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    // Verify caller is authenticated (RLS-safe path: we only return an integration ID,
-    // which is then used by fetch-gsc-data — that function runs with service-role and
-    // is the only place where tokens are touched).
-    const supabaseAuth = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      { global: { headers: { Authorization: authHeader } } },
-    );
-    const { data: userRes, error: userErr } = await supabaseAuth.auth.getUser();
-    if (userErr || !userRes?.user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
+    // The organizations come from the server-side rule, never from the body:
+    // the caller must see the client, and only its organizations count.
+    const access = await readClientGscAccess(authHeader, clientId);
+    if (isGscRefusal(access)) {
+      return new Response(JSON.stringify({ error: access.error }), {
+        status: access.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -79,7 +66,7 @@ serve(async (req) => {
     const { data: integrations, error: intErr } = await supabase
       .from("tenant_integrations")
       .select("id, settings, user_id, tenant_id")
-      .in("tenant_id", tenantIds)
+      .in("tenant_id", access.tenantIds)
       .eq("integration_type", "google_search_console")
       .eq("is_active", true);
 

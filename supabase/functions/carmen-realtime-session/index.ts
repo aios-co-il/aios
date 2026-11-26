@@ -12,7 +12,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { getCaller, getUserOpenAIKey } from "../_shared/userKey.ts";
 import { orgVoiceKeyAllowed } from "../_shared/carmen/voice-access.ts";
-import { chooseRealtimeVoice } from "./voice-choice.ts";
+import { chooseRealtimeVoice } from "../_shared/carmen/voices/voice-choice.ts";
 import { voiceListReply } from "./voice-list.ts";
 import { elevenLabsReply } from "./elevenlabs-reply.ts";
 import { SAVE_PRONUNCIATION_TOOL } from "./pronunciations.ts";
