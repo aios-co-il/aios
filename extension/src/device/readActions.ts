@@ -4,7 +4,10 @@
  * announced to the site with a result message that carries the id only. A cancel for the
  * open action, the card's life running out and the panel closing each stop it.
  */
-import { DEVICE_CARD_LIFE_MS } from "../../../supabase/functions/_shared/carmen/device/contract.ts";
+import {
+  DEVICE_CARD_LIFE_MS,
+  type DeviceToolName,
+} from "../../../supabase/functions/_shared/carmen/device/contract.ts";
 import {
   type CompleteBody,
   completeBody,
@@ -19,11 +22,11 @@ import {
 
 /** The claim's answer as the panel uses it: the tool on success, a reason to log otherwise. */
 export type ClaimAnswer =
-  { ok: true; tool: string } | { ok: false; reason: string };
+  { ok: true; tool: DeviceToolName } | { ok: false; reason: string };
 
 export type ReadActionDeps = ReadDeps & {
   claim: (id: string) => Promise<ClaimAnswer>;
-  /** Sends `complete`; rejects on a refusal or a network failure, which is logged and not retried. */
+  /** Sends `complete`; rejects on a refusal or a failure that outlived its one retry, which is logged. */
   complete: (body: CompleteBody) => Promise<void>;
   /** Sends `complete` from a closing page: best effort, nothing is awaited. */
   completeOnClose: (body: CompleteBody) => void;
@@ -87,6 +90,8 @@ export function createReadActions(deps: ReadActionDeps): ReadActions {
       () => action.stopper.abort("expired"),
       DEVICE_CARD_LIFE_MS,
     );
+    // A read that fails in Chrome (a blocked page, a closed tab) is reported `cancelled`:
+    // the contract has no status for "could not read" (AIO-656).
     const outcome = await readOutcome(claim.tool, action, deps).catch(
       (error: unknown) => {
         console.error(

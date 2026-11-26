@@ -9,6 +9,7 @@ import type {
   PageLocation,
   PageSnapshot,
 } from "../../../supabase/functions/_shared/carmen/device/results.ts";
+import type { ActionReport } from "../../../supabase/functions/carmen-device-action/report.ts";
 
 /** How one claimed read ended. */
 export type ReadOutcome =
@@ -16,7 +17,7 @@ export type ReadOutcome =
   | { status: "done"; asked: boolean; snapshot: PageSnapshot }
   /**
    * The user declined the card or Chrome's prompt. The contract's rule for a read is
-   * `free`, but the report takes `denied` only with `ask`, and a card was drawn.
+   * `free`, but the report takes `denied` only with `ask`, and a card was drawn (AIO-656).
    */
   | { status: "denied"; observed: PageLocation }
   | { status: "refused" }
@@ -27,15 +28,11 @@ export type ReadOutcome =
       observed: PageLocation | null;
     };
 
-/** The body of `complete` for one action. */
-export type CompleteBody = {
-  action: "complete";
-  id: string;
-  status: ReadOutcome["status"];
-  decision: DeviceCardRule | null;
-  observed: PageLocation | null;
-  result: PageSnapshot | null;
-};
+/** The body of `complete` for one action: the function's own report, with a read's result. */
+export type CompleteBody = { action: "complete"; id: string } & Omit<
+  ActionReport,
+  "result"
+> & { result: PageSnapshot | null };
 
 /** The `complete` request for an action and how it ended. */
 export function completeBody(id: string, outcome: ReadOutcome): CompleteBody {

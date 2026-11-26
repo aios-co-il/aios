@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it } from "vitest";
-import { collectPage, readCollectedPage } from "./pageCollector.ts";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { collectPage } from "./pageCollector.ts";
 
 const LIMITS = { textBudget: 10_000, elementsMax: 150, nameBudget: 400 };
 const SECRET = "hunter2-secret";
@@ -17,6 +17,7 @@ function pageWith(html: string): void {
 
 afterEach(() => {
   document.body.innerHTML = "";
+  vi.restoreAllMocks();
 });
 
 describe("collectPage", () => {
@@ -38,6 +39,59 @@ describe("collectPage", () => {
     expect(JSON.stringify(page)).not.toContain(SECRET);
     expect(page.text).toContain("Checkout");
     expect(page.text).toContain("Total 10");
+  });
+
+  it("never reads what custom input widgets and masked text show", () => {
+    pageWith(`
+      <div role="textbox" aria-label="Card number">${SECRET} 4111</div>
+      <div role="searchbox">${SECRET} search</div>
+      <div role="combobox">${SECRET} combo</div>
+      <div role="spinbutton">${SECRET} 123456</div>
+      <p>Pay now</p>
+    `);
+
+    const page = collectPage(LIMITS);
+
+    expect(JSON.stringify(page)).not.toContain(SECRET);
+    expect(page.text).toContain("Pay now");
+    expect(page.elements).toContainEqual({
+      role: "textbox",
+      name: "Card number",
+    });
+  });
+
+  it("never reads text the page masks like a password", () => {
+    pageWith(`<p>PIN <span class="masked">${SECRET}</span></p>`);
+    // happy-dom computes no -webkit-text-security; Chrome reports the inherited value.
+    const computed = window.getComputedStyle.bind(window);
+    vi.spyOn(window, "getComputedStyle").mockImplementation((element) => {
+      const style = computed(element);
+      return element.classList.contains("masked")
+        ? Object.assign(Object.create(style), {
+            getPropertyValue: (name: string) =>
+              name === "-webkit-text-security"
+                ? "disc"
+                : style.getPropertyValue(name),
+          })
+        : style;
+    });
+
+    const page = collectPage(LIMITS);
+
+    expect(page.text).toContain("PIN");
+    expect(page.text).not.toContain(SECRET);
+  });
+
+  it("never names a field by its title, which a page may fill with the value", () => {
+    pageWith(`<input type="text" title="${SECRET}-from-title">`);
+
+    expect(JSON.stringify(collectPage(LIMITS))).not.toContain(SECRET);
+  });
+
+  it("returns the origin the page is on", () => {
+    pageWith(`<p>here</p>`);
+
+    expect(collectPage(LIMITS).origin).toBe(location.origin);
   });
 
   it("skips hidden text", () => {
@@ -78,28 +132,5 @@ describe("collectPage", () => {
       { role: "link", name: "x" },
       { role: "link", name: "x" },
     ]);
-  });
-});
-
-describe("readCollectedPage", () => {
-  it("accepts the collector's shape and nothing else", () => {
-    expect(
-      readCollectedPage({
-        text: "t",
-        elements: [{ role: "link", name: "n", x: 1 }],
-      }),
-    ).toEqual({
-      text: "t",
-      elements: [{ role: "link", name: "n" }],
-    });
-    for (const value of [
-      null,
-      "t",
-      { text: 1, elements: [] },
-      { text: "t" },
-      { text: "t", elements: [{ role: 1 }] },
-    ]) {
-      expect(readCollectedPage(value)).toBeNull();
-    }
   });
 });

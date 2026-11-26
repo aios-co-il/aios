@@ -19,11 +19,11 @@ describe("decideReadStep", () => {
     });
   });
 
-  it("asks Chrome for the host without its port, and names the host with it", () => {
+  it("names and asks Chrome for the host without its port, since the grant covers every port", () => {
     const step = decideReadStep("https://shop.example:8443/", ORIGINS);
 
     expect(step).toMatchObject({
-      host: "shop.example:8443",
+      host: "shop.example",
       pattern: "https://shop.example/*",
     });
   });

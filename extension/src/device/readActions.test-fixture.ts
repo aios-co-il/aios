@@ -25,6 +25,10 @@ export type FakeDevice = {
   card: FakeCard;
   /** The tab's address from now on, as Chrome would report it. */
   setTabUrl: (url: string | undefined) => void;
+  /** The address the tab is loading, as Chrome reports it until the load commits. */
+  setPendingUrl: (url: string | undefined) => void;
+  /** The id of the active tab from now on; the read's tab stays 7. */
+  setActiveTabId: (id: number) => void;
   /** Fires the expiry timer. */
   expire: () => void;
 };
@@ -34,6 +38,8 @@ export function fakeDevice(
   overrides: Partial<ReadActionDeps> = {},
 ): FakeDevice {
   let tabUrl: string | undefined = PAGE_URL;
+  let pendingUrl: string | undefined;
+  let activeTabId = 7;
   let expiry: (() => void) | null = null;
   let answerCard: ((answer: GrantAnswer) => void) | null = null;
   const completed: Array<CompleteBody> = [];
@@ -45,8 +51,8 @@ export function fakeDevice(
   };
 
   /** The tab as Chrome reports it now. */
-  function currentTab(): TabFacts {
-    return { id: 7, url: tabUrl, title: "Items | Shop" };
+  function currentTab(id = 7): TabFacts {
+    return { id, url: tabUrl, pendingUrl, title: "Items | Shop" };
   }
 
   const deps: ReadActionDeps = {
@@ -67,7 +73,8 @@ export function fakeDevice(
     postResult: vi.fn((id: string) => {
       posted.push(id);
     }),
-    activeTab: vi.fn(async () => currentTab()),
+    isTabShared: vi.fn(async () => true),
+    activeTab: vi.fn(async () => currentTab(activeTabId)),
     tab: vi.fn(async () => currentTab()),
     hasGrant: vi.fn(async () => true),
     askGrant: vi.fn(
@@ -79,6 +86,7 @@ export function fakeDevice(
         }),
     ),
     readPage: vi.fn(async () => ({
+      origin: "https://shop.example",
       text: "Item one  costs 10",
       elements: [{ role: "button", name: "Buy" }],
     })),
@@ -101,13 +109,17 @@ export function fakeDevice(
     setTabUrl: (url) => {
       tabUrl = url;
     },
+    setPendingUrl: (url) => {
+      pendingUrl = url;
+    },
+    setActiveTabId: (id) => {
+      activeTabId = id;
+    },
     expire: () => expiry?.(),
   };
 }
 
-/** Lets pending promise callbacks run, so a step reaches its next wait. */
+/** Lets every pending promise callback run, so a step reaches its next wait. */
 export async function settle(): Promise<void> {
-  for (let turn = 0; turn < 10; turn += 1) {
-    await Promise.resolve();
-  }
+  await new Promise((resolve) => setTimeout(resolve, 0));
 }

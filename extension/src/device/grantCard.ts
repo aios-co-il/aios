@@ -33,9 +33,17 @@ export function askGrantOnCard(
 ): Promise<GrantAnswer> {
   return new Promise((resolve, reject) => {
     const wake = setTimeout(() => setEnabled(true), BUTTON_DELAY_MS);
+    let settled = false;
 
-    /** Hides the card and settles once. */
+    /**
+     * Hides the card and settles once. Chrome may answer a tap after the step was stopped,
+     * by which time the card may be showing for the next step: that late answer is dropped.
+     */
     function settle(answer: GrantAnswer | Error): void {
+      if (settled) {
+        return;
+      }
+      settled = true;
       clearTimeout(wake);
       elements.allow.removeEventListener("click", onAllow);
       elements.decline.removeEventListener("click", onDecline);

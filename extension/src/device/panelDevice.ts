@@ -13,6 +13,7 @@ import {
   SUPABASE_ORIGINS,
   SUPABASE_URL,
 } from "../config";
+import { isTabShared } from "../activeTab";
 import { supabase } from "../supabase";
 import {
   activeTab,
@@ -40,6 +41,7 @@ export function panelReadActions(
   return createReadActions({
     ...api,
     origins: { appOrigins: [APP_ORIGIN], backendOrigins: SUPABASE_ORIGINS },
+    isTabShared,
     activeTab,
     tab: tabById,
     hasGrant: hasSiteGrant,

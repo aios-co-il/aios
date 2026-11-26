@@ -11,6 +11,8 @@
 
 /** What the collector returns; the panel validates it with `readCollectedPage` and cuts it in snapshot.ts. */
 export type CollectedPage = {
+  /** The page's own `location.origin`, which a page cannot change: the panel checks it against the ruled origin. */
+  origin: string;
   text: string;
   elements: Array<{ role: string; name: string }>;
 };
@@ -25,14 +27,23 @@ export type CollectorLimits = {
 
 /** Collects the page. Runs in the tab, not in the panel. */
 export function collectPage(limits: CollectorLimits): CollectedPage {
-  // Never read: form fields and editable regions hold what the user typed; the rest is not text.
+  // Never read: form fields, custom input widgets and editable regions show what the user
+  // typed; the rest is not text.
   const SKIP =
-    "script,style,noscript,template,head,input,textarea,select,option,datalist,[contenteditable]:not([contenteditable='false'])";
+    "script,style,noscript,template,head,input,textarea,select,option,datalist,[contenteditable]:not([contenteditable='false']),[role='textbox'],[role='searchbox'],[role='combobox'],[role='spinbutton']";
+  // A field's title may be set from its value by the page, so a text entry is never named by it.
+  const TEXT_ENTRY_ROLES = new Set([
+    "textbox",
+    "searchbox",
+    "combobox",
+    "spinbutton",
+  ]);
   const ACTIONABLE =
     "a[href],button,input:not([type='hidden']),select,textarea,[role='button'],[role='link'],[role='checkbox'],[role='radio'],[role='tab'],[role='menuitem'],[role='textbox'],[role='combobox'],[role='switch'],[contenteditable]:not([contenteditable='false'])";
   const NAMED_BY_CONTENT = new Set(["link", "button", "tab", "menuitem"]);
 
   const visibility = new Map<Element, boolean>();
+  const masking = new Map<Element, boolean>();
 
   /** Whether the element is rendered and not hidden; Chrome's own check, with a fallback without layout. */
   function isVisible(element: Element): boolean {
@@ -52,7 +63,21 @@ export function collectPage(limits: CollectorLimits): CollectedPage {
     return visible;
   }
 
-  /** The visible text under a node, skipping form fields, up to `budget` units. */
+  /** Whether the page masks this element's text like a password (`-webkit-text-security`, which inherits). */
+  function isMasked(element: Element): boolean {
+    const known = masking.get(element);
+    if (known !== undefined) {
+      return known;
+    }
+    const security = getComputedStyle(element).getPropertyValue(
+      "-webkit-text-security",
+    );
+    const masked = !!security && security !== "none";
+    masking.set(element, masked);
+    return masked;
+  }
+
+  /** The visible text under a node, skipping form fields and masked text, up to `budget` units. */
   function visibleText(root: Node, budget: number): string {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     const parts: Array<string> = [];
@@ -61,7 +86,13 @@ export function collectPage(limits: CollectorLimits): CollectedPage {
     for (let node = walker.nextNode(); node && length < budget;) {
       const parent = node.parentElement;
       const text = node.nodeValue ?? "";
-      if (parent && text.trim() && !parent.closest(SKIP) && isVisible(parent)) {
+      if (
+        parent &&
+        text.trim() &&
+        !parent.closest(SKIP) &&
+        isVisible(parent) &&
+        !isMasked(parent)
+      ) {
         parts.push(text);
         length += text.length + 1;
       }
@@ -117,7 +148,7 @@ export function collectPage(limits: CollectorLimits): CollectedPage {
       byIds,
       labels,
       element.getAttribute("placeholder"),
-      element.getAttribute("title"),
+      TEXT_ENTRY_ROLES.has(role) ? "" : element.getAttribute("title"),
       element.getAttribute("alt"),
       NAMED_BY_CONTENT.has(role) && !editable
         ? visibleText(element, limits.nameBudget)
@@ -142,43 +173,8 @@ export function collectPage(limits: CollectorLimits): CollectedPage {
     : [];
 
   return {
+    origin: location.origin,
     text: body ? visibleText(body, limits.textBudget) : "",
     elements,
   };
-}
-
-/** The collector's answer, read as untrusted: null unless it has the collector's shape. */
-export function readCollectedPage(value: unknown): CollectedPage | null {
-  if (
-    !value ||
-    typeof value !== "object" ||
-    !("text" in value) ||
-    typeof value.text !== "string" ||
-    !("elements" in value) ||
-    !Array.isArray(value.elements)
-  ) {
-    return null;
-  }
-  const elements = value.elements.filter(isCollectedElement);
-
-  return elements.length === value.elements.length
-    ? {
-        text: value.text,
-        elements: elements.map(({ role, name }) => ({ role, name })),
-      }
-    : null;
-}
-
-/** Narrows one collected element: a role and a name, both strings. */
-function isCollectedElement(
-  value: unknown,
-): value is CollectedPage["elements"][number] {
-  return (
-    !!value &&
-    typeof value === "object" &&
-    "role" in value &&
-    typeof value.role === "string" &&
-    "name" in value &&
-    typeof value.name === "string"
-  );
 }

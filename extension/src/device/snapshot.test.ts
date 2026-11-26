@@ -21,7 +21,7 @@ function snapshotOf(
   return pageSnapshot({
     location: { origin: "https://shop.example", path: "/items" },
     tabTitle: "Items",
-    page: { text, elements },
+    page: { origin: "https://shop.example", text, elements },
     snapshotId: "snap-1",
   });
 }
@@ -82,6 +82,17 @@ describe("pageSnapshot", () => {
       text: "Hello world",
     });
     expect(toolResult("browser_read_page", snapshot, "")).not.toBeNull();
+  });
+
+  it("throws rather than return a result the server would refuse", () => {
+    expect(() =>
+      pageSnapshot({
+        location: { origin: "https://shop.example", path: "//items" },
+        tabTitle: "Items",
+        page: { origin: "https://shop.example", text: "t", elements: [] },
+        snapshotId: "snap-1",
+      }),
+    ).toThrow("does not fit");
   });
 
   it("cuts an oversized page to every limit, so the server never refuses it for length", () => {

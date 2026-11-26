@@ -8,6 +8,7 @@ import {
   READ_PAGE_TEXT_MAX,
   PAGE_ELEMENT_FIELD_MAX,
 } from "../../../supabase/functions/_shared/carmen/device/results.ts";
+import { queryActiveTab } from "../activeTab";
 import { collectPage, type CollectorLimits } from "./pageCollector.ts";
 import type { TabFacts } from "./readFlow.ts";
 import { grantsToDrop } from "./siteGrant.ts";
@@ -21,7 +22,7 @@ const COLLECTOR_LIMITS: CollectorLimits = {
 
 /** The active tab of the panel's window. */
 export async function activeTab(): Promise<TabFacts | null> {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = await queryActiveTab();
 
   return tab ? tabFacts(tab) : null;
 }
@@ -54,22 +55,43 @@ export async function readPage(tabId: number): Promise<unknown> {
   return injection?.result;
 }
 
-/** Removes every site grant beyond the manifest's own host permissions (plan §2.6). */
+/**
+ * Removes every site grant beyond the manifest's own host permissions (plan §2.6). One
+ * origin at a time, since Chrome refuses a removal as a whole when any origin in it fails.
+ * Never rejects: a grant Chrome keeps is logged, and the next panel open tries again.
+ */
 export async function dropSiteGrants(): Promise<void> {
-  const granted = (await chrome.permissions.getAll()).origins ?? [];
+  const granted = await chrome.permissions.getAll().catch((error: unknown) => {
+    console.error("[carmen-panel] reading the site grants failed", error);
+    return { origins: [] };
+  });
   const origins = grantsToDrop(
-    granted,
+    granted.origins ?? [],
     chrome.runtime.getManifest().host_permissions ?? [],
   );
 
-  if (origins.length > 0) {
-    await chrome.permissions.remove({ origins });
-  }
+  await Promise.all(
+    origins.map((origin) =>
+      chrome.permissions
+        .remove({ origins: [origin] })
+        .catch((error: unknown) => {
+          console.error(
+            `[carmen-panel] removing the grant for ${origin} failed`,
+            error,
+          );
+        }),
+    ),
+  );
 }
 
 /** The fields of a Chrome tab a read uses. */
 function tabFacts(tab: chrome.tabs.Tab): TabFacts | null {
   return tab.id === undefined
     ? null
-    : { id: tab.id, url: tab.url, title: tab.title ?? "" };
+    : {
+        id: tab.id,
+        url: tab.url,
+        pendingUrl: tab.pendingUrl,
+        title: tab.title ?? "",
+      };
 }

@@ -14,7 +14,7 @@ import { sitePattern } from "./siteGrant.ts";
 export type ReadRefusal =
   /** Chrome gave no address: no tab, or tab sharing is off. */
   | "address_unknown"
-  /** The contract's never-list: AIOS, its backend, sign-in, the stores, not a web page. */
+  /** The contract's never-list (`never-controllable.ts`). */
   | "never_controllable"
   /** The contract threw on this environment's configured origins. */
   | "configuration"
@@ -29,7 +29,10 @@ export type ReadStep =
       kind: "read";
       /** Where the page is, as the row reports it. */
       location: PageLocation;
-      /** The host the card names: punycode, as Chrome's own prompt shows it. */
+      /**
+       * The host the card names, without a port since the grant covers every port: punycode,
+       * as Chrome's own prompt shows it.
+       */
       host: string;
       /** What Chrome is asked for when the site is not granted. */
       pattern: string;
@@ -65,7 +68,7 @@ export function decideReadStep(
   return {
     kind: "read",
     location,
-    host: address.host,
+    host: address.hostname,
     pattern: sitePattern(address.hostname),
     rule,
   };

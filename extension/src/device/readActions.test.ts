@@ -125,7 +125,11 @@ describe("createReadActions: one read", () => {
     const device = fakeDevice();
     device.deps.readPage = vi.fn(async () => {
       device.setTabUrl("https://other.example/");
-      return { text: "elsewhere", elements: [] };
+      return {
+        origin: "https://other.example",
+        text: "elsewhere",
+        elements: [],
+      };
     });
 
     await createReadActions(device.deps).onAction(ACTION_ID);
@@ -209,11 +213,60 @@ describe("createReadActions: stopping", () => {
   });
 
   it("leaves a step past the card to the server when the panel closes", async () => {
-    const device = fakeDevice();
+    const device = fakeDevice({
+      readPage: vi.fn(() => new Promise<unknown>(() => {})),
+    });
     const actions = createReadActions(device.deps);
+    void actions.onAction(ACTION_ID);
+    await settle();
+    expect(device.deps.readPage).toHaveBeenCalled();
+
     actions.onPanelClose();
+    await settle();
 
     expect(device.closingCompletions).toEqual([]);
+    expect(device.completed).toEqual([]);
+  });
+
+  it("ends a read that never returns when its life runs out, and takes the next action", async () => {
+    const device = fakeDevice({
+      readPage: vi.fn(() => new Promise<unknown>(() => {})),
+    });
+    const actions = createReadActions(device.deps);
+    const running = actions.onAction(ACTION_ID);
+    await settle();
+
+    device.expire();
+    await running;
+
+    expect(device.completed[0]).toMatchObject({
+      status: "expired",
+      decision: "free",
+      result: null,
+    });
+    expect(device.posted).toEqual([ACTION_ID]);
+
+    device.deps.readPage = vi.fn(async () => ({
+      origin: "https://shop.example",
+      text: "again",
+      elements: [],
+    }));
+    await actions.onAction("11111111-2222-4333-8444-555555555555");
+    expect(device.completed[1]).toMatchObject({ status: "done" });
+  });
+
+  it("ends a read that never returns when the site cancels it", async () => {
+    const device = fakeDevice({
+      readPage: vi.fn(() => new Promise<unknown>(() => {})),
+    });
+    const actions = createReadActions(device.deps);
+    const running = actions.onAction(ACTION_ID);
+    await settle();
+
+    actions.onCancel(ACTION_ID);
+    await running;
+
+    expect(device.completed[0]).toMatchObject({ status: "cancelled" });
   });
 
   it("drops a second action while one is open", async () => {

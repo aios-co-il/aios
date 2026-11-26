@@ -69,6 +69,36 @@ describe("deviceActionApi", () => {
     expect((await failing.claim(ID)).ok).toBe(false);
   });
 
+  it("refuses a claim whose tool is not a device tool", async () => {
+    const { api } = apiAnswering(200, { tool: "send_whatsapp" });
+
+    expect((await api.claim(ID)).ok).toBe(false);
+  });
+
+  it("retries a completion once after a network failure or a server error, never after a refusal", async () => {
+    const flaky = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(new Response("{}", { status: 503 }));
+    const api = deviceActionApi({
+      supabaseUrl: "https://api.example",
+      publishableKey: "publishable",
+      accessToken: async () => "user-token",
+      fetch: flaky,
+    });
+    await expect(api.complete(CANCELLED)).rejects.toThrow("503");
+    expect(flaky).toHaveBeenCalledTimes(2);
+
+    const recovering = apiAnswering(200, {});
+    recovering.fetch.mockResolvedValueOnce(new Response("{}", { status: 502 }));
+    await recovering.api.complete(CANCELLED);
+    expect(recovering.fetch).toHaveBeenCalledTimes(2);
+
+    const refused = apiAnswering(404, { error: "not_found" });
+    await expect(refused.api.complete(CANCELLED)).rejects.toThrow("404");
+    expect(refused.fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("sends the report fields at the top level and rejects an answer that is not ok", async () => {
     const { api, fetch } = apiAnswering(400, { error: "invalid_result" });
 

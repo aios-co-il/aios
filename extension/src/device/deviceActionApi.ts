@@ -4,10 +4,15 @@
  * with `keepalive`; the extension's host permission for the Supabase origins means no CORS
  * preflight stands in the way.
  */
+import { isDeviceToolName } from "../../../supabase/functions/_shared/carmen/device/contract.ts";
 import type { CompleteBody } from "./completion.ts";
 import type { ClaimAnswer } from "./readActions.ts";
 
 const FUNCTION_NAME = "carmen-device-action";
+
+// A call the panel waits on gives up after this, so a stalled connection cannot hold the
+// open action; the function answers far sooner.
+const REQUEST_TIMEOUT_MS = 30_000;
 
 export type DeviceActionApiConfig = {
   supabaseUrl: string;
@@ -41,6 +46,8 @@ export function deviceActionApi(
     return config.fetch(endpoint, {
       method: "POST",
       keepalive,
+      // A closing page cannot wait for a timeout, and keepalive outlives the page anyway.
+      signal: keepalive ? undefined : AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       headers: {
         Authorization: `Bearer ${token}`,
         apikey: config.publishableKey,
@@ -64,17 +71,26 @@ export function deviceActionApi(
       return answer &&
         typeof answer === "object" &&
         "tool" in answer &&
-        typeof answer.tool === "string"
+        isDeviceToolName(answer.tool)
         ? { ok: true, tool: answer.tool }
-        : { ok: false, reason: "the claim answer has no tool" };
+        : { ok: false, reason: "the claim answer has no device tool" };
     } catch (error) {
       return { ok: false, reason: String(error) };
     }
   }
 
-  /** Completes an action; rejects with the function's answer unless it is ok. */
+  /**
+   * Completes an action; rejects with the function's answer unless it is ok. A network
+   * failure or a server error is retried once: the function completes only a `claimed`
+   * row, so a repeat of a completion that did land is refused, never applied twice.
+   */
   async function complete(body: CompleteBody): Promise<void> {
-    const response = await post(body);
+    const first = await post(body).catch(asError);
+    const retry = first instanceof Error || first.status >= 500;
+    if (retry) {
+      console.warn("[carmen-panel] retrying a completion", first);
+    }
+    const response = retry ? await post(body) : first;
     if (!response.ok) {
       throw new Error(
         `${response.status} ${await response.text().catch(() => "")}`,
@@ -93,4 +109,9 @@ export function deviceActionApi(
   }
 
   return { claim, complete, completeOnClose };
+}
+
+/** Any thrown value as an Error. */
+function asError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
 }

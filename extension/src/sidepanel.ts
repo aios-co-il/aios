@@ -50,9 +50,7 @@ main().catch((error) => {
  */
 async function main(): Promise<void> {
   // A site grant lasts one panel session (plan §2.6).
-  await dropSiteGrants().catch((error) => {
-    console.error("[carmen-panel] removing site grants failed", error);
-  });
+  await dropSiteGrants();
   el<HTMLAnchorElement>("open-site").href = APP_ORIGIN;
   el<HTMLAnchorElement>("notice-link").href = APP_ORIGIN;
 
@@ -115,6 +113,9 @@ async function followSharedTab(): Promise<void> {
 
 /** The site's chat has mounted: say ready, then what this panel can do and which tab it sees. */
 function onHello(): void {
+  // A mounted chat may hold another conversation, and a grant lasts one (plan §2 decision
+  // 6); a switch inside a mounted chat sends no signal yet (AIO-656).
+  void dropSiteGrants();
   siteListening = true;
   // A hello comes from a chat that has just mounted and knows no tab yet.
   sentTab = undefined;
@@ -136,6 +137,9 @@ async function onShareSwitch(): Promise<void> {
   await setTabShared(shareSwitch.checked).catch((error) => {
     console.error("[carmen-panel] changing tab sharing failed", error);
   });
+  if (!shareSwitch.checked) {
+    void dropSiteGrants();
+  }
   await syncTabSharing();
 }
 
