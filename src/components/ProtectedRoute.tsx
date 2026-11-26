@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { Navigate, useParams, useNavigate } from "react-router-dom";
+import {
+  Navigate,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import {
   useUserPermissions,
@@ -9,6 +14,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useTenantPath } from "@/hooks/useTenantPath";
 import { resolveTenantSlug } from "@/hooks/useResolveTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { authPathReturningTo } from "@/lib/authReturnPath";
 import { MiniMeGenderProvider } from "@/components/carmen/MiniMe/MiniMeGenderProvider";
 
 interface ProtectedRouteProps {
@@ -36,6 +42,7 @@ export function ProtectedRoute({
   const { buildPath } = useTenantPath();
   const { tenantSlug } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [resolvingTenant, setResolvingTenant] = useState(false);
 
   // If user is authenticated but URL lacks tenant slug, resolve and redirect
@@ -69,7 +76,9 @@ export function ProtectedRoute({
   }
 
   if (!authenticated) {
-    return <Navigate to="/auth" replace />;
+    const requested = `${location.pathname}${location.search}${location.hash}`;
+
+    return <Navigate to={authPathReturningTo(requested)} replace />;
   }
 
   // Only block the shell on first bootstrap — not on background refetches (prevents flash).

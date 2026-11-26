@@ -325,14 +325,6 @@ Deno.serve(async (req) => {
         .eq("id", body.conversation_id)
         .eq("tenant_id", tenantId);
     }
-    await sb
-      .from("ai_agents")
-      .update({
-        brain_mode: route.route_type,
-        brain_route_id: route.id,
-      })
-      .eq("id", agentId)
-      .eq("tenant_id", tenantId);
     return json(200, { ok: true, route });
   }
 
