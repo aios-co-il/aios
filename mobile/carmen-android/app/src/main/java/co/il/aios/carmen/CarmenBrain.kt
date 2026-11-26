@@ -31,17 +31,8 @@ class CarmenBrain(private val account: AiosAccount) {
     ): String {
         if (question.isBlank()) return "לא התקבלה שאלה."
         val session = runCatching { account.session() }.getOrElse { return "שגיאת התחברות למערכת." }
-        val body = JSONObject()
-            .put("command_text", question)
-            .put("tenant_id", session.tenantId)
-            .put("surface", "internal_chat")
-            .put("stream", true)
-            .put("conversation_id", conversationId ?: JSONObject.NULL)
-            .put("run_id", java.util.UUID.randomUUID().toString().also { runId = it })
-            .put(
-                "conversation_history",
-                JSONArray(history.takeLast(MAX_HISTORY).map { (role, content) -> JSONObject().put("role", role).put("content", content) }),
-            )
+        val run = java.util.UUID.randomUUID().toString().also { runId = it }
+        val body = requestBody(question, session.tenantId, conversationId, run, history)
         return runCatching {
             account.callFunction("run-ai-agent", body, streamingHttp).use { response ->
                 val source = response.body?.source()
@@ -80,12 +71,41 @@ class CarmenBrain(private val account: AiosAccount) {
         }.getOrDefault(false)
     }
 
-    private companion object {
-        const val MAX_HISTORY = 24
-        const val PARTIAL_EVERY_MS = 80L
+    companion object {
+        /**
+         * The `run-ai-agent` body field that asks the server to run the brain the user stored
+         * (AIO-657). The server's name for it is `USE_BRAIN_PICK` in
+         * `supabase/functions/_shared/carmen/brain-engine/stored-pick.ts`.
+         */
+        const val USE_BRAIN_PICK = "use_brain_pick"
+        private const val MAX_HISTORY = 24
+        private const val PARTIAL_EVERY_MS = 80L
+
+        /**
+         * The `run-ai-agent` body for one question. It names no brain: with [USE_BRAIN_PICK] the
+         * server runs the one the user picked on the web when they may use it, else the default.
+         */
+        fun requestBody(
+            question: String,
+            tenantId: String,
+            conversationId: String?,
+            runId: String,
+            history: List<Pair<String, String>>,
+        ): JSONObject = JSONObject()
+            .put("command_text", question)
+            .put("tenant_id", tenantId)
+            .put("surface", "internal_chat")
+            .put("stream", true)
+            .put(USE_BRAIN_PICK, true)
+            .put("conversation_id", conversationId ?: JSONObject.NULL)
+            .put("run_id", runId)
+            .put(
+                "conversation_history",
+                JSONArray(history.takeLast(MAX_HISTORY).map { (role, content) -> JSONObject().put("role", role).put("content", content) }),
+            )
 
         // Long tool runs stream for minutes; the SSE stream keeps the connection alive.
-        val streamingHttp: OkHttpClient = OkHttpClient.Builder()
+        private val streamingHttp: OkHttpClient = OkHttpClient.Builder()
             .readTimeout(120, TimeUnit.SECONDS)
             .callTimeout(180, TimeUnit.SECONDS)
             .build()
