@@ -6,6 +6,7 @@ export const state: {
   loading: boolean;
   existing: boolean;
   failWrite: boolean;
+  failConfigure: boolean;
   requests: Array<{
     method: string;
     path: string;
@@ -17,6 +18,7 @@ export const state: {
   loading: false,
   existing: false,
   failWrite: false,
+  failConfigure: false,
   requests: [],
 };
 
@@ -31,7 +33,12 @@ async function fetchSettings(input: RequestInfo | URL, init?: RequestInit) {
     body: await request.text(),
   });
   if (url.pathname === "/functions/v1/configure-green-api") {
-    return Response.json({ success: true });
+    return state.failConfigure
+      ? Response.json(
+          { error: "Failed to configure Green API" },
+          { status: 502 },
+        )
+      : Response.json({ success: true });
   }
   if (url.pathname === "/rest/v1/tenant_integrations") {
     if (request.method !== "GET") {
