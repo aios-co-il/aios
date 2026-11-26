@@ -9,10 +9,14 @@
     "isolatedModules": true,
     "allowImportingTsExtensions": true,
     "types": ["chrome", "vite/client"],
-    "lib": ["ES2020", "DOM", "DOM.Iterable"]
+    // ES2024 for String#toWellFormed and #isWellFormed: Chrome 111, below the manifest's minimum.
+    "lib": ["ES2024", "DOM", "DOM.Iterable"]
   },
   "include": ["src", "../supabase/functions/_shared/carmen/device"],
+  // Tests run under the root Vitest (vitest.config.ts), whose packages the extension does not install.
   "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.test-fixture.ts",
     "../supabase/functions/**/*.test.ts",
     "../supabase/functions/**/*.test-fixture.ts"
   ]

@@ -2,12 +2,13 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   PANEL_MESSAGE,
+  panelActionRef,
   panelCapabilities,
   panelSignal,
   panelTabContext,
 } from "@functions/_shared/carmen/device/panel-envelope.ts";
 import { EXTENSION_ORIGINS } from "./extensionOrigins";
-import { useExtensionTabContext } from "./useExtensionTabContext";
+import { useExtensionPanel } from "./useExtensionPanel";
 
 const PANEL_ORIGIN = EXTENSION_ORIGINS[0];
 const TAB = {
@@ -43,7 +44,7 @@ function deliver(data: unknown, origin: string, source: unknown) {
   });
 }
 
-describe("useExtensionTabContext", () => {
+describe("useExtensionPanel: the shared tab", () => {
   let warn: ReturnType<typeof vi.spyOn>;
   let listen: ReturnType<typeof vi.spyOn>;
 
@@ -65,7 +66,7 @@ describe("useExtensionTabContext", () => {
   });
 
   it("does nothing on the site itself", () => {
-    const { result } = renderHook(() => useExtensionTabContext());
+    const { result } = renderHook(() => useExtensionPanel().tabContext);
 
     deliver(panelTabContext(TAB), PANEL_ORIGIN, window);
 
@@ -79,7 +80,7 @@ describe("useExtensionTabContext", () => {
     ["a browser that does not name the framing origin", undefined],
   ])("does nothing when framed by %s", (_name, parentOrigin) => {
     const parent = frameThePage(parentOrigin);
-    const { result } = renderHook(() => useExtensionTabContext());
+    const { result } = renderHook(() => useExtensionPanel().tabContext);
 
     deliver(panelTabContext(TAB), parentOrigin ?? PANEL_ORIGIN, parent);
 
@@ -91,7 +92,7 @@ describe("useExtensionTabContext", () => {
   it("says hello to the panel, to its exact origin", () => {
     const parent = frameThePage(PANEL_ORIGIN);
 
-    renderHook(() => useExtensionTabContext());
+    renderHook(() => useExtensionPanel().tabContext);
 
     expect(parent.postMessage).toHaveBeenCalledExactlyOnceWith(
       panelSignal(PANEL_MESSAGE.hello),
@@ -101,7 +102,7 @@ describe("useExtensionTabContext", () => {
 
   it("keeps the latest tab the panel reports, cleaned", () => {
     const parent = frameThePage(PANEL_ORIGIN);
-    const { result } = renderHook(() => useExtensionTabContext());
+    const { result } = renderHook(() => useExtensionPanel().tabContext);
 
     deliver(panelSignal(PANEL_MESSAGE.ready), PANEL_ORIGIN, parent);
     deliver(panelCapabilities(), PANEL_ORIGIN, parent);
@@ -126,7 +127,7 @@ describe("useExtensionTabContext", () => {
 
   it("drops and logs a message from another origin or window", () => {
     const parent = frameThePage(PANEL_ORIGIN);
-    const { result } = renderHook(() => useExtensionTabContext());
+    const { result } = renderHook(() => useExtensionPanel().tabContext);
 
     deliver(panelTabContext(TAB), "https://evil.example.com", parent);
     deliver(panelTabContext(TAB), EXTENSION_ORIGINS[1], parent);
@@ -138,7 +139,7 @@ describe("useExtensionTabContext", () => {
 
   it("drops and logs a malformed message from the panel", () => {
     const parent = frameThePage(PANEL_ORIGIN);
-    const { result } = renderHook(() => useExtensionTabContext());
+    const { result } = renderHook(() => useExtensionPanel().tabContext);
 
     deliver(
       { type: PANEL_MESSAGE.tabContext, v: 2, tab: TAB },
@@ -157,7 +158,7 @@ describe("useExtensionTabContext", () => {
 
   it("ignores other scripts' messages without a log line", () => {
     const parent = frameThePage(PANEL_ORIGIN);
-    renderHook(() => useExtensionTabContext());
+    renderHook(() => useExtensionPanel().tabContext);
 
     deliver({ source: "react-devtools" }, window.location.origin, window);
 
@@ -167,11 +168,132 @@ describe("useExtensionTabContext", () => {
 
   it("stops listening when the chat closes", () => {
     const parent = frameThePage(PANEL_ORIGIN);
-    const { result, unmount } = renderHook(() => useExtensionTabContext());
+    const { result, unmount } = renderHook(
+      () => useExtensionPanel().tabContext,
+    );
 
     unmount();
     deliver(panelTabContext(TAB), PANEL_ORIGIN, parent);
 
     expect(result.current).toBeNull();
+  });
+});
+
+describe("useExtensionPanel: browser steps", () => {
+  const ACTION_ID = "4f0c2a8e-1b2c-4d3e-8f90-123456789abc";
+
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    Reflect.deleteProperty(window.location, "ancestorOrigins");
+  });
+
+  it("has no panel on the site itself", () => {
+    const { result } = renderHook(() => useExtensionPanel());
+
+    deliver(panelCapabilities(["browser_read_page"]), PANEL_ORIGIN, window);
+
+    expect(result.current.panel).toBeNull();
+  });
+
+  it("has no panel when framed by another site", () => {
+    const parent = frameThePage("https://evil.example.com");
+    const { result } = renderHook(() => useExtensionPanel());
+
+    deliver(
+      panelCapabilities(["browser_read_page"]),
+      "https://evil.example.com",
+      parent,
+    );
+
+    expect(result.current.panel).toBeNull();
+  });
+
+  it("offers a tool only once the panel's capabilities name it, and drops it when they stop", () => {
+    const parent = frameThePage(PANEL_ORIGIN);
+    const { result } = renderHook(() => useExtensionPanel());
+
+    expect(result.current.panel?.tools).toEqual([]);
+    deliver(
+      panelCapabilities(["tab-context", "browser_read_page"]),
+      PANEL_ORIGIN,
+      parent,
+    );
+    expect(result.current.panel?.tools).toEqual(["browser_read_page"]);
+
+    deliver(panelCapabilities(["tab-context"]), PANEL_ORIGIN, parent);
+    expect(result.current.panel?.tools).toEqual([]);
+  });
+
+  it("ignores capabilities from another origin or window", () => {
+    const parent = frameThePage(PANEL_ORIGIN);
+    const { result } = renderHook(() => useExtensionPanel());
+
+    deliver(
+      panelCapabilities(["browser_read_page"]),
+      "https://evil.example.com",
+      parent,
+    );
+    deliver(panelCapabilities(["browser_read_page"]), PANEL_ORIGIN, {
+      postMessage: vi.fn(),
+    });
+
+    expect(result.current.panel?.tools).toEqual([]);
+  });
+
+  it("posts action and cancel to the panel's exact origin, carrying the id only", () => {
+    const parent = frameThePage(PANEL_ORIGIN);
+    const { result } = renderHook(() => useExtensionPanel());
+
+    result.current.panel?.postAction(ACTION_ID);
+    result.current.panel?.postCancel(ACTION_ID);
+
+    expect(parent.postMessage).toHaveBeenCalledWith(
+      panelActionRef(PANEL_MESSAGE.action, ACTION_ID),
+      PANEL_ORIGIN,
+    );
+    expect(parent.postMessage).toHaveBeenLastCalledWith(
+      panelActionRef(PANEL_MESSAGE.cancel, ACTION_ID),
+      PANEL_ORIGIN,
+    );
+  });
+
+  it("hands a result to its listeners only from the panel, and stops after unsubscribe", () => {
+    const parent = frameThePage(PANEL_ORIGIN);
+    const { result } = renderHook(() => useExtensionPanel());
+    const listener = vi.fn();
+    const unsubscribe = result.current.panel?.onResult(listener);
+    const resultMessage = panelActionRef(PANEL_MESSAGE.result, ACTION_ID);
+
+    deliver(resultMessage, "https://evil.example.com", parent);
+    deliver(resultMessage, PANEL_ORIGIN, { postMessage: vi.fn() });
+    deliver(resultMessage, EXTENSION_ORIGINS[1], parent);
+    expect(listener).not.toHaveBeenCalled();
+
+    deliver(resultMessage, PANEL_ORIGIN, parent);
+    expect(listener).toHaveBeenCalledExactlyOnceWith(ACTION_ID);
+
+    unsubscribe?.();
+    deliver(resultMessage, PANEL_ORIGIN, parent);
+    expect(listener).toHaveBeenCalledOnce();
+  });
+
+  it("treats an action message from the panel as nothing", () => {
+    const parent = frameThePage(PANEL_ORIGIN);
+    const { result } = renderHook(() => useExtensionPanel());
+    const listener = vi.fn();
+    result.current.panel?.onResult(listener);
+
+    deliver(
+      panelActionRef(PANEL_MESSAGE.action, ACTION_ID),
+      PANEL_ORIGIN,
+      parent,
+    );
+
+    expect(listener).not.toHaveBeenCalled();
+    expect(parent.postMessage).toHaveBeenCalledOnce();
   });
 });

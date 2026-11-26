@@ -39,9 +39,14 @@ export function onTabSharingChange(onChange: () => void): void {
  * page and for one Chrome does not let the extension read.
  */
 export async function readActiveTab(): Promise<BrowserTab | null> {
+  return parseBrowserTab(await queryActiveTab());
+}
+
+/** The active tab of the window this panel belongs to, as Chrome reports it. */
+export async function queryActiveTab(): Promise<chrome.tabs.Tab | undefined> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-  return parseBrowserTab(tab);
+  return tab;
 }
 
 /** Calls `onChange` when a tab is switched to, or an active tab's address or title changes. */
