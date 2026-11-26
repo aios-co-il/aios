@@ -37,6 +37,7 @@ beforeEach(() => {
   state.loading = false;
   state.existing = false;
   state.failWrite = false;
+  state.failConfigure = false;
   state.requests.length = 0;
 });
 
@@ -114,6 +115,42 @@ describe("Green API save tenant readiness", () => {
       expect.objectContaining({ title: "החיבור שלך נשמר בהצלחה" }),
     );
   });
+});
+
+describe("Green API webhook refresh", () => {
+  for (const failConfigure of [false, true]) {
+    it(`reports a refresh that ${failConfigure ? "failed" : "succeeded"}`, async () => {
+      state.existing = true;
+      state.failConfigure = failConfigure;
+      const user = userEvent.setup();
+      render(
+        withTestQuery(
+          <MemoryRouter>
+            <GreenAPISettings embedded />
+          </MemoryRouter>,
+        ),
+      );
+
+      await user.click(
+        await screen.findByRole("button", { name: "רענן הגדרות Webhook" }),
+      );
+
+      await waitFor(() =>
+        expect(toast).toHaveBeenCalledWith(
+          failConfigure
+            ? {
+                variant: "destructive",
+                title: "שגיאה בעדכון הגדרות",
+                description: "רענון הגדרות ה-Webhook נכשל. נסה שוב.",
+              }
+            : expect.objectContaining({ title: "הגדרות עודכנו" }),
+        ),
+      );
+      expect(saveRequests().map((request) => request.path)).toEqual([
+        "/functions/v1/configure-green-api",
+      ]);
+    });
+  }
 });
 
 /** Exercise the actual form and mutation; only the SDK's HTTP boundary is replaced. */

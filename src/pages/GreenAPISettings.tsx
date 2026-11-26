@@ -302,7 +302,14 @@ export default function GreenAPISettings({
       if (!integration?.instance_id || !integration?.api_key) {
         throw new Error("אין פרטי חיבור שמורים");
       }
-      await configureWebhooks(integration.instance_id, integration.api_key);
+      // The refresh also gives the line its webhook token, so a failure must show.
+      const configured = await configureWebhooks(
+        integration.instance_id,
+        integration.api_key,
+      );
+      if (!configured) {
+        throw new Error("רענון הגדרות ה-Webhook נכשל. נסה שוב.");
+      }
     },
     onSuccess: () => {
       toast({

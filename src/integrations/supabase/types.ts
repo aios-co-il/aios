@@ -18751,6 +18751,18 @@ export type Database = {
         Args: { p_depth?: number; p_limit?: number; p_query: string }
         Returns: Json
       }
+      green_api_webhook_secret_name: {
+        Args: { p_integration_id: string; p_kind: string }
+        Returns: string
+      }
+      green_api_webhook_tokens: {
+        Args: { p_integration_id: string }
+        Returns: {
+          current_token: string
+          previous_token: string
+          set_at: string
+        }[]
+      }
       has_finance_permission: { Args: { _user_id: string }; Returns: boolean }
       has_finance_write_permission: {
         Args: { _user_id: string }
@@ -19441,6 +19453,10 @@ export type Database = {
       signature_png_is_valid: { Args: { _value: string }; Returns: boolean }
       store_google_token_in_vault: {
         Args: { p_integration_id: string; p_kind: string; p_token: string }
+        Returns: undefined
+      }
+      store_green_api_webhook_token: {
+        Args: { p_integration_id: string; p_token: string }
         Returns: undefined
       }
       submit_signature_by_token:

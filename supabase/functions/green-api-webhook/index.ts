@@ -35,6 +35,11 @@ import {
   claimAutomationDispatch,
   rememberConnectionWid,
 } from "./automation-dispatch.ts";
+import {
+  refuseUnverifiedCall,
+  unauthorizedWebhookResponse,
+} from "./webhook-auth.ts";
+import { findWebhookLine } from "../_shared/green-api-webhook-auth/line.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -342,17 +347,8 @@ Deno.serve(async (req) => {
     }
 
     // Find the specific tenant and user for this instance
-    // Use limit(1) and order by created_at desc to get the most recent if duplicates exist
-    const { data: integrations, error: integrationError } = await supabaseClient
-      .from("tenant_integrations")
-      .select("id, tenant_id, user_id, settings, instance_id, api_key")
-      .eq("integration_type", "green_api")
-      .eq("is_active", true)
-      .eq("instance_id", instanceId)
-      .order("created_at", { ascending: false })
-      .limit(1);
-
-    const integration = integrations?.[0] ?? null;
+    const { line: integration, error: integrationError } =
+      await findWebhookLine(supabaseClient, instanceId);
 
     if (integrationError) {
       console.error("❌ Error fetching integration:", integrationError);
@@ -365,15 +361,16 @@ Deno.serve(async (req) => {
       );
     }
 
+    // An unknown instance gets the same refusal as a wrong token, so a caller
+    // cannot tell which instance ids exist.
     if (!integration) {
       console.error("❌ No active integration found for instance:", instanceId);
-      return new Response(
-        JSON.stringify({ error: "No active integration for this instance" }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 404,
-        },
-      );
+      return unauthorizedWebhookResponse();
+    }
+
+    const unverified = await refuseUnverifiedCall(req, integration);
+    if (unverified) {
+      return unverified;
     }
 
     const tenantId = integration.tenant_id;
