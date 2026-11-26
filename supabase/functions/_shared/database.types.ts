@@ -3993,6 +3993,78 @@ export type Database = {
           },
         ]
       }
+      carmen_device_actions: {
+        Row: {
+          arguments: Json
+          claimed_at: string | null
+          completed_at: string | null
+          conversation_id: string | null
+          created_at: string
+          decision: string | null
+          expires_at: string
+          id: string
+          observed_origin: string | null
+          observed_path: string | null
+          result: Json | null
+          run_id: string
+          status: string
+          tenant_id: string
+          tool: string
+          user_id: string
+        }
+        Insert: {
+          arguments?: Json
+          claimed_at?: string | null
+          completed_at?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          decision?: string | null
+          expires_at: string
+          id?: string
+          observed_origin?: string | null
+          observed_path?: string | null
+          result?: Json | null
+          run_id: string
+          status?: string
+          tenant_id: string
+          tool: string
+          user_id: string
+        }
+        Update: {
+          arguments?: Json
+          claimed_at?: string | null
+          completed_at?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          decision?: string | null
+          expires_at?: string
+          id?: string
+          observed_origin?: string | null
+          observed_path?: string | null
+          result?: Json | null
+          run_id?: string
+          status?: string
+          tenant_id?: string
+          tool?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "carmen_device_actions_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "ai_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "carmen_device_actions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       carmen_finding_counters: {
         Row: {
           last_code: number
@@ -18166,6 +18238,10 @@ export type Database = {
       decline_signature_by_token:
         | { Args: { _token: string }; Returns: Json }
         | { Args: { _ip: string; _token: string }; Returns: Json }
+      decoded_integration_settings: {
+        Args: { p_settings: Json }
+        Returns: Json
+      }
       enqueue_job: {
         Args: {
           p_job_type: string
@@ -18554,6 +18630,18 @@ export type Database = {
       }
       get_user_sales_person_id: { Args: { _user_id: string }; Returns: string }
       get_user_tenant_id: { Args: { _user_id: string }; Returns: string }
+      google_integration_tokens: {
+        Args: { p_integration_ids: string[] }
+        Returns: {
+          access_token: string
+          integration_id: string
+          refresh_token: string
+        }[]
+      }
+      google_token_secret_name: {
+        Args: { p_integration_id: string; p_kind: string }
+        Returns: string
+      }
       graphify_group_subgraph: {
         Args: { p_group: string; p_limit?: number }
         Returns: Json
@@ -19256,6 +19344,10 @@ export type Database = {
         Returns: Json
       }
       signature_png_is_valid: { Args: { _value: string }; Returns: boolean }
+      store_google_token_in_vault: {
+        Args: { p_integration_id: string; p_kind: string; p_token: string }
+        Returns: undefined
+      }
       submit_signature_by_token:
         | {
             Args: { _ip?: string; _signature_data: string; _token: string }

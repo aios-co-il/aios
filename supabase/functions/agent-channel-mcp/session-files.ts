@@ -1,3 +1,4 @@
+import { COMMAND_CENTER_FILES_BUCKET } from "../_shared/agent-channel/attachment-bucket.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import type {
   ChannelAttachment,
@@ -5,7 +6,7 @@ import type {
 } from "../_shared/agent-channel/types.ts";
 
 /** The private bucket the Command Center already uses for files in a thread. */
-const BUCKET = "command-center-files";
+const BUCKET = COMMAND_CENTER_FILES_BUCKET;
 /** As long as the links the Command Center gives a user's own uploads. */
 const READ_LINK_SECONDS = 60 * 60 * 24 * 365;
 /** As many as a user may attach to one message. */

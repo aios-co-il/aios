@@ -7,6 +7,8 @@
 //   2. Fallback: the active `llm` tenant integration's settings.openai_api_key
 //      (the same place run-ai-agent's resolveLLMTarget reads). This keeps voice,
 //      embeddings, etc. working even when the env secret was never configured.
+import { imageDataUrl, sniffImageMime } from "./image-data-url.ts";
+
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const OPENAI_BASE = "https://api.openai.com/v1";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -452,13 +454,12 @@ export async function aiVisionJSON(
     const content: Array<any> = [{ type: "text", text: prompt }];
     for (const img of images) {
       const bytes = new Uint8Array(await img.arrayBuffer());
-      let binary = "";
-      for (let i = 0; i < bytes.length; i += 8192) {
-        binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
-      }
       content.push({
         type: "image_url",
-        image_url: { url: `data:image/jpeg;base64,${btoa(binary)}` },
+        // Bytes of no known picture type keep the type this call always sent.
+        image_url: {
+          url: imageDataUrl(bytes, sniffImageMime(bytes) ?? "image/jpeg"),
+        },
       });
     }
     const r = await fetch(`${OPENAI_BASE}/chat/completions`, {

@@ -14,7 +14,12 @@ import {
   googleAdsTableAccount,
   normalizeGoogleAdsCustomerId,
 } from "../_shared/ads-sync/google-customer-id.ts";
+import {
+  withGoogleToken,
+  withGoogleTokens,
+} from "../_shared/google-oauth/integration-tokens.ts";
 import { isPermanentGoogleOAuthError } from "../_shared/google-oauth/refresh-error.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 import { recordGoogleFindings } from "./record-google-findings.ts";
 import { jerusalemToday, toDateString } from "../_shared/report-sync-window.ts";
 import { coveredFromFetched, elementorLookback } from "./elementor-lookback.ts";
@@ -290,10 +295,11 @@ Deno.serve(async (req) => {
         .eq("id", chosenIntegrationId)
         .eq("integration_type", "google_ads")
         .maybeSingle();
+      const pinned = await withGoogleToken(serviceClient(), data);
       // Only use it if it's still active and usable; otherwise fall through to the resolver
       // so a disabled/removed connection doesn't hard-fail an existing table.
-      if (data?.is_active && data?.api_key) {
-        integration = data;
+      if (pinned?.is_active && pinned?.api_key) {
+        integration = pinned;
       }
     }
 
@@ -319,7 +325,9 @@ Deno.serve(async (req) => {
         .eq("is_active", true)
         .order("updated_at", { ascending: false });
 
-      const usable = (candidates || []).filter((i: any) => i?.api_key);
+      const usable = (
+        await withGoogleTokens(serviceClient(), candidates || [])
+      ).filter((i) => i?.api_key);
       integration =
         usable.find((i: any) => !i.settings?.needs_reauth) || usable[0] || null;
     }

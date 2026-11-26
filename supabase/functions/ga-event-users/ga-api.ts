@@ -2,6 +2,7 @@
  * Reads from Google Analytics for a dashboard: the client's GA connection
  * and one Data API report.
  */
+import { withGoogleTokens } from "../_shared/google-oauth/integration-tokens.ts";
 import type { serviceClient } from "../_shared/supabase-clients.ts";
 import type { GaRow } from "./reports.ts";
 
@@ -39,7 +40,7 @@ export async function readGaConnection(
   }
   const { data: integration, error: integrationError } = await db
     .from("tenant_integrations")
-    .select("id, api_key, settings")
+    .select("id, api_key, settings, updated_at")
     .eq("id", integrationId)
     .eq("tenant_id", table.tenant_id)
     .maybeSingle();
@@ -50,8 +51,9 @@ export async function readGaConnection(
     );
     return null;
   }
+  const [connection] = await withGoogleTokens(db, [integration]);
   return {
-    integration,
+    integration: connection,
     propertyId: String(propertyRaw).replace(/^properties\//, ""),
   };
 }

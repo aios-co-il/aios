@@ -15,20 +15,29 @@ import {
 } from "./brain-access.ts";
 import { isCarmenAgentRow } from "./carmen-agent.ts";
 
-/** A user's permissions row for one Carmen agent, or null (unrestricted). */
+/**
+ * A user's permissions row for one Carmen agent, or null (unrestricted). A
+ * failed read also reads as null, unless `strict`: then it throws, for a
+ * caller that must not take "could not read" for "unrestricted".
+ */
 export async function loadCarmenAccessRow(
   sb: Pick<SupabaseClient, "from">,
   tenantId: string,
   carmenAgentId: string,
   userId: string,
+  { strict = false }: { strict?: boolean } = {},
 ): Promise<BrainAccessRow> {
-  const { data } = await sb
+  const { data, error } = await sb
     .from("carmen_command_center_access")
     .select("enabled, brain_access")
     .eq("tenant_id", tenantId)
     .eq("agent_id", carmenAgentId)
     .eq("user_id", userId)
     .maybeSingle();
+  if (error && strict) {
+    throw new Error(`Carmen permissions read failed: ${error.message}`);
+  }
+
   return toAccessRow(data);
 }
 

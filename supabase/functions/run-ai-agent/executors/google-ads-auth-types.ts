@@ -6,6 +6,7 @@ export type GoogleAdsAuthSettings = {
 };
 
 export type GoogleAdsIntegrationProjection = {
+  id: string;
   settings: GoogleAdsAuthSettings | null;
   additional_config?: GoogleAdsAuthSettings | null;
   api_key?: string | null;
