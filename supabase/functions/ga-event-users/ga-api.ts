@@ -40,7 +40,7 @@ export async function readGaConnection(
   }
   const { data: integration, error: integrationError } = await db
     .from("tenant_integrations")
-    .select("id, api_key, settings")
+    .select("id, api_key, settings, updated_at")
     .eq("id", integrationId)
     .eq("tenant_id", table.tenant_id)
     .maybeSingle();

@@ -18238,6 +18238,10 @@ export type Database = {
       decline_signature_by_token:
         | { Args: { _token: string }; Returns: Json }
         | { Args: { _ip: string; _token: string }; Returns: Json }
+      decoded_integration_settings: {
+        Args: { p_settings: Json }
+        Returns: Json
+      }
       enqueue_job: {
         Args: {
           p_job_type: string
