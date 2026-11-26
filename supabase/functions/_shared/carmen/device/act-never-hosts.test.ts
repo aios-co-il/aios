@@ -7,6 +7,7 @@ import {
   ACT_NEVER_HOSTS,
   ACT_NEVER_TOP_LEVEL_DOMAINS,
   isActNeverHost,
+  PLAIN_HOST,
 } from "./act-never-hosts.ts";
 
 const FLOOR = [
@@ -17,11 +18,7 @@ const FLOOR = [
 Deno.test("act floor: the list", async (t) => {
   await t.step("every entry is a bare lower-case host, listed once", () => {
     for (const host of FLOOR) {
-      assertStrictEquals(
-        /^[a-z0-9-]+(?:\.[a-z0-9-]+)*$/.test(host),
-        true,
-        host,
-      );
+      assertStrictEquals(PLAIN_HOST.test(host), true, host);
     }
     assertStrictEquals(new Set(FLOOR).size, FLOOR.length);
   });
@@ -182,10 +179,36 @@ Deno.test("act floor: a tenant can only add", async (t) => {
     }
   });
 
+  await t.step("an entry that is not one plain host throws", () => {
+    for (const entry of [
+      "foo.com,bar.com",
+      "foo.com, bar.com",
+      "foo.com;bar.com",
+      "foo.com\nbar.com",
+      "foo.com\r\nbar.com",
+      "foo.com\tbar.com",
+      "'foo.com'",
+      '"foo.com"',
+      "*.*.foo.com",
+      "foo.*",
+      "foo.com*",
+      "https://foo.com,bar.com/path",
+      // No spelling removes a host: this one is refused, not read as "all but".
+      "!paypal.com",
+    ]) {
+      assertThrows(
+        () => isActNeverHost("https://example.com/", [entry]),
+        TypeError,
+        "Act-floor entry",
+        entry,
+      );
+    }
+  });
+
   await t.step("no entry takes a host off the floor", () => {
     for (const added of [
       [],
-      ["-paypal.com", "!paypal.com", "paypal.com"],
+      ["-paypal.com", "paypal.com"],
       ["www.paypal.com"],
     ]) {
       assertStrictEquals(

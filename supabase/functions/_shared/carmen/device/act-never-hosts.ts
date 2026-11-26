@@ -1,7 +1,8 @@
 /**
- * The act floor: sites where Carmen may read the page's text and never navigates, clicks,
- * types or takes a picture, because one action there sends from a personal account or moves
- * money, and a picture of the page would go to an outside vision model.
+ * The act floor: sites where Carmen may read the page's text and never navigates, clicks
+ * or types, because one action there sends from a personal account or moves money. A
+ * picture of the page would go to an outside vision model, so it is taken only for a user
+ * the organization's manager gave the permission, and after a card (card-rule.ts).
  *
  * This list is code and not a setting on purpose (a departure from the work standard's
  * "configuration over hard-coding", approved with AIO-656 decision 4): a setting someone
@@ -128,9 +129,9 @@ export const ACT_NEVER_TOP_LEVEL_DOMAINS = ["bank"] as const;
  * every caller gets the same normalising (case, trailing dots, punycode); an address that
  * is not a web page counts as on the floor, because nothing may act on what cannot be read.
  * `addedHosts` is the tenant's setting: each entry adds a host and its subdomains, and none
- * can take a host off. An entry that names no host throws, so a protection the tenant
- * believes in is never dropped quietly; whoever saves the setting validates with the same
- * call.
+ * can take a host off. An entry that is not one plain host throws, so a protection the
+ * tenant believes in is never dropped quietly; whoever saves the setting validates with the
+ * same call.
  */
 export function isActNeverHost(
   url: string,
@@ -157,9 +158,20 @@ const FLOOR_HOSTS: ReadonlyArray<string> =
 /** Whether an entry already says how it is reached, as a pasted address does. */
 const HAS_SCHEME = /^[a-z][a-z0-9+.-]*:\/\//i;
 
+/** URL parsing drops these without a word, which would glue two pasted lines into one host. */
+const DROPPED_BY_URL_PARSING = /[\t\n\r]/;
+
+/**
+ * A host as a tab can have it: labels of a to z, digits and hyphens, joined by dots
+ * (punycode included). URL parsing also lets `,` `;` `*` and quotes through, and a host
+ * holding one of them is two entries in one line, a quoted paste or a misplaced wildcard.
+ */
+export const PLAIN_HOST = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*$/;
+
 /**
  * The host a tenant's entry names, as a list of one; a blank entry names none. A bare
  * domain, a `*.domain` and an address pasted from the browser all read as the same host.
+ * Anything else throws: an entry that matches no tab protects nothing.
  */
 function addedDomain(entry: string): Array<string> {
   const domain = entry.trim().replace(/^\*?\.*/, "");
@@ -168,9 +180,12 @@ function addedDomain(entry: string): Array<string> {
     return [];
   }
   const address = HAS_SCHEME.test(domain) ? domain : `https://${domain}`;
-  const hostname = URL.canParse(address) ? webHostname(new URL(address)) : "";
+  const hostname =
+    !DROPPED_BY_URL_PARSING.test(domain) && URL.canParse(address)
+      ? webHostname(new URL(address))
+      : "";
 
-  if (!hostname) {
+  if (!PLAIN_HOST.test(hostname)) {
     throw new TypeError(
       `Act-floor entry is not a host or an address: ${JSON.stringify(entry)}`,
     );
