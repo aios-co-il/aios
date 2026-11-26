@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { isElevenLabsVoice, toCarmenVoice } from "./carmenVoices";
+import {
+  CARMEN_VOICES,
+  ELEVENLABS_VOICES,
+  isElevenLabsVoice,
+  OPENAI_VOICES,
+  toCarmenVoice,
+} from "./carmenVoices";
 
 describe("carmenVoices", () => {
   it("keeps known OpenAI and ElevenLabs voices", () => {
@@ -11,6 +17,15 @@ describe("carmenVoices", () => {
     expect(toCarmenVoice("nova")).toBeNull();
     expect(toCarmenVoice(null)).toBeNull();
     expect(toCarmenVoice("")).toBeNull();
+  });
+
+  it("keeps every voice of the server's list, of both providers", () => {
+    const pickerIds = [...ELEVENLABS_VOICES, ...OPENAI_VOICES].map(
+      (voice) => voice.id,
+    );
+
+    expect(CARMEN_VOICES.map((voice) => voice.id)).toEqual(pickerIds);
+    expect(pickerIds.map(toCarmenVoice)).toEqual(pickerIds);
   });
 
   it("tells ElevenLabs voices from OpenAI ones", () => {
