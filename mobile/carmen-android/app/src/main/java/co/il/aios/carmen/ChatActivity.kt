@@ -31,6 +31,7 @@ class ChatActivity : AppCompatActivity() {
     /** Messages typed while Carmen answered: shown faded, sent one by one once she is free. */
     private val waiting = ArrayDeque<Pair<String, TextView>>()
     private var typing: TypingRow? = null
+    private lateinit var voice: AssistantVoice
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,6 +42,9 @@ class ChatActivity : AppCompatActivity() {
         input = findViewById(R.id.chat_input)
         send = findViewById(R.id.chat_send)
         CarmenLook.showAvatar(findViewById(R.id.chat_avatar))
+        voice = CarmenLook.voice(this)
+        findViewById<TextView>(R.id.chat_name).text = voice.name
+        input.hint = voice.line(getString(R.string.chat_hint))
         send.setOnClickListener { onSendTapped() }
         input.setOnEditorActionListener { _, action, _ ->
             (action == EditorInfo.IME_ACTION_SEND).also { if (it) onSendTapped() }
@@ -51,7 +55,7 @@ class ChatActivity : AppCompatActivity() {
             override fun afterTextChanged(s: Editable?) = refreshSendButton()
         })
         CarmenChat.messages.forEach(::addBubble)
-        if (CarmenChat.messages.isEmpty()) addBubble(CarmenChat.Message(CarmenChat.Role.CARMEN, getString(R.string.chat_greeting)))
+        if (CarmenChat.messages.isEmpty()) addBubble(CarmenChat.Message(CarmenChat.Role.CARMEN, voice.line(getString(R.string.chat_greeting))))
     }
 
     /**
@@ -106,7 +110,7 @@ class ChatActivity : AppCompatActivity() {
     }
 
     private fun stopAnswer() {
-        typing?.bubble?.text = getString(R.string.chat_stopping)
+        typing?.bubble?.text = voice.line(getString(R.string.chat_stopping))
         val brain = CarmenChat.brain(this)
         thread(name = "carmen-chat-stop") {
             if (!brain.stop()) {
@@ -133,7 +137,7 @@ class ChatActivity : AppCompatActivity() {
         val size = (44 * density).toInt()
         val video = if (CarmenLook.isCharacter(this)) workingLoop() else null
         val face: View = video ?: ImageView(this).also { CarmenLook.showAvatar(it) }
-        val bubble = bubbleView(getString(R.string.chat_typing), mine = false).apply {
+        val bubble = bubbleView(voice.line(getString(R.string.chat_typing)), mine = false).apply {
             maxWidth = resources.displayMetrics.widthPixels * 3 / 4
         }
         val row = LinearLayout(this).apply {

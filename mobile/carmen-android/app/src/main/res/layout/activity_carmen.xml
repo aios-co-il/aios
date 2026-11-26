@@ -31,6 +31,8 @@
             android:layout_height="match_parent"
             android:layout_gravity="center" />
 
+        <!-- The Mini Me style needs no view of its own: its picture above moves (MiniMeMotion). -->
+
         <!-- The orb style: the glass orb drawn live, moving with her state (OrbBuddyView). -->
         <co.il.aios.carmen.OrbBuddyView
             android:id="@+id/carmen_orb"
@@ -46,6 +48,7 @@
             android:background="@drawable/speaker_frame" />
 
         <TextView
+            android:id="@+id/call_tile_name"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom|start"
@@ -74,12 +77,13 @@
             android:layout_height="10dp"
             android:background="@drawable/live_dot" />
 
+        <!-- "A call with" whoever the look names (CarmenLook.voice), filled in by CarmenActivity. -->
         <TextView
+            android:id="@+id/call_name"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:layout_weight="1"
-            android:text="@string/call_name"
             android:textColor="#FFFFFF"
             android:textSize="16sp"
             android:textStyle="bold" />

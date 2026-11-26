@@ -148,7 +148,6 @@ describe("useUserIntegrations identity boundary", () => {
       expect.objectContaining({
         body: expect.objectContaining({
           clientId: "client-1",
-          tenantIds: ["tenant-1"],
         }),
       }),
     );

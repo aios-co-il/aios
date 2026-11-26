@@ -13,7 +13,7 @@ import type { DbClient } from "../_shared/supabase-clients.ts";
 
 /** The pinned active connection with a token, else the newest usable one of the tenant or its agency sources. */
 export async function findGoogleConnection(
-  db: Pick<DbClient, "from">,
+  db: Pick<DbClient, "from" | "rpc">,
   table: ReconcileTable,
 ) {
   const settings = table.integration_settings || {};
@@ -57,7 +57,7 @@ export async function findGoogleConnection(
 
 /** Tenants that share an agency with `tenantId` (agency_tenant_access), as the sync reads them. */
 async function agencySourceTenants(
-  db: Pick<DbClient, "from">,
+  db: Pick<DbClient, "from" | "rpc">,
   tenantId: string,
 ): Promise<Array<string>> {
   const { data, error } = await db
