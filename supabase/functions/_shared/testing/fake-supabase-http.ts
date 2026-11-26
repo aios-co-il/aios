@@ -7,6 +7,8 @@
  *   operator throws, so a test cannot pass on a filter the fake ignores.
  *   A `.single()` read gets the one row as an object, else PostgREST's 406.
  * - POST, PATCH, DELETE /rest/v1/<table>: recorded in `calls`, answered empty.
+ *   An insert read back (`.insert().select()`) is answered with the posted
+ *   rows, each given an id when it has none; `tables` stays as seeded.
  * - POST /rest/v1/rpc/<fn>: rpc[fn](args).
  * - GET /auth/v1/user: the user `users` maps the bearer token to, else 401.
  * - `failing[table or fn]`: that call answers a PostgREST error.
@@ -59,6 +61,10 @@ export function fakeSupabaseHttp(opts: FakeSupabaseHttpOptions) {
     if (url.pathname.startsWith("/rest/v1/rpc/")) {
       return json(opts.rpc?.[name]?.(isRow(body) ? body : {}) ?? null);
     }
+    if (request.method === "POST" && returnsRows(request)) {
+      const inserted = insertedRows(body);
+      return json(wantsObject(request) ? inserted[0] : inserted, 201);
+    }
     if (request.method !== "GET") {
       return new Response(null, {
         status: request.method === "POST" ? 201 : 204,
@@ -66,7 +72,7 @@ export function fakeSupabaseHttp(opts: FakeSupabaseHttpOptions) {
     }
     const rows = selectRows(tables[name] ?? [], url.searchParams);
     // .single() asks for one object, as PostgREST answers it.
-    if (request.headers.get("accept")?.includes("vnd.pgrst.object+json")) {
+    if (wantsObject(request)) {
       return rows.length === 1
         ? json(rows[0])
         : json({ code: "PGRST116", message: `${rows.length} rows` }, 406);
@@ -74,6 +80,23 @@ export function fakeSupabaseHttp(opts: FakeSupabaseHttpOptions) {
     return json(rows);
   };
   return { fetch: impl, calls };
+}
+
+/** Whether the request asks for one object, as `.single()` does. */
+function wantsObject(request: Request): boolean {
+  return !!request.headers.get("accept")?.includes("vnd.pgrst.object+json");
+}
+
+/** Whether a write asks for its rows back, as `.insert().select()` does. */
+function returnsRows(request: Request): boolean {
+  return !!request.headers.get("prefer")?.includes("return=representation");
+}
+
+/** The posted rows as the database would return them: each with an id. */
+function insertedRows(body: unknown): Array<Row> {
+  const rows = (Array.isArray(body) ? body : [body]).filter(isRow);
+
+  return rows.map((row) => ({ id: crypto.randomUUID(), ...row }));
 }
 
 /** Rows matching every filter param, cut to `limit`. */

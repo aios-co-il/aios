@@ -1809,7 +1809,7 @@ async function executeTool(
 import { requireAuth } from "../_shared/security.ts";
 import type { Surface } from "./surface.ts";
 import { bindRunAgentCaller, runCallerPhone } from "./caller-trust.ts";
-import { runTenantDenied } from "./run-tenant-access.ts";
+import { runTenantDenied } from "../_shared/agent-runs/run-tenant-access.ts";
 import { INSTRUCTION_TRIGGER_RE } from "./instruction-trigger.ts";
 import { runStopCheck, stoppedReply } from "./run-cancel.ts";
 import { type FastLaneChannel, fastLaneFits } from "./fast-lane/eligibility.ts";

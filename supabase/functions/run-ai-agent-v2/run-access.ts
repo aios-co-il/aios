@@ -8,15 +8,19 @@
  * resume-agent-run checks the approver's tenant and role and claims the approval
  * before it calls here, so a user resuming directly would skip that gate even
  * on their own run.
+ *
+ * Every run, whoever starts or resumes it, uses an agent of its own tenant:
+ * the functions that call here with the service key take the agent from rows
+ * a tenant wrote.
  */
+import { bodyUuid } from "../_shared/agent-runs/body-id.ts";
+import {
+  AGENT_IN_OTHER_TENANT,
+  type RunAuth,
+  runTenantDenied,
+} from "../_shared/agent-runs/run-tenant-access.ts";
 import type { Tables } from "../_shared/database.types.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
-import { asUuidOrNull } from "../_shared/uuid.ts";
-import { bindRunAgentCaller } from "../run-ai-agent/caller-trust.ts";
-import {
-  runTenantDenied,
-  type RunAuth,
-} from "../run-ai-agent/run-tenant-access.ts";
 
 /** The request may go on, or the refusal the handler sends back. */
 export type RunRequestGate =
@@ -63,7 +67,7 @@ export async function authorizeRunRequest(
     return { ok: false, status: 403, error: denied };
   }
 
-  bindRunAgentCaller(body, auth);
+  body.user_id = auth.userId;
   for (const link of SERVICE_ONLY_RUN_LINKS) {
     delete body[link];
   }
@@ -78,8 +82,8 @@ export async function resumableRun(
   sb: Pick<DbClient, "from">,
   body: Record<string, unknown>,
 ): Promise<Tables<"agent_runs"> | null> {
-  const runId = asUuidOrNull(body.run_id);
-  const tenantId = asUuidOrNull(body.tenant_id);
+  const runId = bodyUuid(body.run_id);
+  const tenantId = bodyUuid(body.tenant_id);
   if (!runId || !tenantId) {
     return null;
   }
@@ -94,4 +98,42 @@ export async function resumableRun(
     throw new Error(`agent_runs lookup failed: ${error.message}`);
   }
   return data;
+}
+
+/** The agent and run columns the tenant check compares. */
+type RunAgentPair = {
+  agent: Pick<Tables<"ai_agents">, "tenant_id">;
+  run: Pick<Tables<"agent_runs">, "id" | "tenant_id" | "agent_id">;
+};
+
+/**
+ * Closes a run whose agent belongs to another tenant and returns what the
+ * caller is told; null when the agent is the run's tenant's.
+ */
+export async function foreignAgentRefusal(
+  sb: Pick<DbClient, "from">,
+  { agent, run }: RunAgentPair,
+): Promise<string | null> {
+  if (agent.tenant_id === run.tenant_id) {
+    return null;
+  }
+
+  console.warn(
+    `[run-ai-agent-v2] refused run ${run.id}: agent ${run.agent_id} is outside tenant ${run.tenant_id}`,
+  );
+  const { error } = await sb
+    .from("agent_runs")
+    .update({
+      status: "failed",
+      error_message: AGENT_IN_OTHER_TENANT,
+      completed_at: new Date().toISOString(),
+    })
+    .eq("id", run.id)
+    .eq("tenant_id", run.tenant_id);
+  if (error) {
+    console.error(
+      `[run-ai-agent-v2] run ${run.id} not marked failed: ${error.message}`,
+    );
+  }
+  return AGENT_IN_OTHER_TENANT;
 }

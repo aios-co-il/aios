@@ -7,7 +7,11 @@ import {
 import { readFileSync } from "node:fs";
 
 import { fakeSupabase } from "../_shared/testing/fake-supabase.ts";
-import { authorizeRunRequest, resumableRun } from "./run-access.ts";
+import {
+  authorizeRunRequest,
+  foreignAgentRefusal,
+  resumableRun,
+} from "./run-access.ts";
 
 const TENANT_A = "11111111-1111-4111-8111-111111111111";
 const TENANT_B = "22222222-2222-4222-8222-222222222222";
@@ -197,11 +201,26 @@ Deno.test("resumableRun", async (t) => {
     ["a run of another tenant", { run_id: RUN_B, tenant_id: TENANT_A }],
     ["a run named without its tenant", { run_id: RUN_A }],
     ["an unknown run", { run_id: TENANT_A, tenant_id: TENANT_A }],
+    ["a run id in an array", { run_id: [RUN_A], tenant_id: TENANT_A }],
+    ["a tenant id in an array", { run_id: RUN_A, tenant_id: [TENANT_A] }],
   ] as const) {
     await t.step(`finds nothing for ${what}`, async () => {
       assertStrictEquals(await resumableRun(db(), { ...body }), null);
     });
   }
+});
+
+Deno.test("foreignAgentRefusal", async (t) => {
+  await t.step("lets a run use its own tenant's agent, unwritten", async () => {
+    const sb = db();
+    const refusal = await foreignAgentRefusal(sb, {
+      agent: { tenant_id: TENANT_A },
+      run: { id: RUN_A, tenant_id: TENANT_A, agent_id: AGENT_A },
+    });
+
+    assertStrictEquals(refusal, null);
+    assertEquals(sb.queries, []);
+  });
 });
 
 // The checks live in ./run-access.ts, so the handler must ask them before it touches a table.

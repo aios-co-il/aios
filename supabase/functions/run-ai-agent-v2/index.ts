@@ -6,7 +6,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { resolveModelId } from "../_shared/models.ts";
 import { requireAuth } from "../_shared/security.ts";
 import { internalBrainDenied } from "../_shared/carmen/brain-guard.ts";
-import { authorizeRunRequest, resumableRun } from "./run-access.ts";
+import {
+  authorizeRunRequest,
+  foreignAgentRefusal,
+  resumableRun,
+} from "./run-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -352,7 +356,8 @@ Deno.serve(async (req) => {
 
   try {
     const auth = await requireAuth(req);
-    const body = await req.json();
+    // No caller: the gate below answers 401 with the request unread.
+    const body = auth ? await req.json() : {};
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     const gate = await authorizeRunRequest(supabase, auth, body);
@@ -427,6 +432,10 @@ Deno.serve(async (req) => {
       .single();
     if (!agent) {
       throw new Error("agent not found");
+    }
+    const foreignAgent = await foreignAgentRefusal(supabase, { agent, run });
+    if (foreignAgent) {
+      return jsonResponse({ error: foreignAgent }, 403);
     }
 
     const model = resolveModelId(agent.engine ?? "gemini-3-flash");

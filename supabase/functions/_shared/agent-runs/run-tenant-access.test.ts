@@ -6,9 +6,9 @@ import {
 } from "jsr:@std/assert@1";
 import { readFileSync } from "node:fs";
 
-import { internalBrainRefusal } from "../_shared/carmen/brain-guard.ts";
-import { fakeTables } from "../_shared/carmen/test-tables.ts";
-import { fakeSupabase } from "../_shared/testing/fake-supabase.ts";
+import { internalBrainRefusal } from "../carmen/brain-guard.ts";
+import { fakeTables } from "../carmen/test-tables.ts";
+import { fakeSupabase } from "../testing/fake-supabase.ts";
 import { runTenantDenied } from "./run-tenant-access.ts";
 
 const TENANT_A = "11111111-1111-4111-8111-111111111111";
@@ -216,7 +216,10 @@ Deno.test("runTenantDenied: ids that are not uuid strings", async (t) => {
 Deno.test(
   "run-ai-agent checks the body's ids before any other read of the body",
   () => {
-    const agent = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
+    const agent = readFileSync(
+      new URL("../../run-ai-agent/index.ts", import.meta.url),
+      "utf8",
+    );
     const serve = agent.slice(agent.indexOf("Deno.serve(async (req) =>"));
     const bind = "bindRunAgentCaller(bodyJson, auth);";
     const bindAt = serve.indexOf(bind);
