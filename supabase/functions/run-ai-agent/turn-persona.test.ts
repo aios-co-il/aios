@@ -61,7 +61,7 @@ describe("run-ai-agent index.ts", () => {
     const source = [
       readRunSource("resolve-run-caller"),
       readRunSource("append-run-skins"),
-      await Deno.readTextFile(new URL("./index.ts", import.meta.url)),
+      await Deno.readTextFile(new URL("./fast-lane/run.ts", import.meta.url)),
     ].join("\n");
 
     assertEquals(

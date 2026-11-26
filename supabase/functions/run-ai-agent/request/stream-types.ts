@@ -1,6 +1,6 @@
 import type { AgentRequestBody } from "./types.ts";
 import type { Surface } from "../surface.ts";
-import type { RunInputs, RunDependencies } from "../run/contracts.ts";
+import type { RunInputs } from "../run/contracts.ts";
 import type { handleRunAgent } from "../run/handle.ts";
 import type { saveCarmenReply } from "../../_shared/carmen/background-reply.ts";
 
@@ -13,10 +13,11 @@ export interface AgentStreamInput {
   internalTail?: RunInputs["internalTail"];
 }
 
-export interface AgentStreamDependencies extends Pick<
-  RunDependencies,
-  "createClient"
-> {
+export interface AgentStreamDependencies {
+  createClient: (
+    url: string,
+    key: string,
+  ) => import("../../_shared/supabase-clients.ts").DbClient;
   handleRunAgent: typeof handleRunAgent;
   saveCarmenReply: typeof saveCarmenReply;
 }

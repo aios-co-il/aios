@@ -72,6 +72,7 @@ export function createAgentStream(
             output: final.output,
             tools_used: final.tools_used,
             error: final.error,
+            device_action: final.device_action,
           });
         } catch (e) {
           emit({
@@ -135,6 +136,7 @@ export function createAgentStream(
 }
 
 interface FinalRunPayload {
+  device_action?: unknown;
   success?: unknown;
   output?: unknown;
   tools_used?: unknown;

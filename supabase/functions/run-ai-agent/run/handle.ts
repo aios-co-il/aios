@@ -28,17 +28,15 @@ export async function handleRunAgent(
   /** The tenant's OpenRouter brain, the last link of Carmen's own engine when allowed. */
   internalTail?: () => Promise<Array<BrainEngineTarget>>,
 ): Promise<Response> {
-  return (await runOrchestratedAgent(
+  return await runOrchestratedAgent(
     { bodyJson, surface, emit, brainEngine, request, internalTail },
     {
       executeTool,
       tryFastLane,
       saveConversationTurn,
-      SUPABASE_URL,
-      SUPABASE_SERVICE_ROLE_KEY,
       corsHeaders,
       CORE_TOOLS,
-      createClient,
+      supabase: createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY),
     },
-  )) as Response;
+  );
 }

@@ -1,3 +1,4 @@
+import { fixContinuationText } from "../device-turn/request.ts";
 import {
   REQUEST_DEPENDENCIES,
   type RequestDependencies,
@@ -81,6 +82,8 @@ export async function handleRequestWithDependencies(
     });
   }
 
+  fixContinuationText(bodyJson);
+
   const wantStream = bodyJson.stream === true;
   const surface: Surface =
     bodyJson.surface === "aios"
@@ -95,7 +98,7 @@ export async function handleRequestWithDependencies(
 
   // The brain the user picked runs Carmen's loop (_shared/carmen/brain-engine);
   // the route, grant and keys are all read here, never taken from the body.
-  const engine = await dependencies.resolveWorkshopAwareEngine(
+  const engine = await dependencies.resolvePickAwareEngine(
     guardClient,
     auth,
     bodyJson,

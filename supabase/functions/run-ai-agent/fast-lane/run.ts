@@ -2,7 +2,8 @@ import type { ChatTurn } from "./answer.ts";
 import type { Surface } from "../surface.ts";
 import type { FastLaneCaller } from "./scope.ts";
 import {
-  loadCallerPersona,
+  type PersonaSource,
+  loadPersona,
   personaPromptSection,
 } from "../../_shared/carmen/persona-runtime.ts";
 import type { DbClient } from "../../_shared/supabase-clients.ts";
@@ -33,7 +34,7 @@ export async function tryFastLane(
       loadOrgBrief(supabase, turn.tenantId, new Date(), scope),
     ),
     callerAddressLine(supabase, turn.userId, turn.callerName),
-    loadCallerPersona(supabase, turn.tenantId, turn.personaUserId),
+    loadPersona(supabase, turn.tenantId, turn.personaSource),
   ]);
 
   if (!target) {
@@ -129,7 +130,7 @@ export async function tryFastLane(
 type FastLaneRequest = {
   tenantId: string;
   userId: string | null;
-  personaUserId: string | null;
+  personaSource: PersonaSource | null;
   callerName: string | null;
   agentId: string;
   agentName: string;

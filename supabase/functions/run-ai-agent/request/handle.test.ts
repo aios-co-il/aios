@@ -32,7 +32,7 @@ function dependencies(
 
       return null;
     },
-    resolveWorkshopAwareEngine: async () => {
+    resolvePickAwareEngine: async () => {
       log.push("brain");
 
       return { kind: "internal" };

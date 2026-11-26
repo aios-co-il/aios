@@ -1,8 +1,8 @@
 import { requireAuth } from "../../_shared/security.ts";
 import { handleDirectTool } from "../direct-tools/handle.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import { runTenantDenied } from "../run-tenant-access.ts";
-import { resolveWorkshopAwareEngine } from "../../_shared/carmen/brain-engine/workshop-brain.ts";
+import { runTenantDenied } from "../../_shared/agent-runs/run-tenant-access.ts";
+import { resolvePickAwareEngine } from "../stored-brain-pick.ts";
 import { internalBrainDenied } from "../../_shared/carmen/brain-guard.ts";
 import { openRouterTail } from "../../_shared/carmen/brain-engine/openrouter-tail.ts";
 import { handleRunAgent } from "../run/handle.ts";
@@ -14,7 +14,7 @@ export interface RequestDependencies {
   handleDirectTool: typeof handleDirectTool;
   createClient(url: string, key: string): DbClient;
   runTenantDenied: typeof runTenantDenied;
-  resolveWorkshopAwareEngine: typeof resolveWorkshopAwareEngine;
+  resolvePickAwareEngine: typeof resolvePickAwareEngine;
   internalBrainDenied: typeof internalBrainDenied;
   openRouterTail: typeof openRouterTail;
   handleRunAgent: typeof handleRunAgent;
@@ -27,7 +27,7 @@ export const REQUEST_DEPENDENCIES: RequestDependencies = {
   handleDirectTool,
   createClient,
   runTenantDenied,
-  resolveWorkshopAwareEngine,
+  resolvePickAwareEngine,
   internalBrainDenied,
   openRouterTail,
   handleRunAgent,

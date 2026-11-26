@@ -36,7 +36,7 @@ Deno.test("service-only fields: source guards", async (t) => {
       for (const later of [
         "bodyJson.direct_tool",
         "const surface: Surface",
-        "resolveWorkshopAwareEngine(",
+        "resolvePickAwareEngine(",
         "handleRunAgent(",
       ]) {
         assert(
@@ -44,6 +44,11 @@ Deno.test("service-only fields: source guards", async (t) => {
           `bindRunAgentCaller must run before ${later}`,
         );
       }
+
+      assert(
+        !serve.split("runTenantDenied(")[0].includes("resolvePickAwareEngine("),
+        "tenant authorization must precede stored brain selection",
+      );
 
       assertMatch(
         agent,

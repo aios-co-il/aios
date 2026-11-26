@@ -7,7 +7,9 @@ import {
 import { ALL_TOOLS } from "./tool-catalog.ts";
 import { readRunSource } from "./run-source.test-fixture.ts";
 
-const boundary = Deno.readTextFileSync(new URL("./index.ts", import.meta.url));
+const boundary = Deno.readTextFileSync(
+  new URL("./request/handle.ts", import.meta.url),
+);
 
 /** Locates a required operation within its owning module. */
 function at(source: string, text: string): number {
@@ -152,7 +154,7 @@ Deno.test("run-ai-agent wires the device steps (AIO-686)", async (t) => {
       ),
     );
     assert(
-      boundary.includes(
+      readRunSource("save-conversation-turn").includes(
         "const messages = savedTurnMessages(turn.history, turn.message, turn.answer);",
       ),
     );
@@ -163,12 +165,18 @@ Deno.test("run-ai-agent wires the device steps (AIO-686)", async (t) => {
     () => {
       const fixed = at(boundary, "fixContinuationText(bodyJson);");
       assert(
-        fixed > at(boundary, "const tenantDenied = await runTenantDenied("),
+        fixed >
+          at(
+            boundary,
+            "const tenantDenied = await dependencies.runTenantDenied(",
+          ),
       );
       assert(
         fixed < at(boundary, "const wantStream = bodyJson.stream === true;"),
       );
-      assert(fixed < boundary.lastIndexOf("await handleRunAgent("));
+      assert(
+        fixed < boundary.lastIndexOf("await dependencies.handleRunAgent("),
+      );
     },
   );
 
@@ -196,7 +204,7 @@ Deno.test("run-ai-agent wires the device steps (AIO-686)", async (t) => {
       /conversation_id: serverConversationId,\s*device_action: deviceAction,/,
     );
     assertMatch(
-      boundary,
+      Deno.readTextFileSync(new URL("./request/stream.ts", import.meta.url)),
       /error: final.error,\s*device_action: final.device_action,/,
     );
   });

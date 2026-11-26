@@ -9,9 +9,7 @@ export type RunDependencies = {
   executeTool: typeof executeTool;
   tryFastLane: typeof tryFastLane;
   saveConversationTurn: typeof saveConversationTurn;
-  SUPABASE_URL: string;
-  SUPABASE_SERVICE_ROLE_KEY: string;
   corsHeaders: typeof corsHeaders;
   CORE_TOOLS: typeof CORE_TOOLS;
-  createClient: (url: string, key: string) => DbClient;
+  supabase: DbClient;
 };
