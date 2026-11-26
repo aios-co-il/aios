@@ -15,6 +15,14 @@ class CarmenLookTest {
     }
 
     @Test
+    fun readsTheMiniMeStyle() {
+        assertEquals(
+            CarmenLook.MINIME,
+            CarmenLook.parseStyle(JSONArray("""[{"setting_value":{"style":"minime"}}]""")),
+        )
+    }
+
+    @Test
     fun defaultsToOrbsWhenNothingOrSomethingUnknownIsStored() {
         assertEquals(CarmenLook.ORBS, CarmenLook.parseStyle(JSONArray("[]")))
         assertEquals(CarmenLook.ORBS, CarmenLook.parseStyle(JSONArray("""[{"setting_value":{"style":"orbs"}}]""")))

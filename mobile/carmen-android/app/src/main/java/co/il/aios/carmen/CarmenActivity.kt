@@ -6,28 +6,32 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.Chronometer
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 
 /**
  * The call screen shown on activation, over the lock screen when needed: Carmen's video tile in
- * her office, as on a video call, moving with her state (CarmenClips or OrbBuddyView), with a
- * call timer, her latest words as captions, mute and end.
+ * her office, as on a video call, moving with her state (CarmenClips, MiniMeMotion or
+ * OrbBuddyView), with a call timer, her latest words as captions, mute and end.
  */
 class CarmenActivity : AppCompatActivity() {
 
     private var face: CarmenPortrait? = null
     private var clips: CarmenClips? = null
     private var orb: OrbBuddyView? = null
+    private var miniMe: MiniMeMotion? = null
     private lateinit var stateText: TextView
+    private lateinit var voice: AssistantVoice
     private val closeAfterEnd = Runnable { if (!isFinishing) finish() }
 
     private val render: (CarmenSession.Snapshot) -> Unit = { snapshot ->
         face?.state = snapshot.state
         clips?.setState(snapshot.state)
         orb?.state = snapshot.state
-        stateText.setText(stateLabel(snapshot.state))
+        miniMe?.state = snapshot.state
+        stateText.text = voice.line(getString(stateLabel(snapshot.state)))
         // The session is over: leave the lock screen so the display can turn off again.
         stateText.removeCallbacks(closeAfterEnd)
         if (snapshot.state == CarmenSession.State.ENDED) stateText.postDelayed(closeAfterEnd, CLOSE_AFTER_END_MS)
@@ -46,17 +50,26 @@ class CarmenActivity : AppCompatActivity() {
         stateText = findViewById(R.id.state_text)
         // Rounded tile corners (the XML attribute needs API 31; minSdk is 30).
         findViewById<View>(R.id.call_tile).clipToOutline = true
-        CarmenLook.showPortrait(findViewById(R.id.carmen_portrait))
-        face = CarmenPortrait(findViewById(R.id.carmen_portrait), findViewById(R.id.portrait_glow), fixedFrame = true)
+        voice = CarmenLook.voice(this)
+        findViewById<TextView>(R.id.call_name).text = voice.line(getString(R.string.call_name))
+        val portrait = findViewById<ImageView>(R.id.carmen_portrait)
+        CarmenLook.showPortrait(portrait)
+        face = CarmenPortrait(portrait, findViewById(R.id.portrait_glow), fixedFrame = true)
         findViewById<Chronometer>(R.id.call_timer).apply {
             base = SystemClock.elapsedRealtime()
             start()
         }
-        // The organization's style moves with her state: the character's clips, or the live orb.
-        if (CarmenLook.isCharacter(this)) {
-            clips = CarmenClips(findViewById(R.id.carmen_clips))
-        } else {
-            orb = findViewById<OrbBuddyView>(R.id.carmen_orb).apply { visibility = View.VISIBLE }
+        // The organization's style moves with her state: the character's clips, the Mini Me's
+        // picture, or the live orb.
+        val miniMeFigure = portrait.drawable as? MiniMeDrawable
+        when {
+            CarmenLook.isCharacter(this) -> clips = CarmenClips(findViewById(R.id.carmen_clips))
+            miniMeFigure != null -> {
+                miniMe = MiniMeMotion(miniMeFigure)
+                // The tile names whoever is on it; Carmen's title is hers alone.
+                findViewById<TextView>(R.id.call_tile_name).text = voice.name
+            }
+            else -> orb = findViewById<OrbBuddyView>(R.id.carmen_orb).apply { visibility = View.VISIBLE }
         }
         CarmenSession.observe(render)
         findViewById<ImageButton>(R.id.close_button).setOnClickListener { endCall() }
@@ -104,12 +117,14 @@ class CarmenActivity : AppCompatActivity() {
         face?.start()
         clips?.resume()
         orb?.start()
+        miniMe?.start()
     }
 
     override fun onPause() {
         face?.stop()
         clips?.pause()
         orb?.stop()
+        miniMe?.stop()
         super.onPause()
     }
 

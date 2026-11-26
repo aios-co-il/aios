@@ -139,7 +139,7 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
     private fun startConversation(activatedAt: Long) {
         if (gate.state != ActivationGate.State.ACTIVE || conversation != null) return
         if (!account.isSignedIn) {
-            CarmenSession.notice(getString(R.string.sign_in_to_talk))
+            CarmenSession.notice(CarmenLook.voice(this).line(getString(R.string.sign_in_to_talk)))
             handler.removeCallbacks(endSessionOnTimeout)
             handler.postDelayed(endSessionOnTimeout, SIGNED_OUT_SESSION_MS)
             return
@@ -181,7 +181,9 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
         override fun onTranscript(line: String) = CarmenSession.addLine(line)
         override fun onEnded(reason: String) {
             if (reason.startsWith("error")) {
-                CarmenSession.notice(getString(R.string.conversation_failed, reason))
+                // The name goes in before the reason, so nothing in the reason reads as a slot.
+                val failed = CarmenLook.voice(this@WakeWordService).line(getString(R.string.conversation_failed))
+                CarmenSession.notice(failed.format(reason))
                 voice.say(getString(R.string.conversation_failed_spoken))
             }
             handler.post {

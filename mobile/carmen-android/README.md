@@ -3,7 +3,7 @@
 A small native Kotlin app: say "היי כרמן" on the phone, hear typing and "אני כבר איתך", then talk live
 with Carmen. Phase 1 (AIO-348) is the wake word; phase 2 (AIO-352) connects it to Carmen's brain
 through the same Realtime session the web Command Center uses. The home screen is Carmen herself, in
-the organization's style (the glass orb by default, or her approved character, set on the web under
+the organization's style (the glass orb by default, the Mini Me, or her approved character, set on the web under
 Settings → Branding → סגנון כרמן), **דברו עם כרמן** for a live conversation by tap, and the "היי כרמן"
 listening switch. The system's Command Center (chat and live conversation) opens from there in a
 web view. Sign-in (email or Google) and settings use the AIOS
