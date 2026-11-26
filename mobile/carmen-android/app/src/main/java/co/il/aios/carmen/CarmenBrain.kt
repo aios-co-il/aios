@@ -23,16 +23,20 @@ class CarmenBrain(private val account: AiosAccount) {
      * Blocking: streams the brain's answer and returns it as text. [history] is the earlier
      * typed conversation (role to text), sent like the web chat sends it. [onPartial] gets the
      * answer so far as it streams in (at most every [PARTIAL_EVERY_MS]), so a chat can show it live.
+     * [pictures] are the user's uploaded pictures for this question (AIO-684).
      */
     fun ask(
         question: String,
         history: List<Pair<String, String>> = emptyList(),
+        pictures: List<TurnPicture> = emptyList(),
         onPartial: ((String) -> Unit)? = null,
     ): String {
-        if (question.isBlank()) return "לא התקבלה שאלה."
+        val text = ChatPictures.turnText(question, pictures.size)
+        if (text.isBlank()) return "לא התקבלה שאלה."
         val session = runCatching { account.session() }.getOrElse { return "שגיאת התחברות למערכת." }
+        if (pictures.any { !ChatPictures.inOwnFolder(session.userId, it.path) }) return PICTURES_OF_ANOTHER_ACCOUNT
         val run = java.util.UUID.randomUUID().toString().also { runId = it }
-        val body = requestBody(question, session.tenantId, conversationId, run, history)
+        val body = requestBody(text, session.tenantId, conversationId, run, history, pictures)
         return runCatching {
             account.callFunction("run-ai-agent", body, streamingHttp).use { response ->
                 val source = response.body?.source()
@@ -82,9 +86,13 @@ class CarmenBrain(private val account: AiosAccount) {
         private const val MAX_HISTORY = 24
         private const val PARTIAL_EVERY_MS = 80L
 
+        /** The answer when the pictures were uploaded by an account other than the one signed in now. */
+        const val PICTURES_OF_ANOTHER_ACCOUNT = "התמונות הועלו מחשבון אחר. צרפו אותן שוב."
+
         /**
          * The `run-ai-agent` body for one question. It names no brain: with [USE_BRAIN_PICK] the
          * server runs the one the user picked on the web when they may use it, else the default.
+         * [pictures] go as the site's `attachments` field, paths only, and only when there are some.
          */
         fun requestBody(
             question: String,
@@ -92,6 +100,7 @@ class CarmenBrain(private val account: AiosAccount) {
             conversationId: String?,
             runId: String,
             history: List<Pair<String, String>>,
+            pictures: List<TurnPicture> = emptyList(),
         ): JSONObject = JSONObject()
             .put("command_text", question)
             .put("tenant_id", tenantId)
@@ -104,6 +113,7 @@ class CarmenBrain(private val account: AiosAccount) {
                 "conversation_history",
                 JSONArray(history.takeLast(MAX_HISTORY).map { (role, content) -> JSONObject().put("role", role).put("content", content) }),
             )
+            .apply { if (pictures.isNotEmpty()) put(ChatPictures.FIELD, ChatPictures.attachments(pictures)) }
 
         // Long tool runs stream for minutes; the SSE stream keeps the connection alive.
         private val streamingHttp: OkHttpClient = OkHttpClient.Builder()

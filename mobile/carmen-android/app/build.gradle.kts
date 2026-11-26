@@ -76,6 +76,24 @@ abstract class MiniMeResources : DefaultTask() {
     }
 }
 
+/**
+ * The limits and the bucket of pictures attached in the chat (AIO-684), read from the site's
+ * own files so the app never holds a copy: `MAX_*` from `run-ai-agent/attachments/contract.ts`
+ * and the bucket from `_shared/agent-channel/attachment-bucket.ts`. A constant not written
+ * there as expected fails the build.
+ */
+val pictureContract = rootProject.file("../../supabase/functions/run-ai-agent/attachments/contract.ts")
+val pictureBucket = rootProject.file("../../supabase/functions/_shared/agent-channel/attachment-bucket.ts")
+fun sourceMatch(file: File, pattern: String): String =
+    file.takeIf { it.isFile }?.readText()?.let { Regex(pattern).find(it) }?.groupValues?.get(1)
+        ?: throw GradleException("`$pattern` was not found in $file.")
+fun contractNumber(name: String): Int = sourceMatch(pictureContract, """export const $name = (\d+);""").toInt()
+/** A byte limit, which the contract derives from the megabytes of [mbName]: the build checks that formula. */
+fun contractBytes(name: String, mbName: String): Int {
+    sourceMatch(pictureContract, """export const $name = ($mbName \* 1024 \* 1024);""")
+    return contractNumber(mbName) * 1024 * 1024
+}
+
 /** Release signing from local.properties (carmen.release.*) or CARMEN_RELEASE_* env vars in CI. */
 val releaseStoreFile = backendSetting("carmen.release.storeFile", "CARMEN_RELEASE_STORE_FILE")
 
@@ -87,10 +105,21 @@ android {
         applicationId = "co.il.aios.carmen"
         minSdk = 30
         targetSdk = 35
-        versionCode = 28
-        versionName = "0.9.13"
+        versionCode = 29
+        versionName = "0.9.14"
         // 64-bit phones only: keeps the APK small enough to download reliably to a phone.
         ndk { abiFilters += listOf("arm64-v8a") }
+        // Chat pictures (ChatPictures.kt): the site's limits and bucket, never a copy.
+        buildConfigField("int", "MAX_TURN_PICTURES", contractNumber("MAX_TURN_PICTURES").toString())
+        buildConfigField("int", "MAX_PICTURE_BYTES", contractBytes("MAX_PICTURE_BYTES", "MAX_PICTURE_MB").toString())
+        buildConfigField(
+            "int", "MAX_TURN_PICTURES_BYTES",
+            contractBytes("MAX_TURN_PICTURES_BYTES", "MAX_TURN_PICTURES_MB").toString(),
+        )
+        buildConfigField(
+            "String", "COMMAND_CENTER_FILES_BUCKET",
+            "\"${sourceMatch(pictureBucket, """export const COMMAND_CENTER_FILES_BUCKET = "([a-z0-9-]+)";""")}\"",
+        )
     }
 
     signingConfigs {
