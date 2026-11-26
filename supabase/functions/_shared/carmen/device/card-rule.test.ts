@@ -1,8 +1,11 @@
-import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
+import {
+  assertEquals,
+  assertStrictEquals,
+  assertThrows,
+} from "jsr:@std/assert@1";
 import {
   type DeviceCardRule,
   deviceCardRule,
-  fieldNeverReason,
   holdsAnotherOrigin,
 } from "./card-rule.ts";
 import { DEVICE_TOOL_NAMES } from "./contract.ts";
@@ -18,7 +21,14 @@ function rules(
   flags: { trusted: boolean; tainted: boolean; sensitivePage?: boolean },
 ): Array<DeviceCardRule> {
   return DEVICE_TOOL_NAMES.map((tool) =>
-    deviceCardRule({ tool, url, origins: NO_ORIGINS, ...flags }),
+    deviceCardRule({
+      tool,
+      url,
+      origins: NO_ORIGINS,
+      addedActNeverHosts: [],
+      sensitivePage: false,
+      ...flags,
+    }),
   );
 }
 
@@ -56,34 +66,43 @@ Deno.test("deviceCardRule: the table", async (t) => {
   );
 
   await t.step(
-    "a trusted page with a password or payment field asks again",
+    "a page with a password or payment field: acting asks again, a picture is refused",
     () => {
-      assertEquals(rules(ORDINARY, { ...EVERY_FLAG[2], sensitivePage: true }), [
-        "free",
-        "ask",
-        "ask",
-        "ask",
-        "free",
-      ]);
+      for (const flags of EVERY_FLAG) {
+        assertEquals(rules(ORDINARY, { ...flags, sensitivePage: true }), [
+          "free",
+          "ask",
+          "ask",
+          "ask",
+          "never",
+        ]);
+      }
     },
   );
 
   await t.step(
-    "the act floor: reading is free, acting is refused whatever the flags",
+    "the act floor: reading text is free, acting and pictures are refused whatever the flags",
     () => {
       for (const flags of EVERY_FLAG) {
         for (const url of [
           MAIL,
+          "https://web.whatsapp.com/",
+          "https://www.leumi.co.il/",
           "https://www.paypal.com/",
           "https://x.first.bank/",
+          // A fully qualified name is the same site.
+          "https://www.paypal.com./",
+          "https://MAIL.GOOGLE.COM./mail/",
         ]) {
-          assertEquals(rules(url, flags), [
-            "free",
-            "never",
-            "never",
-            "never",
-            "free",
-          ]);
+          for (const sensitivePage of [false, true]) {
+            assertEquals(rules(url, { ...flags, sensitivePage }), [
+              "free",
+              "never",
+              "never",
+              "never",
+              "never",
+            ]);
+          }
         }
       }
     },
@@ -118,27 +137,57 @@ Deno.test("deviceCardRule: the table", async (t) => {
         trusted: true,
         tainted: false,
         origins,
+        addedActNeverHosts: [],
+        sensitivePage: false,
       }),
       "never",
     );
   });
 
-  await t.step("a tenant's added host is refused for acting only", () => {
+  await t.step(
+    "a tenant's added host joins the floor, also when pasted as an address",
+    () => {
+      for (const entry of ["example.com", "https://shop.example.com/cart"]) {
+        const step = {
+          url: ORDINARY,
+          trusted: true,
+          tainted: false,
+          origins: NO_ORIGINS,
+          addedActNeverHosts: [entry],
+          sensitivePage: false,
+        };
+
+        assertEquals(
+          DEVICE_TOOL_NAMES.map((tool) => deviceCardRule({ ...step, tool })),
+          ["free", "never", "never", "never", "never"],
+          entry,
+        );
+      }
+    },
+  );
+
+  await t.step("a configuration that names no host refuses loudly", () => {
     const step = {
+      tool: "browser_read_page",
       url: ORDINARY,
-      trusted: true,
+      trusted: false,
       tainted: false,
       origins: NO_ORIGINS,
-      addedActNeverHosts: ["example.com"],
-    };
+      addedActNeverHosts: [],
+      sensitivePage: false,
+    } as const;
 
-    assertStrictEquals(
-      deviceCardRule({ ...step, tool: "browser_click" }),
-      "never",
+    assertThrows(
+      () => deviceCardRule({ ...step, addedActNeverHosts: ["not a host"] }),
+      TypeError,
     );
-    assertStrictEquals(
-      deviceCardRule({ ...step, tool: "browser_read_page" }),
-      "free",
+    assertThrows(
+      () =>
+        deviceCardRule({
+          ...step,
+          origins: { appOrigins: ["aios.co.il"], backendOrigins: [] },
+        }),
+      TypeError,
     );
   });
 });
@@ -158,76 +207,4 @@ Deno.test("holdsAnotherOrigin: the tainted input", () => {
     holdsAnotherOrigin("nonsense", ["https://a.example"]),
     true,
   );
-});
-
-Deno.test("fieldNeverReason", async (t) => {
-  await t.step("ordinary fields may be typed into", () => {
-    for (const facts of [
-      {},
-      { type: "text", names: ["first_name", "First name"] },
-      { type: "email", autocomplete: "email", names: ["email"] },
-      { type: "search", names: ["q", "Search"] },
-      { type: "tel", autocomplete: "section-a shipping tel" },
-      { type: null, autocomplete: null, names: [null, undefined, "comment"] },
-      { type: "text", names: ["passport_number", "postcode", "discount code"] },
-    ]) {
-      assertStrictEquals(fieldNeverReason(facts), null, JSON.stringify(facts));
-    }
-  });
-
-  await t.step("each refused kind, by type, autocomplete or name", () => {
-    const cases: Array<[Parameters<typeof fieldNeverReason>[0], string]> = [
-      [{ type: "file" }, "file"],
-      [{ type: " FILE " }, "file"],
-      [{ type: "password" }, "password"],
-      [{ type: "text", autocomplete: "current-password" }, "password"],
-      [{ autocomplete: "section-x NEW-PASSWORD" }, "password"],
-      [{ type: "text", names: ["user_pwd"] }, "password"],
-      [{ type: "text", names: [null, "סיסמה"] }, "password"],
-      [{ autocomplete: "cc-number" }, "card"],
-      [{ autocomplete: "billing cc-exp" }, "card"],
-      [{ type: "tel", names: ["cardNumber"] }, "card"],
-      [{ type: "text", names: ["CVV"] }, "card"],
-      [{ type: "text", names: ["מספר כרטיס אשראי"] }, "card"],
-      [{ autocomplete: "one-time-code" }, "one_time_code"],
-      [{ type: "text", names: ["otp"] }, "one_time_code"],
-      [{ type: "tel", names: ["verification_code"] }, "one_time_code"],
-      [{ type: "text", names: ["קוד אימות"] }, "one_time_code"],
-    ];
-
-    for (const [facts, reason] of cases) {
-      assertStrictEquals(
-        fieldNeverReason(facts),
-        reason,
-        JSON.stringify(facts),
-      );
-    }
-  });
-
-  // Security rule 8: what the page calls a field never lowers the rule.
-  await t.step("a harmless name or type does not clear another hint", () => {
-    assertStrictEquals(
-      fieldNeverReason({
-        type: "password",
-        names: ["comment", "Your message"],
-      }),
-      "password",
-    );
-    assertStrictEquals(
-      fieldNeverReason({
-        type: "text",
-        autocomplete: "off cc-csc",
-        names: ["note"],
-      }),
-      "card",
-    );
-    assertStrictEquals(
-      fieldNeverReason({
-        type: "text",
-        autocomplete: "off",
-        names: ["note", "otp"],
-      }),
-      "one_time_code",
-    );
-  });
 });

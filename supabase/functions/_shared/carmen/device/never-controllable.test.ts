@@ -1,4 +1,4 @@
-import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
+import { assertStrictEquals, assertThrows } from "jsr:@std/assert@1";
 import {
   type EnvironmentName,
   environmentOrigins,
@@ -8,6 +8,7 @@ import {
   isHostWithinAny,
   isNeverControllable,
   neverControllableReason,
+  parseWebAddress,
 } from "./never-controllable.ts";
 
 const ENVIRONMENTS: Array<EnvironmentName> = ["production", "staging"];
@@ -22,22 +23,28 @@ Deno.test("never controllable: each environment's own addresses", async (t) => {
   for (const name of ENVIRONMENTS) {
     const origins = await environmentOrigins(name);
 
-    await t.step(`${name}: the app and its backend`, () => {
-      const [app] = origins.appOrigins;
-      const [backend] = origins.backendOrigins;
+    // With and without configuration: the fixed patterns alone cover both environments.
+    for (const [label, configured] of [
+      ["configured", origins],
+      ["by pattern alone", NO_ORIGINS],
+    ] as const) {
+      await t.step(`${name}, ${label}: the app and its backend`, () => {
+        const [app] = origins.appOrigins;
+        const [backend] = origins.backendOrigins;
 
-      assertStrictEquals(
-        neverControllableReason(`${app}/command-center`, origins),
-        "aios_app",
-      );
-      assertStrictEquals(
-        neverControllableReason(
-          `${backend}/functions/v1/run-ai-agent`,
-          origins,
-        ),
-        "aios_backend",
-      );
-    });
+        assertStrictEquals(
+          neverControllableReason(`${app}/command-center`, configured),
+          "aios_app",
+        );
+        assertStrictEquals(
+          neverControllableReason(
+            `${backend}/functions/v1/run-ai-agent`,
+            configured,
+          ),
+          "aios_backend",
+        );
+      });
+    }
 
     await t.step(`${name}: an ordinary site stays reachable`, () => {
       assertStrictEquals(
@@ -46,27 +53,13 @@ Deno.test("never controllable: each environment's own addresses", async (t) => {
       );
     });
   }
-
-  await t.step(
-    "the configured app addresses are the documented ones",
-    async () => {
-      assertEquals(
-        await Promise.all(ENVIRONMENTS.map(environmentOrigins)).then((all) =>
-          all.flatMap((origins) => origins.appOrigins),
-        ),
-        ["https://aios.co.il", "https://staging.aios.co.il"],
-      );
-    },
-  );
 });
 
 Deno.test(
   "never controllable: AIOS in every environment, with no configuration",
   async (t) => {
     const cases: Array<[string, string]> = [
-      ["https://aios.co.il/", "aios_app"],
       ["https://www.aios.co.il/login", "aios_app"],
-      ["https://staging.aios.co.il/clients", "aios_app"],
       ["https://after-lead-git-develop-aios-crm.vercel.app/", "aios_app"],
       [
         "https://after-lead-git-feat-aio-666-x-aios-crm.vercel.app/",
@@ -75,8 +68,7 @@ Deno.test(
       ["https://after-lead-aios-crm.vercel.app/", "aios_app"],
       ["https://api.aios.co.il/rest/v1/clients", "aios_backend"],
       ["https://api-staging.aios.co.il/auth/v1/user", "aios_backend"],
-      ["https://zvoijyneresvkadpprel.supabase.co/rest/v1/", "aios_backend"],
-      ["https://efwzhyfpkocghdhhhaza.supabase.co/auth/v1/", "aios_backend"],
+      ["https://anyproject.supabase.co/rest/v1/", "aios_backend"],
       ["https://supabase.com/dashboard/project/x", "operations_console"],
       ["https://app.supabase.com/", "operations_console"],
       ["https://vercel.com/aios-crm/after-lead", "operations_console"],
@@ -110,20 +102,34 @@ Deno.test(
       );
     });
 
-    await t.step(
-      "a configured value that is not an address names no host",
-      () => {
-        const origins = {
-          appOrigins: ["", "nonsense"],
-          backendOrigins: ["//"],
-        };
-
-        assertStrictEquals(
-          isNeverControllable("https://example.com/", origins),
-          false,
-        );
-      },
-    );
+    await t.step("a configured value that is not an address throws", () => {
+      for (const value of [
+        "",
+        "nonsense",
+        "//",
+        "crm.example.test",
+        "crm.example.test:8443",
+        "mailto:someone@example.test",
+      ]) {
+        for (const origins of [
+          { appOrigins: [value], backendOrigins: [] },
+          {
+            appOrigins: [],
+            backendOrigins: ["https://db.example.test", value],
+          },
+        ]) {
+          // Whatever the address: a page that is refused anyway still reports it.
+          for (const url of ["https://example.com/", "chrome://settings"]) {
+            assertThrows(
+              () => isNeverControllable(url, origins),
+              TypeError,
+              "Configured origin",
+              value,
+            );
+          }
+        }
+      }
+    });
   },
 );
 
@@ -233,6 +239,18 @@ Deno.test("never controllable: hostile spellings of an address", async (t) => {
       null,
     );
   });
+});
+
+Deno.test("parseWebAddress keeps http and https pages only", () => {
+  assertStrictEquals(
+    parseWebAddress("HTTPS://Example.com./a")?.hostname,
+    "example.com.",
+  );
+  assertStrictEquals(parseWebAddress("http://example.com/")?.protocol, "http:");
+
+  for (const url of ["", "example.com", "ftp://example.com/", "about:blank"]) {
+    assertStrictEquals(parseWebAddress(url), null, url);
+  }
 });
 
 Deno.test("isHostWithinAny matches whole labels only", () => {

@@ -38,14 +38,21 @@ const OPERATIONS_CONSOLE_HOSTS = ["supabase.com", "vercel.com"];
 /** Google's sign-in pages, where a click can grant another party access to the account. */
 const SIGN_IN_HOSTS = ["accounts.google.com"];
 
-/** Why this address is never controllable, or null when it is an ordinary web page. */
+/**
+ * Why this address is never controllable, or null when it is an ordinary web page. Throws
+ * when a configured origin is not an address: see `hostnamesOf`.
+ */
 export function neverControllableReason(
   url: string,
   origins: EnvironmentOrigins,
 ): NeverControllableReason | null {
-  const address = URL.canParse(url) ? new URL(url) : null;
+  const environment = {
+    app: hostnamesOf(origins.appOrigins),
+    backend: hostnamesOf(origins.backendOrigins),
+  };
+  const address = parseWebAddress(url);
 
-  if (!address || !WEB_PROTOCOLS.includes(address.protocol)) {
+  if (!address) {
     return "not_a_web_page";
   }
   // `https://aios.co.il@evil.example/` shows one site and opens another.
@@ -53,7 +60,7 @@ export function neverControllableReason(
     return "credentials_in_address";
   }
 
-  return hostReason(webHostname(address), origins);
+  return hostReason(webHostname(address), environment);
 }
 
 /** Whether no device tool may touch this address. */
@@ -62,6 +69,13 @@ export function isNeverControllable(
   origins: EnvironmentOrigins,
 ): boolean {
   return neverControllableReason(url, origins) !== null;
+}
+
+/** The address when it is an http or https page, otherwise null. */
+export function parseWebAddress(url: string): URL | null {
+  const address = URL.canParse(url) ? new URL(url) : null;
+
+  return address && WEB_PROTOCOLS.includes(address.protocol) ? address : null;
 }
 
 /**
@@ -87,19 +101,19 @@ export function isHostWithinAny(
   );
 }
 
+/** The hosts of this environment's configured origins. */
+type EnvironmentHosts = { app: Set<string>; backend: Set<string> };
+
 /** The first never-rule a host falls under. */
 function hostReason(
   hostname: string,
-  origins: EnvironmentOrigins,
+  environment: EnvironmentHosts,
 ): NeverControllableReason | null {
   // Before the app rule: api.aios.co.il is a subdomain of the app's domain and is the backend.
-  if (
-    isSupabaseApiHost(hostname) ||
-    hostnamesOf(origins.backendOrigins).has(hostname)
-  ) {
+  if (isSupabaseApiHost(hostname) || environment.backend.has(hostname)) {
     return "aios_backend";
   }
-  if (isAppHost(hostname) || hostnamesOf(origins.appOrigins).has(hostname)) {
+  if (isAppHost(hostname) || environment.app.has(hostname)) {
     return "aios_app";
   }
   if (isHostWithinAny(hostname, EXTENSION_STORE_HOSTS)) {
@@ -114,12 +128,22 @@ function hostReason(
 
 /**
  * The hosts of configured origins. Compared by host, not by origin, so the same site on
- * another port or over http is covered too; a value that is not an address names no host.
+ * another port or over http is covered too. A value with no host (empty, or a host written
+ * without `https://`) throws: ignoring it would leave that address controllable with no
+ * signal, so a misconfigured environment refuses every step until it is fixed.
  */
 function hostnamesOf(origins: ReadonlyArray<string>): Set<string> {
-  return new Set(
-    origins
-      .filter((origin) => URL.canParse(origin))
-      .map((origin) => webHostname(new URL(origin))),
-  );
+  return new Set(origins.map(configuredHostname));
+}
+
+/** The host of one configured origin. */
+function configuredHostname(origin: string): string {
+  const hostname = URL.canParse(origin) ? webHostname(new URL(origin)) : "";
+
+  if (!hostname) {
+    throw new TypeError(
+      `Configured origin is not an address: ${JSON.stringify(origin)}`,
+    );
+  }
+  return hostname;
 }
