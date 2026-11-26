@@ -38,6 +38,7 @@ const tables = {
 async function syncWithRefusal(refused: Response) {
   const http = fakeSupabaseHttp({
     supabaseUrl: SUPABASE_URL,
+    rpc: { google_integration_tokens: () => [] },
     tables,
     other: (url) =>
       url.hostname === "oauth2.googleapis.com"
