@@ -7,11 +7,11 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { toAddressGender } from "../../supabase/functions/_shared/carmen/address-gender";
 import {
   type MiniMeGender,
   resolveMiniMeGender,
-} from "@/components/carmen/MiniMe/miniMeGender";
-import { toAddressGender } from "../../supabase/functions/_shared/carmen/address-gender";
+} from "../../supabase/functions/_shared/carmen/minime-gender";
 
 /** The signed-in user's Mini Me set (`profiles.minime_gender`), and a way to change it. */
 export function useMiniMeGender() {
