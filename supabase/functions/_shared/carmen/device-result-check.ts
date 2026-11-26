@@ -6,11 +6,13 @@
  * refused too, so text typed into a page or a field's value has nowhere to travel. Text
  * PostgreSQL cannot store (a NUL, half of a surrogate pair) is refused here, where the
  * panel gets `invalid_result`, instead of failing the write.
+ *
+ * carmen-device-action checks a report before it stores it, and run-ai-agent checks the
+ * stored result again before the model sees it. Outside `device/` because it uses
+ * `String.prototype.isWellFormed`, which the extension's TypeScript target lacks, and the
+ * extension type-checks that whole folder.
  */
-import {
-  type DeviceToolName,
-  isDeviceToolName,
-} from "../_shared/carmen/device/contract.ts";
+import { type DeviceToolName, isDeviceToolName } from "./device/contract.ts";
 import {
   type DeviceToolResult,
   PAGE_ELEMENT_FIELD_MAX,
@@ -19,8 +21,8 @@ import {
   READ_PAGE_ELEMENTS_MAX,
   READ_PAGE_TEXT_MAX,
   RESULT_FIELD_MAX,
-} from "../_shared/carmen/device/results.ts";
-import { WEB_PROTOCOLS } from "../_shared/carmen/screen-context.ts";
+} from "./device/results.ts";
+import { WEB_PROTOCOLS } from "./screen-context.ts";
 
 type Check = (value: unknown) => boolean;
 

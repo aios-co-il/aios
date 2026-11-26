@@ -1,12 +1,12 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { DEVICE_TOOL_NAMES } from "../_shared/carmen/device/contract.ts";
+import { DEVICE_TOOL_NAMES } from "./device/contract.ts";
 import {
   PAGE_ELEMENT_FIELD_MAX,
   READ_PAGE_ELEMENTS_MAX,
   READ_PAGE_TEXT_MAX,
   RESULT_FIELD_MAX,
-} from "../_shared/carmen/device/results.ts";
-import { pageLocation, toolResult } from "./result.ts";
+} from "./device/results.ts";
+import { pageLocation, toolResult } from "./device-result-check.ts";
 
 const ME = "11111111-1111-4111-8111-111111111111";
 const COLLEAGUE = "22222222-2222-4222-8222-222222222222";

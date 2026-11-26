@@ -9,7 +9,7 @@ import {
 } from "../_shared/carmen/device/card-rule.ts";
 import type { DeviceActionStatus } from "../_shared/carmen/device/contract.ts";
 import type { PageLocation } from "../_shared/carmen/device/results.ts";
-import { pageLocation } from "./result.ts";
+import { pageLocation } from "../_shared/carmen/device-result-check.ts";
 
 /**
  * The statuses a panel may report. `pending` and `claimed` are written by the server and

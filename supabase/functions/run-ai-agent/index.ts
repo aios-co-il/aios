@@ -1830,6 +1830,13 @@ import {
 } from "./fast-lane/answer.ts";
 import { loadOrgBrief } from "../_shared/carmen/org-brief/brief.ts";
 import { type FastLaneCaller, fastLaneBriefScope } from "./fast-lane/scope.ts";
+import {
+  type DeviceActionReply,
+  deviceActionOf,
+  devicePauseAnswer,
+  openDeviceTurn,
+} from "./device-turn/turn.ts";
+import { deviceRequestOf } from "./device-turn/request.ts";
 
 // Emit function used by the streaming wrapper to push SSE events to the client.
 // In non-streaming mode it's a no-op.
@@ -2122,7 +2129,8 @@ async function handleRunAgent(
             .slice(-24);
         }
       }
-      if (!serverConversationId) {
+      // A device continuation resumes its step's own conversation, never a new one.
+      if (!serverConversationId && !deviceRequestOf(bodyJson).continuation) {
         const clientHistory = (
           Array.isArray(conversation_history) ? conversation_history : []
         )
@@ -2154,6 +2162,27 @@ async function handleRunAgent(
       }
     }
 
+    // Steps in the user's browser (./device-turn): a continuation resumes its run from the
+    // step's row or is answered here; a typed message closes the steps nobody will finish.
+    const deviceTurn = await openDeviceTurn(supabase, emit, {
+      body: bodyJson,
+      authKind: request.authKind,
+      surface,
+      isCarmen: isCarmenAgent,
+      pinSkillsOnly,
+      inWorkshop: inWorkshopRequest,
+      automationRun,
+      taskMode: task_mode,
+      pickedBrain: Boolean(brainEngine),
+      agentEngine: modelOverride || agent.engine,
+      tenantId: resolvedTenantId,
+      userId: callerUserId,
+      conversationId: serverConversationId,
+    });
+    if (deviceTurn.reply) {
+      return deviceTurn.reply;
+    }
+
     // A quick model answers small talk and what the org brief already covers before the full
     // setup (memory, skills, tools) runs; anything else falls through unchanged (fast-lane/).
     const fastLaneChannel: FastLaneChannel | null =
@@ -2172,6 +2201,7 @@ async function handleRunAgent(
         channel: fastLaneChannel,
         isCarmen: isCarmenAgent,
         pinned: Boolean(
+          deviceTurn.continuing ||
           brainEngine ||
           modelOverride ||
           pinSkillsOnly ||
@@ -4013,6 +4043,17 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       );
     }
 
+    // After every tool source above: a turn holding page text loses the tools that send or
+    // write, and only a turn from the extension's panel is offered the browser read.
+    filteredTools = deviceTurn.withoutWithheld(filteredTools);
+    exposedMcpTools.splice(
+      0,
+      exposedMcpTools.length,
+      ...deviceTurn.withoutWithheld(exposedMcpTools),
+    );
+    rebuildToolsForApi();
+    expandAgentTools(deviceTurn.offeredTools);
+
     // Build messages with conversation history
     const messages: Array<any> = [{ role: "system", content: systemPrompt }];
 
@@ -4028,9 +4069,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       }
     }
 
-    // Add current message. A browser tab the extension's panel reported joins it as data:
-    // the page wrote its title and address, so they never reach the system prompt.
-    const userTurn = withBrowserTab(command_text, bodyJson.context_metadata);
+    // Add current message. A browser tab the extension's panel reported, and a resumed
+    // device step's outcome, join it as data: a page wrote them, so they never reach the
+    // system prompt.
+    const userTurn = deviceTurn.userTurn(
+      withBrowserTab(command_text, bodyJson.context_metadata),
+    );
     messages.push({ role: "user", content: userTurn });
 
     let finalOutput = "";
@@ -4161,6 +4205,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     // The chat's stop button: checked before each round and each tool (_shared/carmen/run-stop.ts).
     const runStopped = runStopCheck(supabase, bodyJson.run_id, callerUserId);
     let stoppedByUser = false;
+    // A device tool call ends the turn; the site hands this step to the extension's panel.
+    let deviceAction: DeviceActionReply | null = null;
     for (let round = 0; round < maxRounds; round++) {
       if (await runStopped()) {
         stoppedByUser = true;
@@ -4398,6 +4444,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             };
           } else if (workshopRefusal) {
             result = workshopRefusal;
+          } else if (deviceTurn.handles(toolName)) {
+            result = await deviceTurn.call(toolName, toolArgs);
           } else if (toolName === "search_agent_tools") {
             const discovered = (
               await searchToolsFromIndex(
@@ -4539,6 +4587,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           }
         }
 
+        // Read from the result, never from tool_call: only a written row is a step. One per message.
+        deviceAction = deviceActionOf(result);
+        if (deviceAction) {
+          emit?.({ type: "device_action", ...deviceAction });
+          break;
+        }
+
         if (
           round === 0 &&
           toolName === "get_latest_campaign_pulse" &&
@@ -4573,6 +4628,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       }
 
       messages.push(...toolResults);
+      // The turn ends at the step: the model's own text is the answer, never the filler.
+      if (deviceAction) {
+        finalOutput = devicePauseAnswer(msg.content);
+        emitText(finalOutput);
+        break;
+      }
       if (budgetSay) {
         sayToUser.push(budgetSay);
       }
@@ -4621,7 +4682,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         userId: callerUserId,
         conversationId: serverConversationId,
         history: serverConversationHistory,
-        message: String(command_text),
+        // A continuation's text is the fixed contract string: only its answer is saved.
+        message: deviceTurn.continuing ? null : String(command_text),
         answer: String(finalOutput || ""),
       });
     }
@@ -4703,6 +4765,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         tools_used: toolLog.map((t) => t.tool),
         tool_log: toolLog,
         conversation_id: serverConversationId,
+        device_action: deviceAction,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
@@ -4867,7 +4930,10 @@ async function fastLaneTarget(
   return null;
 }
 
-/** Saves the user's message and the answer to the conversation (last 60 messages). */
+/**
+ * Saves the user's message and the answer to the conversation (last 60 messages); the
+ * answer alone when there is no message of the user's to save (a device continuation).
+ */
 async function saveConversationTurn(
   supabase: AgentDatabaseClient,
   turn: {
@@ -4875,13 +4941,13 @@ async function saveConversationTurn(
     userId: string;
     conversationId: string;
     history: Array<ChatTurn>;
-    message: string;
+    message: string | null;
     answer: string;
   },
 ): Promise<void> {
   const messages = [
     ...turn.history,
-    { role: "user", content: turn.message },
+    ...(turn.message === null ? [] : [{ role: "user", content: turn.message }]),
     { role: "assistant", content: turn.answer },
   ].slice(-60);
   const { error } = await supabase
@@ -5289,6 +5355,7 @@ Deno.serve(async (req) => {
             output: final.output,
             tools_used: final.tools_used,
             error: final.error,
+            device_action: final.device_action,
           });
         } catch (e: any) {
           emit({ type: "error", error: e?.message || String(e) });

@@ -17,7 +17,7 @@ Deno.test(
     await t.step("Carmen's loop adds it to the user message it sends", () => {
       assert(
         runAiAgent.includes(
-          "const userTurn = withBrowserTab(command_text, bodyJson.context_metadata);",
+          "const userTurn = deviceTurn.userTurn(\n      withBrowserTab(command_text, bodyJson.context_metadata),\n    );",
         ),
       );
       assert(runAiAgent.includes('{ role: "user", content: userTurn }'));
