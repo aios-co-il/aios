@@ -262,6 +262,8 @@ body.panel {
 .grant-text {
   margin: 4px 0 8px;
   color: var(--text-muted);
+  /* A navigation card shows the full address, which may be one long word. */
+  overflow-wrap: anywhere;
 }
 .grant-actions {
   display: flex;

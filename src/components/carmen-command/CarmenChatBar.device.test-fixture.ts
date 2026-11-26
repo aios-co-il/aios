@@ -1,12 +1,16 @@
 // The run-ai-agent stand-in for the chat's browser-step tests: stream responses as the
 // function writes them, and the body of every request the chat sent.
 import { vi } from "vitest";
-import { DEVICE_ACTION_EVENT } from "@functions/_shared/carmen/device/contract.ts";
+import {
+  DEVICE_ACTION_EVENT,
+  type DeviceToolName,
+} from "@functions/_shared/carmen/device/contract.ts";
+import { browserTabContextMetadata } from "@functions/_shared/carmen/screen-context.ts";
+import type { ScreenContextMetadata } from "@/lib/systemFixContext";
 import { ACTION_ID } from "./device/panelStep.test-fixture";
 
 export const CONVERSATION = "11111111-2222-4333-8444-555555555555";
 export const PLAN = "אקרא את הדף.";
-const STEP = { action_id: ACTION_ID, tool: "browser_read_page" };
 
 /** The bodies of the run-ai-agent requests, in order. */
 export const bodies: Array<Record<string, unknown>> = [];
@@ -46,12 +50,14 @@ export function streamOf(...events: Array<object>) {
   };
 }
 
-/** A turn that paused at the read, in the stream's two shapes. */
-export function pausedTurn() {
+/** A turn that paused at a step (the read by default), in the stream's two shapes. */
+export function pausedTurn(tool: DeviceToolName = "browser_read_page") {
+  const step = { action_id: ACTION_ID, tool };
+
   return streamOf(
     { type: "token", content: PLAN },
-    { type: DEVICE_ACTION_EVENT, ...STEP },
-    { type: "done", success: true, output: PLAN, device_action: STEP },
+    { type: DEVICE_ACTION_EVENT, ...step },
+    { type: "done", success: true, output: PLAN, device_action: step },
   );
 }
 
@@ -63,5 +69,13 @@ export function serverAnswers(...responses: Array<unknown>) {
       bodies.push(JSON.parse(init.body));
       return responses.shift() ?? streamOf({ type: "done", success: true });
     }),
+  );
+}
+
+/** The tab context the panel reports for an address. */
+export function tabAt(url: string): ScreenContextMetadata {
+  return browserTabContextMetadata(
+    { url, title: "Tab" },
+    new Date(0).toISOString(),
   );
 }

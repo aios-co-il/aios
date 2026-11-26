@@ -56,6 +56,64 @@ export async function readPage(tabId: number): Promise<unknown> {
 }
 
 /**
+ * Sends the tab to the address and resolves once Chrome reports the load that followed
+ * complete. Opening an address needs no site grant. Rejects when the tab is closed or
+ * Chrome refuses the address; a stop removes the listeners, and the step's card life
+ * bounds the wait (navigateFlow.ts).
+ */
+export function navigateTab(
+  tabId: number,
+  url: string,
+  signal: AbortSignal,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    // A `complete` before this load started belongs to the page being left.
+    let loading = false;
+
+    /** Follows the tab's load. */
+    function onUpdated(id: number, change: chrome.tabs.TabChangeInfo): void {
+      if (id !== tabId) {
+        return;
+      }
+      if (change.status === "loading") {
+        loading = true;
+      } else if (change.status === "complete" && loading) {
+        finish();
+      }
+    }
+
+    /** The tab was closed under the step. */
+    function onRemoved(id: number): void {
+      if (id === tabId) {
+        finish(new Error("The tab was closed while it loaded"));
+      }
+    }
+
+    /** Ends the wait once and drops the listeners. */
+    function finish(error?: unknown): void {
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+      chrome.tabs.onRemoved.removeListener(onRemoved);
+      signal.removeEventListener("abort", onStop);
+      if (error === undefined) {
+        resolve();
+      } else {
+        reject(error);
+      }
+    }
+
+    /** The step was stopped; navigateFlow has already stopped waiting. */
+    function onStop(): void {
+      finish(new Error("The navigation wait was stopped"));
+    }
+
+    chrome.tabs.onUpdated.addListener(onUpdated);
+    chrome.tabs.onRemoved.addListener(onRemoved);
+    signal.addEventListener("abort", onStop, { once: true });
+    chrome.tabs.update(tabId, { url }).catch(finish);
+  });
+}
+
+/**
  * Removes every site grant beyond the manifest's own host permissions (plan §2.6). One
  * origin at a time, since Chrome refuses a removal as a whole when any origin in it fails.
  * Never rejects: a grant Chrome keeps is logged, and the next panel open tries again.

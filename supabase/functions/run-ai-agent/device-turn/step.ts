@@ -1,7 +1,7 @@
 /**
- * The model called a device tool (AIO-686). The server checks the call and the page, writes
- * one pending `carmen_device_actions` row and ends the turn; the panel claims the row by its
- * id. A call that fails a check writes no row and goes back to the model as a tool error,
+ * The model called a device tool (AIO-686). The server checks the call and the page (and a
+ * navigation's destination), writes one pending `carmen_device_actions` row and ends the
+ * turn; the panel claims the row by its id. A call that fails a check writes no row and goes back to the model as a tool error,
  * so the turn goes on without a step.
  */
 import {
@@ -15,6 +15,7 @@ import {
   type DeviceToolName,
   isDeviceToolName,
 } from "../../_shared/carmen/device/contract.ts";
+import { navigateDestination } from "../../_shared/carmen/device/navigate-destination.ts";
 import type { EnvironmentOrigins } from "../../_shared/carmen/device/never-controllable.ts";
 import {
   type DeviceDb,
@@ -48,7 +49,8 @@ export async function startDeviceStep(
   if (!isDeviceToolName(toolName) || !turn.offered.includes(toolName)) {
     return notOffered(toolName);
   }
-  if (!argumentsFit(toolName, args)) {
+  const stored = storedArguments(toolName, args);
+  if (!stored) {
     return refusal(toolName, "invalid_arguments", "הארגומנטים לא תואמים לכלי.");
   }
   const steps = await readRunSteps(db, turn);
@@ -59,14 +61,19 @@ export async function startDeviceStep(
       "הגעתי למספר הפעולות בדפדפן להודעה אחת.",
     );
   }
-  const rule = cardRule(toolName, turn, tabTainted(turn, steps));
-  if (rule !== "free" && rule !== "ask") {
-    return refusal(toolName, rule, "אין לי גישה לדף הזה.");
+  const tainted = tabTainted(turn, steps);
+  // A navigation is ruled on twice: the tab it leaves and the destination it opens.
+  const refused = [turn.tabUrl, ...(stored.url ? [stored.url] : [])]
+    .map((url) => cardRule(toolName, url, turn.origins, tainted))
+    .find((rule) => rule !== "free" && rule !== "ask");
+  if (refused) {
+    return refusal(toolName, refused, "אין לי גישה לדף הזה.");
   }
 
   const actionId = await insertStep(db, {
     ...turn,
     tool: toolName,
+    arguments: stored,
     now: turn.now(),
   });
   return {
@@ -75,38 +82,54 @@ export async function startDeviceStep(
   };
 }
 
-/** Whether the arguments are exactly the tool's: every argument it names, each a string, nothing else. */
-function argumentsFit(tool: DeviceToolName, args: unknown): boolean {
+/**
+ * The arguments the row stores, or null unless they are exactly the tool's: every argument
+ * it names, each a string, nothing else. A navigation's destination must also be one
+ * address (`navigateDestination`), stored as the parser writes it, so the card rule and
+ * the panel read the same address.
+ */
+function storedArguments(
+  tool: DeviceToolName,
+  args: unknown,
+): Record<string, string> | null {
+  if (tool === "browser_navigate") {
+    const url = navigateDestination(args);
+    return url ? { url } : null;
+  }
   if (!args || typeof args !== "object" || Array.isArray(args)) {
-    return false;
+    return null;
   }
   const expected = Object.keys(DEVICE_TOOLS[tool].parameters.properties);
   const given = Object.entries(args);
-
-  return (
-    given.length === expected.length &&
-    given.every(
-      ([name, value]) => expected.includes(name) && typeof value === "string",
-    )
+  const strings = given.flatMap(([name, value]) =>
+    typeof value === "string" && expected.includes(name)
+      ? [[name, value] as const]
+      : [],
   );
+
+  return given.length === expected.length && strings.length === given.length
+    ? Object.fromEntries(strings)
+    : null;
 }
 
 /**
- * The card rule for the step on the reported tab, or `configuration` when the contract
- * throws on this environment's settings: logged, and the step is refused.
+ * The card rule for the step on one page (the reported tab, or a navigation's
+ * destination), or `configuration` when the contract throws on this environment's
+ * settings: logged, and the step is refused.
  */
 function cardRule(
   tool: DeviceToolName,
-  turn: StepTurn,
+  url: string,
+  origins: EnvironmentOrigins,
   tainted: boolean,
 ): string {
   try {
     return deviceCardRule({
       tool,
-      url: turn.tabUrl,
+      url,
       trusted: false,
       tainted,
-      origins: turn.origins,
+      origins,
       // The tenant's own floor hosts arrive with the act tools (AIO-656).
       addedActNeverHosts: [],
       // Unknown on the server, so the tighter answer.

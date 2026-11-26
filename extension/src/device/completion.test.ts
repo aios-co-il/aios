@@ -23,7 +23,7 @@ describe("completeBody", () => {
     const body = completeBody(ID, {
       status: "done",
       asked: false,
-      snapshot: SNAPSHOT,
+      result: SNAPSHOT,
     });
 
     expect(body).toEqual({
@@ -35,14 +35,14 @@ describe("completeBody", () => {
       result: SNAPSHOT,
     });
     expect(
-      serverReading({ status: "done", asked: false, snapshot: SNAPSHOT }),
+      serverReading({ status: "done", asked: false, result: SNAPSHOT }),
     ).not.toBeNull();
     expect(toolResult("browser_read_page", body.result, "")).not.toBeNull();
   });
 
   it("reports a read after the card as done and ask", () => {
     expect(
-      completeBody(ID, { status: "done", asked: true, snapshot: SNAPSHOT })
+      completeBody(ID, { status: "done", asked: true, result: SNAPSHOT })
         .decision,
     ).toBe("ask");
   });

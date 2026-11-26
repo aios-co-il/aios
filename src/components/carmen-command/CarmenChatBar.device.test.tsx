@@ -5,6 +5,7 @@ import {
   DEVICE_CONTINUATION_TEXT,
   DEVICE_STEP_UNAVAILABLE,
 } from "@functions/_shared/carmen/device/contract.ts";
+import type { ScreenContextMetadata } from "@/lib/systemFixContext";
 import { createTestQueryHarness } from "@/test/withTestQuery";
 import { resetChannel } from "./brainChannelApi.test-fixture";
 import { CarmenChatBar } from "./CarmenChatBar";
@@ -15,6 +16,7 @@ import {
   PLAN,
   serverAnswers,
   streamOf,
+  tabAt,
 } from "./CarmenChatBar.device.test-fixture";
 import { resetChat } from "./CarmenChatBar.test-fixture";
 import { resetBackend } from "./choices/carmenChoiceQueries.test-fixture";
@@ -60,8 +62,14 @@ const TENANT = "tenant-a";
 const PAGE_ANSWER = "בדף כתוב: מחירים.";
 const WORKING = "עובדת בדפדפן שלך…";
 
-/** The chat, framed by a panel or not. */
-function Chat({ panel }: { panel: PanelChannel | null }) {
+/** The chat, framed by a panel or not, beside the tab the panel shares. */
+function Chat({
+  panel,
+  tab = null,
+}: {
+  panel: PanelChannel | null;
+  tab?: ScreenContextMetadata | null;
+}) {
   const brain = useBrainChannel(TENANT);
 
   return (
@@ -73,20 +81,24 @@ function Chat({ panel }: { panel: PanelChannel | null }) {
       mode="sidecar"
       startFresh
       browserPanel={panel}
+      contextMetadata={tab}
     />
   );
 }
 
 /** Opens the chat and sends one typed message. */
-async function sendMessage(panel: PanelChannel | null) {
+async function sendMessage(
+  panel: PanelChannel | null,
+  tab: ScreenContextMetadata | null = null,
+) {
   const user = userEvent.setup();
   const { wrapper } = createTestQueryHarness();
-  render(<Chat panel={panel} />, { wrapper });
+  const { rerender } = render(<Chat panel={panel} tab={tab} />, { wrapper });
   const input = await screen.findByRole("textbox");
 
   await user.type(input, "מה כתוב בדף?{Enter}");
   await waitFor(() => expect(bodies.length).toBeGreaterThan(0));
-  return user;
+  return { user, rerender };
 }
 
 beforeEach(() => {
@@ -166,6 +178,25 @@ describe("CarmenChatBar in the extension's panel", () => {
     expect(screen.queryByText(WORKING)).not.toBeInTheDocument();
   });
 
+  it("continues with the tab the panel shares now, which a navigation may have moved", async () => {
+    const { panel, deliverResult } = fakePanel(["browser_navigate"]);
+    serverAnswers(pausedTurn("browser_navigate"));
+
+    const { rerender } = await sendMessage(
+      panel,
+      tabAt("https://shop.example/"),
+    );
+    await waitFor(() => expect(panel.postAction).toHaveBeenCalled());
+    rerender(<Chat panel={panel} tab={tabAt("https://store.example/cart")} />);
+    deliverResult(ACTION_ID);
+
+    await waitFor(() => expect(bodies).toHaveLength(2));
+    expect(bodies).toMatchObject([
+      { context_metadata: { url: "https://shop.example/" } },
+      { context_metadata: { url: "https://store.example/cart" } },
+    ]);
+  });
+
   it("says plainly that it cannot go on when the server refuses the continuation", async () => {
     const { panel, deliverResult } = fakePanel();
     serverAnswers(
@@ -208,7 +239,7 @@ describe("CarmenChatBar in the extension's panel", () => {
     const { panel, deliverResult } = fakePanel();
     serverAnswers(pausedTurn());
 
-    const user = await sendMessage(panel);
+    const { user } = await sendMessage(panel);
     await waitFor(() => expect(panel.postAction).toHaveBeenCalled());
     await user.type(screen.getByRole("textbox"), "עזבי{Enter}");
 
@@ -233,7 +264,7 @@ describe("CarmenChatBar in the extension's panel", () => {
       ),
     );
 
-    const user = await sendMessage(panel);
+    const { user } = await sendMessage(panel);
     await waitFor(() => expect(panel.postAction).toHaveBeenCalled());
     await user.click(screen.getByRole("button", { name: "עצירה" }));
 

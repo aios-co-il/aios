@@ -2,7 +2,7 @@
  * Carmen's device steps on one run-ai-agent turn (AIO-686, plan PR 3): what handleRunAgent
  * asks at each point of the turn, so index.ts holds only the calls.
  *
- * A typed message from the extension's panel may be offered `browser_read_page`. When the
+ * A typed message from the extension's panel may be offered `OFFERED_DEVICE_TOOLS`. When the
  * model calls it, `call` writes one pending row and the loop ends the turn with
  * `device_action {action_id, tool}` in the stream and the reply; the site hands the id to
  * the panel, which claims, reads and completes the row (carmen-device-action). The site then

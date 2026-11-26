@@ -13,10 +13,24 @@ export class StepStopped extends Error {}
  * step's life. The call itself runs on; its answer is dropped.
  */
 export function stoppable(deps: ReadDeps, progress: ReadProgress): ReadDeps {
-  const signal = progress.stopper.signal;
+  const until = untilStopped(progress.stopper.signal);
 
-  /** The wait, or `StepStopped` as soon as the step is stopped. */
-  function until<T>(work: Promise<T>): Promise<T> {
+  return {
+    ...deps,
+    isTabShared: () => until(deps.isTabShared()),
+    activeTab: () => until(deps.activeTab()),
+    tab: (tabId) => until(deps.tab(tabId)),
+    hasGrant: (pattern) => until(deps.hasGrant(pattern)),
+    askGrant: (site, stop) => until(deps.askGrant(site, stop)),
+    readPage: (tabId) => until(deps.readPage(tabId)),
+  };
+}
+
+/** Races any wait against the signal: the wait's answer, or `StepStopped` as soon as the step is stopped. */
+export function untilStopped(
+  signal: AbortSignal,
+): <T>(work: Promise<T>) => Promise<T> {
+  return function until<T>(work: Promise<T>): Promise<T> {
     if (signal.aborted) {
       return Promise.reject(new StepStopped());
     }
@@ -31,15 +45,5 @@ export function stoppable(deps: ReadDeps, progress: ReadProgress): ReadDeps {
         .finally(() => signal.removeEventListener("abort", onStop))
         .then(resolve, reject);
     });
-  }
-
-  return {
-    ...deps,
-    isTabShared: () => until(deps.isTabShared()),
-    activeTab: () => until(deps.activeTab()),
-    tab: (tabId) => until(deps.tab(tabId)),
-    hasGrant: (pattern) => until(deps.hasGrant(pattern)),
-    askGrant: (site, stop) => until(deps.askGrant(site, stop)),
-    readPage: (tabId) => until(deps.readPage(tabId)),
   };
 }

@@ -35,7 +35,7 @@ export function extensionManifest(
     name: environment.name === "production" ? NAME : `${NAME} (Staging)`,
     description:
       "Record meetings into the AIOS recordings library with automatic transcription and summary",
-    version: "1.1",
+    version: "1.2",
     // The panel's newest API: URL.canParse, in the tab parser it shares with the site.
     minimum_chrome_version: "120",
     // Fixes an unpacked build's id, which the site's framing rule (vercel.json) names.

@@ -35,15 +35,10 @@
       aria-labelledby="grant-title"
     >
       <div id="grant-title" class="grant-title"></div>
-      <p class="grant-text">
-        כרמן תקרא את הכותרת, את הטקסט ואת שמות הכפתורים, הקישורים והשדות שמוצגים
-        בדף, בלי מה שמוקלד בשדות. Chrome יבקש לאשר לתוסף "לקרוא ולשנות" את האתר
-        הזה; כרמן רק קוראת, וההרשאה תוסר כשהחלונית תיפתח מחדש.
-      </p>
+      <!-- The words come from src/device/cardWords.ts, per step. -->
+      <p id="grant-text" class="grant-text"></p>
       <div class="grant-actions">
-        <button id="grant-allow" class="btn primary" type="button">
-          לאפשר קריאה
-        </button>
+        <button id="grant-allow" class="btn primary" type="button"></button>
         <button id="grant-decline" class="btn secondary" type="button">
           לא עכשיו
         </button>

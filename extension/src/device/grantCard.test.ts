@@ -10,11 +10,12 @@ let elements: GrantCardElements;
 beforeEach(() => {
   vi.useFakeTimers();
   document.body.innerHTML = `
-    <div id="card" class="hidden"><div id="title"></div>
+    <div id="card" class="hidden"><div id="title"></div><p id="text"></p>
       <button id="allow">allow</button><button id="decline">decline</button></div>`;
   elements = {
     card: byId("card", HTMLElement),
     title: byId("title", HTMLElement),
+    text: byId("text", HTMLElement),
     allow: byId("allow", HTMLButtonElement),
     decline: byId("decline", HTMLButtonElement),
   };

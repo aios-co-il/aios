@@ -233,6 +233,9 @@ export const CarmenChatBar = forwardRef<
 ) {
   const identity = useCarmenIdentity();
   const isSidecar = mode === "sidecar";
+  // A browser step may move the tab, so a continuation sends the tab the panel shares now.
+  const contextMetadataRef = useRef(contextMetadata);
+  contextMetadataRef.current = contextMetadata;
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<
     Array<CommandCenterAttachment>
@@ -923,7 +926,7 @@ export const CarmenChatBar = forwardRef<
                   agentText,
                   history,
                   streamed.conversationId,
-                  ctxMeta,
+                  isSidecar ? contextMetadataRef.current : null,
                   routed.run_brain,
                   {
                     tools,

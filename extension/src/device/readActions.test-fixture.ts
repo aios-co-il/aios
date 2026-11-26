@@ -1,5 +1,5 @@
 /**
- * A fake Chrome, card and carmen-device-action for readActions.test.ts: each call is
+ * A fake Chrome, card and carmen-device-action for the read and navigate tests: each call is
  * recorded, and each answer can be replaced per test.
  */
 import { vi } from "vitest";
@@ -13,6 +13,8 @@ export const PAGE_URL = "https://shop.example/items?token=secret";
 /** A controllable card: resolves when the test answers, or when the step is stopped. */
 export type FakeCard = {
   shown: Array<{ host: string; pattern: string }>;
+  /** The navigation cards shown, in order. */
+  navigations: Array<{ fromHost: string; host: string; href: string }>;
   answer: (answer: GrantAnswer) => void;
 };
 
@@ -31,6 +33,10 @@ export type FakeDevice = {
   setActiveTabId: (id: number) => void;
   /** Fires the expiry timer. */
   expire: () => void;
+  /** Where a navigation lands from now on: a redirect; by default its own destination. */
+  setLandingUrl: (url: string) => void;
+  /** The tab's addresses each navigation was asked for. */
+  navigatedTo: Array<{ tabId: number; url: string }>;
 };
 
 /** A fake device on a granted https page, with a claim that succeeds for a read. */
@@ -42,11 +48,14 @@ export function fakeDevice(
   let activeTabId = 7;
   let expiry: (() => void) | null = null;
   let answerCard: ((answer: GrantAnswer) => void) | null = null;
+  let landingUrl: string | null = null;
+  const navigatedTo: Array<{ tabId: number; url: string }> = [];
   const completed: Array<CompleteBody> = [];
   const closingCompletions: Array<CompleteBody> = [];
   const posted: Array<string> = [];
   const card: FakeCard = {
     shown: [],
+    navigations: [],
     answer: (answer) => answerCard?.(answer),
   };
 
@@ -85,6 +94,21 @@ export function fakeDevice(
           signal.addEventListener("abort", () => resolve("stopped"));
         }),
     ),
+    askNavigate: vi.fn(
+      (
+        step: { fromHost: string; host: string; href: string },
+        signal: AbortSignal,
+      ) =>
+        new Promise<GrantAnswer>((resolve) => {
+          card.navigations.push(step);
+          answerCard = resolve;
+          signal.addEventListener("abort", () => resolve("stopped"));
+        }),
+    ),
+    navigateTab: vi.fn(async (tabId: number, url: string) => {
+      navigatedTo.push({ tabId, url });
+      tabUrl = landingUrl ?? url;
+    }),
     readPage: vi.fn(async () => ({
       origin: "https://shop.example",
       text: "Item one  costs 10",
@@ -116,6 +140,10 @@ export function fakeDevice(
       activeTabId = id;
     },
     expire: () => expiry?.(),
+    setLandingUrl: (url) => {
+      landingUrl = url;
+    },
+    navigatedTo,
   };
 }
 

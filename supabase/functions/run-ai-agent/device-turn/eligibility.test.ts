@@ -126,6 +126,26 @@ Deno.test(
       },
     );
 
+    await t.step(
+      "the navigation beside the read, under the same conditions, when the panel announced it",
+      () => {
+        const announced = ["browser_read_page", "browser_navigate"] as const;
+
+        assertEquals(
+          offeredDeviceTools(deviceTurnVerdict(facts()), announced, 0),
+          ["browser_read_page", "browser_navigate"],
+        );
+        assertEquals(
+          offeredDeviceTools(
+            deviceTurnVerdict(facts({ authKind: "service" })),
+            announced,
+            0,
+          ),
+          [],
+        );
+      },
+    );
+
     await t.step("not when the panel did not announce the read", () => {
       assertEquals(
         offeredDeviceTools(deviceTurnVerdict(facts()), ["browser_click"], 0),

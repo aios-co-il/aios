@@ -39,6 +39,7 @@ describe("deviceActionApi", () => {
     expect(await api.claim(ID)).toEqual({
       ok: true,
       tool: "browser_read_page",
+      arguments: {},
     });
     expect(fetch).toHaveBeenCalledWith(
       ENDPOINT,
@@ -52,6 +53,19 @@ describe("deviceActionApi", () => {
         }),
       }),
     );
+  });
+
+  it("hands a navigation's claimed arguments over unread, for the flow to check", async () => {
+    const { api } = apiAnswering(200, {
+      tool: "browser_navigate",
+      arguments: { url: "https://shop.example/" },
+    });
+
+    expect(await api.claim(ID)).toEqual({
+      ok: true,
+      tool: "browser_navigate",
+      arguments: { url: "https://shop.example/" },
+    });
   });
 
   it("answers a refused claim, a missing session and a network failure without throwing", async () => {

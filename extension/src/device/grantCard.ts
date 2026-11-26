@@ -1,9 +1,11 @@
 /**
- * The card the panel draws itself (plan rule 6) before Carmen reads a site for the first
- * time in this panel: it names the site from the tab's real address, and its allow button
+ * The card the panel draws itself (plan rule 6): before Carmen reads a site for the first
+ * time in this panel, and before every navigation. It names the site from the tab's real
+ * address or the claimed row, never from the framed site. The read card's allow button
  * asks Chrome for that one site from the tap, the user gesture Chrome requires. The
  * buttons wake after a short delay, so a tap meant for the chat below does not land on it.
  */
+import { type CardWords, readCardWords } from "./cardWords.ts";
 import type { GrantAnswer } from "./readFlow.ts";
 
 const BUTTON_DELAY_MS = 500;
@@ -12,17 +14,13 @@ const BUTTON_DELAY_MS = 500;
 export type GrantCardElements = {
   card: HTMLElement;
   title: HTMLElement;
+  text: HTMLElement;
   allow: HTMLButtonElement;
   decline: HTMLButtonElement;
 };
 
-/** The title line naming the site. */
-export function grantCardTitle(host: string): string {
-  return `כרמן מבקשת לקרוא את הדף באתר ${host}`;
-}
-
 /**
- * Shows the card for one site until a tap or a stop. `requestGrant` is called
+ * Shows the read card for one site until a tap or a stop. `requestGrant` is called
  * synchronously in the allow handler, before anything awaits.
  */
 export function askGrantOnCard(
@@ -30,6 +28,21 @@ export function askGrantOnCard(
   site: { host: string; pattern: string },
   signal: AbortSignal,
   requestGrant: (pattern: string) => Promise<boolean>,
+): Promise<GrantAnswer> {
+  return askOnCard(elements, readCardWords(site.host), signal, () =>
+    requestGrant(site.pattern),
+  );
+}
+
+/**
+ * Shows the card with these words until a tap or a stop. `onAllow` runs synchronously in
+ * the allow handler, so it may ask Chrome for a permission; its false is a decline.
+ */
+export function askOnCard(
+  elements: GrantCardElements,
+  words: CardWords,
+  signal: AbortSignal,
+  onAllow: () => Promise<boolean>,
 ): Promise<GrantAnswer> {
   return new Promise((resolve, reject) => {
     const wake = setTimeout(() => setEnabled(true), BUTTON_DELAY_MS);
@@ -45,7 +58,7 @@ export function askGrantOnCard(
       }
       settled = true;
       clearTimeout(wake);
-      elements.allow.removeEventListener("click", onAllow);
+      elements.allow.removeEventListener("click", onAllowTap);
       elements.decline.removeEventListener("click", onDecline);
       signal.removeEventListener("abort", onStop);
       elements.card.classList.add("hidden");
@@ -56,11 +69,11 @@ export function askGrantOnCard(
       }
     }
 
-    /** Asks Chrome from the tap; a refused prompt is a decline. */
-    function onAllow(): void {
+    /** The tap on allow; a refused prompt is a decline. */
+    function onAllowTap(): void {
       setEnabled(false);
-      requestGrant(site.pattern).then(
-        (granted) => settle(granted ? "allowed" : "declined"),
+      onAllow().then(
+        (allowed) => settle(allowed ? "allowed" : "declined"),
         (error: unknown) =>
           settle(error instanceof Error ? error : new Error(String(error))),
       );
@@ -86,9 +99,11 @@ export function askGrantOnCard(
       settle("stopped");
       return;
     }
-    elements.title.textContent = grantCardTitle(site.host);
+    elements.title.textContent = words.title;
+    elements.text.textContent = words.text;
+    elements.allow.textContent = words.allow;
     setEnabled(false);
-    elements.allow.addEventListener("click", onAllow);
+    elements.allow.addEventListener("click", onAllowTap);
     elements.decline.addEventListener("click", onDecline);
     signal.addEventListener("abort", onStop);
     elements.card.classList.remove("hidden");

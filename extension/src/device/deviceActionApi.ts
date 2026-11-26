@@ -57,7 +57,7 @@ export function deviceActionApi(
     });
   }
 
-  /** Claims an action: its tool on 200, otherwise the reason, never a throw. */
+  /** Claims an action: its tool and arguments on 200, otherwise the reason, never a throw. */
   async function claim(id: string): Promise<ClaimAnswer> {
     try {
       const response = await post({ action: "claim", id });
@@ -72,7 +72,11 @@ export function deviceActionApi(
         typeof answer === "object" &&
         "tool" in answer &&
         isDeviceToolName(answer.tool)
-        ? { ok: true, tool: answer.tool }
+        ? {
+            ok: true,
+            tool: answer.tool,
+            arguments: "arguments" in answer ? answer.arguments : undefined,
+          }
         : { ok: false, reason: "the claim answer has no device tool" };
     } catch (error) {
       return { ok: false, reason: String(error) };

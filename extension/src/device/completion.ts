@@ -1,20 +1,24 @@
 /**
- * The `complete` body the panel sends to carmen-device-action for each way a read ends,
+ * The `complete` body the panel sends to carmen-device-action for each way a step ends,
  * built to the function's report rules (`carmen-device-action/report.ts`): `done` carries
  * the result and where it was read, `denied` is a declined card (`ask`), `refused` asked
  * nobody (`never`), and every other status carries no result.
  */
 import type { DeviceCardRule } from "../../../supabase/functions/_shared/carmen/device/card-rule.ts";
 import type {
+  DeviceToolResult,
   PageLocation,
-  PageSnapshot,
 } from "../../../supabase/functions/_shared/carmen/device/results.ts";
 import type { ActionReport } from "../../../supabase/functions/carmen-device-action/report.ts";
 
-/** How one claimed read ended. */
+/** What a done step reports: a read's page, or where a navigation landed. */
+export type StepResult =
+  DeviceToolResult["browser_read_page"] | DeviceToolResult["browser_navigate"];
+
+/** How one claimed read or navigation ended. */
 export type ReadOutcome =
-  /** `asked`: the panel showed its card first (the site was not granted yet). */
-  | { status: "done"; asked: boolean; snapshot: PageSnapshot }
+  /** `asked`: the panel showed its card first (a read of a site not granted yet, every navigation). */
+  | { status: "done"; asked: boolean; result: StepResult }
   /**
    * The user declined the card or Chrome's prompt. The contract's rule for a read is
    * `free`, but the report takes `denied` only with `ask`, and a card was drawn (AIO-656).
@@ -28,11 +32,11 @@ export type ReadOutcome =
       observed: PageLocation | null;
     };
 
-/** The body of `complete` for one action: the function's own report, with a read's result. */
+/** The body of `complete` for one action: the function's own report, with the step's result. */
 export type CompleteBody = { action: "complete"; id: string } & Omit<
   ActionReport,
   "result"
-> & { result: PageSnapshot | null };
+> & { result: StepResult | null };
 
 /** The `complete` request for an action and how it ended. */
 export function completeBody(id: string, outcome: ReadOutcome): CompleteBody {
@@ -44,10 +48,10 @@ export function completeBody(id: string, outcome: ReadOutcome): CompleteBody {
         ...base,
         decision: outcome.asked ? "ask" : "free",
         observed: {
-          origin: outcome.snapshot.origin,
-          path: outcome.snapshot.path,
+          origin: outcome.result.origin,
+          path: outcome.result.path,
         },
-        result: outcome.snapshot,
+        result: outcome.result,
       };
     case "denied":
       return {

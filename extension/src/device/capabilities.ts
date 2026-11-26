@@ -1,7 +1,7 @@
 /**
  * What the panel tells the site it can do. The device tools are announced only while tab
  * sharing is on: without the tab's address the panel cannot name the site to ask for, so
- * it would refuse every read.
+ * it would refuse every step.
  */
 import type { DeviceToolName } from "../../../supabase/functions/_shared/carmen/device/contract.ts";
 import {
@@ -12,6 +12,7 @@ import {
 /** The device tools this build runs. */
 const DEVICE_CAPABILITIES: ReadonlyArray<DeviceToolName> = [
   "browser_read_page",
+  "browser_navigate",
 ];
 
 /** The capabilities message for the current tab-sharing state. */

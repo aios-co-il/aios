@@ -1,5 +1,5 @@
 /**
- * Wires the panel's read actions to Chrome, the panel's card and carmen-device-action.
+ * Wires the panel's read and navigate actions to Chrome, the panel's card and carmen-device-action.
  * The decisions live in the modules this file passes them to.
  */
 import {
@@ -18,12 +18,18 @@ import { supabase } from "../supabase";
 import {
   activeTab,
   hasSiteGrant,
+  navigateTab,
   readPage,
   requestSiteGrant,
   tabById,
 } from "./chromeDevice.ts";
 import { deviceActionApi } from "./deviceActionApi.ts";
-import { askGrantOnCard, type GrantCardElements } from "./grantCard.ts";
+import { navigateCardWords } from "./cardWords.ts";
+import {
+  askGrantOnCard,
+  askOnCard,
+  type GrantCardElements,
+} from "./grantCard.ts";
 import { createReadActions, type ReadActions } from "./readActions.ts";
 
 /** The read actions of this panel; `post` sends a message to the framed site. */
@@ -47,6 +53,10 @@ export function panelReadActions(
     hasGrant: hasSiteGrant,
     askGrant: (site, signal) =>
       askGrantOnCard(card, site, signal, requestSiteGrant),
+    // Moving the tab needs no Chrome permission: the tap on the card is the whole answer.
+    askNavigate: (step, signal) =>
+      askOnCard(card, navigateCardWords(step), signal, async () => true),
+    navigateTab,
     readPage,
     newSnapshotId: () => crypto.randomUUID(),
     postResult: (id) => post(panelActionRef(PANEL_MESSAGE.result, id)),
@@ -62,6 +72,7 @@ function grantCardElements(): GrantCardElements {
   return {
     card: element("grant-card", HTMLElement),
     title: element("grant-title", HTMLElement),
+    text: element("grant-text", HTMLElement),
     allow: element("grant-allow", HTMLButtonElement),
     decline: element("grant-decline", HTMLButtonElement),
   };

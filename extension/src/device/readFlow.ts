@@ -104,7 +104,9 @@ async function readUnlessStopped(
   progress.observed = step.location;
   const asked = step.rule === "ask" || !(await deps.hasGrant(step.pattern));
   if (asked) {
-    const answer = await askOnCard(step, progress, deps);
+    const answer = await waitForCard(progress, (signal) =>
+      deps.askGrant({ host: step.host, pattern: step.pattern }, signal),
+    );
     if (answer !== "allowed") {
       return answer === "declined"
         ? { status: "denied", observed: step.location }
@@ -123,7 +125,7 @@ async function readUnlessStopped(
   return {
     status: "done",
     asked,
-    snapshot: pageSnapshot({ ...read, snapshotId: deps.newSnapshotId() }),
+    result: pageSnapshot({ ...read, snapshotId: deps.newSnapshotId() }),
   };
 }
 
@@ -139,19 +141,18 @@ export function stoppedOutcome(progress: ReadProgress): ReadOutcome {
   };
 }
 
-/** Shows the card and waits for the tap or a stop. */
-async function askOnCard(
-  step: { host: string; pattern: string },
+/**
+ * Shows a card through `ask` and waits for the tap or a stop; while it waits, a closing
+ * panel reports the step `cancelled`.
+ */
+export async function waitForCard(
   progress: ReadProgress,
-  deps: ReadDeps,
+  ask: (signal: AbortSignal) => Promise<GrantAnswer>,
 ): Promise<GrantAnswer> {
   progress.decision = "ask";
   progress.asking = true;
   try {
-    const answer = await deps.askGrant(
-      { host: step.host, pattern: step.pattern },
-      progress.stopper.signal,
-    );
+    const answer = await ask(progress.stopper.signal);
     return progress.stopper.signal.aborted ? "stopped" : answer;
   } finally {
     progress.asking = false;

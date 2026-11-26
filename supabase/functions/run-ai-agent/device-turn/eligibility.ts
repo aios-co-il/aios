@@ -24,11 +24,13 @@ import { asUuidOrNull } from "../../_shared/uuid.ts";
 import type { Surface } from "../surface.ts";
 
 /**
- * The device tools the server offers. Read only for now: the act tools join with the
- * extension pull requests that draw their cards (AIO-656).
+ * The device tools the server offers, beside a readable tab and only those the panel
+ * announced. Click, type and the screenshot join with the extension pull requests that
+ * draw their cards (AIO-656).
  */
 export const OFFERED_DEVICE_TOOLS: ReadonlyArray<DeviceToolName> = [
   "browser_read_page",
+  "browser_navigate",
 ];
 
 /** What decides whether a turn may hold a device step, as handleRunAgent knows it. */
