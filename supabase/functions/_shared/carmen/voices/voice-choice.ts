@@ -1,6 +1,7 @@
 /**
  * The voices the OpenAI Realtime API speaks, as a voice picker shows them. Every client
- * reads this list (`voice-list.ts`), so adding a voice here adds it to each picker.
+ * reads this list (`carmen-realtime-session/voice-list.ts`), so adding a voice here adds it
+ * to each picker.
  */
 export const OPENAI_VOICES = [
   { id: "marin", label: "Marin — טבעי וחם" },
