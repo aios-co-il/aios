@@ -1,6 +1,6 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import fixtures from "./parity-fixtures.json" with { type: "json" };
-import { runFixture } from "./parity-fixture.ts";
+import { runFixture } from "./orchestrate.test-fixture.ts";
 
 // Captured from parent 9ab23bd884 with isolated skills caches and a fixed clock.
 for (const fixture of fixtures) {

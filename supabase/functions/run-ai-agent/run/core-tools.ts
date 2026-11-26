@@ -1,4 +1,4 @@
-/** Core tools retained by the lazy router on every non-isolated run. */
+/** Legacy non-lazy routing candidates; retention still requires an eligible scoped tool. */
 export const CORE_TOOLS = new Set([
   "search_agent_tools",
   "save_memory",

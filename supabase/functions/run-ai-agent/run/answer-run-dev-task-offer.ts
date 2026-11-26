@@ -7,9 +7,8 @@ import { findOfferedDevTask } from "../dev-task-offer.ts";
 import { declineOfferedDevTask } from "../dev-task-offer.ts";
 import { asUuidOrNull } from "../../_shared/uuid.ts";
 
-export async function answerRunDevTaskOffer(
-  run: RunState,
-): Promise<Response | string | void> {
+/** Reserve a matched offer reply even when cancellation fails, then continue to approval selection. */
+export async function answerRunDevTaskOffer(run: RunState): Promise<void> {
   // In an AIOS chat the user's yes or no answers the dev task Carmen offered in her previous
   // message, and only when that message asked about it: a yes names the task, so she approves
   // and sends that one (devTaskApprovalRefusal checks it again); a no cancels it.

@@ -33,54 +33,19 @@ export async function executeRunApproval(
       : formatApprovalPickReply(run.approvalPick);
     const executionTime = Date.now() - autoStart;
 
-    if (run.serverConversationId && run.callerUserId) {
-      const persistedMessages = [
-        ...run.serverConversationHistory,
-        { role: "user", content: String(run.command_text) },
-        { role: "assistant", content: String(finalOutput || "") },
-      ].slice(-60);
-      await run.supabase
-        .from("ai_conversations")
-        .update({
-          messages: persistedMessages,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", run.serverConversationId)
-        .eq("user_id", run.callerUserId)
-        .eq("tenant_id", run.resolvedTenantId);
-    }
+    await persistApprovalConversation(run, finalOutput);
 
     if (run.input.emit && finalOutput) {
       run.input.emit({ type: "token", content: finalOutput });
     }
 
-    try {
-      await run.supabase.from("agent_action_log").insert({
-        tenant_id: run.resolvedTenantId,
-        agent_id: run.agent_id as string,
-        action_type: "agent_turn",
-        status: "success",
-        action_details: {
-          surface: run.input.surface,
-          command_preview: String(run.command_text || "").slice(0, 240),
-          tools_used: execResult ? ["execute_pending_approval"] : [],
-          tool_count: execResult ? 1 : 0,
-          output_preview: String(finalOutput || "").slice(0, 600),
-          caller_role: run.callerRole,
-          caller_campaigner_id: run.callerCampaignerId,
-          auto_approval_execute: !!execResult,
-          approval_pick: run.approvalPick.kind,
-          approval_id:
-            "row" in run.approvalPick ? run.approvalPick.row.id : null,
-          exec_success: !!(execResult && execResult.success),
-        },
-        user_id: run.callerUserId,
-        tool_calls: execResult ? 1 : 0,
-        duration_ms: executionTime,
-      });
-    } catch {
-      /* ignore */
-    }
+    await recordApprovalAudit(
+      run,
+      finalOutput,
+      executionTime,
+      execResult,
+      run.approvalPick,
+    );
 
     return new Response(
       JSON.stringify({
@@ -111,5 +76,64 @@ export async function executeRunApproval(
         },
       },
     );
+  }
+}
+
+/** Persist before emitting the approval reply, keeping the existing write failure behavior. */
+async function persistApprovalConversation(
+  run: RunState,
+  finalOutput: string,
+): Promise<void> {
+  if (run.serverConversationId && run.callerUserId) {
+    const persistedMessages = [
+      ...run.serverConversationHistory,
+      { role: "user", content: String(run.command_text) },
+      { role: "assistant", content: String(finalOutput || "") },
+    ].slice(-60);
+    await run.supabase
+      .from("ai_conversations")
+      .update({
+        messages: persistedMessages,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", run.serverConversationId)
+      .eq("user_id", run.callerUserId)
+      .eq("tenant_id", run.resolvedTenantId);
+  }
+}
+
+/** Audit is attempted after persistence and emission; its failures must not replace the reply. */
+async function recordApprovalAudit(
+  run: RunState,
+  finalOutput: string,
+  executionTime: number,
+  execResult: Awaited<ReturnType<typeof runApprovalExecutor>> | null,
+  pick: NonNullable<RunState["approvalPick"]>,
+): Promise<void> {
+  try {
+    await run.supabase.from("agent_action_log").insert({
+      tenant_id: run.resolvedTenantId,
+      agent_id: run.agent_id as string,
+      action_type: "agent_turn",
+      status: "success",
+      action_details: {
+        surface: run.input.surface,
+        command_preview: String(run.command_text || "").slice(0, 240),
+        tools_used: execResult ? ["execute_pending_approval"] : [],
+        tool_count: execResult ? 1 : 0,
+        output_preview: String(finalOutput || "").slice(0, 600),
+        caller_role: run.callerRole,
+        caller_campaigner_id: run.callerCampaignerId,
+        auto_approval_execute: !!execResult,
+        approval_pick: pick.kind,
+        approval_id: "row" in pick ? pick.row.id : null,
+        exec_success: !!(execResult && execResult.success),
+      },
+      user_id: run.callerUserId,
+      tool_calls: execResult ? 1 : 0,
+      duration_ms: executionTime,
+    });
+  } catch {
+    /* ignore */
   }
 }

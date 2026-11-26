@@ -1,5 +1,8 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
-import { runFixture, type CapturedRequest } from "./parity-fixture.ts";
+import {
+  runFixture,
+  type CapturedRequest,
+} from "./orchestrate.test-fixture.ts";
 
 Deno.test(
   "final provider tools respect approval eligibility after all loading stages",

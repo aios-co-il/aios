@@ -7,6 +7,33 @@ export async function persistRunCompletion(
 ): Promise<Response | string | void> {
   const executionTime = Date.now() - run.startTime;
 
+  await persistConversation(run);
+  await recordAutomation(run, executionTime);
+  scheduleMemory(run);
+  await recordAudit(run, executionTime);
+
+  return new Response(
+    JSON.stringify({
+      success: true,
+      output: run.finalOutput,
+      agent_name: run.agent.name,
+      model: run.model,
+      execution_time_ms: executionTime,
+      tools_used: run.toolLog.map((t) => t.tool),
+      tool_log: run.toolLog,
+      conversation_id: run.serverConversationId,
+    }),
+    {
+      headers: {
+        ...run.dependencies.corsHeaders,
+        "Content-Type": "application/json",
+      },
+    },
+  );
+}
+
+/** Keep conversation persistence first; its existing failure policy is owned by the dependency. */
+async function persistConversation(run: RunState): Promise<void> {
   if (run.serverConversationId && run.callerUserId) {
     await run.dependencies.saveConversationTurn(run.supabase, {
       tenantId: run.resolvedTenantId,
@@ -17,7 +44,13 @@ export async function persistRunCompletion(
       answer: String(run.finalOutput || ""),
     });
   }
+}
 
+/** Preserve automation logging before memory/audit work; thrown failures still reach the run boundary. */
+async function recordAutomation(
+  run: RunState,
+  executionTime: number,
+): Promise<void> {
   // 6. Log to automation_logs
   if (run.automation_id) {
     await run.supabase.from("automation_logs").insert({
@@ -38,7 +71,10 @@ export async function persistRunCompletion(
       execution_time_ms: executionTime,
     });
   }
+}
 
+/** Schedule memory without awaiting it, retaining the background-runtime fallback. */
+function scheduleMemory(run: RunState): void {
   // 7. Auto-memory for non-Carmen agents (fire and forget, doesn't block response).
   if (
     run.resolvedTenantId &&
@@ -60,7 +96,13 @@ export async function persistRunCompletion(
       memPromise.catch(() => {});
     }
   }
+}
 
+/** Audit failures retain the successful reply and never replay earlier side effects. */
+async function recordAudit(
+  run: RunState,
+  executionTime: number,
+): Promise<void> {
   // 8. Run trace — one row per turn so we can audit later whether Carmen
   // actually executed what she claimed. Same shape across every surface.
   try {
@@ -98,23 +140,4 @@ export async function persistRunCompletion(
       (e as Error | null)?.message,
     );
   }
-
-  return new Response(
-    JSON.stringify({
-      success: true,
-      output: run.finalOutput,
-      agent_name: run.agent.name,
-      model: run.model,
-      execution_time_ms: executionTime,
-      tools_used: run.toolLog.map((t) => t.tool),
-      tool_log: run.toolLog,
-      conversation_id: run.serverConversationId,
-    }),
-    {
-      headers: {
-        ...run.dependencies.corsHeaders,
-        "Content-Type": "application/json",
-      },
-    },
-  );
 }

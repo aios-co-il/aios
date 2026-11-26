@@ -1,4 +1,4 @@
-import { readRunStages } from "./run-source-fixture.ts";
+import { readRunStages } from "./run-source.test-fixture.ts";
 import {
   assert,
   assertEquals,
