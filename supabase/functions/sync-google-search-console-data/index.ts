@@ -1,9 +1,15 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fireIntegrationAlert } from "../_shared/fireIntegrationAlert.ts";
 import { withGoogleTokens } from "../_shared/google-oauth/integration-tokens.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
-import { refuseGscSync } from "./sync-access.ts";
+import {
+  isSyncRefusal,
+  readSyncCaller,
+  readSyncIntegration,
+  readSyncTable,
+  SYNC_DENIED,
+  type SyncRefusal,
+} from "./sync-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,7 +17,14 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+function refused(refusal: SyncRefusal): Response {
+  return new Response(JSON.stringify({ error: refusal.error }), {
+    status: refusal.status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -24,15 +37,17 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    // Get table with integration settings
-    const { data: table, error: tableError } = await supabase
-      .from("crm_tables")
-      .select("*")
-      .eq("id", tableId)
-      .single();
+    const caller = await readSyncCaller(
+      serviceClient(),
+      req.headers.get("Authorization"),
+    );
+    if (isSyncRefusal(caller)) {
+      return refused(caller);
+    }
 
-    if (tableError || !table) {
-      throw new Error("Table not found");
+    const table = await readSyncTable(serviceClient(), caller, tableId);
+    if (!table) {
+      return refused(SYNC_DENIED);
     }
 
     const settings = table.integration_settings as any;
@@ -44,27 +59,14 @@ serve(async (req) => {
       throw new Error("Missing integration settings");
     }
 
-    const { data: storedIntegration, error: integrationError } = await supabase
-      .from("tenant_integrations")
-      .select("*")
-      .eq("id", integrationId)
-      .single();
-
-    if (integrationError || !storedIntegration) {
-      throw new Error("Integration not found");
-    }
-
-    const refusal = await refuseGscSync(
+    const storedIntegration = await readSyncIntegration(
       serviceClient(),
-      req.headers.get("Authorization"),
+      caller,
       table.tenant_id,
-      storedIntegration.tenant_id,
+      integrationId,
     );
-    if (refusal) {
-      return new Response(JSON.stringify({ error: refusal.error }), {
-        status: refusal.status,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!storedIntegration) {
+      return refused(SYNC_DENIED);
     }
 
     const [integration] = await withGoogleTokens(serviceClient(), [
