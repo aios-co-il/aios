@@ -8,6 +8,7 @@ import {
   browserTabContextMetadata,
   parseBrowserTab,
   parseScreenContext,
+  quotedValue,
   SCREEN_CONTEXT_SOURCE,
   sidebarContextJson,
   withBrowserTab,
@@ -218,5 +219,26 @@ Deno.test("withBrowserTab", async (t) => {
       assertStrictEquals(text, "hi");
       assertNotMatch(text, /secret|passwd/);
     }
+  });
+});
+
+Deno.test("quotedValue", async (t) => {
+  await t.step(
+    "escapes every line break and format character JSON leaves alone",
+    () => {
+      const value = "a b c\u0085d‮e​f\u{E0041}g";
+
+      const quoted = quotedValue(value);
+
+      assertStrictEquals(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(quoted), false);
+      assertStrictEquals(JSON.parse(quoted), value);
+    },
+  );
+
+  await t.step("plain text is plain JSON", () => {
+    assertStrictEquals(
+      quotedValue({ t: 'שלום "x"' }),
+      JSON.stringify({ t: 'שלום "x"' }),
+    );
   });
 });

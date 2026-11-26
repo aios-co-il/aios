@@ -22,7 +22,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 import type { requireAuth } from "../_shared/security.ts";
 import type { ActionReport } from "./report.ts";
 import { parseRequest } from "./request.ts";
-import { toolResult } from "./result.ts";
+import { toolResult } from "../_shared/carmen/device-result-check.ts";
 import {
   type ActionDb,
   cancelClaimedAction,

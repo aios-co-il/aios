@@ -7,22 +7,7 @@
 import { aiSpeak } from "../_shared/ai.ts";
 import { getCaller, getUserOpenAIKey } from "../_shared/userKey.ts";
 import { orgVoiceKeyAllowed } from "../_shared/carmen/voice-access.ts";
-
-const OPENAI_VOICES = new Set([
-  "alloy",
-  "ash",
-  "ballad",
-  "coral",
-  "echo",
-  "fable",
-  "nova",
-  "onyx",
-  "sage",
-  "shimmer",
-  "verse",
-  "marin",
-  "cedar",
-]);
+import { SPEECH_VOICES } from "../_shared/carmen/voices/voice-choice.ts";
 
 // Style steering for gpt-4o-mini-tts — native-sounding Israeli Hebrew.
 const HEBREW_STEERING =
@@ -90,7 +75,7 @@ Deno.serve(async (req) => {
   try {
     const { text, voice, provider, instructions } = await req.json();
     const selectedVoice =
-      typeof voice === "string" && OPENAI_VOICES.has(voice) ? voice : "marin";
+      typeof voice === "string" && SPEECH_VOICES.has(voice) ? voice : "marin";
     const clean = cleanForSpeech(typeof text === "string" ? text : "");
     if (!clean) {
       return new Response(JSON.stringify({ error: "text is required" }), {
