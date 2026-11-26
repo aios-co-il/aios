@@ -1,9 +1,12 @@
 import { assertStrictEquals } from "jsr:@std/assert@1";
+import { publicApiUrl } from "./public-api/url.ts";
 import {
+  articleImagesOnPublicApi,
   extractEntityAttachmentPath,
   isAbsoluteHttpUrl,
   publishingImageProxyUrl,
   publishingImageStoragePath,
+  proxyUrlOnPublicApi,
   resolveArticleImageFields,
   resolveMagazineImageUrl,
 } from "./publishing-images.ts";
@@ -124,4 +127,57 @@ Deno.test("resolves hero and inline fields with their own kinds", () => {
   );
   assertStrictEquals(article.hero_image_url, null);
   assertStrictEquals(article.inline_image_url, proxyFor("inline"));
+});
+
+Deno.test("moves stored supabase.co proxy URLs to PUBLIC_API_URL", () => {
+  const env = new Map([
+    ["PUBLIC_API_URL", "https://api.aios.co.il/"],
+    ["SUPABASE_URL", "https://abcdefghijklmnopqrst.supabase.co"],
+  ]);
+  const article = articleImagesOnPublicApi(
+    {
+      hero_image_url: proxyFor("hero"),
+      inline_image_url: `${SUPABASE_URL}/functions/v1/publishing-image`,
+    },
+    publicApiUrl(env),
+  );
+
+  assertStrictEquals(
+    article.hero_image_url,
+    publishingImageProxyUrl("https://api.aios.co.il", ARTICLE, "hero"),
+  );
+  assertStrictEquals(
+    article.inline_image_url,
+    "https://api.aios.co.il/functions/v1/publishing-image",
+  );
+});
+
+Deno.test("keeps stored proxy URLs without PUBLIC_API_URL", () => {
+  const ownProject = publicApiUrl(new Map([["SUPABASE_URL", SUPABASE_URL]]));
+
+  assertStrictEquals(
+    proxyUrlOnPublicApi(proxyFor("hero"), ownProject),
+    proxyFor("hero"),
+  );
+  assertStrictEquals(
+    proxyUrlOnPublicApi(proxyFor("hero"), publicApiUrl(new Map())),
+    proxyFor("hero"),
+  );
+});
+
+Deno.test("leaves URLs other than a supabase.co proxy URL untouched", () => {
+  const base = "https://api.aios.co.il";
+  const untouched = [
+    "https://images.pexels.com/photos/31428953/pexels-photo-31428953.jpeg",
+    `${SUPABASE_URL}/storage/v1/object/public/entity-attachments/${TENANT}/publishing/${ARTICLE}/hero.webp`,
+    `${SUPABASE_URL}/functions/v1/publishing-image-v2?kind=hero`,
+    `https://short.supabase.co/functions/v1/publishing-image?kind=hero`,
+    `https://evil.example/${SUPABASE_URL}/functions/v1/publishing-image`,
+    publishingImageProxyUrl(base, ARTICLE, "hero"),
+  ];
+
+  for (const url of untouched) {
+    assertStrictEquals(proxyUrlOnPublicApi(url, base), url);
+  }
+  assertStrictEquals(proxyUrlOnPublicApi(null, base), null);
 });
