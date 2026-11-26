@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { Send, Loader2, Brain, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import ReactMarkdown from "react-markdown";
+import { ReplyMarkdown } from "@/components/ReplyMarkdown/ReplyMarkdown";
 
 interface AIOSCommandBarProps {
   onSend: (message: string) => void;
@@ -103,7 +103,7 @@ export function AIOSCommandBar({
             className="prose prose-sm dark:prose-invert max-w-none"
             dir="rtl"
           >
-            <ReactMarkdown>{statusText}</ReactMarkdown>
+            <ReplyMarkdown>{statusText}</ReplyMarkdown>
           </div>
         </div>
       )}

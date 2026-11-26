@@ -8809,6 +8809,45 @@ export type Database = {
           },
         ]
       }
+      integration_secrets: {
+        Row: {
+          access_token: string | null
+          integration_id: string
+          refresh_token: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string | null
+          integration_id: string
+          refresh_token?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string | null
+          integration_id?: string
+          refresh_token?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_secrets_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: true
+            referencedRelation: "tenant_integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "integration_secrets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       integration_tenant_access: {
         Row: {
           accessing_tenant_id: string
@@ -18660,6 +18699,7 @@ export type Database = {
         Args: { p_channel_id: string; p_user_id: string }
         Returns: boolean
       }
+      is_google_integration_type: { Args: { p_type: string }; Returns: boolean }
       is_public_team_channel: {
         Args: { p_channel_id: string; p_user_id: string }
         Returns: boolean

@@ -209,9 +209,9 @@ Deno.test("deviceCardRule: the table", async (t) => {
   });
 
   await t.step(
-    "a tenant's added host joins the floor, also when pasted as an address",
+    "a tenant's added host joins the floor, with or without a wildcard",
     () => {
-      for (const entry of ["example.com", "https://shop.example.com/cart"]) {
+      for (const entry of ["example.com", "*.shop.example.com"]) {
         const step = {
           url: ORDINARY,
           trusted: true,
