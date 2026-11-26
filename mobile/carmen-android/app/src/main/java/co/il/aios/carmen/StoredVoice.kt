@@ -48,7 +48,7 @@ object StoredVoice {
      * The voice to move onto the row from the pick this phone held before picks were stored per
      * user, or null to move nothing. The row wins: only an empty row takes it, and only a voice
      * the server lists (the old "OpenAI" choice is not one, so it becomes no pick). Same rule as
-     * the web's `legacyVoiceAdoption.ts`.
+     * the web's one-time adoption (AIO-652). Removing this move is AIO-662.
      */
     fun adoption(rowVoice: String?, legacyVoice: String?, voices: List<VoicePreference.Choice>): VoicePreference.Choice? =
         if (rowVoice != null) null else find(legacyVoice, voices)

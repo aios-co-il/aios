@@ -145,16 +145,25 @@ class AiosAccount(context: Context) {
         return StoredVoice.Row(StoredVoice.owner(session.userId, session.tenantId), StoredVoice.voiceOf(rows))
     }
 
-    /** Stores [voice] in the user's row (null clears the pick) and returns whose row it is. */
-    fun saveCarmenVoice(voice: String?): String {
+    /**
+     * Stores [voice] in the user's row (null clears the pick) and returns whose row it is.
+     * With [expectedOwner], throws without writing when another user or organization signed in
+     * since that owner's row was read.
+     */
+    fun saveCarmenVoice(voice: String?, expectedOwner: String? = null): String {
         val session = session()
+        val owner = StoredVoice.owner(session.userId, session.tenantId)
+        if (expectedOwner != null && owner != expectedOwner) {
+            throw IOException("The signed-in account changed; the voice was not stored")
+        }
+
         restWrite(
             "POST",
             "$CHOICES_TABLE?on_conflict=$COLUMN_TENANT,$COLUMN_USER",
             StoredVoice.rowBody(session.tenantId, voice),
             prefer = PREFER_UPSERT,
         )
-        return StoredVoice.owner(session.userId, session.tenantId)
+        return owner
     }
 
     /** Forgets the account and what was cached for it. */

@@ -75,7 +75,8 @@ class CarmenBrain(private val account: AiosAccount) {
         /**
          * The `run-ai-agent` body field that asks the server to run the brain the user stored
          * (AIO-657). The server's name for it is `USE_BRAIN_PICK` in
-         * `supabase/functions/_shared/carmen/brain-engine/stored-pick.ts`.
+         * `supabase/functions/_shared/carmen/brain-engine/stored-pick.ts`. The test that fails
+         * when the two names drift, and that file in the Android workflow's paths, are AIO-662.
          */
         const val USE_BRAIN_PICK = "use_brain_pick"
         private const val MAX_HISTORY = 24

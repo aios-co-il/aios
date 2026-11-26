@@ -29,13 +29,13 @@ class VoicePreference(context: Context, private val account: AiosAccount = AiosA
 
     /**
      * Reads the row in the background and calls [onChanged] on the main thread if the pick
-     * changed. A failed read keeps the last one.
+     * changed. A failed read, voice list or write keeps the last one.
      */
     fun refresh(onChanged: () -> Unit = {}) {
         if (!account.isReady) return
         thread(name = "carmen-voice") {
             val changed = runCatching { synchronized(LOCK) { sync() } }
-                .onFailure { Log.w(TAG, "Reading the stored voice failed; keeping the last one", it) }
+                .onFailure { Log.w(TAG, "Syncing the stored voice failed; keeping the last one", it) }
                 .getOrDefault(false)
             if (changed) Handler(Looper.getMainLooper()).post(onChanged)
         }
@@ -63,7 +63,7 @@ class VoicePreference(context: Context, private val account: AiosAccount = AiosA
         // The list gives a voice its label and provider; an empty row with nothing to move needs none.
         val voices = if (row.voice == null && legacy == null) emptyList() else loadChoices(account)
         val adopted = StoredVoice.adoption(row.voice, legacy, voices)
-        if (adopted != null) account.saveCarmenVoice(adopted.id)
+        if (adopted != null) account.saveCarmenVoice(adopted.id, expectedOwner = row.owner)
 
         store(row.owner, adopted ?: StoredVoice.find(row.voice, voices))
         return selected != shown
@@ -97,7 +97,10 @@ class VoicePreference(context: Context, private val account: AiosAccount = AiosA
         private const val KEY_LABEL = "label"
         private const val KEY_PROVIDER = "provider"
 
-        /** Where builds before AIO-657 kept the phone's own pick: a voice key, or "openai". */
+        /**
+         * Where builds before AIO-657 kept the phone's own pick: a voice key, or "openai".
+         * Removing it with the one-time move ([StoredVoice.adoption]) is AIO-662.
+         */
         private const val KEY_LEGACY_ID = "voice_id"
         private val LOCK = Any()
 
@@ -108,7 +111,8 @@ class VoicePreference(context: Context, private val account: AiosAccount = AiosA
 
         /**
          * Blocking. Every voice Carmen can speak in, from the server's one list
-         * (`carmen-realtime-session`, `voice-list.ts`). Throws on a failed request.
+         * (`carmen-realtime-session`, `voice-list.ts`). Throws on a failed request and on a
+         * reply without a list.
          */
         fun loadChoices(account: AiosAccount): List<Choice> {
             val body = JSONObject().put("list_voices", true)
@@ -119,9 +123,13 @@ class VoicePreference(context: Context, private val account: AiosAccount = AiosA
             }
         }
 
-        /** The `voices` array of the list response (`{ id, label, provider }` each). */
+        /**
+         * The `voices` array of the list response (`{ id, label, provider }` each). A reply
+         * without one is a failed load, never "no voices": a server from before the one list
+         * (AIO-660) answers this request with a session instead.
+         */
         fun parseVoices(json: JSONObject): List<Choice> {
-            val voices = json.optJSONArray("voices") ?: return emptyList()
+            val voices = json.optJSONArray("voices") ?: throw IOException("השרת לא החזיר רשימת קולות")
             return (0 until voices.length()).mapNotNull { i ->
                 voices.optJSONObject(i)
                     ?.let { Choice(it.optString("id"), it.optString("label"), it.optString("provider")) }

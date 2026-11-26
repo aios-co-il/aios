@@ -79,7 +79,7 @@ class StoredVoiceTest {
     fun theWriteNamesTheOrganizationAndTheVoiceOnly() {
         val body = StoredVoice.rowBody("tenant-1", "marin")
 
-        assertEquals(setOf("tenant_id", "voice"), body.keySet())
+        assertEquals(setOf("tenant_id", "voice"), body.keys().asSequence().toSet())
         assertEquals("tenant-1", body.getString("tenant_id"))
         assertEquals("marin", body.getString("voice"))
     }

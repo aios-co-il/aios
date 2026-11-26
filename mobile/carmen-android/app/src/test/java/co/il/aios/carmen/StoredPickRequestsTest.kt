@@ -41,7 +41,7 @@ class StoredPickRequestsTest {
     fun anOpenAiCallSendsTheOrganizationAndThePickedVoice() {
         val body = LiveConversation.sessionRequest("tenant-1", "marin")
 
-        assertEquals(setOf("tenant_id", "voice"), body.keySet())
+        assertEquals(setOf("tenant_id", "voice"), body.keys().asSequence().toSet())
         assertEquals("tenant-1", body.getString("tenant_id"))
         assertEquals("marin", body.getString("voice"))
     }
@@ -50,14 +50,14 @@ class StoredPickRequestsTest {
     fun aCallWithoutAPickSendsNoVoice() {
         val body = LiveConversation.sessionRequest("tenant-1", voice = null)
 
-        assertEquals(setOf("tenant_id"), body.keySet())
+        assertEquals(setOf("tenant_id"), body.keys().asSequence().toSet())
     }
 
     @Test
     fun anElevenLabsCallNamesItsProvider() {
         val body = LiveConversation.sessionRequest("tenant-1", "yael", LiveConversation.ELEVENLABS)
 
-        assertEquals(setOf("tenant_id", "voice", "provider"), body.keySet())
+        assertEquals(setOf("tenant_id", "voice", "provider"), body.keys().asSequence().toSet())
         assertEquals("elevenlabs", body.getString("provider"))
         assertEquals("yael", body.getString("voice"))
     }
