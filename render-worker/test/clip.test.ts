@@ -334,6 +334,41 @@ test("a retried run resumes its provider job instead of paying twice", async () 
   expect(result.credits).toBe(5100);
 });
 
+test("a fallback model is saved with its job and recorded again when the run resumes", async () => {
+  const provider: VideoProvider = {
+    name: "openrouter",
+    model: "google/veo-3.1-fast",
+    estimate: () => ({ credits: 0, usd: 0.48 }),
+    submit: async () => ({ jobId: "or-1", model: "x-ai/grok-imagine-video" }),
+    poll: async () => ({
+      status: "succeeded",
+      bytes: new Uint8Array([0, 0, 0, 0]),
+    }),
+  };
+  const first = fakeDb({ still: new Uint8Array([1]) });
+  await generateClip({
+    db: first,
+    run: clipRun("s1"),
+    provider: { ...provider, poll: async () => ({ status: "failed" }) },
+    log: () => {},
+  }).catch(() => {});
+  expect(first.calls.updates[0].patch.output?.provider_model).toBe(
+    "x-ai/grok-imagine-video",
+  );
+
+  const resumed = await generateClip({
+    db: fakeDb({ still: new Uint8Array([1]) }),
+    run: clipRun("s1", {
+      provider: "openrouter",
+      provider_job_id: "or-1",
+      output: { provider_model: "x-ai/grok-imagine-video" },
+    }),
+    provider,
+    log: () => {},
+  });
+  expect(resumed.output.model).toBe("x-ai/grok-imagine-video");
+});
+
 test("worker guards keep paths in the tenant folder and fetches on media hosts", async () => {
   const { assertTenantPath, assertMediaUrl, safeSegment } =
     await import("../src/guard.ts");
