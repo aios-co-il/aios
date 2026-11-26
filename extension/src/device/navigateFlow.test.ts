@@ -45,6 +45,7 @@ describe("a navigation after the card", () => {
     expect(device.completed).toEqual([
       {
         action: "complete",
+        trust_origin: null,
         id: ACTION_ID,
         status: "done",
         decision: "ask",
@@ -227,6 +228,7 @@ describe("a navigation the panel refuses", () => {
       expect(device.completed).toEqual([
         {
           action: "complete",
+          trust_origin: null,
           id: ACTION_ID,
           status: "refused",
           decision: "never",

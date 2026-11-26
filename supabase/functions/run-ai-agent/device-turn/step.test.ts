@@ -159,6 +159,7 @@ function stepTurn(tabUrl: string, origins = ORIGINS): StepTurn {
     offered: ["browser_read_page"],
     origins,
     now: () => NOW,
+    sensitiveScreenshotsAllowed: () => Promise.resolve(false),
   };
 }
 

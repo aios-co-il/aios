@@ -40,6 +40,9 @@ describe("deviceActionApi", () => {
       ok: true,
       tool: "browser_read_page",
       arguments: {},
+      trustedOrigin: null,
+      conversationId: null,
+      sensitiveScreenshotsAllowed: false,
     });
     expect(fetch).toHaveBeenCalledWith(
       ENDPOINT,
@@ -65,6 +68,54 @@ describe("deviceActionApi", () => {
       ok: true,
       tool: "browser_navigate",
       arguments: { url: "https://shop.example/" },
+      trustedOrigin: null,
+      conversationId: null,
+      sensitiveScreenshotsAllowed: false,
+    });
+  });
+
+  it("passes on the screenshot permission only when it is a real true", async () => {
+    for (const [value, expected] of [
+      [true, true],
+      [false, false],
+      ["true", false],
+      [1, false],
+      [undefined, false],
+    ] as const) {
+      const { api } = apiAnswering(200, {
+        tool: "browser_screenshot",
+        arguments: {},
+        sensitive_screenshots_allowed: value,
+      });
+
+      expect(await api.claim(ID)).toMatchObject({
+        sensitiveScreenshotsAllowed: expected,
+      });
+    }
+  });
+
+  it("passes on the claim's trust, and reads anything but a string as none", async () => {
+    const trusted = apiAnswering(200, {
+      tool: "browser_click",
+      arguments: {},
+      trusted_origin: "https://shop.example",
+      conversation_id: "conversation-1",
+    });
+    const malformed = apiAnswering(200, {
+      tool: "browser_click",
+      arguments: {},
+      trusted_origin: ["https://shop.example"],
+      conversation_id: 7,
+    });
+
+    expect(await trusted.api.claim(ID)).toMatchObject({
+      trustedOrigin: "https://shop.example",
+      conversationId: "conversation-1",
+    });
+    expect(await malformed.api.claim(ID)).toMatchObject({
+      trustedOrigin: null,
+      conversationId: null,
+      sensitiveScreenshotsAllowed: false,
     });
   });
 

@@ -19,13 +19,16 @@ function between(start: string, end: string): string {
 Deno.test("attached pictures are wired through Carmen's loop", async (t) => {
   await t.step("the request is read against the verified caller", () => {
     const read = between(
-      "const pictureRequest = readPictureRequest(",
+      "const pictureRequest = withDevicePictures(",
       "const fastLaneChannel",
     );
 
     assert(read.includes("bodyJson.attachments"));
     assert(read.includes("authKind: request.authKind,"));
     assert(read.includes("userId: callerUserId,"));
+    assert(read.includes("readPictureRequest(bodyJson.attachments"));
+    // The screenshot comes from the device turn, read from the step's row, never the request.
+    assert(read.includes("deviceTurn.pictures,"));
   });
 
   await t.step("a turn with pictures never takes the fast lane", () => {

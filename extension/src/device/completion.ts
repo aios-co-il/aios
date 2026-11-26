@@ -11,16 +11,29 @@ import type {
 } from "../../../supabase/functions/_shared/carmen/device/results.ts";
 import type { ActionReport } from "../../../supabase/functions/carmen-device-action/report.ts";
 
-/** What a done step reports: a read's page, where a navigation landed, or where a click or type left the tab. */
+/**
+ * What a done step reports: a read's page, where a navigation landed, where a click or type
+ * left the tab, or where a picture was taken and the file it was stored in.
+ */
 export type StepResult =
   | DeviceToolResult["browser_read_page"]
   | DeviceToolResult["browser_navigate"]
-  | DeviceToolResult["browser_click"];
+  | DeviceToolResult["browser_click"]
+  | DeviceToolResult["browser_screenshot"];
 
 /** How one claimed step ended. */
 export type ReadOutcome =
-  /** `asked`: the panel showed its card first (a read of a site not granted yet, every navigation, click and type). */
-  | { status: "done"; asked: boolean; result: StepResult }
+  /**
+   * `asked`: the panel showed its card first (a read of a site not granted yet, every
+   * navigation, and every click and type off a trusted site). `trustOrigin`: the user
+   * ticked "trust this site" on a click or typing card, and the tab is still on it.
+   */
+  | {
+      status: "done";
+      asked: boolean;
+      result: StepResult;
+      trustOrigin?: string;
+    }
   /**
    * The user declined the card or Chrome's prompt. The contract's rule for a read is
    * `free`, but the report takes `denied` only with `ask`, and a card was drawn (AIO-656).
@@ -42,7 +55,12 @@ export type CompleteBody = { action: "complete"; id: string } & Omit<
 
 /** The `complete` request for an action and how it ended. */
 export function completeBody(id: string, outcome: ReadOutcome): CompleteBody {
-  const base = { action: "complete", id, status: outcome.status } as const;
+  const base = {
+    action: "complete",
+    id,
+    status: outcome.status,
+    trust_origin: null,
+  } as const;
 
   switch (outcome.status) {
     case "done":
@@ -54,6 +72,7 @@ export function completeBody(id: string, outcome: ReadOutcome): CompleteBody {
           path: outcome.result.path,
         },
         result: outcome.result,
+        trust_origin: outcome.trustOrigin ?? null,
       };
     case "denied":
       return {

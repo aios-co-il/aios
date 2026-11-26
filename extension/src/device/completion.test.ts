@@ -28,6 +28,7 @@ describe("completeBody", () => {
 
     expect(body).toEqual({
       action: "complete",
+      trust_origin: null,
       id: ID,
       status: "done",
       decision: "free",

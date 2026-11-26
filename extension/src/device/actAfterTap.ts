@@ -15,18 +15,20 @@ import { landedPage } from "./navigateStep.ts";
 import { oneLineUpTo } from "./snapshot.ts";
 
 /**
- * Acts when the tab and the element are still what the card showed. `deps` are raced
- * against a stop up to the act; `unstopped` are not, since a step that may have acted
- * must report so, never `cancelled`.
+ * Acts when the tab and the element are still what the card showed (or, for a step on a
+ * trusted site, what the panel found). `deps` are raced against a stop up to the act;
+ * `unstopped` are not, since a step that may have acted must report so, never
+ * `cancelled`. `trustSite`: the user ticked "trust this site" on the card.
  */
 export async function actAfterTap(
   step: PreparedAct,
   deps: ActDeps,
   unstopped: ActDeps,
+  trustSite: boolean,
 ): Promise<ReadOutcome> {
   const changed = {
     status: "target_changed",
-    decision: "ask",
+    decision: step.rule,
     observed: step.page.location,
   } as const;
   if (!(await stillTheSamePage(step, deps))) {
@@ -47,12 +49,12 @@ export async function actAfterTap(
   }
 
   await unstopped.settleTab(step.tab.id, new AbortController().signal);
-  return afterTheStep(step, unstopped);
+  return afterTheStep(step, unstopped, trustSite);
 }
 
 /**
  * The tab is still the active one, at the address the card was drawn for, with no
- * navigation pending, sharing is still on, and the contract still asks there.
+ * navigation pending, sharing is still on, and the contract still gives the same rule there.
  */
 async function stillTheSamePage(
   step: PreparedAct,
@@ -66,14 +68,25 @@ async function stillTheSamePage(
     now?.id === step.tab.id &&
     now.url === step.tab.url &&
     !now.pendingUrl &&
-    actRule(step.tool, now.url ?? "", step.sensitive, deps.origins) === "ask"
+    actRule(
+      step.tool,
+      now.url ?? "",
+      step.sensitive,
+      deps.origins,
+      step.trusted,
+    ) === step.rule
   );
 }
 
-/** Where the tab is after the step, or a refusal that reports nothing of a page out of reach. */
+/**
+ * Where the tab is after the step, or a refusal that reports nothing of a page out of reach.
+ * A trust ticked on the card is reported only while the tab is still on the card's origin:
+ * a step that left the site trusts nothing.
+ */
 async function afterTheStep(
   step: PreparedAct,
   deps: ActDeps,
+  trustSite: boolean,
 ): Promise<ReadOutcome> {
   const after = await deps.tab(step.tab.id);
   const location = landedPage(after?.url, deps.origins);
@@ -100,5 +113,17 @@ async function afterTheStep(
       `The ${step.tool} result does not fit the contract's result`,
     );
   }
-  return { status: "done", asked: true, result };
+  const asked = step.rule === "ask";
+  const stayed = location.origin === step.page.location.origin;
+  if (trustSite && !stayed) {
+    console.warn(
+      `[carmen-panel] ${step.tool} left the trusted site; the trust is not kept`,
+    );
+  }
+  return {
+    status: "done",
+    asked,
+    result,
+    ...(asked && trustSite && stayed ? { trustOrigin: location.origin } : {}),
+  };
 }

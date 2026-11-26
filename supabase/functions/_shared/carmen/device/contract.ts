@@ -173,6 +173,36 @@ export type DeviceRequestFields = {
 /** What a reply tells the site about a step waiting for the panel: its id and tool, nothing to act on. */
 export type DeviceActionReply = { action_id: string; tool: DeviceToolName };
 
+/** The tools a user may trust a site for from their card: a navigation always asks (card-rule.ts). */
+export const TRUSTABLE_TOOLS = [
+  "browser_click",
+  "browser_type",
+] as const satisfies ReadonlyArray<DeviceToolName>;
+
+/**
+ * What carmen-device-action's claim hands the panel, once: the step to run and what the
+ * server decided about it. The panel acts on nothing else (plan rule 3).
+ */
+export type DeviceClaimReply = {
+  tool: DeviceToolName;
+  /** Unread until the tool's flow checks them. */
+  arguments: unknown;
+  /**
+   * For a click or a type, the one origin the step may run on without a card: the user
+   * trusted it for this conversation and every page result of the run came from it.
+   * Null otherwise. The panel still checks the tab's real address and the page.
+   */
+  trusted_origin: string | null;
+  /** For a click or a type, the step's conversation, so the panel can key its own memory of what the user trusted; else null. */
+  conversation_id: string | null;
+  /**
+   * For a screenshot, whether the user holds the manager's permission to picture a page on
+   * the act floor or with a password or payment field: the card rule's
+   * `sensitiveScreenshotsAllowed`, read on the server; false for every other tool.
+   */
+  sensitive_screenshots_allowed: boolean;
+};
+
 /** The stream event, and the reply field, that carry a waiting step. */
 export const DEVICE_ACTION_EVENT = "device_action";
 

@@ -23,16 +23,13 @@ import { MODEL_CATALOG, resolveModelId } from "../../_shared/models.ts";
 import { asUuidOrNull } from "../../_shared/uuid.ts";
 import type { Surface } from "../surface.ts";
 
-/**
- * The device tools the server offers, beside a readable tab and only those the panel
- * announced. The screenshot joins with the extension pull request that draws its card
- * (AIO-656).
- */
+/** The device tools the server offers, beside a readable tab and only those the panel announced. */
 export const OFFERED_DEVICE_TOOLS: ReadonlyArray<DeviceToolName> = [
   "browser_read_page",
   "browser_navigate",
   "browser_click",
   "browser_type",
+  "browser_screenshot",
 ];
 
 /** The tools that name an element of the run's latest read: offered only while one may be named (`actTarget`). */

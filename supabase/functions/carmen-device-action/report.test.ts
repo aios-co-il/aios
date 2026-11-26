@@ -36,6 +36,7 @@ Deno.test("parseReport", async (t) => {
       decision: "ask",
       observed: null,
       result: null,
+      trust_origin: null,
     });
   });
 
@@ -64,5 +65,56 @@ Deno.test("parseReport", async (t) => {
     assertEquals(parseReport({ ...changed, observed: "example.com" }), null);
     assertEquals(parseReport({ ...changed, observed: PAGE })?.observed, PAGE);
     assertEquals(parseReport({ ...changed, decision: "ask" })?.decision, "ask");
+  });
+
+  await t.step("a trust comes only from a card the user tapped", () => {
+    const tapped = {
+      status: "done",
+      decision: "ask",
+      observed: PAGE,
+      result: PAGE,
+    };
+
+    assertEquals(
+      parseReport({ ...tapped, trust_origin: PAGE.origin })?.trust_origin,
+      PAGE.origin,
+    );
+    assertEquals(parseReport(tapped)?.trust_origin, null);
+    // A step that ran without a card, or did not run, trusts nothing.
+    assertEquals(
+      parseReport({ ...tapped, decision: "free", trust_origin: PAGE.origin }),
+      null,
+    );
+    assertEquals(
+      parseReport({
+        status: "denied",
+        decision: "ask",
+        observed: PAGE,
+        trust_origin: PAGE.origin,
+      }),
+      null,
+    );
+  });
+
+  await t.step("a trust names exactly the https origin the tab is on", () => {
+    const tapped = { status: "done", decision: "ask", result: PAGE };
+    const plain = { origin: "http://example.com", path: "/a" };
+
+    for (const trust_origin of [
+      "https://other.example",
+      "https://example.com/",
+      "https://example.com:8443",
+      "HTTPS://EXAMPLE.COM",
+      42,
+    ]) {
+      assertEquals(
+        parseReport({ ...tapped, observed: PAGE, trust_origin }),
+        null,
+      );
+    }
+    assertEquals(
+      parseReport({ ...tapped, observed: plain, trust_origin: plain.origin }),
+      null,
+    );
   });
 });

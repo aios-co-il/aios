@@ -8,7 +8,8 @@ import { INVISIBLE_FORMAT } from "../../../supabase/functions/_shared/carmen/dev
 /**
  * The card's lines: its title, the address it is about (shown left to right on a line of
  * its own, or null), the text to be typed (in its own direction on lines of its own, or
- * null), its explanation and the allow button.
+ * null), its explanation, the allow button, and the label of the "trust this site"
+ * checkbox (null hides it: only a click or typing card that asks offers it).
  */
 export type CardWords = {
   title: string;
@@ -16,6 +17,7 @@ export type CardWords = {
   quote: string | null;
   text: string;
   allow: string;
+  trust: string | null;
 };
 
 /** The element a click or type card is about, as the acting function found it now. */
@@ -34,6 +36,7 @@ export function readCardWords(host: string): CardWords {
     quote: null,
     text: 'כרמן תקרא את הכותרת, את הטקסט ואת שמות הכפתורים, הקישורים והשדות שמוצגים בדף, בלי מה שמוקלד בשדות. Chrome יבקש לאשר לתוסף "לקרוא ולשנות" את האתר הזה; כרמן רק קוראת, וההרשאה תוסר כשהחלונית תיפתח מחדש.',
     allow: "לאפשר קריאה",
+    trust: null,
   };
 }
 
@@ -53,6 +56,7 @@ export function navigateCardWords(step: {
     quote: null,
     text: `הלשונית שפתוחה עכשיו ב-${step.fromHost} תעבור לכתובת הזו. אחרי המעבר כרמן תדע רק את הכתובת ואת הכותרת של הדף החדש; כדי לקרוא אותו היא תבקש בנפרד.`,
     allow: "לעבור לאתר",
+    trust: null,
   };
 }
 
@@ -72,6 +76,7 @@ export function clickCardWords(
       ? "הלחיצה תיעשה בלשונית שפתוחה עכשיו, והאתר אומר שהיא מובילה לכתובת הזו. אחרי הלחיצה כרמן תדע רק את הכתובת, את הכותרת והאם הדף השתנה."
       : "הלחיצה תיעשה בלשונית שפתוחה עכשיו. אחרי הלחיצה כרמן תדע רק את הכתובת, את הכותרת והאם הדף השתנה.",
     allow: "ללחוץ",
+    trust: null,
   };
 }
 
@@ -88,7 +93,39 @@ export function typeCardWords(
     quote: target.text,
     text: "זה הטקסט המלא שיוקלד. הוא יחליף את מה שכתוב עכשיו בשדה. כרמן לא רואה מה כתוב בשדות.",
     allow: "להקליד",
+    trust: null,
   };
+}
+
+/**
+ * The card before every picture of the tab: what the picture will show and that it goes to
+ * the AI model. On a sensitive page (the act floor, or a password or payment field) it says
+ * so first. The tap asks Chrome for the grant a capture needs, which Chrome words for every
+ * site, so the card says the extension gives it back right after the picture.
+ */
+export function screenshotCardWords(step: {
+  host: string;
+  sensitive: boolean;
+}): CardWords {
+  const warning = step.sensitive
+    ? "זה דף רגיש: אתר דואר, הודעות, בנק או תשלומים, או דף עם שדה סיסמה או תשלום. "
+    : "";
+  return {
+    title: `כרמן מבקשת לצלם את הלשונית באתר ${step.host}`,
+    address: null,
+    quote: null,
+    text: `${warning}התמונה תראה את כל מה שגלוי עכשיו בלשונית, כולל שמות, מספרים והודעות שמוצגים בה, ותישלח למודל ה-AI שעונה לך כדי שיקרא אותה. הקובץ נמחק מהשרת מיד אחרי הקריאה. כדי לצלם, Chrome יבקש לאשר לתוסף "לקרוא ולשנות" את כל האתרים; התוסף מוותר על ההרשאה הזו מיד אחרי הצילום.`,
+    allow: "לצלם",
+    trust: null,
+  };
+}
+
+/**
+ * The label of the checkbox that trusts one exact origin for the conversation. It names
+ * the host with its port, as the trust is kept, and says what the trust never covers.
+ */
+export function trustWords(origin: string): string {
+  return `לסמוך על \u2068${new URL(origin).host}\u2069 בשיחה הזו: הלחיצות וההקלדות הבאות באתר הזה יתבצעו בלי לשאול, כל עוד כרמן קוראת רק אותו. מעבר לאתר אחר ודפים עם שדה סיסמה או תשלום ימשיכו לשאול.`;
 }
 
 /**

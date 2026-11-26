@@ -10,6 +10,14 @@
  */
 export const GRANTABLE_SITES = "https://*/*";
 
+/**
+ * The grant Chrome requires for `captureVisibleTab`: a site's own grant is not enough, and
+ * the side panel never receives `activeTab` (checked in headless Chromium, AIO-656). Asked
+ * for from the screenshot card's tap, given back right after the capture, and dropped with
+ * the site grants whenever the panel opens, so no read ever rides on it.
+ */
+export const CAPTURE_GRANT = "<all_urls>";
+
 /** The match pattern Chrome is asked for to read one site: its host, any path, https only. */
 export function sitePattern(hostname: string): string {
   return `https://${hostname}/*`;

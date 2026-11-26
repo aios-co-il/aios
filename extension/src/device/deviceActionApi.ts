@@ -4,7 +4,10 @@
  * with `keepalive`; the extension's host permission for the Supabase origins means no CORS
  * preflight stands in the way.
  */
-import { isDeviceToolName } from "../../../supabase/functions/_shared/carmen/device/contract.ts";
+import {
+  type DeviceClaimReply,
+  isDeviceToolName,
+} from "../../../supabase/functions/_shared/carmen/device/contract.ts";
 import type { CompleteBody } from "./completion.ts";
 import type { ClaimAnswer } from "./readActions.ts";
 
@@ -76,6 +79,14 @@ export function deviceActionApi(
             ok: true,
             tool: answer.tool,
             arguments: "arguments" in answer ? answer.arguments : undefined,
+            trustedOrigin: textField(answer, "trusted_origin"),
+            conversationId: textField(answer, "conversation_id"),
+            // Only a real true grants it: anything else from the answer is no permission.
+            sensitiveScreenshotsAllowed:
+              Object.getOwnPropertyDescriptor(
+                answer,
+                "sensitive_screenshots_allowed" satisfies keyof DeviceClaimReply,
+              )?.value === true,
           }
         : { ok: false, reason: "the claim answer has no device tool" };
     } catch (error) {
@@ -113,6 +124,15 @@ export function deviceActionApi(
   }
 
   return { claim, complete, completeOnClose };
+}
+
+/** A field of the claim's answer when it is a string, else null: anything else grants nothing. */
+function textField(
+  answer: object,
+  field: keyof DeviceClaimReply,
+): string | null {
+  const value: unknown = Object.getOwnPropertyDescriptor(answer, field)?.value;
+  return typeof value === "string" ? value : null;
 }
 
 /** Any thrown value as an Error. */

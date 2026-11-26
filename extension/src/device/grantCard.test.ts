@@ -1,8 +1,14 @@
 // @vitest-environment happy-dom
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { navigateCardWords, typeCardWords } from "./cardWords.ts";
 import {
+  clickCardWords,
+  navigateCardWords,
+  trustWords,
+  typeCardWords,
+} from "./cardWords.ts";
+import {
+  askActOnCard,
   askGrantOnCard,
   askOnCard,
   type GrantCardElements,
@@ -16,6 +22,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   document.body.innerHTML = `
     <div id="card" class="hidden"><div id="title"></div><p id="address"></p><p id="quote"></p><p id="text"></p>
+      <label id="trust" class="hidden"><input type="checkbox" id="trust-box" /><span id="trust-label"></span></label>
       <button id="allow">allow</button><button id="decline">decline</button></div>`;
   elements = {
     card: byId("card", HTMLElement),
@@ -23,6 +30,9 @@ beforeEach(() => {
     address: byId("address", HTMLElement),
     quote: byId("quote", HTMLElement),
     text: byId("text", HTMLElement),
+    trust: byId("trust", HTMLElement),
+    trustBox: byId("trust-box", HTMLInputElement),
+    trustLabel: byId("trust-label", HTMLElement),
     allow: byId("allow", HTMLButtonElement),
     decline: byId("decline", HTMLButtonElement),
   };
@@ -191,5 +201,85 @@ describe("askOnCard for a navigation", () => {
 
     expect(await answer).toBe("declined");
     expect(onAllow).not.toHaveBeenCalled();
+  });
+});
+
+describe("askActOnCard", () => {
+  const CLICK = {
+    ...clickCardWords({
+      host: "shop.example",
+      role: "button",
+      name: "Send",
+      destination: null,
+    }),
+    trust: trustWords("https://shop.example"),
+  };
+
+  /** Shows a click card that offers the trust and lets its buttons wake. */
+  function shownActCard(words = CLICK) {
+    const answer = askActOnCard(elements, words, new AbortController().signal);
+    vi.advanceTimersByTime(500);
+    return answer;
+  }
+
+  it("offers the trust unticked and names the exact host", () => {
+    elements.trustBox.checked = true;
+
+    void shownActCard();
+
+    expect(elements.trust.classList.contains("hidden")).toBe(false);
+    expect(elements.trustBox.checked).toBe(false);
+    expect(elements.trustLabel.textContent).toContain("shop.example");
+  });
+
+  it("trusts the site only when the box is ticked at the tap on allow", async () => {
+    const tapper = user();
+    const ticked = shownActCard();
+    await tapper.click(elements.trustBox);
+    await tapper.click(elements.allow);
+
+    expect(await ticked).toEqual({ answer: "allowed", trustSite: true });
+
+    const plain = shownActCard();
+    await tapper.click(elements.allow);
+
+    expect(await plain).toEqual({ answer: "allowed", trustSite: false });
+  });
+
+  it("a tick taken back, or a declined card, trusts nothing", async () => {
+    const tapper = user();
+    const unticked = shownActCard();
+    await tapper.click(elements.trustBox);
+    await tapper.click(elements.trustBox);
+    await tapper.click(elements.allow);
+
+    expect(await unticked).toEqual({ answer: "allowed", trustSite: false });
+
+    const declined = shownActCard();
+    await tapper.click(elements.trustBox);
+    await tapper.click(elements.decline);
+
+    expect(await declined).toEqual({ answer: "declined", trustSite: false });
+  });
+
+  it("a card without the offer hides the box and trusts nothing, whatever it holds", async () => {
+    const answer = shownActCard({ ...CLICK, trust: null });
+    elements.trustBox.checked = true;
+
+    expect(elements.trust.classList.contains("hidden")).toBe(true);
+
+    await user().click(elements.allow);
+
+    expect(await answer).toEqual({ answer: "allowed", trustSite: false });
+  });
+
+  it("keeps the box asleep with the buttons for 500 ms", () => {
+    void askActOnCard(elements, CLICK, new AbortController().signal);
+
+    expect(elements.trustBox.disabled).toBe(true);
+
+    vi.advanceTimersByTime(500);
+
+    expect(elements.trustBox.disabled).toBe(false);
   });
 });

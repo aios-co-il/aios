@@ -137,6 +137,7 @@ Deno.test(
             },
             BROKEN_ORIGINS,
             NOW,
+            { sensitiveScreenshotsAllowed: () => Promise.resolve(false) },
           );
         });
 
@@ -149,6 +150,7 @@ Deno.test(
             tainted: false,
           },
           steps: [step],
+          screenshot: null,
         });
         assertStrictEquals(errors.length, 1);
         assertStrictEquals(step.status, "refused");

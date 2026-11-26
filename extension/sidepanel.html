@@ -39,6 +39,11 @@
       <p id="grant-quote" class="grant-quote hidden" dir="auto"></p>
       <!-- The words come from src/device/cardWords.ts, per step. -->
       <p id="grant-text" class="grant-text"></p>
+      <!-- Click and typing cards only: unticked each time the card is drawn. -->
+      <label id="grant-trust" class="checkbox grant-trust hidden">
+        <input type="checkbox" id="grant-trust-box" />
+        <span id="grant-trust-label"></span>
+      </label>
       <div class="grant-actions">
         <button id="grant-allow" class="btn primary" type="button"></button>
         <button id="grant-decline" class="btn secondary" type="button">

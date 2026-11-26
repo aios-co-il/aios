@@ -18,6 +18,10 @@ import {
   type StepRow,
   TABLE,
 } from "./rows.ts";
+import {
+  discardUnusedScreenshots,
+  type ScreenshotStore,
+} from "./screenshot.ts";
 
 /**
  * What an open step becomes: `cancelled` when the user wrote again (a claimed step is then
@@ -63,18 +67,20 @@ export async function settleStep(
  * step left claimed is closed, so "a new message cancels the card" holds on the server too.
  * Then no closed step of the conversation can be resumed any more, and the page text of one
  * nobody resumed (the site dropped its continuation) is cleared rather than kept until the
- * table's retention deletes the row.
+ * table's retention deletes the row; so is the file of a picture nobody resumed.
  */
 export async function settleOpenSteps(
   db: DeviceDb,
   owner: Owner & { conversationId: string },
   now: Date,
+  screenshots: Pick<ScreenshotStore, "remove">,
 ): Promise<void> {
   const open = await readOpenSteps(db, owner);
 
   for (const step of open) {
     await settleStep(db, owner, step, "cancelled", now);
   }
+  await discardUnusedScreenshots(db, owner, screenshots);
   await retireClosedSteps(db, owner, now);
 }
 

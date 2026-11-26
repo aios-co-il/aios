@@ -1,6 +1,8 @@
 /**
  * One claimed `browser_click` or `browser_type` (AIO-656), from the card to where the tab
- * is after it. The card shows every time. Before it the panel rules on the tab's address,
+ * is after it. The card shows every time, unless the step is on the origin the claim named
+ * as trusted and the contract answers `free` there; the card offers that trust for the
+ * conversation. Before it the panel rules on the tab's address,
  * finds the read's element and refuses fields nothing is typed into (actPrepare.ts); after
  * the tap it checks that the same tab is still active at the same address with sharing on
  * and the rule unchanged, and the acting function checks, in that same document, that the
@@ -9,13 +11,13 @@
  * field's value. Every browser call comes in through `ActDeps`, so this runs without Chrome.
  */
 import { actAfterTap } from "./actAfterTap.ts";
-import { prepareAct } from "./actPrepare.ts";
+import { type ActTrust, prepareAct } from "./actPrepare.ts";
 import type { ActTool } from "./actStep.ts";
 import type { CardWords } from "./cardWords.ts";
 import type { ReadOutcome } from "./completion.ts";
+import type { ActCardAnswer } from "./grantCard.ts";
 import type { PageActRequest } from "./keptSnapshot.ts";
 import {
-  type GrantAnswer,
   type ReadDeps,
   type ReadProgress,
   stoppedOutcome,
@@ -28,8 +30,8 @@ export type ActDeps = Pick<
   ReadDeps,
   "origins" | "isTabShared" | "activeTab" | "tab" | "hasGrant"
 > & {
-  /** Shows the click or typing card; resolves with the tap, or `stopped`. */
-  askAct: (words: CardWords, signal: AbortSignal) => Promise<GrantAnswer>;
+  /** Shows the click or typing card; resolves with the tap and the trust ticked, or `stopped`. */
+  askAct: (words: CardWords, signal: AbortSignal) => Promise<ActCardAnswer>;
   /** Runs the acting function in the tab's top frame; its document's id and raw answer. */
   inspectTarget: (
     tabId: number,
@@ -53,11 +55,11 @@ export async function actOutcome(
   args: unknown,
   progress: ReadProgress,
   deps: ActDeps,
+  trust: ActTrust,
 ): Promise<ReadOutcome> {
   try {
     return await actUnlessStopped(
-      tool,
-      args,
+      { tool, args, trust },
       progress,
       stoppable(deps, progress),
       deps,
@@ -75,27 +77,38 @@ export async function actOutcome(
  * the step is stopped; from the act on it runs on `unstopped` deps and reports what it did.
  */
 async function actUnlessStopped(
-  tool: ActTool,
-  args: unknown,
+  claimed: { tool: ActTool; args: unknown; trust: ActTrust },
   progress: ReadProgress,
   deps: ActDeps,
   unstopped: ActDeps,
 ): Promise<ReadOutcome> {
-  const step = await prepareAct(tool, args, deps);
+  const step = await prepareAct(
+    claimed.tool,
+    claimed.args,
+    deps,
+    claimed.trust,
+  );
   if ("status" in step) {
     return step;
   }
 
   progress.observed = step.page.location;
-  const answer = await waitForCard(progress, (signal) =>
-    deps.askAct(step.words, signal),
-  );
+  if (step.rule === "free") {
+    progress.decision = "free";
+    return actAfterTap(step, deps, unstopped, false);
+  }
+  let trustSite = false;
+  const answer = await waitForCard(progress, async (signal) => {
+    const tapped = await deps.askAct(step.words, signal);
+    trustSite = tapped.trustSite;
+    return tapped.answer;
+  });
   if (answer !== "allowed") {
     return answer === "declined"
       ? { status: "denied", observed: step.page.location }
       : stoppedOutcome(progress);
   }
-  return actAfterTap(step, deps, unstopped);
+  return actAfterTap(step, deps, unstopped, trustSite);
 }
 
 /** The deps with every wait before the act raced against the step's stop, as the read's are. */

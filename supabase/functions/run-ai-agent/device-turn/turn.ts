@@ -11,6 +11,7 @@
  * step of its conversation nobody will finish and clears the page text nobody resumed.
  */
 import { DEVICE_PAUSE_LINE } from "../../_shared/carmen/device/contract.ts";
+import { sensitiveScreenshotsAllowed } from "../../_shared/carmen/sensitive-screenshots.ts";
 import { continuedTurn } from "./continued-turn.ts";
 import {
   deviceTurnVerdict,
@@ -26,6 +27,7 @@ import {
 } from "./model-turn.ts";
 import { deviceRequestOf } from "./request.ts";
 import type { DeviceDb } from "./rows.ts";
+import type { ScreenshotStore } from "./screenshot.ts";
 import { settleOpenSteps } from "./settle.ts";
 
 export type { DeviceActionReply } from "../../_shared/carmen/device/contract.ts";
@@ -46,7 +48,17 @@ export async function openDeviceTurn(
     runId: input.body.run_id,
     contextMetadata: input.body.context_metadata,
   });
-  const turn = { db, emit, input, origins, now, verdict };
+  const turn = {
+    db,
+    emit,
+    input,
+    origins,
+    now,
+    verdict,
+    screenshotStore: input.screenshotStore ?? NO_SCREENSHOT_STORE,
+    sensitiveScreenshotsAllowed:
+      input.sensitiveScreenshotsAllowed ?? permissionOf(db, input),
+  };
 
   if (request.continuation) {
     return await continuedTurn(
@@ -62,6 +74,25 @@ export async function openDeviceTurn(
     offeredDeviceTools(verdict, request.announced, 0, false),
     null,
   );
+}
+
+/** A caller that wired no store: every read and delete fails, and is logged where it happens. */
+const NO_SCREENSHOT_STORE: ScreenshotStore = {
+  sizeOf: () => Promise.reject(new Error("no screenshot store")),
+  bytesOf: () => Promise.reject(new Error("no screenshot store")),
+  remove: () => Promise.reject(new Error("no screenshot store")),
+};
+
+/** The signed-in user's permission to picture a sensitive page, read only when a step asks. */
+function permissionOf(
+  db: DeviceDb,
+  input: DeviceTurnInput,
+): () => Promise<boolean> {
+  const userId = input.userId;
+  return () =>
+    userId
+      ? sensitiveScreenshotsAllowed(db, input.tenantId, userId)
+      : Promise.resolve(false);
 }
 
 /** The saved answer of a turn that paused at a step: the model's own text, else the pause line. */
@@ -89,6 +120,7 @@ async function closeUnfinishedSteps(turn: OpenTurn): Promise<void> {
         conversationId: input.conversationId,
       },
       turn.now(),
+      turn.screenshotStore,
     );
   } catch (error) {
     console.error("[device] closing unfinished steps failed", error);

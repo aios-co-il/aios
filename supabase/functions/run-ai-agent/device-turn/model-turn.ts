@@ -10,6 +10,10 @@ import {
 } from "../../_shared/carmen/device/contract.ts";
 import type { EnvironmentOrigins } from "../../_shared/carmen/device/never-controllable.ts";
 import type { ToolDef } from "../../_shared/carmen-token-optimizer.ts";
+import {
+  NO_PICTURES,
+  type TurnPictures,
+} from "../attachments/turn-pictures.ts";
 import { deviceDataBlock, type StepOutcome } from "./data-block.ts";
 import type {
   DeviceTurnFacts,
@@ -17,6 +21,7 @@ import type {
   offeredDeviceTools,
 } from "./eligibility.ts";
 import type { DeviceDb } from "./rows.ts";
+import type { ScreenshotStore } from "./screenshot.ts";
 import { type DeviceToolResult, notOffered, startDeviceStep } from "./step.ts";
 import { withheldAfterPageRead, withheldToolRefusal } from "./withheld.ts";
 
@@ -32,6 +37,10 @@ export type DeviceTurnInput = Omit<
   userId: string | null;
   origins?: EnvironmentOrigins;
   now?: () => Date;
+  /** Where a screenshot's file is read and deleted; the Command Center bucket in index.ts. */
+  screenshotStore?: ScreenshotStore;
+  /** The user's permission to picture a sensitive page; read from their Carmen permissions row by default. */
+  sensitiveScreenshotsAllowed?: () => Promise<boolean>;
 };
 
 /** The device side of one turn. */
@@ -50,6 +59,8 @@ export type DeviceTurn = {
   ): Array<Tool>;
   /** The user turn with the resumed step's data block after it. */
   userTurn(text: string): string;
+  /** A resumed screenshot's picture, read and its file already deleted, for the turn's pictures. */
+  pictures: TurnPictures;
   /** Whether a tool call is the device turn's to answer: any device tool, and a withheld tool. */
   handles(toolName: string): boolean;
   call(
@@ -72,6 +83,8 @@ export type OpenTurn = {
   origins: EnvironmentOrigins;
   now: () => Date;
   verdict: DeviceTurnVerdict;
+  screenshotStore: ScreenshotStore;
+  sensitiveScreenshotsAllowed: () => Promise<boolean>;
 };
 
 /** The device side of a turn that runs the model; `resumed` is the step a continuation resumes. */
@@ -79,6 +92,7 @@ export function deviceTurn(
   turn: OpenTurn,
   offered: ReturnType<typeof offeredDeviceTools>,
   resumed: StepOutcome | null,
+  pictures: TurnPictures = NO_PICTURES,
 ): DeviceTurn {
   const { verdict, input } = turn;
   const holdsPageData = resumed !== null;
@@ -95,6 +109,7 @@ export function deviceTurn(
         : tools,
     userTurn: (text) =>
       resumed ? `${text}\n\n${deviceDataBlock(resumed)}` : text,
+    pictures,
     handles: (toolName) =>
       isDeviceToolName(toolName) ||
       (holdsPageData && withheldAfterPageRead(toolName)),
@@ -116,6 +131,7 @@ export function deviceTurn(
           offered,
           origins: turn.origins,
           now: turn.now,
+          sensitiveScreenshotsAllowed: turn.sensitiveScreenshotsAllowed,
         },
         toolName,
         args,
@@ -146,6 +162,7 @@ export function answered(reply: Response): DeviceTurn {
     offeredTools: [],
     withoutWithheld: (tools) => tools,
     userTurn: (text) => text,
+    pictures: NO_PICTURES,
     handles: () => false,
     call: () => Promise.reject(new Error("answered without the model")),
     pausedAt: () => null,

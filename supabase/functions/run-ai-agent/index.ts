@@ -1848,7 +1848,11 @@ import {
   textOnlyTurn,
   withTurnPictures,
 } from "./attachments/picture-turn.ts";
-import { asksForPictures } from "./attachments/turn-pictures.ts";
+import {
+  asksForPictures,
+  withDevicePictures,
+} from "./attachments/turn-pictures.ts";
+import { commandCenterScreenshotStore } from "./device-turn/screenshot.ts";
 import { targetCanSee } from "./attachments/vision.ts";
 
 // Emit function used by the streaming wrapper to push SSE events to the client.
@@ -2189,6 +2193,7 @@ async function handleRunAgent(
       tenantId: resolvedTenantId,
       userId: callerUserId,
       conversationId: serverConversationId,
+      screenshotStore: commandCenterScreenshotStore(supabase),
     });
     if (deviceTurn.reply) {
       return deviceTurn.reply;
@@ -2196,10 +2201,14 @@ async function handleRunAgent(
 
     // Pictures attached in the site chat (attachments/, AIO-675): storage paths in the
     // signed-in caller's own folder only. Read later, once the brains of the turn are known.
-    const pictureRequest = readPictureRequest(bodyJson.attachments, {
-      authKind: request.authKind,
-      userId: callerUserId,
-    });
+    // A resumed browser screenshot joins them, already read and its file deleted.
+    const pictureRequest = withDevicePictures(
+      readPictureRequest(bodyJson.attachments, {
+        authKind: request.authKind,
+        userId: callerUserId,
+      }),
+      deviceTurn.pictures,
+    );
 
     // A quick model answers small talk and what the org brief already covers before the full
     // setup (memory, skills, tools) runs; anything else falls through unchanged (fast-lane/).

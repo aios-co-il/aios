@@ -19,9 +19,16 @@ export type GrantCardElements = {
   /** The text a typing card would type; hidden on every other card. */
   quote: HTMLElement;
   text: HTMLElement;
+  /** The "trust this site for this conversation" checkbox's row, its box and its label. */
+  trust: HTMLElement;
+  trustBox: HTMLInputElement;
+  trustLabel: HTMLElement;
   allow: HTMLButtonElement;
   decline: HTMLButtonElement;
 };
+
+/** What a click or typing card ended in, and whether "trust this site" was ticked when allow was tapped. */
+export type ActCardAnswer = { answer: GrantAnswer; trustSite: boolean };
 
 /**
  * Shows the read card for one site until a tap or a stop. `requestGrant` is called
@@ -36,6 +43,24 @@ export function askGrantOnCard(
   return askOnCard(elements, readCardWords(site.host), signal, () =>
     requestGrant(site.pattern),
   );
+}
+
+/**
+ * Shows a click or typing card until a tap or a stop. The checkbox is read at the tap on
+ * allow, so a tick the user takes back before tapping trusts nothing.
+ */
+export async function askActOnCard(
+  elements: GrantCardElements,
+  words: CardWords,
+  signal: AbortSignal,
+): Promise<ActCardAnswer> {
+  let ticked = false;
+  const answer = await askOnCard(elements, words, signal, async () => {
+    ticked = words.trust !== null && elements.trustBox.checked;
+    return true;
+  });
+
+  return { answer, trustSite: answer === "allowed" && ticked };
 }
 
 /**
@@ -76,6 +101,7 @@ export function askOnCard(
     /** The tap on allow; a refused prompt is a decline. */
     function onAllowTap(): void {
       setEnabled(false);
+      elements.trustBox.disabled = true;
       onAllow().then(
         (allowed) => settle(allowed ? "allowed" : "declined"),
         (error: unknown) =>
@@ -97,6 +123,7 @@ export function askOnCard(
     function setEnabled(enabled: boolean): void {
       elements.allow.disabled = !enabled;
       elements.decline.disabled = !enabled;
+      elements.trustBox.disabled = !enabled;
     }
 
     if (signal.aborted) {
@@ -109,6 +136,10 @@ export function askOnCard(
     elements.quote.textContent = words.quote ?? "";
     elements.quote.classList.toggle("hidden", words.quote === null);
     elements.text.textContent = words.text;
+    elements.trustLabel.textContent = words.trust ?? "";
+    elements.trust.classList.toggle("hidden", words.trust === null);
+    // Each card starts unticked: a tick never carries over to the next step.
+    elements.trustBox.checked = false;
     elements.allow.textContent = words.allow;
     setEnabled(false);
     elements.allow.addEventListener("click", onAllowTap);

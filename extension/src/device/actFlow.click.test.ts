@@ -161,6 +161,7 @@ describe("clicking after the card", () => {
     expect(redirected.acted).toHaveLength(1);
     expect(redirected.completed[0]).toEqual({
       action: "complete",
+      trust_origin: null,
       id: ACTION_ID,
       status: "refused",
       decision: "never",

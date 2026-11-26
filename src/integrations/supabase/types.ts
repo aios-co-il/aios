@@ -3938,6 +3938,7 @@ export type Database = {
           dev_escalation_tier: string | null
           enabled: boolean
           id: string
+          sensitive_screenshots: boolean
           surfaces: string[]
           tenant_id: string
           updated_at: string
@@ -3951,6 +3952,7 @@ export type Database = {
           dev_escalation_tier?: string | null
           enabled?: boolean
           id?: string
+          sensitive_screenshots?: boolean
           surfaces?: string[]
           tenant_id: string
           updated_at?: string
@@ -3964,6 +3966,7 @@ export type Database = {
           dev_escalation_tier?: string | null
           enabled?: boolean
           id?: string
+          sensitive_screenshots?: boolean
           surfaces?: string[]
           tenant_id?: string
           updated_at?: string
@@ -4061,6 +4064,48 @@ export type Database = {
           },
           {
             foreignKeyName: "carmen_device_actions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      carmen_device_trusted_sites: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          origin: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          origin: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          origin?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "carmen_device_trusted_sites_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "ai_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "carmen_device_trusted_sites_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"

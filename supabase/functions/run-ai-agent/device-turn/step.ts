@@ -5,10 +5,7 @@
  * its id. A call that fails a check writes no row and goes back to the model as a tool error,
  * so the turn goes on without a step.
  */
-import {
-  deviceCardRule,
-  holdsAnotherOrigin,
-} from "../../_shared/carmen/device/card-rule.ts";
+import { holdsAnotherOrigin } from "../../_shared/carmen/device/card-rule.ts";
 import {
   DEVICE_STEPS_PER_MESSAGE,
   DEVICE_TOOLS,
@@ -25,6 +22,7 @@ import {
   readRunSteps,
   type RunKey,
 } from "./rows.ts";
+import { cardRule } from "./step-rule.ts";
 
 /** What a device tool call returns to the loop. */
 export type DeviceToolResult =
@@ -39,6 +37,8 @@ export type StepTurn = RunKey & {
   offered: ReadonlyArray<DeviceToolName>;
   origins: EnvironmentOrigins;
   now: () => Date;
+  /** The user's permission to picture a sensitive page, read on the server; asked only for a screenshot. */
+  sensitiveScreenshotsAllowed: () => Promise<boolean>;
 };
 
 /** Checks one device tool call and, when it passes, writes its pending row. */
@@ -67,10 +67,15 @@ export async function startDeviceStep(
   if (actRefusal) {
     return refusal(toolName, actRefusal, ACT_REFUSAL_MESSAGE[actRefusal]);
   }
-  const tainted = tabTainted(turn, steps);
+  const facts = {
+    tainted: tabTainted(turn, steps),
+    permission:
+      toolName === "browser_screenshot" &&
+      (await turn.sensitiveScreenshotsAllowed()),
+  };
   // A navigation is ruled on twice: the tab it leaves and the destination it opens.
   const refused = [turn.tabUrl, ...(stored.url ? [stored.url] : [])]
-    .map((url) => cardRule(toolName, url, turn.origins, tainted))
+    .map((url) => cardRule(toolName, url, turn.origins, facts))
     .find((rule) => rule !== "free" && rule !== "ask");
   if (refused) {
     return refusal(toolName, refused, "אין לי גישה לדף הזה.");
@@ -116,39 +121,6 @@ function storedArguments(
   return given.length === expected.length && strings.length === given.length
     ? Object.fromEntries(strings)
     : null;
-}
-
-/**
- * The card rule for the step on one page (the reported tab, or a navigation's
- * destination), or `configuration` when the contract throws on this environment's
- * settings: logged, and the step is refused.
- */
-function cardRule(
-  tool: DeviceToolName,
-  url: string,
-  origins: EnvironmentOrigins,
-  tainted: boolean,
-): string {
-  try {
-    return deviceCardRule({
-      tool,
-      url,
-      trusted: false,
-      tainted,
-      origins,
-      // The tenant's own floor hosts arrive with the act tools (AIO-656).
-      addedActNeverHosts: [],
-      // Unknown on the server, so the tighter answer.
-      sensitivePage: true,
-      sensitiveScreenshotsAllowed: false,
-    });
-  } catch (error) {
-    console.error(
-      `[device] ${tool} refused: the card rule cannot be read`,
-      error,
-    );
-    return "configuration";
-  }
 }
 
 /**
