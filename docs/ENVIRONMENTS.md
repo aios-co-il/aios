@@ -115,7 +115,7 @@ The following setup is documented for these environments; Vercel variables, Supa
 
 Each Supabase project's API can be reached on its `https://<ref>.supabase.co` address and, where configured, a custom domain: `https://api.aios.co.il` for Production, `https://api-staging.aios.co.il` for Staging. Code takes the address from configuration, so a region move changes only DNS and these values:
 
-- **Frontend:** `VITE_SUPABASE_URL` (Vercel). Production uses the custom domain.
+- **Frontend:** `VITE_SUPABASE_URL` (Vercel). Production uses the custom domain. Where it is a custom domain, `VITE_SUPABASE_PUBLISHABLE_KEY` must be the project's JWT key: Carmen's replies show a stored picture only from this environment's storage, and the key is what names the project's supabase.co address (`src/components/ReplyMarkdown/replyImageSource.ts`). With any other key the app logs one console error and shows those pictures as links.
 - **Edge functions:** `PUBLIC_API_URL` (Supabase edge secret) is the address handed to anyone outside the project: webhook and MCP URLs, magazine feeds, agent callbacks (`_shared/public-api/url.ts`). Unset, it falls back to `SUPABASE_URL`, which Supabase sets to the supabase.co address. A function calling its own project keeps using `SUPABASE_URL`, the only origin the Staging outbound guard allows.
 - **Database:** cron jobs and SQL functions read the Vault secret `project_url`; a database without it, such as a fresh Preview branch, makes no call.
 - **Render worker:** `PUBLIC_API_URL` in the Droplet env adds the custom domain to the project's media hosts (`render-worker/README.md`).

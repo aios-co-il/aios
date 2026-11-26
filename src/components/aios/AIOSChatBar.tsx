@@ -2,8 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { ReplyMarkdown } from "@/components/ReplyMarkdown/ReplyMarkdown";
 
 export interface AIOSMessage {
   role: "user" | "assistant";
@@ -88,9 +87,7 @@ export function AIOSChatBar({
                   className="prose prose-sm dark:prose-invert max-w-none [&_table]:my-2 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1 [&_th]:bg-muted [&_th]:font-semibold [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1"
                   dir="rtl"
                 >
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {msg.content}
-                  </ReactMarkdown>
+                  <ReplyMarkdown>{msg.content}</ReplyMarkdown>
                 </div>
               ) : (
                 <p dir="rtl">{msg.content}</p>
@@ -105,9 +102,7 @@ export function AIOSChatBar({
                 className="prose prose-sm dark:prose-invert max-w-none [&_table]:my-2 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1 [&_th]:bg-muted [&_th]:font-semibold [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1"
                 dir="rtl"
               >
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {streamingContent}
-                </ReactMarkdown>
+                <ReplyMarkdown>{streamingContent}</ReplyMarkdown>
               </div>
             </div>
           </div>
