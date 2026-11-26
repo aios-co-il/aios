@@ -214,6 +214,31 @@ class AiosAccount(context: Context) {
     }
 
     /**
+     * Uploads a chat picture to the user's own folder of [ChatPictures.BUCKET] as the user, so
+     * the bucket's folder policies apply, and never over an existing file (the site's
+     * `upsert: false`). The path and the token come from one session. Throws on failure.
+     */
+    fun uploadChatPicture(name: String, jpeg: ByteArray, now: Long, index: Int): TurnPicture {
+        val session = session()
+        if (session.userId.isEmpty()) throw IOException("לא מחובר ל-AIOS")
+        val path = ChatPictures.storagePath(session.userId, name, now, index)
+        val request = Request.Builder()
+            .url("${BuildConfig.SUPABASE_URL}/storage/v1/object/${ChatPictures.BUCKET}/$path")
+            .header("apikey", BuildConfig.SUPABASE_KEY)
+            .header("Authorization", "Bearer ${session.accessToken}")
+            .header("x-upsert", "false")
+            .post(jpeg.toRequestBody(ChatPictures.CONTENT_TYPE.toMediaType()))
+            .build()
+
+        uploadHttp.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IOException("upload $path: ${response.code} ${response.body?.string().orEmpty().take(200)}")
+            }
+        }
+        return TurnPicture(name, path, jpeg.size)
+    }
+
+    /**
      * Writes rows through the REST API as the signed-in user, so row-level security applies,
      * and returns the written rows. [method] is POST (insert) or PATCH (update).
      */
@@ -307,6 +332,8 @@ class AiosAccount(context: Context) {
 
         private val JSON = "application/json".toMediaType()
         private val http = OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build()
+        // A picture of a few megabytes on a slow mobile connection takes longer than a JSON call.
+        private val uploadHttp = OkHttpClient.Builder().callTimeout(120, TimeUnit.SECONDS).build()
         private const val REFRESH_MARGIN_MS = 60_000L
         const val NO_TENANT_MESSAGE = "החשבון הזה לא שייך לאף ארגון ב-AIOS. התחברו עם חשבון של הארגון, או בקשו הזמנה ממנהל הארגון."
         private val REFRESH_LOCK = Any()
