@@ -195,6 +195,12 @@ export type DeviceClaimReply = {
   trusted_origin: string | null;
   /** For a click or a type, the step's conversation, so the panel can key its own memory of what the user trusted; else null. */
   conversation_id: string | null;
+  /**
+   * For a screenshot, whether the user holds the manager's permission to picture a page on
+   * the act floor or with a password or payment field: the card rule's
+   * `sensitiveScreenshotsAllowed`, read on the server; false for every other tool.
+   */
+  sensitive_screenshots_allowed: boolean;
 };
 
 /** The stream event, and the reply field, that carry a waiting step. */

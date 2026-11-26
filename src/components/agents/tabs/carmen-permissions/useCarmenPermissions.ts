@@ -51,7 +51,9 @@ export function useCarmenPermissions(tenantId: string | null | undefined) {
     queryFn: async (): Promise<Array<AccessRow>> => {
       const { data, error } = await supabase
         .from("carmen_command_center_access")
-        .select("id,user_id,enabled,brain_access,dev_escalation_tier")
+        .select(
+          "id,user_id,enabled,brain_access,dev_escalation_tier,sensitive_screenshots",
+        )
         .eq("tenant_id", tenantId!)
         .eq("agent_id", agentId!)
         .not("user_id", "is", null);

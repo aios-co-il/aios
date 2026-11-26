@@ -98,6 +98,29 @@ export function typeCardWords(
 }
 
 /**
+ * The card before every picture of the tab: what the picture will show and that it goes to
+ * the AI model. On a sensitive page (the act floor, or a password or payment field) it says
+ * so first. The tap asks Chrome for the grant a capture needs, which Chrome words for every
+ * site, so the card says the extension gives it back right after the picture.
+ */
+export function screenshotCardWords(step: {
+  host: string;
+  sensitive: boolean;
+}): CardWords {
+  const warning = step.sensitive
+    ? "זה דף רגיש: אתר דואר, הודעות, בנק או תשלומים, או דף עם שדה סיסמה או תשלום. "
+    : "";
+  return {
+    title: `כרמן מבקשת לצלם את הלשונית באתר ${step.host}`,
+    address: null,
+    quote: null,
+    text: `${warning}התמונה תראה את כל מה שגלוי עכשיו בלשונית, כולל שמות, מספרים והודעות שמוצגים בה, ותישלח למודל ה-AI שעונה לך כדי שיקרא אותה. הקובץ נמחק מהשרת מיד אחרי הקריאה. כדי לצלם, Chrome יבקש לאשר לתוסף "לקרוא ולשנות" את כל האתרים; התוסף מוותר על ההרשאה הזו מיד אחרי הצילום.`,
+    allow: "לצלם",
+    trust: null,
+  };
+}
+
+/**
  * The label of the checkbox that trusts one exact origin for the conversation. It names
  * the host with its port, as the trust is kept, and says what the trust never covers.
  */

@@ -15,6 +15,7 @@ const DEVICE_CAPABILITIES: ReadonlyArray<DeviceToolName> = [
   "browser_navigate",
   "browser_click",
   "browser_type",
+  "browser_screenshot",
 ];
 
 /** The capabilities message for the current tab-sharing state. */

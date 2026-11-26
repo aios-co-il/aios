@@ -21,6 +21,8 @@ export type AccessRow = {
   /** null = no brain restriction (every brain, full access). */
   brain_access: Record<string, unknown> | null;
   dev_escalation_tier: DevTier | null;
+  /** Carmen may picture a sensitive page (mail, banks, payments, password fields), after a card each time. Off by default and without a row. */
+  sensitive_screenshots: boolean;
 };
 
 export type AccessPatch = Partial<Omit<AccessRow, "id" | "user_id">>;

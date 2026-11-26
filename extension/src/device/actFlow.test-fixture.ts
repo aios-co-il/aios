@@ -42,6 +42,7 @@ export function actingDevice(
       tool,
       arguments: args,
       ...trust,
+      sensitiveScreenshotsAllowed: false,
     })),
     inspectTarget: vi.fn(async () => ({
       documentId: "doc-1",

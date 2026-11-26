@@ -14,7 +14,8 @@ type FakeResult = {
  * pass every filter (`.eq()`, `.neq()`, `.gt()`, `.lte()`, `.is()`, `.in()`) and `visible`,
  * which plays row-level security; `.update()` changes exactly those rows, `.insert()` adds one
  * row with a fresh id, and `.upsert()` with `ignoreDuplicates` adds one unless a row already
- * holds the same values in its `onConflict` columns. A query resolves through `.maybeSingle()`, `.single()` or by being
+ * holds the same values in its `onConflict` columns. `.or()` and `.limit()` keep every row:
+ * a test holds only the rows such a filter would match. A query resolves through `.maybeSingle()`, `.single()` or by being
  * awaited for every row. `failing` names a table whose queries return an error.
  */
 export function fakeDb(
@@ -79,6 +80,12 @@ export function fakeDb(
       },
       eq(column: string, value: unknown) {
         filters.push((row) => row[column] === value);
+        return query;
+      },
+      or() {
+        return query;
+      },
+      limit() {
         return query;
       },
       neq(column: string, value: unknown) {

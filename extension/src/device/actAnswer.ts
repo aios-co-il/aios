@@ -79,7 +79,7 @@ function pageTarget(value: unknown): PageTarget | null {
 }
 
 /** Narrows the facts of one field: a type, an autocomplete and names, each a string or null. */
-function isFieldFacts(value: unknown): value is FieldFacts {
+export function isFieldFacts(value: unknown): value is FieldFacts {
   return (
     !!value &&
     typeof value === "object" &&

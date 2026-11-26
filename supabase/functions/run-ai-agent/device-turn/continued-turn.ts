@@ -16,6 +16,7 @@ import {
   type OpenTurn,
 } from "./model-turn.ts";
 import type { DeviceRequest } from "./request.ts";
+import { discardScreenshot, takeScreenshot } from "./screenshot.ts";
 
 /** A continuation: resumed from the step, or answered without the model. */
 export async function continuedTurn(
@@ -44,6 +45,7 @@ export async function continuedTurn(
       },
       turn.origins,
       turn.now(),
+      { sensitiveScreenshotsAllowed: turn.sensitiveScreenshotsAllowed },
     );
     if (continuation.kind === "refused") {
       console.warn(
@@ -52,8 +54,14 @@ export async function continuedTurn(
       return answered(refusedReply());
     }
     if (continuation.kind === "stopped") {
+      if (continuation.screenshot) {
+        await discardScreenshot(turn.screenshotStore, continuation.screenshot);
+      }
       return answered(stoppedResponse(turn.emit, verdict.conversationId));
     }
+    const pictures = continuation.screenshot
+      ? await takeScreenshot(turn.screenshotStore, continuation.screenshot)
+      : undefined;
     return deviceTurn(
       turn,
       offeredDeviceTools(
@@ -64,6 +72,7 @@ export async function continuedTurn(
           actTarget(continuation.steps, verdict.tabUrl).refusal === null,
       ),
       continuation.outcome,
+      pictures,
     );
   } catch (error) {
     console.error(`[device] continuation of action=${actionId} failed`, error);

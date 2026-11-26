@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { MemberBrainGrid } from "./MemberBrainGrid";
+import { SensitiveScreenshotsSwitch } from "./SensitiveScreenshotsSwitch";
 import type { AccessPatch, AccessRow, Route } from "./types";
 
 type Member = { id: string; full_name?: string | null; email?: string | null };
@@ -68,6 +69,12 @@ export function MemberPermissionsCard({
           </Button>
         )}
       </div>
+      <SensitiveScreenshotsSwitch
+        checked={row?.sensitive_screenshots ?? false}
+        disabled={disabled}
+        // Without a row this creates one, unrestricted as before, with only this switch on.
+        onChange={(on) => onSave({ sensitive_screenshots: on })}
+      />
       {row?.enabled && (
         <MemberBrainGrid
           row={row}

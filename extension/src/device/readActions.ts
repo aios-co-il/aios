@@ -15,6 +15,7 @@ import {
 } from "./completion.ts";
 import type { ActDeps } from "./actFlow.ts";
 import { createTrustMemory } from "./trustMemory.ts";
+import { type ShotDeps, shotOutcome } from "./shotFlow.ts";
 import { type NavigateDeps, navigateOutcome } from "./navigateFlow.ts";
 import {
   type ReadDeps,
@@ -38,6 +39,8 @@ export type ClaimAnswer =
       trustedOrigin: string | null;
       /** The step's conversation for a click or type, or null. */
       conversationId: string | null;
+      /** For a screenshot, the manager's permission to picture a sensitive page, as the server read it. */
+      sensitiveScreenshotsAllowed: boolean;
     }
   | { ok: false; reason: string };
 
@@ -45,7 +48,8 @@ type Claimed = Extract<ClaimAnswer, { ok: true }>;
 
 export type ReadActionDeps = ReadDeps &
   NavigateDeps &
-  ActDeps & {
+  ActDeps &
+  ShotDeps & {
     claim: (id: string) => Promise<ClaimAnswer>;
     /** Sends `complete`; rejects on a refusal or a failure that outlived its one retry, which is logged. */
     complete: (body: CompleteBody) => Promise<void>;
@@ -128,7 +132,7 @@ export function createReadActions(deps: ReadActionDeps): ReadActions {
     }
   }
 
-  /** The claimed tool's flow: a navigation, a click or a type, or a read (which refuses every other tool). */
+  /** The claimed tool's flow: a navigation, a click or a type, a picture, or a read (which refuses every other tool). */
   function stepOutcome(
     claim: Claimed,
     action: OpenAction,
@@ -138,6 +142,10 @@ export function createReadActions(deps: ReadActionDeps): ReadActions {
     }
     if (claim.tool === "browser_click" || claim.tool === "browser_type") {
       return trust.act(claim.tool, claim, action, deps);
+    }
+    if (claim.tool === "browser_screenshot") {
+      const allowed = claim.sensitiveScreenshotsAllowed;
+      return shotOutcome(claim.arguments, allowed, action, deps);
     }
     return readOutcome(claim.tool, action, deps);
   }

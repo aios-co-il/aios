@@ -53,7 +53,9 @@ export function commandCenterPictureStore(supabase: Db): PictureStore {
  * false), so a turn that only gets the "cannot read pictures" line downloads nothing. A
  * picture that is too large, takes the message past its total weight, is not a picture by
  * its bytes or cannot be read is refused. One at a time, in the user's order: the worker
- * never holds more than the total weight, and the first pictures are the ones kept.
+ * never holds more than the total weight, and the first pictures are the ones kept. A
+ * picture already read (a browser screenshot, whose file is gone by now) is kept as it is,
+ * and its bytes count towards the weight.
  */
 export async function loadTurnPictures(
   store: PictureStore,
@@ -68,6 +70,11 @@ export async function loadTurnPictures(
   let weight = 0;
 
   for (const picture of turn.pictures) {
+    if (picture.dataUrl) {
+      weight += inlineBytes(picture.dataUrl);
+      pictures.push(picture);
+      continue;
+    }
     const read = await readPicture(store, picture, weight);
 
     if ("refusal" in read) {
@@ -120,6 +127,12 @@ async function readPicture(
   } catch (cause) {
     return { refusal: "unreadable", cause };
   }
+}
+
+/** About how many bytes an inline `data:` address holds: three for every four base64 characters. */
+function inlineBytes(dataUrl: string): number {
+  const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+  return Math.floor((base64.length * 3) / 4);
 }
 
 /** Why a picture of this size is refused after `weight` bytes of pictures, if it is. */

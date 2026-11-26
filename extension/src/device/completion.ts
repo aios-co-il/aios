@@ -11,11 +11,15 @@ import type {
 } from "../../../supabase/functions/_shared/carmen/device/results.ts";
 import type { ActionReport } from "../../../supabase/functions/carmen-device-action/report.ts";
 
-/** What a done step reports: a read's page, where a navigation landed, or where a click or type left the tab. */
+/**
+ * What a done step reports: a read's page, where a navigation landed, where a click or type
+ * left the tab, or where a picture was taken and the file it was stored in.
+ */
 export type StepResult =
   | DeviceToolResult["browser_read_page"]
   | DeviceToolResult["browser_navigate"]
-  | DeviceToolResult["browser_click"];
+  | DeviceToolResult["browser_click"]
+  | DeviceToolResult["browser_screenshot"];
 
 /** How one claimed step ended. */
 export type ReadOutcome =

@@ -1,5 +1,5 @@
 /**
- * Wires the panel's read, navigate, click and type actions to Chrome, the panel's card and carmen-device-action.
+ * Wires the panel's read, navigate, click, type and screenshot actions to Chrome, the panel's card and carmen-device-action.
  * The decisions live in the modules this file passes them to.
  */
 import {
@@ -29,6 +29,13 @@ import {
   inspectTarget,
   settleTab,
 } from "./chromeAct.ts";
+import {
+  captureTab,
+  dropCaptureGrant,
+  pageFields,
+  requestCaptureGrant,
+  uploadShot,
+} from "./chromeShot.ts";
 import { deviceActionApi } from "./deviceActionApi.ts";
 import { navigateCardWords } from "./cardWords.ts";
 import {
@@ -70,6 +77,13 @@ export function panelReadActions(
     actOnTarget,
     settleTab,
     holdsSnapshot,
+    // Chrome captures only with the capture grant, asked for from the card's tap.
+    askShot: (words, signal) =>
+      askOnCard(card, words, signal, requestCaptureGrant),
+    dropCaptureGrant,
+    pageFields,
+    captureTab,
+    uploadShot,
     readPage,
     newSnapshotId: () => crypto.randomUUID(),
     postResult: (id) => post(panelActionRef(PANEL_MESSAGE.result, id)),

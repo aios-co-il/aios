@@ -4,7 +4,7 @@
  *
  * claim: pending becomes claimed once, for the action's own user in an org they belong to,
  * before it expires, on a run the user has not stopped. Only then does the panel learn
- * the arguments, which no browser can read from the table, so the id that travels through
+ * the arguments (and the server's facts about the step, claim-reply.ts), which no browser can read from the table, so the id that travels through
  * the framed site carries nothing to act on. When the stop cannot be read the claim fails
  * closed: nothing is handed over and the action stays `claimed`, so it cannot be claimed
  * again. A click or a type also learns the origin it may run on without a card (trust.ts).
@@ -18,10 +18,7 @@
  * `claimed`: this function never writes `outcome_unknown`; the server decides that when
  * the turn continues or the next one starts.
  */
-import {
-  type DeviceClaimReply,
-  isDeviceToolName,
-} from "../_shared/carmen/device/contract.ts";
+import { isDeviceToolName } from "../_shared/carmen/device/contract.ts";
 import { readRunStopped } from "../_shared/carmen/run-stop.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import type { requireAuth } from "../_shared/security.ts";
@@ -36,7 +33,7 @@ import {
   type OwnAction,
   readOwnAction,
 } from "./rows.ts";
-import { claimTrust } from "./trust.ts";
+import { claimReply } from "./claim-reply.ts";
 import { recordCardTrust } from "./trust-record.ts";
 
 export type DeviceActionDeps = {
@@ -113,11 +110,10 @@ async function claim(
     return refused("claim", action.id, "run stopped");
   }
 
-  return reply({
-    tool: action.tool,
-    arguments: claimed.arguments,
-    ...(await claimTrust(serviceDb, action)),
-  } satisfies DeviceClaimReply);
+  const tool = action.tool;
+  return reply(
+    await claimReply(serviceDb, { ...action, tool }, claimed.arguments),
+  );
 }
 
 /** Stores what the panel reports about the action it claimed. */

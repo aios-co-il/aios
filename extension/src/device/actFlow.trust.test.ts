@@ -39,6 +39,7 @@ function claimAs(
     arguments: CLICK_ARGS,
     trustedOrigin: SHOP,
     conversationId: CONVERSATION,
+    sensitiveScreenshotsAllowed: false,
     ...claim,
   }));
 }

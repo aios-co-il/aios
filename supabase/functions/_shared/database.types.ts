@@ -3938,6 +3938,7 @@ export type Database = {
           dev_escalation_tier: string | null
           enabled: boolean
           id: string
+          sensitive_screenshots: boolean
           surfaces: string[]
           tenant_id: string
           updated_at: string
@@ -3951,6 +3952,7 @@ export type Database = {
           dev_escalation_tier?: string | null
           enabled?: boolean
           id?: string
+          sensitive_screenshots?: boolean
           surfaces?: string[]
           tenant_id: string
           updated_at?: string
@@ -3964,6 +3966,7 @@ export type Database = {
           dev_escalation_tier?: string | null
           enabled?: boolean
           id?: string
+          sensitive_screenshots?: boolean
           surfaces?: string[]
           tenant_id?: string
           updated_at?: string

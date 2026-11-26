@@ -47,8 +47,9 @@ export type DeviceStep = {
   /**
    * The user holds the permission to take a picture of a page on the act floor or of a
    * sensitive page. The organization's manager switches it on per user in Carmen's
-   * permissions screen; it is off by default. The switch and its storage arrive with the
-   * screenshot pull request (AIO-656); every caller until then passes `false`.
+   * permissions screen; it is off by default (`sensitive_screenshots` on the user's
+   * `carmen_command_center_access` row, read on the server by `../sensitive-screenshots.ts`
+   * and handed to the panel with its claim). Never from the page or the model.
    */
   sensitiveScreenshotsAllowed: boolean;
 };

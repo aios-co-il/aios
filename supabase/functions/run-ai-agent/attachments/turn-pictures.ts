@@ -43,6 +43,20 @@ export const NO_PICTURES: TurnPictures = Object.freeze({
   refused: [],
 });
 
+/**
+ * The turn's pictures with a resumed browser screenshot after the user's own (AIO-656):
+ * the screenshot comes already read, so it keeps its inline bytes and no file is read for it.
+ */
+export function withDevicePictures(
+  requested: TurnPictures,
+  device: TurnPictures,
+): TurnPictures {
+  return {
+    pictures: [...requested.pictures, ...device.pictures],
+    refused: [...requested.refused, ...device.refused],
+  };
+}
+
 /** Whether the user attached anything to this turn, read or refused. */
 export function asksForPictures(turn: TurnPictures): boolean {
   return turn.pictures.length + turn.refused.length > 0;

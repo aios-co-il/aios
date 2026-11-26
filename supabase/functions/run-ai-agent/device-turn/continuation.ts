@@ -24,7 +24,12 @@ import {
   type StepRow,
 } from "./rows.ts";
 import { settleStep } from "./settle.ts";
-import { checkStoredResult, type StoredResult } from "./stored-result.ts";
+import { storedResult } from "./stored-result.ts";
+import {
+  resumedScreenshot,
+  screenshotFile,
+  type TakenScreenshot,
+} from "./screenshot.ts";
 
 /** The step a continuation names, in its run and conversation. */
 export type ContinuedStep = RunKey & {
@@ -36,10 +41,27 @@ export type ContinuedStep = RunKey & {
 export type Continuation =
   /** Nothing to resume: answered without the model, with one generic error. */
   | { kind: "refused"; reason: string }
-  /** The user stopped the run: answered with the stop line, without the model. */
-  | { kind: "stopped" }
-  /** `steps`: the run's steps after this one was used, in the order they were written. */
-  | { kind: "resume"; outcome: StepOutcome; steps: Array<RunStep> };
+  /**
+   * The user stopped the run: answered with the stop line, without the model. `screenshot`:
+   * the file of a picture nobody will see, to delete.
+   */
+  | { kind: "stopped"; screenshot: string | null }
+  /**
+   * `steps`: the run's steps after this one was used, in the order they were written.
+   * `screenshot`: a done picture's file, to read when its result passed and delete always.
+   */
+  | {
+      kind: "resume";
+      outcome: StepOutcome;
+      steps: Array<RunStep>;
+      screenshot: TakenScreenshot | null;
+    };
+
+/** What only the server knows about the user when a step is resumed. */
+export type ResumeFacts = {
+  /** The user's permission to picture a sensitive page, read now (`sensitive-screenshots.ts`). */
+  sensitiveScreenshotsAllowed: () => Promise<boolean>;
+};
 
 /** Reads, closes and uses the named step; what the request may do next. */
 export async function resumeFromStep(
@@ -47,6 +69,7 @@ export async function resumeFromStep(
   named: ContinuedStep,
   origins: EnvironmentOrigins,
   now: Date,
+  facts: ResumeFacts,
 ): Promise<Continuation> {
   let stopped: boolean;
   try {
@@ -60,16 +83,24 @@ export async function resumeFromStep(
     return { kind: "refused", reason: "not_available" };
   }
   if (stopped) {
+    // Named before the step is closed, which clears its result.
+    const screenshot = screenshotFile(step, named.userId);
     await closeForStop(db, named, step, now);
-    return { kind: "stopped" };
+    return { kind: "stopped", screenshot };
   }
 
   const closed = await closedStep(db, named, step, now);
   if (!closed) {
     return { kind: "refused", reason: "not_closed" };
   }
+  const pictured =
+    closed.tool === "browser_screenshot" && closed.status === "done";
+  const allowed = pictured && (await facts.sensitiveScreenshotsAllowed());
   const checked =
-    closed.status === "done" ? storedResult(closed, named, origins) : null;
+    closed.status === "done"
+      ? storedResult(closed, named.userId, origins, allowed)
+      : null;
+  const file = screenshotFile(closed, named.userId);
   // A read keeps its snapshot id and refs, a click or type whether it changed the page.
   const keep = checked?.result
     ? stepResidue(closed.tool, checked.result)
@@ -97,6 +128,7 @@ export async function resumeFromStep(
       tainted: runTainted(named, steps),
     },
     steps,
+    screenshot: resumedScreenshot(file, checked?.result ?? null, named.userId),
   };
 }
 
@@ -116,32 +148,6 @@ async function closedStep(
     return null;
   }
   return { ...current, status: current.status };
-}
-
-/**
- * The checked result of a done step. A contract that cannot read this environment's
- * origins throws; that is logged and the step is refused, never handed over unchecked.
- */
-function storedResult(
-  step: StepRow,
-  named: ContinuedStep,
-  origins: EnvironmentOrigins,
-): StoredResult {
-  try {
-    const checked = checkStoredResult(step, named.userId, origins);
-    if (checked.refusal) {
-      console.warn(
-        `[device] action=${step.id} result withheld: ${checked.refusal}`,
-      );
-    }
-    return checked;
-  } catch (error) {
-    console.error(
-      `[device] action=${step.id} the never-list cannot be read`,
-      error,
-    );
-    return { result: null, refusal: "configuration" };
-  }
 }
 
 /** A stopped run: the step is closed and, when closed already, its page text cleared. */

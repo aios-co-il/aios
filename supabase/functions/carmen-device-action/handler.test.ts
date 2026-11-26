@@ -33,6 +33,7 @@ Deno.test("claim", async (t) => {
         arguments: { ref: "e1" },
         trusted_origin: null,
         conversation_id: null,
+        sensitive_screenshots_allowed: false,
       },
     });
     assertEquals(action.status, "claimed");

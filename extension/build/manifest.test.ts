@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GRANTABLE_SITES } from "../src/device/siteGrant.ts";
+import { CAPTURE_GRANT, GRANTABLE_SITES } from "../src/device/siteGrant.ts";
 import { extensionManifest } from "./manifest.ts";
 
 const ENVIRONMENTS = [
@@ -36,8 +36,11 @@ describe("extensionManifest", () => {
         expect(manifest.optional_permissions).toEqual(["tabs"]);
       });
 
-      it("grants no site at install: https sites are optional, asked one at a time", () => {
-        expect(manifest.optional_host_permissions).toEqual([GRANTABLE_SITES]);
+      it("grants no site at install: https sites are optional, asked one at a time, and all sites only for a screenshot", () => {
+        expect(manifest.optional_host_permissions).toEqual([
+          GRANTABLE_SITES,
+          CAPTURE_GRANT,
+        ]);
         expect(manifest.host_permissions).toEqual(
           [...environment.supabaseOrigins, environment.appOrigin].map(
             (origin) => `${origin}/*`,

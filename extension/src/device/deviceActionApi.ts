@@ -81,6 +81,12 @@ export function deviceActionApi(
             arguments: "arguments" in answer ? answer.arguments : undefined,
             trustedOrigin: textField(answer, "trusted_origin"),
             conversationId: textField(answer, "conversation_id"),
+            // Only a real true grants it: anything else from the answer is no permission.
+            sensitiveScreenshotsAllowed:
+              Object.getOwnPropertyDescriptor(
+                answer,
+                "sensitive_screenshots_allowed" satisfies keyof DeviceClaimReply,
+              )?.value === true,
           }
         : { ok: false, reason: "the claim answer has no device tool" };
     } catch (error) {

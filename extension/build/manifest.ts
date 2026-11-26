@@ -1,6 +1,6 @@
 import type { Plugin } from "vite";
 import { TAB_SHARING_PERMISSION } from "../src/activeTab";
-import { GRANTABLE_SITES } from "../src/device/siteGrant";
+import { CAPTURE_GRANT, GRANTABLE_SITES } from "../src/device/siteGrant";
 import type { BuildEnvironment } from "./environment";
 import { EXTENSION_PUBLIC_KEYS } from "./extensionKey";
 
@@ -50,8 +50,9 @@ export function extensionManifest(
     permissions: ["storage", "sidePanel", "scripting"],
     // Asked for from the panel's "Carmen sees the tab" switch.
     optional_permissions: [TAB_SHARING_PERMISSION],
-    // One site at a time, from a tap on the panel's card; none at install.
-    optional_host_permissions: [GRANTABLE_SITES],
+    // One site at a time, from a tap on the panel's card; none at install. `<all_urls>` only for
+    // the moment of a screenshot, which Chrome allows with nothing narrower (siteGrant.ts).
+    optional_host_permissions: [GRANTABLE_SITES, CAPTURE_GRANT],
     // The app's origin makes Chrome treat the framed site as first-party, so the user's
     // sign-in on the site also holds inside the panel.
     host_permissions: [
