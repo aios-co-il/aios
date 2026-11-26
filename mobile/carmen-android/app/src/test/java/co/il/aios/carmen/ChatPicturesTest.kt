@@ -3,6 +3,7 @@ package co.il.aios.carmen
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -80,8 +81,56 @@ class ChatPicturesTest {
 
         assertTrue(limits.perPictureBudget <= limits.maxPictureBytes)
         assertTrue(limits.perPictureBudget.toLong() * limits.maxPictures <= limits.maxTurnBytes)
-        assertEquals(limits.maxPictures, ChatPictures.room(0))
-        assertEquals(0, ChatPictures.room(limits.maxPictures + 1))
+        assertEquals(limits.maxPictures, PendingPictures<String>().room)
+    }
+
+    @Test
+    fun aPickBeyondTheLimitStartsOnlyWhatFits() {
+        val pending = PendingPictures<String>(PictureLimits(maxPictures = 4, maxPictureBytes = 5 * MB, maxTurnBytes = 8 * MB))
+
+        assertEquals(3, pending.begin(3))
+        pending.uploaded("a")
+        assertEquals(1, pending.begin(5))
+        assertEquals(0, pending.room)
+        assertEquals(0, pending.begin(1))
+    }
+
+    @Test
+    fun aMessageIsNotTakenWhileAPictureStillUploads() {
+        val pending = PendingPictures<String>()
+        pending.begin(2)
+        pending.uploaded("a")
+
+        assertNull(pending.take())
+        assertEquals(listOf("a"), pending.pictures)
+    }
+
+    @Test
+    fun aFailedUploadIsNeverSentAndFreesItsPlace() {
+        val pending = PendingPictures<String>(PictureLimits(maxPictures = 2, maxPictureBytes = 5 * MB, maxTurnBytes = 8 * MB))
+        pending.begin(2)
+        pending.uploaded("a")
+        pending.failed()
+
+        assertEquals(1, pending.room)
+        assertEquals(listOf("a"), pending.take())
+        assertEquals(emptyList<String>(), pending.pictures)
+    }
+
+    @Test
+    fun aRemovedPictureIsNotSent() {
+        val pending = PendingPictures<String>()
+        pending.begin(2)
+        pending.uploaded("a")
+        pending.uploaded("b")
+        pending.remove("a")
+
+        assertEquals(listOf("b"), pending.take())
+    }
+
+    @Test(expected = IllegalStateException::class)
+    fun anUploadThatNeverStartedCannotEnd() {
+        PendingPictures<String>().uploaded("a")
     }
 
     @Test

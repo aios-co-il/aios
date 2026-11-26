@@ -104,9 +104,6 @@ object ChatPictures {
         return max(1, (width * scale).roundToInt()) to max(1, (height * scale).roundToInt())
     }
 
-    /** How many more pictures fit in the message beside [held] already attached or uploading. */
-    fun room(held: Int, limits: PictureLimits = PictureLimits.CONTRACT): Int = max(0, limits.maxPictures - held)
-
     /**
      * The text the brain gets: what the user typed, or for pictures alone the site's own label
      * (`formatAttachmentsForPrompt`), since `run-ai-agent` needs a `command_text`.
@@ -120,4 +117,48 @@ object ChatPictures {
     fun attachments(pictures: List<TurnPicture>): JSONArray = JSONArray(
         pictures.map { JSONObject().put("name", it.name).put("path", it.path).put("type", "image").put("size", it.size) },
     )
+}
+
+/**
+ * The pictures of the next message while they upload. A picture joins only once its upload
+ * succeeded, and a message takes them only when no upload is still running, so a failed or
+ * unfinished upload is never sent. Main thread only.
+ */
+class PendingPictures<T>(private val limits: PictureLimits = PictureLimits.CONTRACT) {
+    private val ready = mutableListOf<T>()
+
+    /** Uploads started and not yet ended. */
+    var uploading = 0
+        private set
+
+    /** The uploaded pictures, in the order they finished. */
+    val pictures: List<T> get() = ready.toList()
+
+    /** How many more pictures the message can take beside those uploaded or uploading. */
+    val room: Int get() = max(0, limits.maxPictures - ready.size - uploading)
+
+    /** Reserves room for up to [count] uploads and returns how many may start. */
+    fun begin(count: Int): Int = minOf(count, room).also { uploading += it }
+
+    /** One started upload succeeded with [picture]. */
+    fun uploaded(picture: T) {
+        end()
+        ready += picture
+    }
+
+    /** One started upload failed: its room is free again and nothing joins. */
+    fun failed() = end()
+
+    /** The user took [picture] off the message before sending it. */
+    fun remove(picture: T) {
+        ready.remove(picture)
+    }
+
+    /** Every uploaded picture for the message being sent, emptying the list; null while an upload still runs. */
+    fun take(): List<T>? = if (uploading > 0) null else ready.toList().also { ready.clear() }
+
+    private fun end() {
+        check(uploading > 0) { "An upload ended that never started" }
+        uploading -= 1
+    }
 }

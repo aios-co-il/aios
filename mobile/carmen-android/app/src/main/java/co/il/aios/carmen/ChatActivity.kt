@@ -103,18 +103,13 @@ class ChatActivity : AppCompatActivity() {
      */
     private fun onSendTapped() {
         val text = input.text.toString().trim()
-        val pictures = CarmenChat.attached.toList()
-        if (CarmenChat.uploading > 0) {
-            Toast.makeText(this, R.string.chat_pictures_uploading, Toast.LENGTH_SHORT).show()
+        if (text.isEmpty() && CarmenChat.pending.pictures.isEmpty()) {
+            if (CarmenChat.busy) stopAnswer() else if (CarmenChat.pending.uploading > 0) showStillUploading()
             return
         }
-        if (text.isEmpty() && pictures.isEmpty()) {
-            if (CarmenChat.busy) stopAnswer()
-            return
-        }
+        val pictures = CarmenChat.pending.take() ?: return showStillUploading()
 
         input.text.clear()
-        CarmenChat.attached.clear()
         showAttached()
         val outgoing = Outgoing(text, pictures)
         if (CarmenChat.busy) {
@@ -167,17 +162,19 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 
-    /** Stop while Carmen answers and nothing is typed, attached or uploading; send otherwise. */
+    /**
+     * Stop while Carmen answers and nothing is typed or uploaded; send otherwise. Uploads still
+     * running do not hide the stop: the message cannot go before they end anyway.
+     */
     private fun refreshSendButton() {
-        val nothingToSend = input.text.isNullOrBlank() && CarmenChat.attached.isEmpty() && CarmenChat.uploading == 0
-        val stopMode = CarmenChat.busy && nothingToSend
+        val stopMode = CarmenChat.busy && input.text.isNullOrBlank() && CarmenChat.pending.pictures.isEmpty()
         send.setImageResource(if (stopMode) R.drawable.ic_stop else R.drawable.ic_send)
         send.contentDescription = getString(if (stopMode) R.string.chat_stop else R.string.chat_send)
     }
 
     /** Opens the photo picker for pictures only, unless the message already holds as many as it may. */
     private fun onAttachTapped() {
-        if (ChatPictures.room(CarmenChat.held) == 0) {
+        if (CarmenChat.pending.room == 0) {
             showPictureLimit()
             return
         }
@@ -188,9 +185,7 @@ class ChatActivity : AppCompatActivity() {
 
     /** Uploads the picked pictures that still fit the message, and says when some did not. */
     private fun onPicked(uris: List<Uri>) {
-        val room = ChatPictures.room(CarmenChat.held)
-        if (uris.size > room) showPictureLimit()
-        CarmenChat.attach(this, uris.take(room))
+        if (CarmenChat.attach(this, uris) < uris.size) showPictureLimit()
     }
 
     private fun showPictureLimit() {
@@ -198,14 +193,18 @@ class ChatActivity : AppCompatActivity() {
         Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
     }
 
+    private fun showStillUploading() {
+        Toast.makeText(this, R.string.chat_pictures_uploading, Toast.LENGTH_SHORT).show()
+    }
+
     /** The strip above the input: each uploaded picture (a tap removes it), then one spinner per upload. */
     private fun showAttached() {
         strip.removeAllViews()
         val size = dp(STRIP_THUMBNAIL_DP)
-        CarmenChat.attached.toList().forEach { picture ->
+        CarmenChat.pending.pictures.forEach { picture ->
             strip.addView(removableThumbnail(picture), LinearLayout.LayoutParams(size, size).apply { marginEnd = dp(8) })
         }
-        repeat(CarmenChat.uploading) {
+        repeat(CarmenChat.pending.uploading) {
             strip.addView(ProgressBar(this), LinearLayout.LayoutParams(size, size).apply { marginEnd = dp(8) })
         }
         stripScroll.visibility = if (strip.childCount > 0) View.VISIBLE else View.GONE
@@ -225,7 +224,7 @@ class ChatActivity : AppCompatActivity() {
             FrameLayout.LayoutParams(dp(20), dp(20), Gravity.TOP or Gravity.START),
         )
         setOnClickListener {
-            CarmenChat.attached.remove(picture)
+            CarmenChat.pending.remove(picture)
             picturesChanged()
         }
     }
@@ -345,17 +344,10 @@ object CarmenChat {
     @Volatile var busy = false
     private var brain: CarmenBrain? = null
 
-    /** Pictures uploaded for the next message, kept here so turning the phone loses none. Main thread only. */
-    val attached = mutableListOf<AttachedPicture>()
+    /** The next message's pictures, kept here so turning the phone loses none. Main thread only. */
+    val pending = PendingPictures<AttachedPicture>()
 
-    /** Pictures still being shrunk and uploaded. Main thread only. */
-    var uploading = 0
-        private set
-
-    /** Pictures the next message holds or will hold once their uploads end. */
-    val held: Int get() = attached.size + uploading
-
-    /** Called on the main thread when [attached] or [uploading] changes; the open chat screen sets it. */
+    /** Called on the main thread when [pending] changes; the open chat screen sets it. */
     var onPicturesChanged: (() -> Unit)? = null
 
     private val main = Handler(Looper.getMainLooper())
@@ -371,27 +363,28 @@ object CarmenChat {
     fun history(): List<Pair<String, String>> = messages.map { it.role.api to ChatPictures.turnText(it.text, it.pictures.size) }
 
     /**
-     * Shrinks each picture to fit and uploads it as the signed-in user, in the background; it
-     * joins [attached] only once uploaded, so a picture that failed is never sent. Each failure
-     * is logged and shown. Main thread.
+     * Shrinks each picture that still fits the message and uploads it as the signed-in user, one
+     * at a time in the background (a few full-size decodes at once can run a phone out of
+     * memory); each joins [pending] only once uploaded, and each failure is logged and shown.
+     * Returns how many were taken. Main thread.
      */
-    fun attach(context: Context, uris: List<Uri>) {
-        if (uris.isEmpty()) return
+    fun attach(context: Context, uris: List<Uri>): Int {
+        val taken = uris.take(pending.begin(uris.size))
+        if (taken.isEmpty()) return 0
         val app = context.applicationContext
         val account = AiosAccount(app)
         val now = System.currentTimeMillis()
-        uploading += uris.size
         onPicturesChanged?.invoke()
 
-        uris.forEachIndexed { index, uri ->
-            thread(name = "carmen-chat-picture") {
+        thread(name = "carmen-chat-pictures") {
+            taken.forEachIndexed { index, uri ->
                 val result = runCatching {
                     val shrunk = PictureShrink.shrink(app, uri, PictureLimits.CONTRACT.perPictureBudget)
                     AttachedPicture(account.uploadChatPicture(shrunk.name, shrunk.jpeg, now, index), shrunk.thumbnail)
                 }
                 main.post {
-                    uploading -= 1
-                    result.onSuccess { attached += it }.onFailure {
+                    result.onSuccess(pending::uploaded).onFailure {
+                        pending.failed()
                         Log.w(TAG, "Attaching a picture failed", it)
                         Toast.makeText(app, R.string.chat_picture_failed, Toast.LENGTH_SHORT).show()
                     }
@@ -399,5 +392,6 @@ object CarmenChat {
                 }
             }
         }
+        return taken.size
     }
 }
