@@ -1,6 +1,8 @@
 import type { GoogleAdsIntegrationProjection } from "./google-ads-auth-types.ts";
 
 import type { ToolExecutionContext } from "../tool-context.ts";
+import { withGoogleToken } from "../../_shared/google-oauth/integration-tokens.ts";
+import { serviceClient } from "../../_shared/supabase-clients.ts";
 import { buildGoogleCustomerClientMap } from "../../_shared/client-report-sync.ts";
 
 type ListGoogleAdAccountsArgs = { client_id?: string };
@@ -12,15 +14,23 @@ export async function executeListGoogleAdAccounts(
 ) {
   const { supabase, accessibleTenantIds } = context;
 
-  const { data: gadsInteg } = await supabase
+  const { data: storedGadsInteg, error: gadsError } = await supabase
     .from("tenant_integrations")
-    .select("settings")
+    .select("id, settings")
     .in("tenant_id", accessibleTenantIds)
     .eq("integration_type", "google_ads")
     .eq("is_active", true)
     .limit(1)
     .maybeSingle()
     .returns<GoogleAdsIntegrationProjection>();
+  if (gadsError) {
+    console.error(
+      "[run-ai-agent] Google Ads connection lookup failed:",
+      gadsError.message,
+    );
+    return { error: "כישלון בקריאת חיבור Google Ads" };
+  }
+  const gadsInteg = await withGoogleToken(serviceClient(), storedGadsInteg);
 
   if (!gadsInteg?.settings?.refresh_token) {
     return {

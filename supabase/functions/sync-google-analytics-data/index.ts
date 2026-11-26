@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { withGoogleTokens } from "../_shared/google-oauth/integration-tokens.ts";
 import { isPermanentGoogleOAuthError } from "../_shared/google-oauth/refresh-error.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 import { eventSourceRows, eventSourcesRequest } from "./event-sources.ts";
 
 const corsHeaders = {
@@ -52,11 +54,13 @@ Deno.serve(async (req) => {
       .select("*")
       .eq("id", integrationId)
       .single();
-    let integration = initialIntegration;
 
-    if (integrationError || !integration) {
+    if (integrationError || !initialIntegration) {
       throw new Error("Integration not found");
     }
+    let [integration] = await withGoogleTokens(serviceClient(), [
+      initialIntegration,
+    ]);
 
     let accessToken = integration.api_key;
     const integrationSettings = { ...((integration.settings as any) || {}) };
@@ -207,12 +211,13 @@ Deno.serve(async (req) => {
       const preferredNorm = String(propertyIdRaw).startsWith("properties/")
         ? propertyIdRaw
         : `properties/${propertyId}`;
-      const { data: rows } = await supabase
+      const { data: storedRows } = await supabase
         .from("tenant_integrations")
         .select("*")
         .eq("integration_type", "google_analytics")
         .eq("is_active", true)
         .order("updated_at", { ascending: false });
+      const rows = await withGoogleTokens(serviceClient(), storedRows ?? []);
 
       const sameTenant = (rows || []).filter(
         (r: any) => r.tenant_id === table.tenant_id,
