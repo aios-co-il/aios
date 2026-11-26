@@ -8,7 +8,9 @@
 -- First of two steps. This one encrypts every token, old and new, and the edge
 -- functions read the decrypted tokens through google_integration_tokens. The
 -- plain copies in integration_secrets stay until a later migration drops them,
--- after these functions are live, so the deploy order does not matter.
+-- after these functions are live. This migration must be applied before the
+-- functions deploy, which call google_integration_tokens; the Supabase
+-- integration applies migrations first.
 
 -- The Vault secret name of a connection's token: the one place the naming lives.
 create or replace function public.google_token_secret_name(p_kind text, p_integration_id uuid)
@@ -62,8 +64,21 @@ set search_path to 'public'
 as $$
 declare
   v_access text := nullif(new.api_key, '');
-  v_refresh text := nullif(new.settings ->> 'refresh_token', '');
+  v_refresh text;
+  v_decoded jsonb;
 begin
+  if jsonb_typeof(new.settings) = 'string' then
+    begin
+      v_decoded := (new.settings #>> '{}')::jsonb;
+    exception when invalid_text_representation then
+      v_decoded := null;
+    end;
+    if jsonb_typeof(v_decoded) = 'object' then
+      new.settings := v_decoded;
+    end if;
+  end if;
+  v_refresh := nullif(new.settings ->> 'refresh_token', '');
+
   -- Step 3's check: an insert with an existing connection's id would store its
   -- tokens before ON CONFLICT DO NOTHING skips it.
   if tg_op = 'INSERT' and exists (select 1 from public.tenant_integrations ti where ti.id = new.id) then

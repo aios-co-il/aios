@@ -1,4 +1,4 @@
--- Google tokens encrypted in Vault (20261124130000_encrypt_google_tokens.sql).
+-- Google tokens encrypted in Vault (20261126120000_encrypt_google_tokens.sql).
 -- Synthetic tenant, user and rows; full rollback. Runs on a scratch database,
 -- a Preview branch or Staging.
 --
