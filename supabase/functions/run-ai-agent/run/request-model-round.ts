@@ -74,9 +74,18 @@ export async function requestModelRound(
       ).catch(() => {});
       continue; // retry the same round on the next provider
     }
-    if (providerRefusedPictures(res.status, run.turnPictures, run.llm, run.pictureRefusers)) {
+    if (
+      providerRefusedPictures(
+        res.status,
+        run.turnPictures,
+        run.llm,
+        run.pictureRefusers,
+      )
+    ) {
       run.pictureRefusers.add(run.llm.label);
-      console.warn(`[AGENT] ${run.llm.label} refused the attached pictures (${res.status}); asking again without them`);
+      console.warn(
+        `[AGENT] ${run.llm.label} refused the attached pictures (${res.status}); asking again without them`,
+      );
       continue;
     }
 

@@ -86,7 +86,10 @@ export async function loadRunConversation(
       run.input.emit({ type: "conversation_id", id: run.serverConversationId });
     }
   }
-  run.pictureRequest = readPictureRequest(run.input.bodyJson.attachments, { authKind: run.input.request.authKind, userId: run.callerUserId });
+  run.pictureRequest = readPictureRequest(run.input.bodyJson.attachments, {
+    authKind: run.input.request.authKind,
+    userId: run.callerUserId,
+  });
 
   // A quick model answers small talk and what the org brief already covers before the full
   // setup (memory, skills, tools) runs; anything else falls through unchanged (fast-lane/).

@@ -1,6 +1,7 @@
+import { readRunStages } from "./run-source.test-fixture.ts";
 import { assert, assertStrictEquals } from "jsr:@std/assert@1";
 
-const runAiAgent = read("./index.ts");
+const runAiAgent = readRunStages();
 const channelSend = read("../agent-channel-send/index.ts");
 
 /** A handler's source, as text. */

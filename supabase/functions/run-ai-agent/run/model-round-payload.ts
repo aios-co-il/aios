@@ -28,7 +28,16 @@ export function buildRoundPayload(
   const cappedTools = capToolsForTarget(run.llm, run.toolsForAPI);
   const payload: CompletionRequest = {
     model: run.llm.model,
-    messages: messagesForProvider(withTurnPictures(run.messages, run.pictureTurnAt, run.turnPictures, run.llm, run.pictureRefusers), run.llm.provider),
+    messages: messagesForProvider(
+      withTurnPictures(
+        run.messages,
+        run.pictureTurnAt,
+        run.turnPictures,
+        run.llm,
+        run.pictureRefusers,
+      ),
+      run.llm.provider,
+    ),
   };
   const temp = run.safeTemp ?? run.llm.temperature;
 

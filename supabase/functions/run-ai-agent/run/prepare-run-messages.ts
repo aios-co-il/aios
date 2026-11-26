@@ -20,7 +20,10 @@ export async function prepareRunMessages(
   }
 
   // Add current message
-  const userTurn = withBrowserTab(run.command_text, run.input.bodyJson.context_metadata);
+  const userTurn = withBrowserTab(
+    run.command_text,
+    run.input.bodyJson.context_metadata,
+  );
   run.messages.push({ role: "user", content: userTurn });
   run.pictureTurnAt = { at: run.messages.length - 1, text: userTurn };
   run.finalOutput = "";

@@ -1,4 +1,8 @@
-import { parseScreenContext, SCREEN_CONTEXT_SOURCE, sidebarContextJson } from "../../_shared/carmen/screen-context.ts";
+import {
+  parseScreenContext,
+  SCREEN_CONTEXT_SOURCE,
+  sidebarContextJson,
+} from "../../_shared/carmen/screen-context.ts";
 import type { RunState } from "./state.ts";
 import { workshopDevTaskRule } from "../dev-task-send-rules.ts";
 import { buildDevEscalationPromptRule } from "../../_shared/dev-escalation-auth.ts";
