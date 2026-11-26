@@ -2,13 +2,20 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  DEVICE_ACTION_EVENT,
   DEVICE_CONTINUATION_TEXT,
   DEVICE_STEP_UNAVAILABLE,
 } from "@functions/_shared/carmen/device/contract.ts";
 import { createTestQueryHarness } from "@/test/withTestQuery";
 import { resetChannel } from "./brainChannelApi.test-fixture";
 import { CarmenChatBar } from "./CarmenChatBar";
+import {
+  bodies,
+  CONVERSATION,
+  pausedTurn,
+  PLAN,
+  serverAnswers,
+  streamOf,
+} from "./CarmenChatBar.device.test-fixture";
 import { resetChat } from "./CarmenChatBar.test-fixture";
 import { resetBackend } from "./choices/carmenChoiceQueries.test-fixture";
 import { STEP_UNAVAILABLE_TEXT } from "./device/deviceReply";
@@ -30,23 +37,12 @@ vi.mock("@/contexts/ViewAsContext", async () => ({
 vi.mock("./brainChannelApi", async () => {
   const { fakeBrainChannelApi } =
     await import("./brainChannelApi.test-fixture");
+  const { STREAMED_SEND } = await import("./CarmenChatBar.device.test-fixture");
   return {
     ...fakeBrainChannelApi,
-    // The channel hands a typed message to the stream, as for Carmen's own brain.
     postChannel: async (body: { action: string }) =>
       body.action === "send"
-        ? {
-            ok: true,
-            status: 200,
-            json: {
-              ok: true,
-              kind: "internal",
-              conversation_id: CONVERSATION,
-              status: "streaming",
-              stream: true,
-              accepted_message: "",
-            },
-          }
+        ? STREAMED_SEND
         : fakeBrainChannelApi.postChannel(body),
   };
 });
@@ -61,57 +57,8 @@ vi.mock("@/components/carmen/CarmenAvatar", () => ({
 }));
 
 const TENANT = "tenant-a";
-const CONVERSATION = "11111111-2222-4333-8444-555555555555";
-const STEP = { action_id: ACTION_ID, tool: "browser_read_page" };
-const PLAN = "אקרא את הדף.";
 const PAGE_ANSWER = "בדף כתוב: מחירים.";
 const WORKING = "עובדת בדפדפן שלך…";
-
-type Body = Record<string, unknown>;
-
-/** The bodies of the run-ai-agent requests, in order. */
-const bodies: Array<Body> = [];
-
-/** A stream response of these events, as run-ai-agent writes them. */
-function streamOf(...events: Array<object>) {
-  const chunks = [
-    new TextEncoder().encode(
-      events.map((event) => `data: ${JSON.stringify(event)}\n`).join(""),
-    ),
-  ];
-  return {
-    ok: true,
-    status: 200,
-    body: {
-      getReader: () => ({
-        read: async () =>
-          chunks.length
-            ? { done: false, value: chunks.shift() }
-            : { done: true, value: undefined },
-      }),
-    },
-  };
-}
-
-/** A turn that paused at the read, in the stream's two shapes. */
-function pausedTurn() {
-  return streamOf(
-    { type: "token", content: PLAN },
-    { type: DEVICE_ACTION_EVENT, ...STEP },
-    { type: "done", success: true, output: PLAN, device_action: STEP },
-  );
-}
-
-/** Answers each run-ai-agent request with the next response. */
-function serverAnswers(...responses: Array<unknown>) {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (_url: string, init: { body: string }) => {
-      bodies.push(JSON.parse(init.body));
-      return responses.shift() ?? streamOf({ type: "done", success: true });
-    }),
-  );
-}
 
 /** The chat, framed by a panel or not. */
 function Chat({ panel }: { panel: PanelChannel | null }) {
@@ -255,6 +202,25 @@ describe("CarmenChatBar in the extension's panel", () => {
     expect(await answerBubbleWith(STEP_UNAVAILABLE_TEXT)).toBe(
       answerBubbleOf(PLAN),
     );
+  });
+
+  it("a message typed while the step waits drops its card, then goes out after the continuation", async () => {
+    const { panel, deliverResult } = fakePanel();
+    serverAnswers(pausedTurn());
+
+    const user = await sendMessage(panel);
+    await waitFor(() => expect(panel.postAction).toHaveBeenCalled());
+    await user.type(screen.getByRole("textbox"), "עזבי{Enter}");
+
+    expect(panel.postCancel).toHaveBeenCalledExactlyOnceWith(ACTION_ID);
+    expect(bodies).toHaveLength(1);
+    deliverResult(ACTION_ID);
+
+    await waitFor(() => expect(bodies).toHaveLength(3));
+    expect(bodies[1]).toMatchObject({ device_continuation: ACTION_ID });
+    expect(bodies[2]).toMatchObject({ command_text: "עזבי" });
+    expect(bodies[2]).not.toHaveProperty("device_continuation");
+    expect(bodies[2].run_id).not.toBe(bodies[0].run_id);
   });
 
   it("Stop drops the waiting step and continues only for the stop line", async () => {

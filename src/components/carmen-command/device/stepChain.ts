@@ -23,8 +23,8 @@ export type StepChainDeps = {
   stopRecorded: () => Promise<boolean>;
   /** Sends the continuation for a reported step and streams its answer. */
   continueRun: (actionId: string) => Promise<ContinuedReply>;
-  /** True while the chat waits for the panel. */
-  onWaiting: (waiting: boolean) => void;
+  /** The step the chat waits on the panel for, or null once the wait ends. */
+  onWaiting: (actionId: string | null) => void;
   waitMs?: number;
 };
 
@@ -72,7 +72,7 @@ export async function runBrowserSteps(
 
 /** One wait for the panel, with the chat's waiting state on around it. */
 async function waitForPanel(actionId: string, deps: StepChainDeps) {
-  deps.onWaiting(true);
+  deps.onWaiting(actionId);
   try {
     return await runPanelStep(
       deps.panel,
@@ -81,6 +81,6 @@ async function waitForPanel(actionId: string, deps: StepChainDeps) {
       deps.waitMs ?? STEP_WAIT_MS,
     );
   } finally {
-    deps.onWaiting(false);
+    deps.onWaiting(null);
   }
 }

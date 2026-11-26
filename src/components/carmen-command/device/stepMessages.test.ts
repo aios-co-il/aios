@@ -55,6 +55,15 @@ describe("joinStepAnswer", () => {
     expect(messages[0].content).toBe("ממתינה לפעולה בדפדפן.\n\nשלב 2\n\nשלב 3");
   });
 
+  it("does not repeat a part whose saved copy arrived first as its own message", () => {
+    const saved = { content: "תשובה", replyKey: "key-2" };
+
+    expect(joinStepAnswer([PAUSED, saved], "key-2", "תשובה", saved)).toEqual([
+      PAUSED,
+      saved,
+    ]);
+  });
+
   it("keeps the text as its own message when no message holds the key", () => {
     const own = { content: "תשובה", replyKey: "key-2" };
 

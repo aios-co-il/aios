@@ -54,7 +54,7 @@ describe("runBrowserSteps", () => {
 
     expect(panel.postAction).toHaveBeenCalledExactlyOnceWith(ACTION_ID);
     expect(deps.continueRun).toHaveBeenCalledExactlyOnceWith(ACTION_ID);
-    expect(deps.onWaiting.mock.calls).toEqual([[true], [false]]);
+    expect(deps.onWaiting.mock.calls).toEqual([[ACTION_ID], [null]]);
   });
 
   it("follows a chain of steps, each continued after its own result", async () => {
@@ -141,7 +141,7 @@ describe("runBrowserSteps", () => {
     deps.continueRun.mockRejectedValue(new Error("network"));
 
     await expect(runBrowserSteps(FIRST, deps)).rejects.toThrow("network");
-    expect(deps.onWaiting).toHaveBeenLastCalledWith(false);
+    expect(deps.onWaiting).toHaveBeenLastCalledWith(null);
   });
 });
 
@@ -161,6 +161,6 @@ describe("runBrowserSteps without a panel answer", () => {
     await vi.advanceTimersByTimeAsync(STEP_WAIT_MS - 1);
 
     expect(deps.continueRun).not.toHaveBeenCalled();
-    expect(deps.onWaiting).toHaveBeenLastCalledWith(true);
+    expect(deps.onWaiting).toHaveBeenLastCalledWith(ACTION_ID);
   });
 });

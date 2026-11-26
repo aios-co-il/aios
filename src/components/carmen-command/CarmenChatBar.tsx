@@ -811,6 +811,8 @@ export const CarmenChatBar = forwardRef<
       // Typed while Carmen still answers this chat: send it once she finishes (or is stopped).
       if (isStreamingRef.current) {
         run.enqueue({ text: trimmed, attachments: pendingAttachments });
+        // A new message drops a browser step's card; the run then continues on the closed step.
+        browserSteps.cancelWaitingStep();
         setInput("");
         setAttachments([]);
         return;
@@ -830,6 +832,7 @@ export const CarmenChatBar = forwardRef<
         return;
       }
       stopSpeech();
+      const stopMark = browserSteps.mark();
       const mode: CarmenInputMode =
         opts?.inputMode ??
         (convModeRef.current ? inputModeRef.current : "typed");
@@ -895,7 +898,7 @@ export const CarmenChatBar = forwardRef<
           const offered = isSidecar
             ? deviceToolsToSend(browserPanel)
             : undefined;
-          const turn = await streamInternal(
+          const streamed = await streamInternal(
             agentText,
             history,
             boundId || "",
@@ -903,30 +906,31 @@ export const CarmenChatBar = forwardRef<
             routed.run_brain,
             { tools: offered },
           );
-          if (turn.deviceAction) {
-            const end = await browserSteps.run(
-              turn.deviceAction,
+          if (streamed.deviceAction) {
+            const end = await browserSteps.run({
+              first: streamed.deviceAction,
               offered,
-              (actionId) =>
+              since: stopMark,
+              continueRun: (actionId, tools) =>
                 streamInternal(
                   agentText,
                   history,
-                  turn.conversationId,
+                  streamed.conversationId,
                   ctxMeta,
                   routed.run_brain,
                   {
-                    tools: deviceToolsToSend(browserPanel),
+                    tools,
                     continuation: {
                       actionId,
-                      runId: turn.runId,
-                      intoReplyKey: turn.replyKey,
+                      runId: streamed.runId,
+                      intoReplyKey: streamed.replyKey,
                     },
                   },
                 ),
-            );
+            });
             if (end === "limit") {
               setMessages((prev) =>
-                joinStepAnswer(prev, turn.replyKey, STEP_LIMIT_TEXT, {
+                joinStepAnswer(prev, streamed.replyKey, STEP_LIMIT_TEXT, {
                   role: "assistant",
                   content: STEP_LIMIT_TEXT,
                   speaker: "carmen",

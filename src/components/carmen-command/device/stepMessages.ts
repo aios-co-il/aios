@@ -46,7 +46,8 @@ export function withStepReplyKey<M extends KeyedMessage>(
 
 /**
  * Adds a continuation's text to the message holding its key. When no message does (the chat
- * was reloaded meanwhile), the text becomes its own message, so no answer is lost.
+ * was reloaded meanwhile), the text becomes its own message, so no answer is lost; when the
+ * server's saved copy already is that message, nothing changes.
  */
 export function joinStepAnswer<M extends KeyedMessage>(
   messages: Array<M>,
@@ -59,6 +60,10 @@ export function joinStepAnswer<M extends KeyedMessage>(
   );
   if (index < 0) {
     return [...messages, ownMessage];
+  }
+  // The server's saved copy of this part arrived first, as its own message: it already holds it.
+  if (messages[index].replyKey === stepReplyKey) {
+    return messages;
   }
   const joined = messages[index].content
     ? `${messages[index].content}\n\n${text}`
