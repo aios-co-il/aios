@@ -1,14 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DEVICE_CONTINUATION_TEXT,
   DEVICE_STEP_UNAVAILABLE,
 } from "@functions/_shared/carmen/device/contract.ts";
-import type { ScreenContextMetadata } from "@/lib/systemFixContext";
-import { createTestQueryHarness } from "@/test/withTestQuery";
-import { resetChannel } from "./brainChannelApi.test-fixture";
-import { CarmenChatBar } from "./CarmenChatBar";
 import {
   bodies,
   CONVERSATION,
@@ -18,12 +13,16 @@ import {
   streamOf,
   tabAt,
 } from "./CarmenChatBar.device.test-fixture";
-import { resetChat } from "./CarmenChatBar.test-fixture";
-import { resetBackend } from "./choices/carmenChoiceQueries.test-fixture";
+import { Chat } from "./CarmenChatBar.deviceChat.test-fixture";
+import {
+  answerBubbleOf,
+  answerBubbleWith,
+  resetDeviceChat,
+  sendMessage,
+  WORKING,
+} from "./CarmenChatBar.deviceSend.test-fixture";
 import { STEP_UNAVAILABLE_TEXT } from "./device/deviceReply";
-import type { PanelChannel } from "./device/panelStep";
 import { ACTION_ID, fakePanel } from "./device/panelStep.test-fixture";
-import { useBrainChannel } from "./useBrainChannel";
 
 vi.mock("@/integrations/supabase/client", async () => ({
   supabase: (await import("./CarmenChatBar.test-fixture")).fakeChatSupabase,
@@ -58,58 +57,9 @@ vi.mock("@/components/carmen/CarmenAvatar", () => ({
   CarmenAvatar: () => null,
 }));
 
-const TENANT = "tenant-a";
 const PAGE_ANSWER = "בדף כתוב: מחירים.";
-const WORKING = "עובדת בדפדפן שלך…";
 
-/** The chat, framed by a panel or not, beside the tab the panel shares. */
-function Chat({
-  panel,
-  tab = null,
-}: {
-  panel: PanelChannel | null;
-  tab?: ScreenContextMetadata | null;
-}) {
-  const brain = useBrainChannel(TENANT);
-
-  return (
-    <CarmenChatBar
-      tenantId={TENANT}
-      brain={brain}
-      onFaceState={() => {}}
-      audioLevelRef={{ current: 0 }}
-      mode="sidecar"
-      startFresh
-      browserPanel={panel}
-      contextMetadata={tab}
-    />
-  );
-}
-
-/** Opens the chat and sends one typed message. */
-async function sendMessage(
-  panel: PanelChannel | null,
-  tab: ScreenContextMetadata | null = null,
-) {
-  const user = userEvent.setup();
-  const { wrapper } = createTestQueryHarness();
-  const { rerender } = render(<Chat panel={panel} tab={tab} />, { wrapper });
-  const input = await screen.findByRole("textbox");
-
-  await user.type(input, "מה כתוב בדף?{Enter}");
-  await waitFor(() => expect(bodies.length).toBeGreaterThan(0));
-  return { user, rerender };
-}
-
-beforeEach(() => {
-  localStorage.clear();
-  resetBackend();
-  resetChannel();
-  resetChat();
-  bodies.length = 0;
-  vi.spyOn(console, "error").mockImplementation(() => {});
-  vi.spyOn(console, "warn").mockImplementation(() => {});
-});
+beforeEach(resetDeviceChat);
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -278,13 +228,3 @@ describe("CarmenChatBar in the extension's panel", () => {
     });
   });
 });
-
-/** Waits for a text, then the message bubble that holds it. */
-async function answerBubbleWith(text: string): Promise<Element | null> {
-  return (await screen.findByText(text)).closest(".cc-msg-bubble");
-}
-
-/** The one message bubble that holds a text. */
-function answerBubbleOf(text: string): Element | null {
-  return screen.getByText(text).closest(".cc-msg-bubble");
-}

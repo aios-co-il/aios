@@ -33,7 +33,22 @@ export const PANEL_MESSAGE = {
   result: "carmen:result",
   /** Site to panel: the user stopped the run or wrote again; drop the action and its card. */
   cancel: "carmen:cancel",
+  /** Panel to site: the panel could not claim the action, and why; nothing ran and the run is not continued. */
+  claimFailed: "carmen:claim-failed",
 } as const;
+
+/**
+ * Why a claim failed, as the panel can tell: the extension has no session, the server
+ * refused the row (another user, or one who may not act in its org; the server says no
+ * more), or the call itself failed.
+ */
+export const PANEL_CLAIM_FAILURES = [
+  "signed_out",
+  "refused",
+  "failed",
+] as const;
+
+export type PanelClaimFailure = (typeof PANEL_CLAIM_FAILURES)[number];
 
 const TAB_CONTEXT_CAPABILITIES = ["tab-context"] as const;
 
@@ -75,7 +90,13 @@ export type PanelMessage =
       v: number;
       tab: BrowserTab | null;
     }
-  | { type: PanelActionType; v: number; action_id: string };
+  | { type: PanelActionType; v: number; action_id: string }
+  | {
+      type: typeof PANEL_MESSAGE.claimFailed;
+      v: number;
+      action_id: string;
+      reason: PanelClaimFailure;
+    };
 
 /** Reads a received value; null for another version, an unknown kind or a malformed payload. */
 export function parsePanelMessage(data: unknown): PanelMessage | null {
@@ -100,15 +121,39 @@ export function parsePanelMessage(data: unknown): PanelMessage | null {
   ) {
     return panelCapabilities(data.capabilities);
   }
-  if (
-    isActionType(data.type) &&
-    "action_id" in data &&
-    typeof data.action_id === "string" &&
-    ACTION_ID.test(data.action_id)
-  ) {
-    return panelActionRef(data.type, data.action_id);
+  const actionId = "action_id" in data ? rowId(data.action_id) : null;
+  if (isActionType(data.type) && actionId) {
+    return panelActionRef(data.type, actionId);
   }
-  return null;
+  const reason = "reason" in data ? data.reason : null;
+  return data.type === PANEL_MESSAGE.claimFailed &&
+    actionId &&
+    isClaimFailure(reason)
+    ? panelClaimFailed(actionId, reason)
+    : null;
+}
+
+/** A received action id when it is a row id, else null. */
+function rowId(value: unknown): string | null {
+  return typeof value === "string" && ACTION_ID.test(value) ? value : null;
+}
+
+/** The message that tells the site the panel could not claim the action, and why. */
+export function panelClaimFailed(
+  actionId: string,
+  reason: PanelClaimFailure,
+): PanelMessage {
+  return {
+    type: PANEL_MESSAGE.claimFailed,
+    v: PANEL_PROTOCOL_VERSION,
+    action_id: actionId,
+    reason,
+  };
+}
+
+/** Narrows a received reason to one the panel sends. */
+function isClaimFailure(reason: unknown): reason is PanelClaimFailure {
+  return PANEL_CLAIM_FAILURES.some((known) => known === reason);
 }
 
 /** Whether a received value claims to be one of these messages, whatever its origin or shape. */

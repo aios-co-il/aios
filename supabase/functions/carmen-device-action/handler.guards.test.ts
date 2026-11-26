@@ -7,27 +7,77 @@ import {
   CLAIM,
   COLLEAGUE,
   DONE,
+  ME,
   NOT_AVAILABLE,
   OTHER_TENANT,
   post,
   SERVICE_TOKEN,
+  TENANT,
   world,
 } from "./handler.test-fixture.ts";
 
-// Row-level security answers the caller's read. These cases make that read show a row it
-// should not, so the checks after it are the ones deciding.
-Deno.test("the checks behind row-level security", async (t) => {
-  const stored: Record<string, Record<string, unknown>> = {
-    "another user's row": { user_id: COLLEAGUE },
-    "a row that moved to another org": { tenant_id: OTHER_TENANT },
-  };
-  for (const [name, change] of Object.entries(stored)) {
-    await t.step(`a claim leaves ${name} pending`, async () => {
-      const { action, deps } = world(actionRow(change), {
-        callerReads: actionRow(),
+// Who may take a row: its own user, while they may act in its org. The org the panel's
+// session has active (`user_active_tenant`) plays no part, so a super admin acting in an
+// org they do not belong to claims their own step there.
+Deno.test("who may take a row", async (t) => {
+  await t.step(
+    "a super admin claims and completes their own step in an org they do not belong to",
+    async () => {
+      const { action, deps } = world(actionRow({ tenant_id: OTHER_TENANT }), {
+        superAdmins: [ME],
       });
 
-      assertEquals(await answer(post(CLAIM), deps), {
+      assertEquals((await answer(post(CLAIM), deps)).status, 200);
+      assertEquals(action.status, "claimed");
+      assertEquals(await answer(post(DONE), deps), {
+        status: 200,
+        body: { ok: true },
+      });
+      assertEquals(action.status, "done");
+    },
+  );
+
+  await t.step(
+    "a member of several orgs claims their step in any of them",
+    async () => {
+      const { action, deps } = world(actionRow({ tenant_id: OTHER_TENANT }), {
+        members: [
+          { tenant_id: TENANT, user_id: ME },
+          { tenant_id: OTHER_TENANT, user_id: ME },
+        ],
+      });
+
+      assertEquals((await answer(post(CLAIM), deps)).status, 200);
+      assertEquals(action.status, "claimed");
+    },
+  );
+
+  const refusedCases: Record<
+    string,
+    {
+      row: Record<string, unknown>;
+      token?: string;
+      superAdmins?: Array<string>;
+    }
+  > = {
+    "another user's row": { row: { user_id: COLLEAGUE } },
+    "another user's row, for a super admin": {
+      row: { user_id: COLLEAGUE },
+      superAdmins: [ME],
+    },
+    "my row in an org I left": { row: { tenant_id: OTHER_TENANT } },
+    "my row, asked for by my colleague": {
+      row: {},
+      token: "Bearer colleague",
+    },
+  };
+  for (const [name, { row, token, superAdmins }] of Object.entries(
+    refusedCases,
+  )) {
+    await t.step(`a claim leaves ${name} pending`, async () => {
+      const { action, deps } = world(actionRow(row), { superAdmins });
+
+      assertEquals(await answer(post(CLAIM, token), deps), {
         status: 404,
         body: NOT_AVAILABLE,
       });
@@ -35,12 +85,11 @@ Deno.test("the checks behind row-level security", async (t) => {
     });
 
     await t.step(`a complete leaves ${name} claimed`, async () => {
-      const { action, deps } = world(
-        actionRow({ ...change, status: "claimed" }),
-        { callerReads: actionRow({ status: "claimed" }) },
-      );
+      const { action, deps } = world(actionRow({ ...row, status: "claimed" }), {
+        superAdmins,
+      });
 
-      assertEquals(await answer(post(DONE), deps), {
+      assertEquals(await answer(post(DONE, token), deps), {
         status: 404,
         body: NOT_AVAILABLE,
       });
@@ -49,16 +98,17 @@ Deno.test("the checks behind row-level security", async (t) => {
   }
 
   await t.step(
-    "a row of another user is refused even when the read shows it",
+    "a failed access read answers 500 and changes nothing",
     async () => {
-      const row = actionRow({ user_id: COLLEAGUE });
-      const { action, deps } = world(row, { callerReads: row });
+      for (const failing of ["tenant_users", "super_admins"]) {
+        const { action, deps } = world(actionRow(), { failing });
 
-      assertEquals(await answer(post(CLAIM), deps), {
-        status: 404,
-        body: NOT_AVAILABLE,
-      });
-      assertEquals(action.status, "pending");
+        assertEquals(await answer(post(CLAIM), deps), {
+          status: 500,
+          body: { error: "failed" },
+        });
+        assertEquals(action.status, "pending");
+      }
     },
   );
 });

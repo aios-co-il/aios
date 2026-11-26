@@ -2,8 +2,9 @@
  * carmen-device-action (AIO-667): the extension's panel, with the user's own session,
  * claims the device action it was handed the id of and later completes it.
  *
- * claim: pending becomes claimed once, for the action's own user in an org they belong to,
- * before it expires, on a run the user has not stopped. Only then does the panel learn
+ * claim: pending becomes claimed once, for the action's own user while they may act in its
+ * org (a member, or a super admin; caller-action.ts), whichever org the panel's session
+ * has active, before it expires, on a run the user has not stopped. Only then does the panel learn
  * the arguments (and the server's facts about the step, claim-reply.ts), which no browser can read from the table, so the id that travels through
  * the framed site carries nothing to act on. When the stop cannot be read the claim fails
  * closed: nothing is handed over and the action stays `claimed`, so it cannot be claimed
@@ -26,23 +27,21 @@ import type { ActionReport } from "./report.ts";
 import { parseRequest } from "./request.ts";
 import { toolResult } from "../_shared/carmen/device-result-check.ts";
 import {
-  type ActionDb,
   cancelClaimedAction,
   claimAction,
   completeAction,
   type OwnAction,
-  readOwnAction,
+  type ServiceDb,
 } from "./rows.ts";
+import { callerAction } from "./caller-action.ts";
 import { claimReply } from "./claim-reply.ts";
 import { recordCardTrust } from "./trust-record.ts";
 
 export type DeviceActionDeps = {
   /** Who sent the request, as `requireAuth` reads it. */
   caller: typeof requireAuth;
-  /** A client that reads as the caller, under row-level security. */
-  userDb: (authorization: string) => ActionDb;
-  /** The service-role client the guarded writes use. */
-  serviceDb: () => ActionDb;
+  /** The service-role client: the read of the row, the caller's access to its org and the guarded writes. */
+  serviceDb: () => ServiceDb;
   now: () => Date;
 };
 
@@ -72,14 +71,13 @@ export async function handleDeviceAction(
   }
 
   try {
-    const userDb = deps.userDb(req.headers.get("Authorization") ?? "");
-    const action = await readOwnAction(userDb, request.id);
-    if (!action || action.user_id !== userId) {
-      return refused(request.action, request.id, "not the caller's row");
+    const taken = await callerAction(deps.serviceDb(), request.id, userId);
+    if ("refusal" in taken) {
+      return refused(request.action, request.id, taken.refusal);
     }
     return request.action === "claim"
-      ? await claim(action, deps)
-      : await complete(action, request.report, deps);
+      ? await claim(taken.action, deps)
+      : await complete(taken.action, request.report, deps);
   } catch (error) {
     console.error(
       `[carmen-device-action] ${request.action} of action=${request.id} failed`,

@@ -113,18 +113,6 @@ describe("createReadActions: one read", () => {
     });
   });
 
-  it("does nothing and tells the site nothing when the claim is refused", async () => {
-    const device = fakeDevice({
-      claim: vi.fn(async () => ({ ok: false as const, reason: "404" })),
-    });
-
-    await createReadActions(device.deps).onAction(ACTION_ID);
-
-    expect(device.deps.activeTab).not.toHaveBeenCalled();
-    expect(device.completed).toEqual([]);
-    expect(device.posted).toEqual([]);
-  });
-
   it("discards the read when the tab leaves the site while it runs", async () => {
     const device = fakeDevice();
     device.deps.readPage = vi.fn(async () => {

@@ -5,23 +5,13 @@
 import { vi } from "vitest";
 import type { CardWords } from "./cardWords.ts";
 import type { CompleteBody } from "./completion.ts";
+import type { FakeCard } from "./grantCard.test-fixture.ts";
 import { NO_CLAIM_FACTS, shotDeps } from "./shotFlow.test-fixture.ts";
 import type { ClaimAnswer, ReadActionDeps } from "./readActions.ts";
 import type { GrantAnswer, TabFacts } from "./readFlow.ts";
 
 export const ACTION_ID = "0b5e8f7a-3c1d-4e2f-9a8b-7c6d5e4f3a2b";
 export const PAGE_URL = "https://shop.example/items?token=secret";
-
-/** A controllable card: resolves when the test answers, or when the step is stopped. */
-export type FakeCard = {
-  shown: Array<{ host: string; pattern: string }>;
-  /** The navigation cards shown, in order. */
-  navigations: Array<{ fromHost: string; host: string; href: string }>;
-  /** The click and typing cards shown, in order. */
-  acts: Array<CardWords>;
-  /** Taps the card; `trustSite`: "trust this site" was ticked (click and typing cards). */
-  answer: (answer: GrantAnswer, trustSite?: boolean) => void;
-};
 
 /** The fake deps plus the handles a test inspects. */
 export type FakeDevice = {
@@ -89,6 +79,8 @@ export function fakeDevice(
     postResult: vi.fn((id: string) => {
       posted.push(id);
     }),
+    postClaimFailed: vi.fn(),
+    showSignIn: vi.fn(),
     isTabShared: vi.fn(async () => true),
     activeTab: vi.fn(async () => currentTab(activeTabId)),
     tab: vi.fn(async () => currentTab()),
