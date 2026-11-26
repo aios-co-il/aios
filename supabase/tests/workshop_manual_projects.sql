@@ -1,4 +1,4 @@
--- Workshop projects managed by hand (20261126160000_workshop_manual_projects): signed in as a
+-- Workshop projects managed by hand (20261126170000_workshop_manual_projects): signed in as a
 -- tenant member (authenticated role), inside one transaction that is rolled back. A created
 -- project carries the payload Carmen's planner writes for a title alone, and lands in the
 -- workshop list; a name is required; rename and archive work on the member's projects and refuse
