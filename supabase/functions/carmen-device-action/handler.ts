@@ -4,8 +4,10 @@
  *
  * claim: pending becomes claimed once, for the action's own user in an org they belong to,
  * before it expires, on a run the user has not stopped. Only then does the panel learn
- * the tool and its arguments, so the id that travels through the framed site carries
- * nothing to act on.
+ * the arguments, which no browser can read from the table, so the id that travels through
+ * the framed site carries nothing to act on. When the stop cannot be read the claim fails
+ * closed: nothing is handed over and the action stays `claimed`, so it cannot be claimed
+ * again.
  * complete: claimed becomes the status the panel reports, once, by the same user.
  *
  * Every refusal about a row is the same answer, whatever the reason, so a caller learns
@@ -15,8 +17,9 @@
  * the turn continues or the next one starts.
  */
 import { isDeviceToolName } from "../_shared/carmen/device/contract.ts";
-import { runStopCheck } from "../_shared/carmen/run-stop.ts";
+import { readRunStopped } from "../_shared/carmen/run-stop.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import type { requireAuth } from "../_shared/security.ts";
 import type { ActionReport } from "./report.ts";
 import { parseRequest } from "./request.ts";
 import { toolResult } from "./result.ts";
@@ -30,8 +33,8 @@ import {
 } from "./rows.ts";
 
 export type DeviceActionDeps = {
-  /** The signed-in user's id, or null when the request carries no user session. */
-  userId: (req: Request) => Promise<string | null>;
+  /** Who sent the request, as `requireAuth` reads it. */
+  caller: typeof requireAuth;
   /** A client that reads as the caller, under row-level security. */
   userDb: (authorization: string) => ActionDb;
   /** The service-role client the guarded writes use. */
@@ -40,7 +43,7 @@ export type DeviceActionDeps = {
 };
 
 /** A full read-page result is about half of this; anything longer is not a panel's request. */
-const REQUEST_CHARS_MAX = 200_000;
+export const REQUEST_CHARS_MAX = 200_000;
 
 /** The response to one request. */
 export async function handleDeviceAction(
@@ -53,7 +56,8 @@ export async function handleDeviceAction(
   if (req.method !== "POST") {
     return reply({ error: "method_not_allowed" }, 405);
   }
-  const userId = await deps.userId(req);
+  // The service key carries no user id, so it is nobody here: only a person's own session claims or completes.
+  const userId = (await deps.caller(req))?.userId;
   if (!userId) {
     return reply({ error: "unauthorized" }, 401);
   }
@@ -95,13 +99,9 @@ async function claim(
     return refused("claim", action.id, "not pending or expired");
   }
 
-  // Read after the claim, so a stop recorded any time before it is seen.
-  const stopped = await runStopCheck(
-    serviceDb,
-    action.run_id,
-    action.user_id,
-  )();
-  if (stopped) {
+  // Read after the claim, so a stop recorded any time before it is seen. A failed read
+  // throws: the tool and arguments are handed over only when the run is known not stopped.
+  if (await readRunStopped(serviceDb, action.run_id, action.user_id)) {
     await cancelClaimedAction(serviceDb, action, deps.now());
     return refused("claim", action.id, "run stopped");
   }
@@ -116,7 +116,9 @@ async function complete(
   deps: DeviceActionDeps,
 ): Promise<Response> {
   const result =
-    report.status === "done" ? toolResult(action.tool, report.result) : null;
+    report.status === "done"
+      ? toolResult(action.tool, report.result, action.user_id)
+      : null;
   if (report.status === "done" && !result) {
     console.warn(
       `[carmen-device-action] complete of action=${action.id} refused: the result does not fit ${action.tool}`,

@@ -27,10 +27,13 @@ export const PANEL_STATUSES = [
 
 export type PanelStatus = (typeof PANEL_STATUSES)[number];
 
-/** A step runs only free or after a card, and a user declines only a card. */
+/**
+ * A step runs only free or after a card, a user declines only a card, and a refused step
+ * asked nobody: the never-list, the act floor and a field rule all report `never`.
+ */
 const RULES_BY_STATUS: Partial<
   Record<PanelStatus, ReadonlyArray<DeviceCardRule>>
-> = { done: ["ask", "free"], denied: ["ask"] };
+> = { done: ["ask", "free"], denied: ["ask"], refused: ["never"] };
 
 export type ActionReport = {
   status: PanelStatus;

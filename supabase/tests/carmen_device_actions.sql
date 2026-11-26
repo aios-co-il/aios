@@ -1,7 +1,9 @@
 -- Carmen device actions (20261126143000_carmen_device_actions): each user reads
 -- only their own actions, in an org they belong to; a colleague, a member who
 -- left, another org and anon read nothing; a super admin reads their own only
--- in the org they act in; no signed-in user inserts, updates or deletes a row;
+-- in the org they act in; a signed-in user reads the ids, tool, status and
+-- timestamps of a row and never its arguments, result, observed address or
+-- decision; no signed-in user inserts, updates or deletes a row;
 -- the status and decision checks hold; a row goes with its org, its user and
 -- its conversation, and 90 days after it was created. Synthetic users and
 -- tenants inside one transaction that is rolled back.
@@ -103,6 +105,19 @@ BEGIN
     RAISE EXCEPTION 'member: the action they see must be their own';
   END IF;
 
+  -- Of my own row I read what the edge function's check and the site need, and nothing a page or I typed.
+  PERFORM id, tenant_id, user_id, run_id, tool, status, created_at, claimed_at, completed_at, expires_at
+  FROM public.carmen_device_actions;
+  FOREACH v_status IN ARRAY ARRAY[
+    'arguments', 'result', 'observed_origin', 'observed_path', 'decision', 'conversation_id', '*'
+  ] LOOP
+    BEGIN
+      EXECUTE 'SELECT ' || v_status || ' FROM public.carmen_device_actions';
+      RAISE EXCEPTION 'member: reading % of an action must be refused', v_status;
+    EXCEPTION WHEN insufficient_privilege THEN NULL;
+    END;
+  END LOOP;
+
   -- I write nothing, not even my own row: every write goes through the edge function.
   BEGIN
     INSERT INTO public.carmen_device_actions (tenant_id, user_id, run_id, tool, expires_at)
@@ -195,8 +210,9 @@ BEGIN
   END;
   RESET ROLE;
 
-  -- Signed-in users hold exactly SELECT: no write, and no TRUNCATE, which row-level
-  -- security does not cover. anon and PUBLIC (grantee 0) hold nothing.
+  -- On the table as a whole PUBLIC (grantee 0), anon and signed-in users hold nothing:
+  -- no write, no TRUNCATE, which row-level security does not cover, and no SELECT,
+  -- which would open every column.
   SELECT array_agg(g.held ORDER BY g.held) INTO v_names
   FROM (
     SELECT coalesce(r.rolname, 'PUBLIC') || ':' || a.privilege_type AS held
@@ -206,8 +222,28 @@ BEGIN
     WHERE c.oid = 'public.carmen_device_actions'::regclass
       AND (a.grantee = 0 OR r.rolname IN ('anon', 'authenticated'))
   ) g;
-  IF v_names IS DISTINCT FROM ARRAY['authenticated:SELECT'] THEN
-    RAISE EXCEPTION 'grants: unexpected grants to PUBLIC, anon or authenticated on public.carmen_device_actions: %', v_names;
+  IF v_names IS NOT NULL THEN
+    RAISE EXCEPTION 'grants: unexpected table grants to PUBLIC, anon or authenticated on public.carmen_device_actions: %', v_names;
+  END IF;
+
+  -- Column by column, signed-in users hold SELECT on exactly these ten and nothing else;
+  -- anon and PUBLIC hold no column.
+  SELECT array_agg(g.held ORDER BY g.held) INTO v_names
+  FROM (
+    SELECT coalesce(r.rolname, 'PUBLIC') || ':' || a.privilege_type || ':' || att.attname AS held
+    FROM pg_attribute att
+    CROSS JOIN LATERAL aclexplode(att.attacl) a
+    LEFT JOIN pg_roles r ON r.oid = a.grantee
+    WHERE att.attrelid = 'public.carmen_device_actions'::regclass
+      AND (a.grantee = 0 OR r.rolname IN ('anon', 'authenticated'))
+  ) g;
+  IF v_names IS DISTINCT FROM ARRAY[
+    'authenticated:SELECT:claimed_at', 'authenticated:SELECT:completed_at', 'authenticated:SELECT:created_at',
+    'authenticated:SELECT:expires_at', 'authenticated:SELECT:id', 'authenticated:SELECT:run_id',
+    'authenticated:SELECT:status', 'authenticated:SELECT:tenant_id', 'authenticated:SELECT:tool',
+    'authenticated:SELECT:user_id'
+  ] THEN
+    RAISE EXCEPTION 'grants: unexpected column grants to PUBLIC, anon or authenticated on public.carmen_device_actions: %', v_names;
   END IF;
 
   -- Policies are permissive and OR together: only the one SELECT policy, for authenticated only.
@@ -272,5 +308,5 @@ BEGIN
   END IF;
 END
 $test$;
-SELECT 'Carmen device actions: own rows only, no writes for signed-in users, colleague, leaver, other org and anon refused, checks and cascades hold' AS result;
+SELECT 'Carmen device actions: own rows only and never their arguments or result, no writes for signed-in users, colleague, leaver, other org and anon refused, checks and cascades hold' AS result;
 ROLLBACK;

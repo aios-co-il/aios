@@ -19,11 +19,16 @@
 -- A signed-in user reads only their own rows, in an org they belong to; a
 -- super admin only in the org they act in (get_user_tenant_id), because the
 -- edge function uses this read as its check before it writes for the caller,
--- and TENANT_ISOLATION.md lets a super admin write only there. Signed-in users
--- hold no INSERT, UPDATE or DELETE: every write is the server's or the edge
--- function's, with the service role. The table is not in the Realtime
--- publication: the site learns of an action from the turn's stream and of its
--- result from the panel's message.
+-- and TENANT_ISOLATION.md lets a super admin write only there. Of those rows a
+-- browser reads only what says whose step it is and how far it got: the ids,
+-- the tool's name, the status and the four timestamps. arguments (the text to
+-- type), result (another site's page text), the observed address and the
+-- decision are the service role's alone, so a script running in the user's
+-- session cannot read them; the panel gets the arguments from its one claim.
+-- Signed-in users hold no INSERT, UPDATE or DELETE: every write is the
+-- server's or the edge function's, with the service role. The table is not in
+-- the Realtime publication: the site learns of an action from the turn's
+-- stream and of its result from the panel's message.
 --
 -- A row goes with its org, its user or its conversation (ON DELETE CASCADE),
 -- and 90 days after it was created (cron job cleanup-carmen-device-actions,
@@ -71,6 +76,12 @@ CREATE INDEX IF NOT EXISTS idx_carmen_device_actions_run
 CREATE INDEX IF NOT EXISTS idx_carmen_device_actions_created
   ON public.carmen_device_actions (created_at);
 
+-- Deleting a user or a conversation finds its rows without scanning the table.
+CREATE INDEX IF NOT EXISTS idx_carmen_device_actions_user
+  ON public.carmen_device_actions (user_id);
+CREATE INDEX IF NOT EXISTS idx_carmen_device_actions_conversation
+  ON public.carmen_device_actions (conversation_id);
+
 ALTER TABLE public.carmen_device_actions ENABLE ROW LEVEL SECURITY;
 
 -- Each user reads their own actions in an org they belong to; a super admin reads their own in the org they act in.
@@ -90,8 +101,12 @@ CREATE POLICY carmen_device_actions_select
   );
 
 -- authenticated is revoked first: the default privileges of the public schema give it every command.
+-- Revoking on the table also revokes every column grant, so a re-run starts from nothing.
 REVOKE ALL ON TABLE public.carmen_device_actions FROM PUBLIC, anon, authenticated;
-GRANT SELECT ON public.carmen_device_actions TO authenticated;
+-- Column by column and never table-wide: arguments, result, observed_origin, observed_path,
+-- decision and conversation_id stay unreadable from a browser, and so does any column added later.
+GRANT SELECT (id, tenant_id, user_id, run_id, tool, status, created_at, claimed_at, completed_at, expires_at)
+  ON public.carmen_device_actions TO authenticated;
 GRANT ALL ON public.carmen_device_actions TO service_role;
 
 -- Daily retention (re)scheduled, so a re-run keeps one job.

@@ -3,45 +3,22 @@ import {
   READ_PAGE_ELEMENTS_MAX,
   READ_PAGE_TEXT_MAX,
 } from "../_shared/carmen/device/results.ts";
-import { handleDeviceAction } from "./handler.ts";
 import {
   ACTION,
   actionRow,
+  answer,
+  CLAIM,
   COLLEAGUE,
+  DONE,
   ME,
+  NOT_AVAILABLE,
   NOW,
+  PAGE,
   post,
   RUN,
+  SNAPSHOT,
   world,
 } from "./handler.test-fixture.ts";
-
-const CLAIM = { action: "claim", id: ACTION };
-const NOT_AVAILABLE = { error: "not_available" };
-const PAGE = { origin: "https://example.com", path: "/pricing" };
-const SNAPSHOT = {
-  ...PAGE,
-  snapshot_id: "s1",
-  title: "Pricing",
-  elements: [{ ref: "e1", role: "button", name: "Buy" }],
-  text: "Plans and prices",
-};
-const DONE = {
-  action: "complete",
-  id: ACTION,
-  status: "done",
-  decision: "free",
-  observed: PAGE,
-  result: SNAPSHOT,
-};
-
-/** The status and JSON body of the handler's answer. */
-async function answer(
-  request: Request,
-  deps: Parameters<typeof handleDeviceAction>[1],
-) {
-  const response = await handleDeviceAction(request, deps);
-  return { status: response.status, body: await response.json() };
-}
 
 Deno.test("claim", async (t) => {
   await t.step("hands the tool and arguments to its user, once", async () => {
@@ -100,6 +77,23 @@ Deno.test("claim", async (t) => {
 
     assertEquals((await answer(post(CLAIM), deps)).status, 200);
   });
+
+  await t.step(
+    "hands nothing over when the stop cannot be read, and the action cannot be claimed again",
+    async () => {
+      const { action, deps } = world(
+        actionRow({ tool: "browser_type", arguments: { text: "secret" } }),
+        { failing: "carmen_run_cancellations" },
+      );
+
+      assertEquals(await answer(post(CLAIM), deps), {
+        status: 500,
+        body: { error: "failed" },
+      });
+      assertEquals(action.status, "claimed");
+      assertEquals((await answer(post(CLAIM), deps)).status, 404);
+    },
+  );
 
   await t.step("refuses a row whose tool is not a device tool", async () => {
     const { action, deps } = world(actionRow({ tool: "send_whatsapp" }));
@@ -165,8 +159,14 @@ Deno.test("complete", async (t) => {
     const { action, deps } = world(actionRow({ status: "claimed" }));
     const report = { action: "complete", id: ACTION, status: "refused" };
 
-    assertEquals((await answer(post(report), deps)).status, 200);
-    assertEquals([action.status, action.result], ["refused", null]);
+    assertEquals(
+      (await answer(post({ ...report, decision: "never" }), deps)).status,
+      200,
+    );
+    assertEquals(
+      [action.status, action.decision, action.result],
+      ["refused", "never", null],
+    );
   });
 
   const element = { ref: "e", role: "link", name: "n" };
@@ -178,6 +178,7 @@ Deno.test("complete", async (t) => {
     "too much text": { ...SNAPSHOT, text: "x".repeat(READ_PAGE_TEXT_MAX + 1) },
     "a missing field": PAGE,
     "an extra field": { ...SNAPSHOT, value: "typed text" },
+    "text cut through an emoji": { ...SNAPSHOT, text: "price \ud83d" },
   };
   for (const [name, result] of Object.entries(unfit)) {
     await t.step(`refuses a result with ${name}`, async () => {
@@ -202,56 +203,4 @@ Deno.test("complete", async (t) => {
       assertEquals(action.status, "claimed");
     });
   }
-});
-
-Deno.test("every request", async (t) => {
-  await t.step(
-    "a signed-out caller gets 401 before the body is read",
-    async () => {
-      const { action, deps } = world();
-
-      for (const body of [CLAIM, "not json"]) {
-        const refusal = await answer(post(body, "Bearer nobody"), deps);
-        assertEquals(refusal, { status: 401, body: { error: "unauthorized" } });
-      }
-      assertEquals(action.status, "pending");
-    },
-  );
-
-  await t.step("a malformed request is refused before any read", async () => {
-    const { deps } = world();
-    const bodies = [
-      { action: "claim", id: ACTION.replaceAll("-", "") },
-      { action: "claim", id: [ACTION] },
-      { action: "release", id: ACTION },
-      "not json",
-      "x".repeat(200_001),
-    ];
-
-    for (const body of bodies) {
-      assertEquals(await answer(post(body), deps), {
-        status: 400,
-        body: { error: "invalid_request" },
-      });
-    }
-  });
-
-  await t.step("a failed read answers 500 and changes nothing", async () => {
-    const { action, deps } = world(actionRow(), {
-      failing: "carmen_device_actions",
-    });
-
-    assertEquals(await answer(post(CLAIM), deps), {
-      status: 500,
-      body: { error: "failed" },
-    });
-    assertEquals(action.status, "pending");
-  });
-
-  await t.step("only POST is served", async () => {
-    const { deps } = world();
-    const get = new Request("http://local/carmen-device-action");
-
-    assertEquals((await handleDeviceAction(get, deps)).status, 405);
-  });
 });

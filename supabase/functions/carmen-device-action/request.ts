@@ -11,7 +11,7 @@ export type DeviceActionRequest =
 
 /** The request, or null when the body is not one. */
 export function parseRequest(body: unknown): DeviceActionRequest | null {
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
+  if (!body || typeof body !== "object") {
     return null;
   }
   const input: Record<string, unknown> = { ...body };

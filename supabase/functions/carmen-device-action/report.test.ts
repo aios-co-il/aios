@@ -39,6 +39,16 @@ Deno.test("parseReport", async (t) => {
     });
   });
 
+  await t.step("a refused step asked nobody", () => {
+    assertEquals(
+      parseReport({ status: "refused", decision: "never" })?.decision,
+      "never",
+    );
+    for (const decision of ["ask", "free", undefined]) {
+      assertEquals(parseReport({ status: "refused", decision }), null);
+    }
+  });
+
   await t.step("a step that did not run carries no result", () => {
     for (const status of PANEL_STATUSES.filter((known) => known !== "done")) {
       const report = { status, decision: "ask", result: PAGE };
@@ -48,14 +58,11 @@ Deno.test("parseReport", async (t) => {
   });
 
   await t.step("an unknown rule or a malformed address is refused", () => {
-    const refused = { status: "refused" };
+    const changed = { status: "target_changed" };
 
-    assertEquals(parseReport({ ...refused, decision: "trusted" }), null);
-    assertEquals(parseReport({ ...refused, observed: "example.com" }), null);
-    assertEquals(parseReport({ ...refused, observed: PAGE })?.observed, PAGE);
-    assertEquals(
-      parseReport({ ...refused, decision: "never" })?.decision,
-      "never",
-    );
+    assertEquals(parseReport({ ...changed, decision: "trusted" }), null);
+    assertEquals(parseReport({ ...changed, observed: "example.com" }), null);
+    assertEquals(parseReport({ ...changed, observed: PAGE })?.observed, PAGE);
+    assertEquals(parseReport({ ...changed, decision: "ask" })?.decision, "ask");
   });
 });
