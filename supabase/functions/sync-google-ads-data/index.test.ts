@@ -25,6 +25,7 @@ type Caller = "internal-cron" | "user";
 async function syncFlaggedBackfill(caller: Caller) {
   const http = fakeSupabaseHttp({
     supabaseUrl: SUPABASE_URL,
+    rpc: { google_integration_tokens: () => [] },
     tables: {
       crm_tables: [
         {
