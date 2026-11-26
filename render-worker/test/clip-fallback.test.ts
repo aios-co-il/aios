@@ -315,3 +315,26 @@ test("a replacement that costs more than the approved engine is skipped", async 
     ["mock", "elevenlabs"],
   ]);
 });
+
+test("an engine with no model left to serve ends on the free preview instead of retrying", async () => {
+  const gone = Object.assign(
+    new Error(
+      'openrouter submit 404: {"message":"No endpoints found for kwaivgi/kling-v3.0-std."}',
+    ),
+    { submitted: false, modelUnavailable: true },
+  );
+  const { calls, run } = recorder({ openrouter: gone });
+  const result = await runClipWithFallback({
+    name: "openrouter",
+    keys: { openRouterKey: "sk-or" },
+    run,
+  });
+  expect(result).toStrictEqual({
+    provider: "mock",
+    fallbackFrom: "openrouter",
+  });
+  expect(calls).toStrictEqual([
+    ["openrouter", null],
+    ["mock", "openrouter"],
+  ]);
+});

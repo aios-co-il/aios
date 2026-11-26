@@ -15,7 +15,6 @@ import {
   shouldRunRecallCreditCanary,
   createRecallBot,
 } from "./recall.ts";
-import { MEETING_BOT_IMAGE_JPEG_B64 } from "./recall-bot-image.ts";
 
 // Shape of Recall's v1.11 transcript download: a top-level array of
 // per-participant segments, each holding a flat list of words.
@@ -207,33 +206,51 @@ Deno.test(
   },
 );
 
+/** Runs `createRecallBot` against a fake Recall and returns the body it was sent. */
+async function sentBotBody(
+  opts: Parameters<typeof createRecallBot>[0],
+): Promise<Record<string, unknown>> {
+  const realFetch = globalThis.fetch;
+  Deno.env.set("RECALL_API_KEY", "test-key");
+  let body: Record<string, unknown> = {};
+  globalThis.fetch = (_input, init) => {
+    body = JSON.parse(String(init?.body ?? "{}"));
+    return Promise.resolve(Response.json({ id: "bot-1" }));
+  };
+
+  try {
+    await createRecallBot(opts);
+  } finally {
+    globalThis.fetch = realFetch;
+    Deno.env.delete("RECALL_API_KEY");
+  }
+  return body;
+}
+
 Deno.test(
-  "a new bot joins under the name it is given, with the Mini Me tile",
+  "a new bot joins under the name it is given, with its picture as the video tile",
   async () => {
-    const realFetch = globalThis.fetch;
-    Deno.env.set("RECALL_API_KEY", "test-key");
-    let body: Record<string, unknown> = {};
-    globalThis.fetch = (_input, init) => {
-      body = JSON.parse(String(init?.body ?? "{}"));
-      return Promise.resolve(Response.json({ id: "bot-1" }));
-    };
-    try {
-      await createRecallBot({
-        meeting_url: "https://meet.google.com/abc-defg-hij",
-        bot_name: "מיני מי · מתמלל ומסכם",
-      });
-      assertEquals(body.bot_name, "מיני מי · מתמלל ומסכם");
-      const video = body.automatic_video_output as {
-        in_call_recording: { kind: string; b64_data: string };
-      };
-      assertEquals(video.in_call_recording.kind, "jpeg");
-      assertEquals(
-        video.in_call_recording.b64_data,
-        MEETING_BOT_IMAGE_JPEG_B64,
-      );
-    } finally {
-      globalThis.fetch = realFetch;
-      Deno.env.delete("RECALL_API_KEY");
-    }
+    const body = await sentBotBody({
+      meeting_url: "https://meet.google.com/abc-defg-hij",
+      bot_name: "מיני מי · מתמלל ומסכם",
+      picture_jpeg_b64: "/9j/picture",
+    });
+
+    assertEquals(body.bot_name, "מיני מי · מתמלל ומסכם");
+    assertEquals(body.automatic_video_output, {
+      in_call_recording: { kind: "jpeg", b64_data: "/9j/picture" },
+      in_call_not_recording: { kind: "jpeg", b64_data: "/9j/picture" },
+    });
   },
 );
+
+Deno.test("a bot without a picture is sent with no video output", async () => {
+  const body = await sentBotBody({
+    meeting_url: "https://meet.google.com/abc-defg-hij",
+    bot_name: "כרמן · מתמלל ומסכם",
+    picture_jpeg_b64: null,
+  });
+
+  assertEquals(body.bot_name, "כרמן · מתמלל ומסכם");
+  assertEquals("automatic_video_output" in body, false);
+});
