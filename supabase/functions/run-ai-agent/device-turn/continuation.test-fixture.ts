@@ -2,7 +2,9 @@
 import { assert } from "jsr:@std/assert@1";
 import {
   ACTION,
+  doneRow,
   ME,
+  NOW,
   openOver,
   panelTurn,
   RUN,
@@ -42,4 +44,27 @@ export function continueOver(
 export async function replyOf(reply: Response | null) {
   assert(reply, "the request is answered without the model");
   return { status: reply.status, body: await reply.json() };
+}
+
+/** A panel that announced every device tool the server offers. */
+export const ALL_TOOLS = {
+  device: {
+    tools: [
+      "browser_read_page",
+      "browser_navigate",
+      "browser_click",
+      "browser_type",
+    ],
+  },
+};
+
+/** A step of this run written at `minute` past the hour, with `overrides`. */
+export function stepAt(minute: number, overrides: Record<string, unknown>) {
+  return doneRow({
+    id: crypto.randomUUID(),
+    created_at: `2026-11-26T10:${String(minute).padStart(2, "0")}:00.000Z`,
+    consumed_at: NOW.toISOString(),
+    result: null,
+    ...overrides,
+  });
 }

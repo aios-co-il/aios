@@ -12,6 +12,7 @@
 import { holdsAnotherOrigin } from "../../_shared/carmen/device/card-rule.ts";
 import type { EnvironmentOrigins } from "../../_shared/carmen/device/never-controllable.ts";
 import { readRunStopped } from "../../_shared/carmen/run-stop.ts";
+import { stepResidue } from "./step-residue.ts";
 import { isClosedStatus, type StepOutcome } from "./data-block.ts";
 import {
   consumeStep,
@@ -19,6 +20,7 @@ import {
   readRunSteps,
   readStep,
   type RunKey,
+  type RunStep,
   type StepRow,
 } from "./rows.ts";
 import { settleStep } from "./settle.ts";
@@ -36,7 +38,8 @@ export type Continuation =
   | { kind: "refused"; reason: string }
   /** The user stopped the run: answered with the stop line, without the model. */
   | { kind: "stopped" }
-  | { kind: "resume"; outcome: StepOutcome; stepsUsed: number };
+  /** `steps`: the run's steps after this one was used, in the order they were written. */
+  | { kind: "resume"; outcome: StepOutcome; steps: Array<RunStep> };
 
 /** Reads, closes and uses the named step; what the request may do next. */
 export async function resumeFromStep(
@@ -67,7 +70,20 @@ export async function resumeFromStep(
   }
   const checked =
     closed.status === "done" ? storedResult(closed, named, origins) : null;
-  if (!(await consumeStep(db, named, closed, Boolean(checked?.refusal), now))) {
+  // A read keeps its snapshot id and refs, a click or type whether it changed the page.
+  const keep = checked?.result
+    ? stepResidue(closed.tool, checked.result)
+    : null;
+  if (
+    !(await consumeStep(
+      db,
+      named,
+      closed,
+      Boolean(checked?.refusal),
+      now,
+      keep,
+    ))
+  ) {
     return { kind: "refused", reason: "already_used" };
   }
   const steps = await readRunSteps(db, named);
@@ -80,7 +96,7 @@ export async function resumeFromStep(
       result: checked?.result ?? null,
       tainted: runTainted(named, steps),
     },
-    stepsUsed: steps.length,
+    steps,
   };
 }
 

@@ -11,6 +11,7 @@ import {
   pageLocation,
   toolResult,
 } from "../../_shared/carmen/device-result-check.ts";
+import { isActNeverHost } from "../../_shared/carmen/device/act-never-hosts.ts";
 import {
   type EnvironmentOrigins,
   isNeverControllable,
@@ -42,8 +43,15 @@ export function checkStoredResult(
   if (result.origin !== observed.origin || result.path !== observed.path) {
     return { result: null, refusal: "addresses_differ" };
   }
-  if (isNeverControllable(observed.origin + observed.path, origins)) {
+  const address = observed.origin + observed.path;
+  if (isNeverControllable(address, origins)) {
     return { result: null, refusal: "never_controllable" };
+  }
+  // A navigation, click or type that lands on the act floor (a redirect to a bank, a link
+  // to one) reports nothing of that page: the panel refuses it, and a report that says
+  // otherwise is not believed. A read of it is allowed: the floor refuses acting only.
+  if (step.tool !== "browser_read_page" && isActNeverHost(address, [])) {
+    return { result: null, refusal: "act_floor" };
   }
   return { result, refusal: null };
 }

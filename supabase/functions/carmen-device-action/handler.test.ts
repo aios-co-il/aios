@@ -138,6 +138,36 @@ Deno.test("complete", async (t) => {
     assertEquals(action.status, "done");
   });
 
+  await t.step(
+    "keeps no typed text once a typing step is closed, and a click's arguments as they were",
+    async () => {
+      const typed = { snapshot_id: "s1", ref: "e1", text: "secret words" };
+      const typing = world(
+        actionRow({
+          status: "claimed",
+          tool: "browser_type",
+          arguments: typed,
+        }),
+      );
+      const clicking = world(
+        actionRow({
+          status: "claimed",
+          tool: "browser_click",
+          arguments: { snapshot_id: "s1", ref: "e1" },
+        }),
+      );
+      const denied = { action: "complete", id: ACTION, status: "denied" };
+      const report = { ...denied, decision: "ask", observed: PAGE };
+
+      await answer(post(report), typing.deps);
+      await answer(post(report), clicking.deps);
+
+      assertEquals(typing.action.status, "denied");
+      assertEquals(typing.action.arguments, {});
+      assertEquals(clicking.action.arguments, { snapshot_id: "s1", ref: "e1" });
+    },
+  );
+
   await t.step("refuses another user", async () => {
     const { action, deps } = world(actionRow({ status: "claimed" }));
 

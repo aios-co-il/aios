@@ -32,11 +32,14 @@ export function useRunControl(tenantId: string | null) {
     setStopping(false);
   }, []);
 
-  /** Asks the server to stop the current run; it stops at its next step. */
-  const stop = useCallback(async () => {
+  /**
+   * Asks the server to stop the current run; it stops at its next step. Resolves whether a
+   * stop was recorded: before the request has a run id there is nothing to stop yet.
+   */
+  const stop = useCallback(async (): Promise<boolean> => {
     const runId = runIdRef.current;
     if (!runId || !tenantId) {
-      return;
+      return false;
     }
     setStopping(true);
     const { error } = await supabase
@@ -46,6 +49,7 @@ export function useRunControl(tenantId: string | null) {
       setStopping(false);
       throw error;
     }
+    return true;
   }, [tenantId]);
 
   const enqueue = useCallback((message: QueuedMessage) => {

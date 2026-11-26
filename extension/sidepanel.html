@@ -28,6 +28,24 @@
       <a id="notice-link" target="_blank" rel="noopener">פתחו את AIOS בלשונית</a
       >, התחברו שם, ואז פתחו את החלונית מחדש.
     </div>
+    <div
+      id="grant-card"
+      class="grant-card hidden"
+      role="dialog"
+      aria-labelledby="grant-title"
+    >
+      <div id="grant-title" class="grant-title"></div>
+      <p id="grant-address" class="grant-address hidden" dir="ltr"></p>
+      <p id="grant-quote" class="grant-quote hidden" dir="auto"></p>
+      <!-- The words come from src/device/cardWords.ts, per step. -->
+      <p id="grant-text" class="grant-text"></p>
+      <div class="grant-actions">
+        <button id="grant-allow" class="btn primary" type="button"></button>
+        <button id="grant-decline" class="btn secondary" type="button">
+          לא עכשיו
+        </button>
+      </div>
+    </div>
     <iframe
       id="carmen-frame"
       class="panel-frame hidden"

@@ -38,6 +38,9 @@ export default defineConfig({
             ".github/scripts/**/*.test.mjs",
             ".claude/hooks/**/*.test.mjs",
             ".claude/hooks/**/*.test.ts",
+            // The Chrome extension has no runner of its own; its pure modules run here.
+            "extension/src/**/*.test.ts",
+            "extension/build/**/*.test.ts",
           ],
         },
       },

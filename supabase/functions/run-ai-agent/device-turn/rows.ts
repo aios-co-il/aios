@@ -10,6 +10,7 @@ import {
 } from "../../_shared/carmen/device/contract.ts";
 import type { Database } from "../../_shared/database.types.ts";
 import type { DbClient } from "../../_shared/supabase-clients.ts";
+import type { StepResidue } from "./step-residue.ts";
 
 export type DeviceDb = Pick<DbClient, "from">;
 
@@ -38,14 +39,25 @@ export const TABLE = "carmen_device_actions";
 export const STEP_COLUMNS =
   "id, tool, status, result, observed_origin, observed_path, expires_at, consumed_at";
 
-/** The run's steps in the order they were written: how many, and where each page was. */
+/**
+ * What the server reads of every step of a run: how many there are, where each page was,
+ * and what a used step left for a later click or type to be checked against (`act-target.ts`).
+ */
+export type RunStep = Pick<
+  ActionRow,
+  "id" | "tool" | "status" | "result" | "observed_origin" | "observed_path"
+>;
+
+/** The run's steps in the order they were written. */
 export async function readRunSteps(
   db: DeviceDb,
   run: RunKey,
-): Promise<Array<{ observed_origin: string | null }>> {
+): Promise<Array<RunStep>> {
   const { data, error } = await db
     .from(TABLE)
-    .select("id, observed_origin, created_at")
+    .select(
+      "id, tool, status, result, observed_origin, observed_path, created_at",
+    )
     .eq("tenant_id", run.tenantId)
     .eq("user_id", run.userId)
     .eq("run_id", run.runId)
@@ -59,7 +71,13 @@ export async function readRunSteps(
 /** Writes a pending step that lives for the card's life; its id. */
 export async function insertStep(
   db: DeviceDb,
-  step: RunKey & { conversationId: string; tool: DeviceToolName; now: Date },
+  step: RunKey & {
+    conversationId: string;
+    tool: DeviceToolName;
+    /** The checked arguments (`step.ts`); the panel gets them only from its claim. */
+    arguments: Record<string, string>;
+    now: Date;
+  },
 ): Promise<string> {
   const { data, error } = await db
     .from(TABLE)
@@ -69,7 +87,7 @@ export async function insertStep(
       run_id: step.runId,
       conversation_id: step.conversationId,
       tool: step.tool,
-      arguments: {},
+      arguments: step.arguments,
       status: "pending",
       expires_at: new Date(
         step.now.getTime() + DEVICE_CARD_LIFE_MS,
@@ -106,7 +124,9 @@ export async function readStep(
 /**
  * Marks a closed step used and clears its page text, once: false when another request
  * used it first or its state moved. A step whose result the server will not hand to the
- * model is closed as `refused` in the same write.
+ * model is closed as `refused` in the same write. `keep` replaces the result: what a
+ * later click or type is checked against, never page text (`stepResidue`). The arguments
+ * are cleared too.
  */
 export async function consumeStep(
   db: DeviceDb,
@@ -114,12 +134,15 @@ export async function consumeStep(
   step: Pick<StepRow, "id" | "status">,
   refuse: boolean,
   now: Date,
+  keep: StepResidue | null = null,
 ): Promise<boolean> {
   const { data, error } = await db
     .from(TABLE)
     .update({
       consumed_at: now.toISOString(),
-      result: null,
+      result: keep,
+      // Nothing reads a used step's arguments again, and a type's are the text it typed.
+      arguments: {},
       ...(refuse ? { status: "refused", decision: "never" } : {}),
     })
     .eq("id", step.id)

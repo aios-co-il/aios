@@ -21,8 +21,8 @@ const FULL = {
     text: "x".repeat(READ_PAGE_TEXT_MAX),
   },
   browser_navigate: { ...PAGE, title: "T" },
-  browser_click: PAGE,
-  browser_type: PAGE,
+  browser_click: { ...PAGE, title: "T", changed: false },
+  browser_type: { ...PAGE, title: "T", changed: true },
   browser_screenshot: { ...PAGE, storage_path: `${ME}/1764150000000-shot.jpg` },
 };
 
@@ -47,7 +47,7 @@ Deno.test("toolResult", async (t) => {
       assertEquals(toolResult(tool, result, ME), null);
     }
     for (const field of ["text", "value"]) {
-      const result = { ...PAGE, [field]: "secret" };
+      const result = { ...FULL.browser_type, [field]: "secret" };
 
       assertEquals(toolResult("browser_type", result, ME), null);
     }

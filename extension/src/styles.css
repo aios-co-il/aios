@@ -246,6 +246,50 @@ body.panel {
   width: 100%;
   border: none;
 }
+/* Drawn by the panel, above the framed site, so the site cannot draw or press it. */
+.grant-card {
+  padding: 10px;
+  border-bottom: 1px solid var(--primary);
+  background: var(--bg-elevated);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.grant-title {
+  font-weight: 700;
+  /* A long host still wraps inside a narrow panel. */
+  overflow-wrap: anywhere;
+}
+.grant-text {
+  margin: 4px 0 8px;
+  color: var(--text-muted);
+}
+.grant-address {
+  margin: 4px 0 0;
+  font-family: ui-monospace, monospace;
+  text-align: left;
+  /* The full address, which may be one long word. */
+  overflow-wrap: anywhere;
+}
+.grant-quote {
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  /* Every character the user approves, line breaks kept; a long text scrolls. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+  max-height: 12em;
+  overflow-y: auto;
+}
+.grant-actions {
+  display: flex;
+  gap: 8px;
+}
+.grant-actions .btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 
 /* Recorder window */
 .rec-info {

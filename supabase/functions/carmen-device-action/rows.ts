@@ -89,6 +89,9 @@ export async function completeAction(
       observed_path: completion.observed?.path ?? null,
       result: completion.result,
       completed_at: now.toISOString(),
+      // The text to type was the panel's to take with its claim; once the step is closed
+      // the row keeps no typed text (plan rule 12).
+      ...(action.tool === "browser_type" ? { arguments: {} } : {}),
     })
     .eq("id", action.id)
     .eq("tenant_id", action.tenant_id)
