@@ -118,7 +118,6 @@ export function useResolvedGscIntegration(params: {
         {
           body: {
             clientId,
-            tenantIds,
             expectedSiteUrl: expectedSiteUrl || undefined,
           },
           headers: { Authorization: `Bearer ${session.access_token}` },
