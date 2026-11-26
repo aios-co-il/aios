@@ -10,5 +10,7 @@
     "types": ["node", "chrome"],
     "lib": ["ES2022"]
   },
-  "include": ["vite.config.ts", "build"]
+  "include": ["vite.config.ts", "build"],
+  // Tests run under the root Vitest (vitest.config.ts), whose packages the extension does not install.
+  "exclude": ["build/**/*.test.ts"]
 }

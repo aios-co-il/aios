@@ -1,0 +1,54 @@
+import { describe, expect, it } from "vitest";
+import { GRANTABLE_SITES } from "../src/device/siteGrant.ts";
+import { extensionManifest } from "./manifest.ts";
+
+const ENVIRONMENTS = [
+  {
+    name: "production",
+    supabaseUrl: "https://api.aios.co.il",
+    supabaseOrigins: ["https://api.aios.co.il", "https://project.supabase.co"],
+    publishableKey: "key",
+    appOrigin: "https://aios.co.il",
+  },
+  {
+    name: "staging",
+    supabaseUrl: "https://staging.supabase.co",
+    supabaseOrigins: ["https://staging.supabase.co"],
+    publishableKey: "key",
+    appOrigin: "https://staging.aios.co.il",
+  },
+] as const;
+
+describe("extensionManifest", () => {
+  for (const environment of ENVIRONMENTS) {
+    describe(environment.name, () => {
+      const manifest = extensionManifest({
+        ...environment,
+        supabaseOrigins: [...environment.supabaseOrigins],
+      });
+
+      it("adds scripting and nothing broader than the plan allows", () => {
+        expect(manifest.permissions).toEqual([
+          "storage",
+          "sidePanel",
+          "scripting",
+        ]);
+        expect(manifest.optional_permissions).toEqual(["tabs"]);
+      });
+
+      it("grants no site at install: https sites are optional, asked one at a time", () => {
+        expect(manifest.optional_host_permissions).toEqual([GRANTABLE_SITES]);
+        expect(manifest.host_permissions).toEqual(
+          [...environment.supabaseOrigins, environment.appOrigin].map(
+            (origin) => `${origin}/*`,
+          ),
+        );
+      });
+
+      it("registers no content script and no background worker", () => {
+        expect(manifest.content_scripts).toBeUndefined();
+        expect(manifest.background).toBeUndefined();
+      });
+    });
+  }
+});
