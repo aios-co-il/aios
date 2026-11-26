@@ -9,37 +9,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type {
-  LeadCustomFieldDefinition,
-  LeadCustomFieldValue,
-  LeadCustomFieldValues,
+import {
+  leadCustomFieldOptions,
+  type LeadCustomFieldDefinition,
+  type LeadCustomFieldValue,
+  type LeadCustomFieldValues,
 } from "@/lib/leadCustomFields";
 
 interface LeadCustomFieldsSectionProps {
   fields: Array<LeadCustomFieldDefinition>;
   values: LeadCustomFieldValues;
   onChange: (fieldKey: string, value: LeadCustomFieldValue) => void;
-}
-
-function getOptions(options: unknown): Array<{ label: string; value: string }> {
-  if (!Array.isArray(options)) {
-    return [];
-  }
-
-  return options.flatMap((option) => {
-    if (typeof option === "string") {
-      return [{ label: option, value: option }];
-    }
-    if (!option || typeof option !== "object") {
-      return [];
-    }
-    const item = option as Record<string, unknown>;
-    const value = String(item.value ?? item.label ?? "").trim();
-    if (!value) {
-      return [];
-    }
-    return [{ value, label: String(item.label ?? value) }];
-  });
 }
 
 export function LeadCustomFieldsSection({
@@ -103,7 +83,7 @@ export function LeadCustomFieldsSection({
           }
 
           if (field.field_type === "select") {
-            const options = getOptions(field.options);
+            const options = leadCustomFieldOptions(field.options);
             return (
               <div key={field.id} className="space-y-2">
                 {label}
