@@ -8,11 +8,16 @@
  * The run and the checks after this one read the body's raw ids, so both ids
  * must first be text the database reads the way this guard does (AIO-659).
  */
-import { tenantUserAccess } from "../_shared/auth/tenant-access.ts";
-import type { DbClient } from "../_shared/supabase-clients.ts";
-import { asUuidOrNull } from "../_shared/uuid.ts";
+import { tenantUserAccess } from "../auth/tenant-access.ts";
+import type { DbClient } from "../supabase-clients.ts";
+import { asUuidOrNull } from "../uuid.ts";
+import { bodyUuid } from "./body-id.ts";
 
 export type RunAuth = { kind: "user" | "service"; userId: string | null };
+
+/** What a caller is told when the agent is not the run's tenant's. */
+export const AGENT_IN_OTHER_TENANT =
+  "This agent belongs to another organization";
 
 /** The body fields that name the run's tenant and agent. */
 const RUN_ID_FIELDS = ["tenant_id", "agent_id"] as const;
@@ -41,7 +46,7 @@ export async function runTenantDenied(
   const bodyTenant = text(body.tenant_id);
   const agentTenant = await agentTenantOf(sb, text(body.agent_id));
   if (bodyTenant && agentTenant && agentTenant !== bodyTenant) {
-    return "This agent belongs to another organization";
+    return AGENT_IN_OTHER_TENANT;
   }
   const tenantId = bodyTenant || agentTenant;
   // No tenant and no known agent: the run fails later on its own.
@@ -80,16 +85,14 @@ async function agentTenantOf(
 
 /**
  * Whether a body id is absent (undefined, null or "") or exactly a hyphenated
- * uuid string. Anything else could name a row to the queries that follow while
- * reading as no id here: supabase-js sends an array as its joined items, and
- * PostgreSQL also takes a uuid without hyphens or in braces.
+ * uuid string (./body-id.ts).
  */
 function absentOrUuid(value: unknown): boolean {
   return (
     value === undefined ||
     value === null ||
     value === "" ||
-    (typeof value === "string" && asUuidOrNull(value) === value)
+    bodyUuid(value) !== null
   );
 }
 
