@@ -2,9 +2,12 @@
 -- Each file lives in the private client-update-attachments bucket at
 -- {tenant_id}/{client_id}/{update_id}/{attachment_id}.{ext}, and one
 -- client_update_attachments row says which entry it belongs to. Whoever can
--- read the entry reads its files (the client_updates SELECT policy, which
--- runs the caller's own clients policies); only the entry's author, while
--- their org may still write the client (tenant_can_write_client), adds files.
+-- see the entry's client reads its files (the caller's own clients policies:
+-- the client's org, or an org its agency is shared with). Reading the entry
+-- alone is not enough, since the baseline "Users can view client updates in
+-- their tenant" policy shows every entry to every member of the org. Only
+-- the entry's author, while their org may still write the client
+-- (tenant_can_write_client), adds files.
 -- The browser reads files through short-lived signed URLs. The bucket's size
 -- limit and type list are the one source of truth for what may be attached:
 -- the storage API enforces them on upload and the row trigger reads them.
@@ -157,10 +160,11 @@ REVOKE ALL ON public.client_update_attachments FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT, DELETE ON public.client_update_attachments TO authenticated;
 GRANT ALL ON public.client_update_attachments TO service_role;
 
--- Reads: whoever can read the entry; the subquery runs under the caller's
--- client_updates and clients policies, so it follows the one shared card.
-DROP POLICY IF EXISTS "Readers of the entry read its attachments" ON public.client_update_attachments;
-CREATE POLICY "Readers of the entry read its attachments"
+-- Reads: whoever can see the entry's client; the subquery runs under the
+-- caller's client_updates and clients policies, so it follows the one shared
+-- card and not the org-wide entry policy.
+DROP POLICY IF EXISTS "Viewers of the client read its entries' attachments" ON public.client_update_attachments;
+CREATE POLICY "Viewers of the client read its entries' attachments"
   ON public.client_update_attachments
   FOR SELECT
   TO authenticated
@@ -168,6 +172,7 @@ CREATE POLICY "Readers of the entry read its attachments"
     EXISTS (
       SELECT 1
       FROM public.client_updates AS u
+      JOIN public.clients AS c ON c.id = u.client_id
       WHERE u.id = client_update_attachments.update_id
     )
   );
@@ -192,8 +197,9 @@ CREATE POLICY "Authors attach files to their own entries"
     )
   );
 
--- Deletes: the person who attached the file, while they can still read the
--- entry (a failed upload removes its row; deleting the entry cascades).
+-- Deletes: the person who attached the file, while they can still see the
+-- entry's client (a failed upload removes its row; deleting the entry
+-- cascades).
 DROP POLICY IF EXISTS "Uploaders remove their own attachments" ON public.client_update_attachments;
 CREATE POLICY "Uploaders remove their own attachments"
   ON public.client_update_attachments
@@ -204,6 +210,7 @@ CREATE POLICY "Uploaders remove their own attachments"
     AND EXISTS (
       SELECT 1
       FROM public.client_updates AS u
+      JOIN public.clients AS c ON c.id = u.client_id
       WHERE u.id = client_update_attachments.update_id
     )
   );
@@ -211,8 +218,8 @@ CREATE POLICY "Uploaders remove their own attachments"
 -- ─── Storage policies ───────────────────────────────────────────────────────
 
 -- Reads: a file whose attachment row the caller can read (see above).
-DROP POLICY IF EXISTS "Readers of the entry read client update files" ON storage.objects;
-CREATE POLICY "Readers of the entry read client update files"
+DROP POLICY IF EXISTS "Viewers of the client read client update files" ON storage.objects;
+CREATE POLICY "Viewers of the client read client update files"
   ON storage.objects
   FOR SELECT
   TO authenticated
