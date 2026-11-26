@@ -9,10 +9,14 @@ import { withConsoleErrors } from "../_shared/testing/console-errors.ts";
 import { fakeSupabase } from "../_shared/testing/fake-supabase.ts";
 import {
   loadStoredPick,
-  type PickEngineResolvers,
   resolvePickAwareEngine,
   storedPickRequest,
 } from "./stored-brain-pick.ts";
+import {
+  groq,
+  resolvers,
+  withoutPick,
+} from "./stored-brain-pick.test-fixture.ts";
 
 type Caller = Parameters<typeof storedPickRequest>[0];
 
@@ -20,13 +24,6 @@ const TENANT = "t-1";
 const USER = "u-1";
 const user: Caller = { kind: "user", userId: USER };
 const asks = { [USE_BRAIN_PICK]: true, tenant_id: TENANT };
-const groq: BrainEngine = {
-  kind: "connections",
-  slug: "groq",
-  targets: [],
-  fallbackInternal: false,
-};
-const withoutPick: BrainEngine = { kind: "internal" };
 const STORED_GROQ = `tenant ${TENANT}, brain "groq"`;
 
 /**
@@ -46,30 +43,9 @@ function choices(brain_slug: string | null, failing?: string) {
   );
 }
 
-/**
- * Resolvers that record the bodies they were asked about: the stored pick
- * resolves to `picked` (or throws it), any other request to `withoutPick`.
- */
-function resolvers(picked: BrainEngine | Error) {
-  const asked: Array<unknown> = [];
-  const fakes: PickEngineResolvers = {
-    resolveBrainEngine: (_sb, _auth, body) => {
-      asked.push(body);
-      return picked instanceof Error
-        ? Promise.reject(picked)
-        : Promise.resolve(picked);
-    },
-    resolveWorkshopAwareEngine: (_sb, _auth, body) => {
-      asked.push(body);
-      return Promise.resolve(withoutPick);
-    },
-  };
-  return { asked, fakes };
-}
-
 describe("storedPickRequest", () => {
   it("names the row of a signed-in user who sent the flag and no brain", () => {
-    const key = { tenantId: TENANT, userId: USER };
+    const key = { tenantId: TENANT, userId: USER, lineOwner: false };
 
     assertEquals(storedPickRequest(user, asks), key);
     assertEquals(storedPickRequest(user, { ...asks, brain_slug: "" }), key);

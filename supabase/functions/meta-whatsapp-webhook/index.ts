@@ -706,6 +706,8 @@ Deno.serve(async (request) => {
                 tenantId: target.tenantId,
                 integrationId: integration.id,
                 connectionUserId: target.userId,
+                // The tenant's oldest member, not an owner of this line.
+                connectionUserOwnsLine: false,
                 chatId: item.peerPhone,
                 phoneNumber: item.peerPhone,
                 senderName: contactNames.get(item.peerPhone) || "",

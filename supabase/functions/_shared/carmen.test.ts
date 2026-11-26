@@ -2,7 +2,9 @@ import {
   assertEquals,
   assertStringIncludes,
   assertRejects,
+  assertStrictEquals,
 } from "jsr:@std/assert@1";
+import { USE_BRAIN_PICK } from "./carmen/brain-engine/stored-pick.ts";
 import {
   groupMessageInvokesCarmen,
   handleCarmenMessage,
@@ -805,6 +807,64 @@ Deno.test(
         );
         const run = posted.find((send) => send.fn === "run-ai-agent");
         assertEquals(run?.body.persona_user_id, "user-1");
+      },
+    );
+
+    /** The run-ai-agent request body of one turn on the owner's line, changed by `turn`. */
+    async function runRequestBody(turn: Partial<CarmenContext>) {
+      const supabase = tenantDb(
+        { carmen_integration_id: "integration-1" },
+        {
+          carmen_persona_choices: ownerPicksMiniMe,
+          carmen_whatsapp_sessions: [
+            { id: "session-new", tenant_id: TENANT, status: "ended" },
+          ],
+        },
+      );
+
+      const { posted } = await capturingSends(() =>
+        handleCarmenMessage({
+          ...ownLineTurn(ownerPicksMiniMe),
+          supabase,
+          ...turn,
+        }).catch(() => null),
+      );
+
+      return posted.find((send) => send.fn === "run-ai-agent")?.body ?? {};
+    }
+
+    await t.step(
+      "the owner's line asks for the owner's stored brain (AIO-654)",
+      async () => {
+        const body = await runRequestBody({});
+
+        assertEquals(body.persona_user_id, "user-1");
+        assertStrictEquals(body[USE_BRAIN_PICK], true);
+        assertStrictEquals("brain_slug" in body, false);
+      },
+    );
+
+    await t.step(
+      "the org's main line asks for nobody's stored brain",
+      async () => {
+        const body = await runRequestBody({
+          connectionRole: "primary",
+          messageText: "כרמן, מה המצב?",
+        });
+
+        assertStrictEquals(body.surface, "whatsapp");
+        assertStrictEquals("persona_user_id" in body, false);
+        assertStrictEquals(USE_BRAIN_PICK in body, false);
+      },
+    );
+
+    await t.step(
+      "a line whose user stands in for an owner keeps Carmen's engine",
+      async () => {
+        const body = await runRequestBody({ connectionUserOwnsLine: false });
+
+        assertEquals(body.persona_user_id, "user-1");
+        assertStrictEquals(USE_BRAIN_PICK in body, false);
       },
     );
 
