@@ -7,17 +7,20 @@ import { aiSpeak } from "../_shared/ai.ts";
 import { type DbClient, serviceClient } from "../_shared/supabase-clients.ts";
 import { createVoiceNoteHandler, type VoiceLine } from "./handler.ts";
 import { loadVoiceLine } from "./line.ts";
+import { chooseLineVoice, dbLineVoiceReads } from "./line-voice.ts";
 
 const DEFAULT_GATEWAY = "https://whatsappgw-pzpyrrww.manus.space";
 const BUCKET = "wa-voice";
 
 const db = serviceClient();
+const voiceReads = dbLineVoiceReads(db);
 
 Deno.serve(
   createVoiceNoteHandler({
     serviceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     loadLine: (tenantId, integrationId) =>
       loadVoiceLine(db, tenantId, integrationId),
+    lineVoice: (line) => chooseLineVoice(line, voiceReads),
     speak: (text, voice) => aiSpeak(text, { voice, format: "opus" }),
     storeAudio: (tenantId, audio) => storeAudio(db, tenantId, audio),
     sendFile,

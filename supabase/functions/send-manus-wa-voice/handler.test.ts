@@ -1,58 +1,13 @@
 import { assertEquals } from "jsr:@std/assert@1";
+import { createVoiceNoteHandler, type VoiceLine } from "./handler.ts";
 import {
-  createVoiceNoteHandler,
-  type VoiceLine,
-  type VoiceNoteDeps,
-} from "./handler.ts";
-
-const SERVICE_KEY = "service-role-key";
-const TENANT = "11111111-1111-4111-8111-111111111111";
-const LINE_ID = "22222222-2222-4222-8222-222222222222";
-const LINE: VoiceLine = {
-  id: LINE_ID,
-  tenantId: TENANT,
-  apiKey: "manus-key",
-  instanceId: "instance-1",
-  gatewayUrl: null,
-};
-
-/** Fakes for every dependency, recording each send. */
-function fakeDeps(overrides: Partial<VoiceNoteDeps> = {}) {
-  const sent: Array<{ line: VoiceLine; to: string; fileUrl: string }> = [];
-  const deps: VoiceNoteDeps = {
-    serviceRoleKey: SERVICE_KEY,
-    loadLine: () => Promise.resolve(LINE),
-    speak: () => Promise.resolve(new Uint8Array([1, 2, 3])),
-    storeAudio: () => Promise.resolve("https://files/voice.ogg"),
-    sendFile: (line, to, fileUrl) => {
-      sent.push({ line, to, fileUrl });
-      return Promise.resolve(true);
-    },
-    ...overrides,
-  };
-  return { deps, sent };
-}
-
-/** A POST to the function with this Authorization header and body. */
-function voiceRequest(
-  authorization: string | null,
-  body: Record<string, unknown> = {
-    tenant_id: TENANT,
-    integration_id: LINE_ID,
-    to: "972501234567@c.us",
-    text: "שלום",
-  },
-): Request {
-  const headers = new Headers({ "Content-Type": "application/json" });
-  if (authorization !== null) {
-    headers.set("Authorization", authorization);
-  }
-  return new Request("https://edge/send-manus-wa-voice", {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  });
-}
+  fakeDeps,
+  LINE,
+  LINE_ID,
+  SERVICE_KEY,
+  TENANT,
+  voiceRequest,
+} from "./handler.test-fixture.ts";
 
 Deno.test("send-manus-wa-voice caller check (AIO-246)", async (t) => {
   for (const [name, authorization] of [
@@ -221,4 +176,77 @@ Deno.test("send-manus-wa-voice receiving line (AIO-654)", async (t) => {
       assertEquals(sent, []);
     },
   );
+});
+
+Deno.test("send-manus-wa-voice voice (AIO-654)", async (t) => {
+  await t.step("speaks the line's voice; a body voice is ignored", async () => {
+    const spoken: Array<string> = [];
+    const lines: Array<VoiceLine> = [];
+    const { deps } = fakeDeps({
+      lineVoice: (line) => {
+        lines.push(line);
+        return Promise.resolve("cedar");
+      },
+      speak: (_text, voice) => {
+        spoken.push(voice);
+        return Promise.resolve(new Uint8Array([1]));
+      },
+    });
+
+    const res = await createVoiceNoteHandler(deps)(
+      voiceRequest(`Bearer ${SERVICE_KEY}`, {
+        tenant_id: TENANT,
+        integration_id: LINE_ID,
+        to: "972501234567@c.us",
+        text: "שלום",
+        voice: "onyx",
+      }),
+    );
+
+    assertEquals(res.status, 200);
+    assertEquals(lines, [LINE]);
+    assertEquals(spoken, ["cedar"]);
+  });
+
+  await t.step(
+    "a voice text-to-speech refuses falls back to the default once",
+    async () => {
+      const spoken: Array<string> = [];
+      const { deps, sent } = fakeDeps({
+        speak: (_text, voice) => {
+          spoken.push(voice);
+          return Promise.resolve(
+            voice === "shimmer" ? new Uint8Array([1]) : null,
+          );
+        },
+      });
+
+      const res = await createVoiceNoteHandler(deps)(
+        voiceRequest(`Bearer ${SERVICE_KEY}`),
+      );
+
+      assertEquals(res.status, 200);
+      assertEquals(spoken, ["cedar", "shimmer"]);
+      assertEquals(sent.length, 1);
+    },
+  );
+
+  await t.step("a refused default is not tried twice", async () => {
+    const spoken: Array<string> = [];
+    const { deps, sent } = fakeDeps({
+      lineVoice: () => Promise.resolve("shimmer"),
+      speak: (_text, voice) => {
+        spoken.push(voice);
+        return Promise.resolve(null);
+      },
+    });
+
+    const res = await createVoiceNoteHandler(deps)(
+      voiceRequest(`Bearer ${SERVICE_KEY}`),
+    );
+
+    assertEquals(res.status, 502);
+    assertEquals(spoken, ["shimmer"]);
+    assertEquals(sent, []);
+  });
 });

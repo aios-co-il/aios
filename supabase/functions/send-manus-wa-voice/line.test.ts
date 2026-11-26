@@ -14,6 +14,7 @@ function line(fields: Record<string, unknown> = {}) {
     tenant_id: TENANT,
     integration_type: "manus_wa",
     is_active: true,
+    user_id: null,
     api_key: "receiving-key",
     settings: { instance_id: "receiving-instance" },
     ...fields,
@@ -34,10 +35,29 @@ Deno.test("loadVoiceLine", async (t) => {
     assertEquals(await loadVoiceLine(sb, TENANT, RECEIVING), {
       id: RECEIVING,
       tenantId: TENANT,
+      ownerUserId: null,
+      role: "primary",
       apiKey: "receiving-key",
       instanceId: "receiving-instance",
       gatewayUrl: null,
     });
+  });
+
+  await t.step("a personal line carries its owner and role", async () => {
+    const owner = "55555555-5555-4555-8555-555555555555";
+    const sb = fakeTables({
+      tenant_integrations: [
+        line({
+          user_id: owner,
+          settings: { instance_id: "i", carmen_role: "secondary" },
+        }),
+      ],
+    });
+
+    const loaded = await loadVoiceLine(sb, TENANT, RECEIVING);
+
+    assertEquals(loaded?.ownerUserId, owner);
+    assertEquals(loaded?.role, "secondary");
   });
 
   await t.step("never falls back to another line", async () => {

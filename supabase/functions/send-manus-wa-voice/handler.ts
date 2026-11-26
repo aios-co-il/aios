@@ -7,15 +7,24 @@
  * `integration_id` (AIO-654): with no such active Manus line of the tenant it
  * is not sent, never from another line.
  *
+ * The voice is the line's (line-voice.ts), never the caller's: the main line
+ * speaks the organization's Carmen voice, a personal line its owner's pick.
+ *
  * POST body: { tenant_id: string, integration_id: string, to: string,
- * text: string, voice?: string }
+ * text: string }
  */
 import { isServiceRoleRequest } from "../_shared/auth/edge-caller-auth.ts";
+import type { CarmenConnectionRole } from "../_shared/carmen-connection-role.ts";
+import { DEFAULT_SPEECH_VOICE } from "../_shared/carmen/voices/voice-choice.ts";
 
 /** The Manus line a voice note leaves from, with what the gateway needs. */
 export type VoiceLine = {
   id: string;
   tenantId: string;
+  /** tenant_integrations.user_id: on a secondary line, its owner. */
+  ownerUserId: string | null;
+  /** "primary" is the organization's main Carmen line; "secondary" a personal one. */
+  role: CarmenConnectionRole;
   apiKey: string;
   instanceId: string;
   gatewayUrl: string | null;
@@ -29,6 +38,8 @@ export type VoiceNoteDeps = {
     tenantId: string,
     integrationId: string,
   ) => Promise<VoiceLine | null>;
+  /** The voice the line speaks (chooseLineVoice). */
+  lineVoice: (line: VoiceLine) => Promise<string>;
   speak: (text: string, voice: string) => Promise<Uint8Array | null>;
   /** Stores the audio and returns the URL the gateway fetches it from. */
   storeAudio: (tenantId: string, audio: Uint8Array) => Promise<string>;
@@ -41,7 +52,6 @@ type VoiceNoteRequest = {
   integrationId: string;
   to: string;
   text: string;
-  voice: string;
 };
 
 /** The request handler: caller check, request, line, speech, upload, send. */
@@ -87,7 +97,7 @@ async function readRequest(req: Request): Promise<VoiceNoteRequest | null> {
   if (typeof body !== "object" || body === null) {
     return null;
   }
-  const { tenant_id, integration_id, to, text, voice } = body as Record<
+  const { tenant_id, integration_id, to, text } = body as Record<
     string,
     unknown
   >;
@@ -109,7 +119,6 @@ async function readRequest(req: Request): Promise<VoiceNoteRequest | null> {
     integrationId: integration_id,
     to,
     text: clean,
-    voice: typeof voice === "string" && voice ? voice : "shimmer",
   };
 }
 
@@ -126,8 +135,11 @@ async function sendVoiceNote(
     return json({ error: "Line not available" }, 404);
   }
 
-  const audio = await deps.speak(request.text, request.voice);
+  const audio = await speakInLineVoice(deps, line, request.text);
   if (!audio) {
+    console.error(
+      `[send-manus-wa-voice] no voice note: text-to-speech failed (line ${line.id})`,
+    );
     return json({ error: "TTS failed" }, 502);
   }
 
@@ -137,6 +149,27 @@ async function sendVoiceNote(
   }
 
   return json({ success: true });
+}
+
+/**
+ * The text spoken in the line's voice; when text-to-speech refuses that voice,
+ * the default voice once more, logged. Null when neither is spoken.
+ */
+async function speakInLineVoice(
+  deps: VoiceNoteDeps,
+  line: VoiceLine,
+  text: string,
+): Promise<Uint8Array | null> {
+  const voice = await deps.lineVoice(line);
+  const audio = await deps.speak(text, voice);
+  if (audio || voice === DEFAULT_SPEECH_VOICE) {
+    return audio;
+  }
+
+  console.warn(
+    `[send-manus-wa-voice] text-to-speech refused voice "${voice}" (line ${line.id}); speaking ${DEFAULT_SPEECH_VOICE}`,
+  );
+  return await deps.speak(text, DEFAULT_SPEECH_VOICE);
 }
 
 /** A JSON response. */

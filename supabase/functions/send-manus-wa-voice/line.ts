@@ -2,6 +2,7 @@
  * The Manus line a voice note leaves from: exactly the line that received the
  * message (AIO-654), read with the service role and scoped by tenant.
  */
+import { resolveCarmenConnectionRole } from "../_shared/carmen-connection-role.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
 import type { VoiceLine } from "./handler.ts";
@@ -10,6 +11,7 @@ import type { VoiceLine } from "./handler.ts";
 type LineRow = {
   id: string;
   tenant_id: string;
+  user_id: string | null;
   api_key: string | null;
   settings: unknown;
 };
@@ -29,7 +31,7 @@ export async function loadVoiceLine(
   }
   const { data, error } = await sb
     .from("tenant_integrations")
-    .select("id, tenant_id, api_key, settings")
+    .select("id, tenant_id, user_id, api_key, settings")
     .eq("id", integrationId)
     .eq("tenant_id", tenantId)
     .eq("integration_type", "manus_wa")
@@ -53,6 +55,12 @@ function gatewayLine(row: LineRow | null): VoiceLine | null {
   return {
     id: row.id,
     tenantId: row.tenant_id,
+    ownerUserId: row.user_id,
+    // The rule the webhook applies to this Manus line (manus-wa-webhook).
+    role: resolveCarmenConnectionRole(
+      { integration_type: "manus_wa", settings },
+      { tenantHasActiveManus: true },
+    ),
     apiKey: row.api_key,
     instanceId,
     gatewayUrl:
