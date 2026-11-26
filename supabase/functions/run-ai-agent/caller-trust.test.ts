@@ -104,7 +104,7 @@ Deno.test("service-only fields: source guards", async (t) => {
       for (const later of [
         "bodyJson.direct_tool",
         "const surface: Surface",
-        "resolveWorkshopAwareEngine(",
+        "resolvePickAwareEngine(",
         "handleRunAgent(",
       ]) {
         assert(
@@ -112,6 +112,12 @@ Deno.test("service-only fields: source guards", async (t) => {
           `bindRunAgentCaller must run before ${later}`,
         );
       }
+      // The stored brain pick is read with the service role by the body's
+      // tenant_id (./stored-brain-pick.ts), so the tenant check comes first.
+      assert(
+        !serve.split("runTenantDenied(")[0].includes("resolvePickAwareEngine("),
+        "runTenantDenied must run before resolvePickAwareEngine(",
+      );
       assertMatch(
         agent,
         /import \{[^}]*\bbindRunAgentCaller\b[^}]*\} from "\.\/caller-trust\.ts";/,

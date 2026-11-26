@@ -7,6 +7,7 @@ import { FAST_LANE_MODELS } from "./llm/fallback-models.ts";
 
 import { buildLLMChain } from "./llm/chain.ts";
 import { connectedBrainHint } from "./llm/connection-hint.ts";
+import { fetchChainLink } from "./llm/link-fetch.ts";
 import { PRIORITY_TOOLS } from "./llm/tool-cap.ts";
 import { capToolsForTarget } from "./llm/tool-cap.ts";
 import { recordProviderFailover } from "./llm/failover.ts";
@@ -211,7 +212,7 @@ import {
   type BrainEngine,
   type BrainEngineTarget,
 } from "../_shared/carmen/brain-engine/load.ts";
-import { resolveWorkshopAwareEngine } from "../_shared/carmen/brain-engine/workshop-brain.ts";
+import { resolvePickAwareEngine } from "./stored-brain-pick.ts";
 import {
   failoverReason,
   movesToNextLink,
@@ -4218,7 +4219,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         console.log(
           `[AGENT] Round ${round + 1}/${maxRounds}, provider=${llm.label}`,
         );
-        res = await fetch(llm.url, {
+        res = await fetchChainLink(llm, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${llm.key}`,
@@ -5195,7 +5196,8 @@ Deno.serve(async (req) => {
 
   // The brain the user picked runs Carmen's loop (_shared/carmen/brain-engine);
   // the route, grant and keys are all read here, never taken from the body.
-  const engine = await resolveWorkshopAwareEngine(
+  // A surface without a picker asks for the user's stored pick (./stored-brain-pick.ts).
+  const engine = await resolvePickAwareEngine(
     guardClient,
     auth,
     bodyJson,

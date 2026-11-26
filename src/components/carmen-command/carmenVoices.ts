@@ -23,7 +23,6 @@ export { ELEVENLABS_VOICES };
 /** A voice key the picker saves: an OpenAI voice id or an ElevenLabs voice key. */
 export type CarmenVoice = string;
 
-export const VOICE_STORAGE_KEY = "aios:carmen-voice";
 export const DEFAULT_VOICE_LABEL = "קול ברירת מחדל של כרמן";
 
 /** The saved or picked voice when it is one of the known voices, else null (Carmen's default). */
