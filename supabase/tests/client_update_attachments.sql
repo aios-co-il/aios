@@ -2,9 +2,8 @@
 -- bucket is private; the author of an entry attaches files only at the path
 -- that entry owns, of a type and size the bucket accepts; whoever can see the
 -- entry's client (its org, or an org its agency is shared with) reads the
--- files; a user of another tenant, or a colleague who cannot see that client
--- (though the org-wide entry policy shows them the entry), reads, uploads and
--- deletes nothing; deleting the entry removes its rows.
+-- files; a user of another tenant, or a colleague who cannot see that client,
+-- reads, uploads and deletes nothing; deleting the entry removes its rows.
 -- Synthetic users, tenants, clients and objects inside one transaction that is
 -- rolled back.
 BEGIN;
