@@ -8,6 +8,8 @@
 // The browser never sends these fields; every in-app surface is internal_chat, aios
 // or task.
 
+import { ORG_PERSONA_FIELD } from "../_shared/carmen/persona-runtime.ts";
+
 /** Request fields only service-to-service callers may set. */
 export const SERVICE_ONLY_RUN_FIELDS: ReadonlyArray<string> = Object.freeze([
   // Per-task engine override (agent_tasks.engine_model).
@@ -20,6 +22,8 @@ export const SERVICE_ONLY_RUN_FIELDS: ReadonlyArray<string> = Object.freeze([
   "wa_notify",
   // The personal WhatsApp line's owner, whose agent character Carmen speaks as (AIO-576).
   "persona_user_id",
+  // The turn arrived on the org's main WhatsApp line: Carmen speaks as the org's character (AIO-654).
+  ORG_PERSONA_FIELD,
   // The automation a run logs to and counts as (AIO-661): trigger-automation names its own.
   "automation_id",
 ]);

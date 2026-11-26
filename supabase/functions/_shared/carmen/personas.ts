@@ -5,6 +5,20 @@
  */
 export type PersonaLook = "orbs" | "minime" | "character";
 
+/** Every look; the first is the default. */
+export const PERSONA_LOOKS: Array<PersonaLook> = [
+  "orbs",
+  "minime",
+  "character",
+];
+
+/**
+ * The `tenant_settings` key of the organization's Carmen style (Settings →
+ * Branding → סגנון כרמן), stored as `{ style }`. Only owners and super admins
+ * write `tenant_settings`, so a member cannot change it.
+ */
+export const ORG_STYLE_SETTING_KEY = "carmen_avatar_style";
+
 export type BuiltinPersonaKey = "carmen" | "minime" | "aios";
 
 export const BUILTIN_PERSONA_KEYS: Array<BuiltinPersonaKey> = [
@@ -120,17 +134,42 @@ export function isBuiltinPersonaKey(
 
 /** A stored row as runtime fields; an unknown look falls back to the orb. */
 export function personaFromRow(row: PersonaRowFields): PersonaProfile {
-  const looks: Array<PersonaLook> = ["orbs", "minime", "character"];
   return {
     displayName: row.display_name,
     callWords: row.call_words,
     introLine: row.intro_line ?? "",
-    look: looks.find((look) => look === row.look) ?? "orbs",
+    look: asLook(row.look),
     mood: row.mood,
     personality: row.personality ?? "",
     soul: row.soul ?? "",
     writingStyle: row.writing_style ?? "",
   };
+}
+
+/** The organization's stored style (`{ style }`); anything unknown is the default look. */
+export function parseOrgStyle(value: unknown): PersonaLook {
+  const style =
+    value && typeof value === "object" && "style" in value
+      ? value.style
+      : undefined;
+  return asLook(style);
+}
+
+/**
+ * The built-in character the organization's main WhatsApp line speaks as for
+ * its style (AIO-654). Only the Mini Me is a character of its own; the orbs
+ * and the illustrated character are pictures of Carmen, so the line stays
+ * Carmen for them.
+ */
+export function orgStylePersonaKey(
+  style: PersonaLook,
+): BuiltinPersonaKey | null {
+  return style === "minime" ? "minime" : null;
+}
+
+/** A stored look, or the default for anything unknown. */
+function asLook(value: unknown): PersonaLook {
+  return PERSONA_LOOKS.find((look) => look === value) ?? PERSONA_LOOKS[0];
 }
 
 /** A built-in's defaults with empty mood, personality and soul. */
