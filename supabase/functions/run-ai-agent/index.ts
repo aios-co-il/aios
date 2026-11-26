@@ -1647,8 +1647,6 @@ async function handleRunAgent(
       executeTool,
       tryFastLane,
       saveConversationTurn,
-      SUPABASE_URL,
-      SUPABASE_SERVICE_ROLE_KEY,
       corsHeaders,
       CORE_TOOLS,
       supabase: createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY),
@@ -2264,8 +2262,6 @@ export type RunDependencies = {
   executeTool: typeof executeTool;
   tryFastLane: typeof tryFastLane;
   saveConversationTurn: typeof saveConversationTurn;
-  SUPABASE_URL: string;
-  SUPABASE_SERVICE_ROLE_KEY: string;
   corsHeaders: typeof corsHeaders;
   CORE_TOOLS: typeof CORE_TOOLS;
   supabase: import("../_shared/supabase-clients.ts").DbClient;

@@ -137,8 +137,6 @@ export async function runFixture(options: FixtureOptions = {}) {
         tryFastLane: noFastReply,
         // These tenant-only runs do not persist an app conversation.
         saveConversationTurn: async () => {},
-        SUPABASE_URL: "https://example.supabase.co",
-        SUPABASE_SERVICE_ROLE_KEY: "test-key",
         corsHeaders: {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Headers":

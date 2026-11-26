@@ -44,6 +44,7 @@ for (const streaming of [false, true]) {
         new URL(call.url).pathname.endsWith("/manus-api"),
       );
       assertEquals(tasks.length, 1);
+      assertEquals(tasks[0].method, "POST");
       assertEquals(tasks[0].body, {
         action: "create_task",
         tenantId: "t1",
@@ -58,25 +59,40 @@ for (const streaming of [false, true]) {
   );
 }
 
-Deno.test(
-  "Manus failure keeps the error response and emits no success token",
-  async () => {
-    const events: Array<unknown> = [];
-    const { result } = await runFixture({
-      body: {
-        model_override: "manus-1",
-        pin_skills_only: false,
-        task_skills: [],
-      },
-      emit: (event) => events.push(event),
-      modelResponses: [{ status: 503, body: { error: "service unavailable" } }],
-    });
-
-    assertEquals(result.status, 400);
-    assertEquals(await result.json(), {
-      success: false,
-      error: "Manus API error [503]: service unavailable",
-    });
-    assertEquals(events, []);
+for (const failure of [
+  {
+    status: 503,
+    detail: "service unavailable",
+    message: "Manus API error [503]: service unavailable",
   },
-);
+  {
+    status: 400,
+    detail: "api_key not configured",
+    message: "Manus API key חסר — הגדר אותו בהגדרות אינטגרציות",
+  },
+]) {
+  Deno.test(
+    `Manus ${failure.status} failure keeps the error response and emits no success token`,
+    async () => {
+      const events: Array<unknown> = [];
+      const { result } = await runFixture({
+        body: {
+          model_override: "manus-1",
+          pin_skills_only: false,
+          task_skills: [],
+        },
+        emit: (event) => events.push(event),
+        modelResponses: [
+          { status: failure.status, body: { error: failure.detail } },
+        ],
+      });
+
+      assertEquals(result.status, 400);
+      assertEquals(await result.json(), {
+        success: false,
+        error: failure.message,
+      });
+      assertEquals(events, []);
+    },
+  );
+}

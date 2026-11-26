@@ -44,7 +44,7 @@ A group is opted in by a `specific_group` scope or by open-member-groups mode on
 
 ## AI providers (replacing the former Lovable AI gateway)
 
-- Agents configured with `manus-1` delegate to `manus-api`; the run boundary returns their task confirmation as JSON `{ success: true, output }`. Streaming also emits the confirmation token and uses this JSON for the final `done` output (`run-ai-agent/run/orchestrate.ts`).
+- Agents configured with `manus-1` delegate to `manus-api` through the injected Supabase client (`functions.invoke`, via `invokeExecutorFunction`); the run boundary returns their task confirmation as JSON `{ success: true, output }`. Streaming also emits the confirmation token and uses this JSON for the final `done` output (`run-ai-agent/run/orchestrate.ts`).
 
 We use the org's own connected models. Standardized helper: `supabase/functions/_shared/ai.ts`.
 

@@ -1,3 +1,4 @@
+import { invokeExecutorFunction } from "../executors/invoke-executor-function.ts";
 import { withBrowserTab } from "../../_shared/carmen/screen-context.ts";
 import { textOnlyTurn } from "../attachments/picture-turn.ts";
 import type { RunState } from "./state.ts";
@@ -59,20 +60,15 @@ async function executeManusTask(
     tenantId: run.agent.tenant_id,
     prompt: textOnlyTurn(userTurn, run.pictureRequest),
   };
-  const manusRes = await fetch(
-    `${run.dependencies.SUPABASE_URL}/functions/v1/manus-api`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${run.dependencies.SUPABASE_SERVICE_ROLE_KEY}`,
-      },
-      body: JSON.stringify(manusBody),
-    },
+  const manusRes = await invokeExecutorFunction(
+    run.supabase,
+    "manus-api",
+    manusBody,
+    "text",
   );
 
   if (!manusRes.ok) {
-    const errText = await manusRes.text();
+    const errText = manusRes.data;
     const detail = (() => {
       try {
         return JSON.parse(errText)?.error;
@@ -88,7 +84,7 @@ async function executeManusTask(
     throw new Error(`Manus API error [${manusRes.status}]: ${detail}`);
   }
 
-  const manusData = await manusRes.json();
+  const manusData = manusRes.data;
   const taskUrl = manusData.task_url || manusData.share_url || "";
   run.finalOutput = `✅ משימה נשלחה ל-Manus AI${taskUrl ? `\n🔗 ${taskUrl}` : ""}\nמזהה: ${manusData.task_id || "—"}`;
 
