@@ -10,7 +10,9 @@
  * A personal WhatsApp line asks the same way for its owner's stored brain
  * (AIO-654). The webhook calls with the service key, so the owner stands in
  * as the user only here, for the row and for the brain's grant; every other
- * check of the turn still sees the service caller.
+ * check of the turn still sees the service caller. What a signed-in user's
+ * request has already proved is checked for the owner first
+ * (line-owner-pick.ts), and the owner's grant must be read, not assumed.
  */
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import {
@@ -28,7 +30,7 @@ import {
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import { errorMessage } from "./error-message.ts";
 import {
-  lineOwnerIsMember,
+  lineOwnerMayPick,
   logLineOwnerPick,
   personalLineOwner,
 } from "./line-owner-pick.ts";
@@ -72,32 +74,14 @@ export async function resolvePickAwareEngine(
   },
 ): Promise<BrainEngine> {
   const request = storedPickRequest(auth, body);
-  const slug = request ? await readStoredPick(sb, request) : null;
-  const picked =
-    request && slug
-      ? await storedPickEngine(sb, request, body, slug, resolvers)
-      : null;
+  const picked = request
+    ? await requestedPickEngine(sb, request, body, resolvers)
+    : null;
   if (picked) {
     return withInternalFallback(picked, await internalAllowed());
   }
 
   return resolvers.resolveWorkshopAwareEngine(sb, auth, body, internalAllowed);
-}
-
-/**
- * The brain the caller stored, when the request asks for it; null when it does
- * not ask, nothing is stored or the row cannot be read. The query filters by
- * the body's tenant_id, which run-ai-agent checked against the caller's
- * membership (runTenantDenied) before the engine is resolved.
- */
-export async function loadStoredPick(
-  sb: Pick<DbClient, "from">,
-  auth: Caller,
-  body: EngineBody,
-): Promise<string | null> {
-  const request = storedPickRequest(auth, body);
-
-  return request ? readStoredPick(sb, request) : null;
 }
 
 /**
@@ -127,20 +111,43 @@ export function storedPickRequest(
 }
 
 /**
- * The brain stored in the requested row; null when nothing is stored, the row
- * cannot be read, or it is the row of a line owner who left the organization.
+ * The engine of the brain stored in the requested row, or null when no stored
+ * brain runs. The row is read first, so a line whose owner stored nothing
+ * costs one read and logs nothing.
+ */
+async function requestedPickEngine(
+  sb: SupabaseClient,
+  request: StoredPickRequest,
+  body: EngineBody,
+  resolvers: PickEngineResolvers,
+): Promise<BrainEngine | null> {
+  const slug = await readStoredPick(sb, request);
+  if (!slug) {
+    return null;
+  }
+
+  const stored = pickLabel(request, slug);
+  if (
+    request.lineOwner &&
+    !(await lineOwnerMayPick(sb, request, body.agent_id, stored))
+  ) {
+    return null;
+  }
+
+  return storedPickEngine(sb, request, body, slug, stored, resolvers);
+}
+
+/**
+ * The brain stored in the requested row; null when nothing is stored or the
+ * row cannot be read. The query filters by the body's tenant_id, which
+ * run-ai-agent checked against a signed-in caller's membership
+ * (runTenantDenied) before the engine is resolved; a line owner's membership
+ * is checked before their stored brain is used (lineOwnerMayPick).
  */
 async function readStoredPick(
   sb: Pick<DbClient, "from">,
   request: StoredPickRequest,
 ): Promise<string | null> {
-  if (
-    request.lineOwner &&
-    !(await lineOwnerIsMember(sb, request, pickLabel(request)))
-  ) {
-    return null;
-  }
-
   const { data, error } = await sb
     .from("carmen_user_choices")
     .select("brain_slug")
@@ -149,7 +156,7 @@ async function readStoredPick(
     .maybeSingle();
   if (error) {
     console.error(
-      `[stored-brain-pick] carmen_user_choices read failed for tenant ${request.tenantId}: ${error.message}`,
+      `[stored-brain-pick] carmen_user_choices read failed (${pickLabel(request)}): ${error.message}`,
     );
     return null;
   }
@@ -176,21 +183,24 @@ function pickLabel(request: StoredPickRequest, slug?: string): string {
  * refusals, and a read it could not finish, mean "no pick" and are logged, so
  * a surface with no picker and no refusal message still leaves a trace. The
  * resolver runs as the user whose row it is, so a line owner's pick passes
- * the owner's grant; a pick that runs on a personal line is logged too.
+ * the owner's grant, which for an owner must be read (`strictGrant`): nobody
+ * is there to notice a brain that ran ungranted. A pick that runs on a
+ * personal line is logged too; `stored` is the pick's log label.
  */
 async function storedPickEngine(
   sb: SupabaseClient,
   request: StoredPickRequest,
   body: EngineBody,
   slug: string,
+  stored: string,
   resolvers: PickEngineResolvers,
 ): Promise<BrainEngine | null> {
-  const stored = pickLabel(request, slug);
   try {
     const engine = await resolvers.resolveBrainEngine(
       sb,
       { kind: "user", userId: request.userId },
       { ...body, brain_slug: slug },
+      { strictGrant: request.lineOwner },
     );
     if (engine.kind === "connections") {
       if (request.lineOwner) {

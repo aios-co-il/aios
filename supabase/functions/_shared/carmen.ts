@@ -1599,11 +1599,12 @@ export interface CarmenContext {
   /** User who owns the integration (used as Carmen session owner); null when unowned. */
   connectionUserId: string | null;
   /**
-   * False when connectionUserId stands in for an owner the line does not have
-   * (a Meta line: the tenant's oldest member), so the line never runs on that
-   * user's stored brain (AIO-654). Default: the user owns the line.
+   * True when the webhook vouches that a personal line may run on its owner's
+   * stored brain (AIO-654): connectionUserId is the line's real owner and the
+   * line's role was read, not guessed. Unset means no: a Meta line's user is
+   * the tenant's oldest member, not an owner.
    */
-  connectionUserOwnsLine?: boolean;
+  followOwnerBrain?: boolean;
   /** Provider chat id (e.g. "972501234567@c.us"). */
   chatId: string;
   /** Counterpart phone (digits only or with country code). */
@@ -2038,7 +2039,7 @@ export async function handleCarmenMessage(
     tenantId,
     integrationId,
     connectionUserId,
-    connectionUserOwnsLine,
+    followOwnerBrain,
     phoneNumber,
     sourcePhoneNumber,
     senderName,
@@ -2063,7 +2064,6 @@ export async function handleCarmenMessage(
   // A personal line answers as its owner's character; the main Carmen line as the org's Carmen.
   const personaUserId =
     connectionRole === "secondary" ? (connectionUserId ?? null) : null;
-  const followOwnerBrain = connectionUserOwnsLine !== false;
   const personaTrigger = await loadPersonaTrigger(
     supabase,
     tenantId,
@@ -2705,7 +2705,7 @@ export async function handleCarmenMessage(
         // instructions — never another automation's.
         routingAutomationId === earlyAutomation?.id ? automationCtx : null,
         personaUserId,
-        followOwnerBrain,
+        followOwnerBrain === true,
       );
     } catch (err) {
       // AI failed twice (with retry). Stay silent — don't send "מצטערת..." to the user.
@@ -3040,7 +3040,7 @@ export async function handleCarmenMessage(
       waNotify,
       automationCtx,
       personaUserId,
-      followOwnerBrain,
+      followOwnerBrain === true,
     );
 
     if (carmenResponse.includes(DUAL_CARMEN_SKIP)) {
@@ -3118,7 +3118,7 @@ export async function handleCarmenMessage(
         waNotify,
         automationCtx,
         personaUserId,
-        followOwnerBrain,
+        followOwnerBrain === true,
       );
     } catch (err) {
       console.error("[CARMEN] contextual opener failed, falling back:", err);

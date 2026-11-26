@@ -834,9 +834,9 @@ Deno.test(
     }
 
     await t.step(
-      "the owner's line asks for the owner's stored brain (AIO-654)",
+      "a line whose webhook vouches for its owner asks for the owner's stored brain (AIO-654)",
       async () => {
-        const body = await runRequestBody({});
+        const body = await runRequestBody({ followOwnerBrain: true });
 
         assertEquals(body.persona_user_id, "user-1");
         assertStrictEquals(body[USE_BRAIN_PICK], true);
@@ -848,6 +848,7 @@ Deno.test(
       "the org's main line asks for nobody's stored brain",
       async () => {
         const body = await runRequestBody({
+          followOwnerBrain: true,
           connectionRole: "primary",
           messageText: "כרמן, מה המצב?",
         });
@@ -859,12 +860,35 @@ Deno.test(
     );
 
     await t.step(
-      "a line whose user stands in for an owner keeps Carmen's engine",
+      "a line nobody vouched for keeps Carmen's engine",
       async () => {
-        const body = await runRequestBody({ connectionUserOwnsLine: false });
+        for (const followOwnerBrain of [undefined, false]) {
+          const body = await runRequestBody({ followOwnerBrain });
 
-        assertEquals(body.persona_user_id, "user-1");
-        assertStrictEquals(USE_BRAIN_PICK in body, false);
+          assertEquals(body.persona_user_id, "user-1");
+          assertStrictEquals(USE_BRAIN_PICK in body, false);
+        }
+      },
+    );
+
+    await t.step(
+      "only private Manus chats and Green API lines vouch for an owner; Meta and Manus groups do not",
+      async () => {
+        /** For each handleCarmenMessage call of a webhook, whether it sets the flag. */
+        async function vouches(webhook: string) {
+          const source = await Deno.readTextFile(
+            new URL(`../${webhook}/index.ts`, import.meta.url),
+          );
+
+          return source
+            .split("await handleCarmenMessage({")
+            .slice(1)
+            .map((call) => /\bfollowOwnerBrain\b/.test(call.split("});")[0]));
+        }
+
+        assertEquals(await vouches("manus-wa-webhook"), [false, true]);
+        assertEquals(await vouches("green-api-webhook"), [true]);
+        assertEquals(await vouches("meta-whatsapp-webhook"), [false]);
       },
     );
 

@@ -2,8 +2,9 @@
  * A personal WhatsApp line runs on its owner's stored brain (AIO-654). The
  * webhook calls with the service key and only names the owner
  * (persona_user_id), so what a signed-in user's request has already proved is
- * checked here before stored-brain-pick.ts reads the owner's row.
+ * checked here before stored-brain-pick.ts resolves the owner's stored brain.
  */
+import { agentTenantOf } from "../_shared/agent-runs/run-tenant-access.ts";
 import { isTenantMember } from "../_shared/auth/tenant-access.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
@@ -24,32 +25,66 @@ export function personalLineOwner(
 }
 
 /**
- * Whether the line's owner still belongs to the organization. A signed-in
- * user was checked by runTenantDenied; nobody checked the owner a webhook
- * names, their row outlives their membership, and without an access row the
- * engine resolver would treat them as unrestricted. A read that fails counts
- * as "no", and both are logged with `line` (tenant and owner, no message text).
+ * Whether the owner's stored brain may be resolved for this turn: the owner
+ * still belongs to the organization, and the turn's agent is that
+ * organization's own. A signed-in user was checked for both by
+ * runTenantDenied; nobody checked the owner a webhook names. Their row
+ * outlives their membership, and the engine resolver reads the grant in the
+ * agent's organization and treats "no access row" as unrestricted, so either
+ * gap would run a brain nobody granted. A read that fails counts as "no";
+ * every "no" is logged with `stored` (tenant, brain and owner, no message text).
  */
-export async function lineOwnerIsMember(
+export async function lineOwnerMayPick(
   sb: Pick<DbClient, "from">,
   owner: { tenantId: string; userId: string },
-  line: string,
+  agentId: unknown,
+  stored: string,
 ): Promise<boolean> {
+  const refusal = await lineOwnerPickRefusal(sb, owner, agentId);
+  if (refusal) {
+    console.error(
+      `[stored-brain-pick] the stored brain was dropped (${stored}): ${refusal}`,
+    );
+  }
+
+  return !refusal;
+}
+
+/** Why the owner's pick may not run on this turn, or null when it may. */
+async function lineOwnerPickRefusal(
+  sb: Pick<DbClient, "from">,
+  owner: { tenantId: string; userId: string },
+  agentId: unknown,
+): Promise<string | null> {
   try {
-    const member = await isTenantMember(sb, owner.tenantId, owner.userId);
+    const [member, agentIsTheirs] = await Promise.all([
+      isTenantMember(sb, owner.tenantId, owner.userId),
+      agentIsTenants(sb, owner.tenantId, agentId),
+    ]);
     if (!member) {
-      console.error(
-        `[stored-brain-pick] the stored brain was dropped (${line}): the line owner is not a member of the organization`,
-      );
+      return "the line owner is not a member of the organization";
     }
 
-    return member;
+    return agentIsTheirs ? null : "the turn's agent is not this organization's";
   } catch (error) {
-    console.error(
-      `[stored-brain-pick] the line owner's membership could not be read (${line}): ${errorMessage(error)}`,
-    );
-    return false;
+    return `the line owner's membership or the turn's agent could not be read, ${errorMessage(error)}`;
   }
+}
+
+/** Whether the turn names no agent, or one that belongs to the tenant. */
+async function agentIsTenants(
+  sb: Pick<DbClient, "from">,
+  tenantId: string,
+  agentId: unknown,
+): Promise<boolean> {
+  if (agentId === undefined || agentId === null || agentId === "") {
+    return true;
+  }
+
+  return (
+    typeof agentId === "string" &&
+    (await agentTenantOf(sb, agentId)) === tenantId
+  );
 }
 
 /** Says in the log that a personal line's turn runs on its owner's pick. */

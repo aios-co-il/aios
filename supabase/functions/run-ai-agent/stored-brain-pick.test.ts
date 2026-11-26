@@ -8,7 +8,6 @@ import { USE_BRAIN_PICK } from "../_shared/carmen/brain-engine/stored-pick.ts";
 import { withConsoleErrors } from "../_shared/testing/console-errors.ts";
 import { fakeSupabase } from "../_shared/testing/fake-supabase.ts";
 import {
-  loadStoredPick,
   resolvePickAwareEngine,
   storedPickRequest,
 } from "./stored-brain-pick.ts";
@@ -90,11 +89,36 @@ describe("storedPickRequest", () => {
   });
 });
 
-describe("loadStoredPick", () => {
-  it("reads the caller's own pick in the organization of the request", async () => {
+describe("resolvePickAwareEngine", () => {
+  it("runs the stored brain, with Carmen's engine after it when that is granted", async () => {
+    for (const internalAllowed of [true, false]) {
+      const { asked, pickedAs, fakes } = resolvers(groq);
+
+      const engine = await resolvePickAwareEngine(
+        choices("groq"),
+        user,
+        asks,
+        () => Promise.resolve(internalAllowed),
+        fakes,
+      );
+
+      assertEquals(engine, { ...groq, fallbackInternal: internalAllowed });
+      assertEquals(asked, [{ ...asks, brain_slug: "groq" }]);
+      assertEquals(pickedAs, [{ auth: user, options: { strictGrant: false } }]);
+    }
+  });
+
+  it("reads only the caller's own pick in the organization of the request", async () => {
     const sb = choices("groq");
 
-    assertStrictEquals(await loadStoredPick(sb, user, asks), "groq");
+    await resolvePickAwareEngine(
+      sb,
+      user,
+      asks,
+      () => Promise.resolve(true),
+      resolvers(groq).fakes,
+    );
+
     assertEquals(sb.queries, [
       {
         table: "carmen_user_choices",
@@ -109,59 +133,30 @@ describe("loadStoredPick", () => {
     ]);
   });
 
-  it("reads nothing when the request does not ask", async () => {
-    const service: Caller = { kind: "service", userId: null };
-    for (const [caller, body] of [
-      [user, { tenant_id: TENANT }],
-      [user, { ...asks, brain_slug: "cursor" }],
-      [service, asks],
+  it("runs as if nothing were stored when nothing is, or the row cannot be read", async () => {
+    for (const [sb, message] of [
+      [choices(null), ""],
+      [fakeSupabase({ carmen_user_choices: [] }), ""],
+      [
+        choices("groq", "boom"),
+        `[stored-brain-pick] carmen_user_choices read failed (tenant ${TENANT}): boom`,
+      ],
     ] as const) {
-      const sb = choices("groq");
-
-      assertStrictEquals(await loadStoredPick(sb, caller, body), null);
-      assertEquals(sb.queries, []);
-    }
-  });
-
-  it("is null when nothing is stored", async () => {
-    for (const sb of [
-      choices(null),
-      fakeSupabase({ carmen_user_choices: [] }),
-    ]) {
-      assertStrictEquals(await loadStoredPick(sb, user, asks), null);
-    }
-  });
-
-  it("logs a failed read and is null", async () => {
-    const sb = choices("groq", "boom");
-
-    const { result: pick, logged } = await withConsoleErrors(() =>
-      loadStoredPick(sb, user, asks),
-    );
-
-    assertStrictEquals(pick, null);
-    assertStrictEquals(
-      logged,
-      `[stored-brain-pick] carmen_user_choices read failed for tenant ${TENANT}: boom`,
-    );
-  });
-});
-
-describe("resolvePickAwareEngine", () => {
-  it("runs the stored brain, with Carmen's engine after it when that is granted", async () => {
-    for (const internalAllowed of [true, false]) {
       const { asked, fakes } = resolvers(groq);
 
-      const engine = await resolvePickAwareEngine(
-        choices("groq"),
-        user,
-        asks,
-        () => Promise.resolve(internalAllowed),
-        fakes,
+      const { result: engine, logged } = await withConsoleErrors(() =>
+        resolvePickAwareEngine(
+          sb,
+          user,
+          asks,
+          () => Promise.resolve(true),
+          fakes,
+        ),
       );
 
-      assertEquals(engine, { ...groq, fallbackInternal: internalAllowed });
-      assertEquals(asked, [{ ...asks, brain_slug: "groq" }]);
+      assertStrictEquals(engine, withoutPick);
+      assertEquals(asked, [asks]);
+      assertStrictEquals(logged, message);
     }
   });
 
