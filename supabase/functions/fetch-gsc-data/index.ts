@@ -80,9 +80,13 @@ Deno.serve(async (req) => {
       .eq("id", integrationId)
       .eq("integration_type", "google_search_console")
       .in("tenant_id", access.tenantIds)
-      .single();
+      .maybeSingle();
 
-    if (intErr || !integration) {
+    if (intErr) {
+      console.error("tenant_integrations lookup failed:", intErr.message);
+      throw new Error("Could not read the Search Console connection");
+    }
+    if (!integration) {
       return new Response(JSON.stringify({ error: "Integration not found" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
