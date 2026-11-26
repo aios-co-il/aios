@@ -11,6 +11,7 @@ import type { CarmenFaceState } from "./CarmenFace";
 import { CommandCenterSidecarHeader } from "./CommandCenterSidecarHeader";
 import { CarmenSessionVideoCard } from "./CarmenSessionVideoCard";
 import { useSidecarSessionDefaults } from "./useSidecarSessionDefaults";
+import { useCarmenChoicesRealtime } from "./choices/useCarmenChoicesRealtime";
 import { WorkshopModeToggle } from "@/components/workshop/WorkshopModeToggle";
 import { useOpenWorkshopProject } from "@/components/workshop/useOpenWorkshopProject";
 import "@/components/carmen-command/command-center.css";
@@ -47,7 +48,8 @@ export function CommandCenterSidecar({
     x: 24,
     y: 88,
   });
-  useSidecarSessionDefaults(brain, session);
+  useSidecarSessionDefaults(session);
+  useCarmenChoicesRealtime(tenantId);
 
   return (
     <div
@@ -101,7 +103,7 @@ export function CommandCenterSidecar({
                       value={brain.selected.id}
                       status={brain.status}
                       externalUrl={brain.externalUrl}
-                      onChange={(route) => brain.selectRoute(route, null)}
+                      onChange={brain.pickRoute}
                       compact
                       className="min-w-0"
                     />

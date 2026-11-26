@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AuthShell } from "./AuthShell/AuthShell";
 import { SignInForm } from "./SignInForm/SignInForm";
@@ -10,11 +10,20 @@ import { useAuthSession } from "./useAuthSession";
 import { useInvitationDetails } from "./useInvitationDetails";
 import { useMfa } from "./useMfa/useMfa";
 import { parseAuthType } from "./types";
+import {
+  AUTH_RETURN_PARAM,
+  rememberAuthReturnPath,
+} from "@/lib/authReturnPath";
 
 /** Compose local forms and shared session transitions. */
 export default function AuthPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [resetMode, setResetMode] = useState(false);
+  const returnPath = searchParams.get(AUTH_RETURN_PARAM);
+
+  // Before the session restore below, so its navigation finds the path.
+  useEffect(() => rememberAuthReturnPath(returnPath), [returnPath]);
+
   const { navigateToApp, cancelPending } = useAuthNavigation();
   const { email, setEmail, inviteBanner } = useInvitationDetails(
     searchParams.get("token"),
