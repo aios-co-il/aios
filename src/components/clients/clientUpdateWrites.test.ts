@@ -11,9 +11,16 @@ const { select, from } = vi.hoisted(() => {
   return { select, from: vi.fn(() => chain) };
 });
 
+const { removeFiles } = vi.hoisted(() => ({ removeFiles: vi.fn() }));
+
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { from },
 }));
+
+vi.mock(
+  "@/components/clients/updateAttachments/clientUpdateAttachments",
+  () => ({ removeClientUpdateAttachmentFiles: removeFiles }),
+);
 
 import { deleteClientUpdate, editClientUpdate } from "./clientUpdateWrites";
 
@@ -63,5 +70,30 @@ describe("deleteClientUpdate", () => {
     await expect(deleteClientUpdate("u1")).rejects.toThrow(
       "client_updates delete of u1 changed no row",
     );
+  });
+
+  test("removes the entry's files before the entry", async () => {
+    const order: Array<string> = [];
+    removeFiles.mockImplementation(async () => {
+      order.push("files");
+    });
+    select.mockImplementation(async () => {
+      order.push("row");
+      return { data: [{ id: "u1" }], error: null };
+    });
+
+    await deleteClientUpdate("u1", ["t/c/u1/a.pdf"]);
+
+    expect(removeFiles).toHaveBeenCalledWith(["t/c/u1/a.pdf"]);
+    expect(order).toEqual(["files", "row"]);
+  });
+
+  test("keeps the entry when its files could not be removed", async () => {
+    removeFiles.mockRejectedValue(new Error("denied"));
+
+    await expect(deleteClientUpdate("u1", ["t/c/u1/a.pdf"])).rejects.toThrow(
+      "denied",
+    );
+    expect(from).not.toHaveBeenCalled();
   });
 });
