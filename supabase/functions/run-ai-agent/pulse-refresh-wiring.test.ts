@@ -25,7 +25,7 @@ Deno.test("run-ai-agent index.ts", async (t) => {
       // The log names the block version only for runs that get the block.
       assertMatch(
         runAiAgent,
-        /pulse_rules=\$\{carmenPulseRulesVersion\(\{ isCarmen, pinSkillsOnly \}\)\}/,
+        /pulse_rules=\$\{carmenPulseRulesVersion\(\{ isCarmen: isCarmenAgent, pinSkillsOnly \}\)\}/,
       );
       // Routing gets the resolved caller; round 0 and the shortcut use it.
       assertMatch(

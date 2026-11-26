@@ -66,7 +66,7 @@ export async function routeRunTools(
     console.log(
       "[AGENT] pin_skills_only: exposing no tools (isolated copy session)",
     );
-  } else if (run.isCarmen) {
+  } else if (run.isCarmenAgent) {
     const routed = await selectRelevantToolsForMessage(
       run.supabase,
       String(run.command_text || ""),

@@ -11,10 +11,7 @@ export async function runErrorResponse(
   // Persist the failure so it's diagnosable from the DB (console logs are ephemeral
   // and invisible to monitoring). Fire-and-forget — never mask the original error.
   try {
-    const sb = dependencies.createClient(
-      dependencies.SUPABASE_URL,
-      dependencies.SUPABASE_SERVICE_ROLE_KEY,
-    );
+    const sb = dependencies.supabase;
     await sb.from("error_logs").insert({
       source: "run-ai-agent",
       tenant_id: input.bodyJson?.tenant_id || null,

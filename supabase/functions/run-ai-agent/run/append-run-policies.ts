@@ -10,13 +10,14 @@ import { devTaskSendRule } from "../dev-task-send-rules.ts";
 import { buildVoiceCapabilityPromptRule } from "../../_shared/wa-voice-resolve.ts";
 import { agentMoodPrompt } from "../../_shared/carmen/agent-mood.ts";
 
+/** Appends caller/surface policies after the base prompt; dashboard rules override its formatting. */
 export async function appendRunPolicies(
   run: RunState,
 ): Promise<Response | string | void> {
   const screenContext = parseScreenContext(run.input.bodyJson.context_metadata);
 
   if (
-    run.isCarmen &&
+    run.isCarmenAgent &&
     run.input.surface === "internal_chat" &&
     screenContext?.source === SCREEN_CONTEXT_SOURCE.commandCenterSidebar
   ) {
@@ -44,7 +45,7 @@ export async function appendRunPolicies(
         (run.devEscalationTier ? devTaskSendRule(run.appChatTurn) : "");
 
   if (
-    run.isCarmen &&
+    run.isCarmenAgent &&
     run.input.surface === "whatsapp" &&
     run.canEscalateDevFixes
   ) {
@@ -57,7 +58,7 @@ export async function appendRunPolicies(
 
   // Voice capability (both prompt versions): answer from 🎤 / explicit failure markers.
   if (
-    run.isCarmen &&
+    run.isCarmenAgent &&
     (run.input.surface === "whatsapp" ||
       run.input.surface === "internal_chat" ||
       run.input.surface === "aios")
@@ -65,14 +66,14 @@ export async function appendRunPolicies(
     run.systemPrompt += buildVoiceCapabilityPromptRule();
   }
 
-  if (run.isCarmen && run.input.surface === "grok_bot") {
+  if (run.isCarmenAgent && run.input.surface === "grok_bot") {
     run.systemPrompt +=
       "\n\n=== Grok Bot (חיצוני) ===\n" +
       "הבקשה הגיעה מ-Grok Bot — עוזר דיוויד מחוץ לאפליקציה. עני ישירות; אל תשלחי בחזרה ל-Grok Bot (mcp_Grok__*) — " +
       "את כבר המטפלת. אם צריך פיתוח/קוד — Cursor או Claude, לא Grok.";
   }
 
-  if (run.isCarmen && run.relevantLongTermMemory.length > 0) {
+  if (run.isCarmenAgent && run.relevantLongTermMemory.length > 0) {
     run.systemPrompt += `\n\n🧠 === זיכרון ארוך רלוונטי שנשלף אוטומטית ===
 זהו זיכרון העבודה שלך מהמערכת, לא "מערכת אחרת". השתמשי בו כשהוא רלוונטי לבקשה, אך העדיפי נתוני כלים חיים כשיש סתירה.
 ${run.relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join("\n")}`;
@@ -94,7 +95,7 @@ ${run.relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).j
   // The dashboard chat renders full GitHub-flavored Markdown (ReactMarkdown +
   // remark-gfm), unlike WhatsApp. Placed after the V1/V2 prompt building so it
   // overrides the WhatsApp plain-text + brevity rules on this surface only.
-  if (run.isCarmen && run.input.surface === "internal_chat") {
+  if (run.isCarmenAgent && run.input.surface === "internal_chat") {
     run.systemPrompt += `\n\n🖥️ === תצוגת דשבורד (חובה — גובר על כללי WhatsApp) ===
 את עונה עכשיו בצ'אט של ה-Command Center, שמציג Markdown מלא (כולל טבלאות GFM) — לא ב-WhatsApp.
 • כלל "בלי markdown" וכלל "1–3 משפטים" לא חלים כאן. מותר ורצוי Markdown מלא.

@@ -67,7 +67,7 @@ export function buildV2RunPrompt(run: RunState): void {
     leadData: leadDataObj,
     taskMode: run.task_mode,
     taskSkills: run.task_skills,
-    isWhatsApp: run.isCarmen && run.input.surface === "whatsapp",
+    isWhatsApp: run.isCarmenAgent && run.input.surface === "whatsapp",
     currentDate,
     currentTime,
     todayISO,

@@ -64,8 +64,7 @@ export async function buildRunTenantContext(
   ]
     .filter(Boolean)
     .join("\n");
-  run.isCarmen = run.isCarmenAgent;
   console.log(
-    `[Carmen] agent=${run.agent.name} prompt_version=${shouldUseV2Prompt(run.agent) ? "v2" : "v1"} pulse_rules=${carmenPulseRulesVersion({ isCarmen: run.isCarmen, pinSkillsOnly: run.pinSkillsOnly })} agency_data_rules=${agencyDataRulesVersion({ isCarmen: run.isCarmen, pinSkillsOnly: run.pinSkillsOnly })}`,
+    `[Carmen] agent=${run.agent.name} prompt_version=${shouldUseV2Prompt(run.agent) ? "v2" : "v1"} pulse_rules=${carmenPulseRulesVersion({ isCarmen: run.isCarmenAgent, pinSkillsOnly: run.pinSkillsOnly })} agency_data_rules=${agencyDataRulesVersion({ isCarmen: run.isCarmenAgent, pinSkillsOnly: run.pinSkillsOnly })}`,
   );
 }

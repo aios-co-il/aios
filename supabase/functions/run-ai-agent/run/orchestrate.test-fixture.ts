@@ -108,6 +108,8 @@ export async function runFixture(options: FixtureOptions = {}) {
     return null;
   }
 
+  const url = "https://example.supabase.co";
+
   try {
     const result = await runOrchestratedAgent(
       {
@@ -124,14 +126,13 @@ export async function runFixture(options: FixtureOptions = {}) {
         emit: options.emit,
       },
       {
-        createClient: (url, key) =>
-          createClient<Database>(url, key, {
-            auth: {
-              persistSession: false,
-              autoRefreshToken: false,
-              detectSessionInUrl: false,
-            },
-          }),
+        supabase: createClient<Database>(url, "test-key", {
+          auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false,
+          },
+        }),
         executeTool,
         tryFastLane: noFastReply,
         // These tenant-only runs do not persist an app conversation.

@@ -11,7 +11,7 @@ export async function executeRunApproval(
   // Deterministic path: a short approval reply is answered without the LLM —
   // run the bound (or code-picked) row, refuse, or list the candidates.
   if (
-    run.isCarmen &&
+    run.isCarmenAgent &&
     !run.pinSkillsOnly &&
     run.mayDecideApprovals &&
     run.userSaidApprove &&

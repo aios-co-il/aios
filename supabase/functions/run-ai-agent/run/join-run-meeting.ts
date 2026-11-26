@@ -12,7 +12,7 @@ export async function joinRunMeeting(
   const meetingUrl = extractMeetingUrl(String(run.command_text || ""));
 
   if (
-    run.isCarmen &&
+    run.isCarmenAgent &&
     !run.pinSkillsOnly &&
     meetingUrl &&
     !isBlockedInWorkshop("join_meeting_for_client", run.inWorkshop)

@@ -2,14 +2,26 @@ import { readPictureRequest } from "../attachments/picture-request.ts";
 import { asksForPictures } from "../attachments/turn-pictures.ts";
 import type { RunState } from "./state.ts";
 import { nameChatTopicLater } from "../../_shared/carmen/chat-topic.ts";
-import type { FastLaneChannel } from "../fast-lane/eligibility.ts";
+import {
+  type FastLaneChannel,
+  fastLaneFits,
+} from "../fast-lane/eligibility.ts";
 import { isGroupChat } from "../finding-draft/reply.ts";
-import { fastLaneFits } from "../fast-lane/eligibility.ts";
 import { chatTurns } from "../fast-lane/answer.ts";
 
-export async function loadRunConversation(
-  run: RunState,
-): Promise<Response | string | void> {
+/** Resolves conversation, emits its ID, parses attachments, then attempts the fast lane. */
+export async function loadRunConversation(run: RunState) {
+  await loadOrCreateConversation(run);
+  run.pictureRequest = readPictureRequest(run.input.bodyJson.attachments, {
+    authKind: run.input.request.authKind,
+    userId: run.callerUserId,
+  });
+
+  return await tryConversationFastLane(run);
+}
+
+/** Loads or creates the scoped conversation, then emits its ID. */
+async function loadOrCreateConversation(run: RunState): Promise<void> {
   run.serverConversationId = null;
   run.turnStartedAt = new Date().toISOString();
   run.appChatTurn =
@@ -18,9 +30,7 @@ export async function loadRunConversation(
   run.serverConversationHistory = [];
 
   if (
-    (run.input.surface === "internal_chat" ||
-      run.input.surface === "aios" ||
-      run.input.surface === "grok_bot") &&
+    ["internal_chat", "aios", "grok_bot"].includes(run.input.surface) &&
     run.callerUserId &&
     !run.automationRun
   ) {
@@ -42,10 +52,7 @@ export async function loadRunConversation(
             : []
         )
           .filter((m) => m?.role === "user" || m?.role === "assistant")
-          .map((m) => ({
-            role: m.role,
-            content: String(m.content || ""),
-          }))
+          .map((m) => ({ role: m.role, content: String(m.content || "") }))
           .slice(-24);
       }
     }
@@ -86,11 +93,12 @@ export async function loadRunConversation(
       run.input.emit({ type: "conversation_id", id: run.serverConversationId });
     }
   }
-  run.pictureRequest = readPictureRequest(run.input.bodyJson.attachments, {
-    authKind: run.input.request.authKind,
-    userId: run.callerUserId,
-  });
+}
 
+/** Attempts the fast lane only after conversation and attachments are resolved. */
+async function tryConversationFastLane(
+  run: RunState,
+): Promise<Response | string | void> {
   // A quick model answers small talk and what the org brief already covers before the full
   // setup (memory, skills, tools) runs; anything else falls through unchanged (fast-lane/).
   const fastLaneChannel: FastLaneChannel | null =
@@ -152,8 +160,6 @@ export async function loadRunConversation(
       },
     );
 
-    if (fastReply) {
-      return fastReply;
-    }
+    return fastReply || undefined;
   }
 }

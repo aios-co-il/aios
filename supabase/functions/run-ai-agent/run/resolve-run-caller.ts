@@ -8,9 +8,19 @@ import { loadDevEscalationTierFromDb } from "../../_shared/carmen-access-policy.
 import { personalLineOwner } from "../line-owner-pick.ts";
 import { asUuidOrNull } from "../../_shared/uuid.ts";
 
+/** Resolves caller identity, persona and permission scope in order. */
 export async function resolveRunCaller(
   run: RunState,
 ): Promise<Response | string | void> {
+  await matchCallerCampaigner(run);
+  await selectActingUser(run);
+  selectCallerPersona(run);
+  await loadActingUserRoles(run);
+  await resolveCallerPermissions(run);
+}
+
+/** Matches the verified caller phone to an active campaigner. */
+async function matchCallerCampaigner(run: RunState): Promise<void> {
   run.callerCampaignerId = null;
   run.callerName = run.user_name || null;
   run.callerPhone = runCallerPhone(run.input.bodyJson);
@@ -47,7 +57,10 @@ export async function resolveRunCaller(
       }
     }
   }
+}
 
+/** Selects the user whose permissions govern this run. */
+async function selectActingUser(run: RunState): Promise<void> {
   run.callerRole = null;
   run.callerUserId = null;
   run.callerManagedAgencyIds = [];
@@ -68,14 +81,20 @@ export async function resolveRunCaller(
   ) {
     run.callerUserId = run.resolvedUserId;
   }
+}
 
+/** Selects the presentation persona separately from the acting user. */
+function selectCallerPersona(run: RunState): void {
   run.personaUserId =
     run.input.surface === "whatsapp"
       ? personalLineOwner(run.input.bodyJson)
       : run.input.surface === "internal_chat" || run.input.surface === "aios"
         ? run.callerUserId
         : null;
+}
 
+/** Loads roles and managed agencies for the acting user. */
+async function loadActingUserRoles(run: RunState): Promise<void> {
   if (run.callerUserId) {
     const { data: roles, error: rolesError } = await run.supabase
       .from("user_roles")
@@ -112,7 +131,10 @@ export async function resolveRunCaller(
       `[AGENT] Caller role: ${run.callerRole} (user_id=${run.callerUserId}, managed_agencies=${run.callerManagedAgencyIds.length})`,
     );
   }
+}
 
+/** Resolves requester identity and escalation permissions after role loading. */
+async function resolveCallerPermissions(run: RunState): Promise<void> {
   run.isManagerRoleCaller =
     !!run.callerRole && MANAGER_ROLES.includes(run.callerRole);
   run.isTeamManagerCaller = run.callerRole === "team_manager";

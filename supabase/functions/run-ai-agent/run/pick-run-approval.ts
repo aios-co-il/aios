@@ -20,7 +20,7 @@ export async function pickRunApproval(
   // A workshop "כן" answers the workshop, never a pending approval; its budget code is
   // approved by workshopTurnNote.
   if (
-    run.isCarmen &&
+    run.isCarmenAgent &&
     !run.pinSkillsOnly &&
     !run.inWorkshopRequest &&
     run.mayDecideApprovals &&

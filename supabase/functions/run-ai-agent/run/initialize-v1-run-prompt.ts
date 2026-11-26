@@ -7,7 +7,7 @@ export function initializeV1RunPrompt(run: RunState): void {
   run.systemPrompt = run.agent.system_prompt || "";
 
   if (!run.systemPrompt) {
-    const parts = run.isCarmen
+    const parts = run.isCarmenAgent
       ? [
           buildV1Identity(run.tenantName, orgAssistantName(run.agent)),
           "יש לך גישה מלאה לכל מודולי המערכת: לידים, לקוחות, משימות, קמפיינרים, אנשי מכירות, סוכנויות, ספקים, מוצרים, אוטומציות, ועוד.",

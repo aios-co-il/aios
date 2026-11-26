@@ -19,7 +19,7 @@ export async function configureRunModel(
       ? Math.min(2, Math.max(0, run.temperature))
       : undefined;
 
-  if (run.isCarmen) {
+  if (run.isCarmenAgent) {
     run.systemPrompt += `\n\n=== סביבת פיתוח (חובה) ===\n${DEV_ENVIRONMENT_STANDING}`;
     // Only the workshop has workshop_check_connections; other chats get no such rule.
     const connections = connectionsStanding(run.inWorkshop);

@@ -8,7 +8,7 @@ export async function appendRunStandingRules(
   // Leads belong to the agency; a client's leads come from its reports (AIO-510). After
   // every skin, before the pulse block, which stays the prompt's last rule.
   run.systemPrompt = appendAgencyDataRules(run.systemPrompt, {
-    isCarmen: run.isCarmen,
+    isCarmen: run.isCarmenAgent,
     pinSkillsOnly: run.pinSkillsOnly,
   });
   // Versioned pulse rules (AIO-237) come after the V1/V2 prompt and every
@@ -16,7 +16,7 @@ export async function appendRunStandingRules(
   // override them. On WhatsApp and scheduled tasks the block also keeps the
   // pulse to the short digest.
   run.systemPrompt = appendCarmenPulseRules(run.systemPrompt, {
-    isCarmen: run.isCarmen,
+    isCarmen: run.isCarmenAgent,
     surface: run.input.surface,
     pinSkillsOnly: run.pinSkillsOnly,
   });

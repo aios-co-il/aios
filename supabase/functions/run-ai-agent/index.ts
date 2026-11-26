@@ -1609,12 +1609,6 @@ async function executeTool(
   }
 }
 
-// ===========================
-// MAIN HANDLER
-// ===========================
-// ===========================
-// MAIN HANDLER
-// ===========================
 import { requireAuth } from "../_shared/security.ts";
 import type { Surface } from "./surface.ts";
 import { bindRunAgentCaller } from "./caller-trust.ts";
@@ -1657,7 +1651,7 @@ async function handleRunAgent(
       SUPABASE_SERVICE_ROLE_KEY,
       corsHeaders,
       CORE_TOOLS,
-      createClient,
+      supabase: createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY),
     },
   )) as Response;
 }
@@ -2272,5 +2266,5 @@ export type RunDependencies = {
   SUPABASE_SERVICE_ROLE_KEY: string;
   corsHeaders: typeof corsHeaders;
   CORE_TOOLS: typeof CORE_TOOLS;
-  createClient: (url: string, key: string) => AgentDatabaseClient;
+  supabase: import("../_shared/supabase-clients.ts").DbClient;
 };

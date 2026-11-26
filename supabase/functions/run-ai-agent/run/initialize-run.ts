@@ -6,6 +6,7 @@ import { workshopTurnSetup } from "../workshop-turn-setup.ts";
 import { ROLE_SKILL } from "../../_shared/workshop/roles.ts";
 import { ROLE_PERSONA } from "../../_shared/workshop/roles.ts";
 
+/** Initializes request bindings and workshop scope before loading the agent. */
 export async function initializeRun(
   run: RunState,
 ): Promise<Response | string | void> {
@@ -52,10 +53,7 @@ export async function initializeRun(
     throw new Error("Missing command_text");
   }
 
-  run.supabase = run.dependencies.createClient(
-    run.dependencies.SUPABASE_URL,
-    run.dependencies.SUPABASE_SERVICE_ROLE_KEY,
-  );
+  run.supabase = run.dependencies.supabase;
   run.turnId = crypto.randomUUID();
   ({
     workshopNote: run.workshopNote,
@@ -76,9 +74,9 @@ export async function initializeRun(
         workshopMode: undefined,
       });
 
-  if (run.workshopRoleForRun) {
+  if (run.workshopRoleForRun && Array.isArray(requestedTaskSkills)) {
     run.task_skills = [
-      ...(requestedTaskSkills as Array<string>),
+      ...requestedTaskSkills,
       ROLE_SKILL[run.workshopRoleForRun],
     ];
 

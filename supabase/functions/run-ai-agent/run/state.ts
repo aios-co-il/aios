@@ -105,7 +105,6 @@ export class RunState {
   declare tasksData: CountResult;
   declare leadsByStatus: Record<string, number>;
   declare tenantContext: string;
-  declare isCarmen: boolean;
   declare systemPrompt: string;
   declare filteredTools: Array<types.ToolDef>;
   declare toolPoolBeforeRouting: Array<types.ToolDef>;

@@ -19,7 +19,7 @@ export async function scopeRunTools(
       ? ALL_TOOLS.filter(
           (t) =>
             allowedTools.includes(t.name) ||
-            (run.isCarmen && t.name === "get_carmen_skins"),
+            (run.isCarmenAgent && t.name === "get_carmen_skins"),
         )
       : ALL_TOOLS;
   run.toolPoolBeforeRouting = run.filteredTools;
@@ -34,7 +34,7 @@ export async function scopeRunTools(
   }
 
   run.filteredTools = keepCarmenPulseTools(run.filteredTools, ALL_TOOLS, {
-    isCarmen: run.isCarmen,
+    isCarmen: run.isCarmenAgent,
     disabledTools,
     caller: {
       surface: run.input.surface,
@@ -65,7 +65,7 @@ export async function scopeRunTools(
     !run.pinSkillsOnly && isCachedPulseRequest(run.cmd);
   run.pulseRefreshRoute = decidePulseRefreshRouting({
     text: run.cmd,
-    isCarmen: run.isCarmen,
+    isCarmen: run.isCarmenAgent,
     pinSkillsOnly: run.pinSkillsOnly,
     digestSurface: pulseSurfacePrefersWhatsAppDigest(run.input.surface),
     caller: {

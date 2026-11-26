@@ -10,7 +10,7 @@ export async function answerRunCachedPulse(
   // It does not check the caller yet, so an unidentified sender gets the
   // tenant digest too (AIO-248).
   if (
-    run.isCarmen &&
+    run.isCarmenAgent &&
     run.isStoredPulseRequest &&
     pulseSurfacePrefersWhatsAppDigest(run.input.surface)
   ) {

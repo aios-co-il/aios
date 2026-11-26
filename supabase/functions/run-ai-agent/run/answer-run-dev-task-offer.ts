@@ -18,7 +18,7 @@ export async function answerRunDevTaskOffer(run: RunState): Promise<void> {
   run.devTaskOfferAnswered = false;
 
   if (
-    run.isCarmen &&
+    run.isCarmenAgent &&
     run.canEscalateDevFixes &&
     run.serverConversationId &&
     run.appChatTurn &&

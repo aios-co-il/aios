@@ -48,7 +48,7 @@ export async function appendRunSkins(
 
   // The skin picked in this chat session shapes Carmen for this run only. In the workshop the
   // role's skill is already pinned; the persona's older skills would contradict it.
-  if (run.isCarmen && !run.pinSkillsOnly) {
+  if (run.isCarmenAgent && !run.pinSkillsOnly) {
     if (!run.workshopRoleForRun) {
       run.systemPrompt += await activeSkinBlock({
         slug: parseActiveSkin(run.input.bodyJson.active_skin),
@@ -70,7 +70,7 @@ export async function appendRunSkins(
     run.callerUserId,
     run.callerName,
   );
-  run.callerPersona = run.isCarmen
+  run.callerPersona = run.isCarmenAgent
     ? await loadCallerPersona(
         run.supabase,
         run.resolvedTenantId,
