@@ -36,7 +36,9 @@ export type ScreenContext =
 
 const URL_MAX = 500;
 const TITLE_MAX = 200;
-const WEB_PROTOCOLS = ["http:", "https:"];
+
+/** The only schemes a tab Carmen may see or act on can have. */
+export const WEB_PROTOCOLS: ReadonlyArray<string> = ["http:", "https:"];
 
 /** Reads an unvalidated `context_metadata`; null for a missing, unknown or malformed one. */
 export function parseScreenContext(value: unknown): ScreenContext | null {
