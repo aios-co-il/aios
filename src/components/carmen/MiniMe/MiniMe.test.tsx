@@ -1,7 +1,8 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { MiniMe } from "./MiniMe";
-import { MiniMeGenderContext, resolveMiniMeGender } from "./miniMeGender";
+import { resolveMiniMeGender } from "../../../../supabase/functions/_shared/carmen/minime-gender";
+import { MiniMeGenderContext } from "./miniMeGender";
 import { CARMEN_ROLES } from "../../../../supabase/functions/_shared/carmen/skin-roles";
 
 describe("MiniMe", () => {
