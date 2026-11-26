@@ -4,6 +4,7 @@ import {
   publishingImageProxyUrl,
   resolveArticleImageFields,
 } from "../_shared/publishing-images.ts";
+import { publicApiUrl } from "../_shared/public-api/url.ts";
 
 const jsonHeaders = {
   "Content-Type": "application/json",
@@ -84,7 +85,7 @@ Deno.serve(async (request) => {
     const withSafeImages = resolveArticleImageFields(
       article,
       (kind: MagazineImageKind) =>
-        publishingImageProxyUrl(supabaseUrl, article.id, kind),
+        publishingImageProxyUrl(publicApiUrl(), article.id, kind),
     );
     return {
       ...withSafeImages,
