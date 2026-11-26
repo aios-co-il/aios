@@ -1,4 +1,4 @@
-import { fixedDate } from "./parity-clock.ts";
+import { fixedDate } from "./fixedDate.text-fixture.ts";
 import { clearSkillsCache } from "../../_shared/skills/registry.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import type { Database } from "../../_shared/database.types.ts";
