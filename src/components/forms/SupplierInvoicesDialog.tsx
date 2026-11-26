@@ -21,16 +21,14 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import {
-  Upload,
-  Sparkles,
-  Trash2,
-  Download,
-  Phone,
-  Mail,
-  Loader2,
-} from "lucide-react";
+import { Upload, Sparkles, Trash2, Phone, Mail, Loader2 } from "lucide-react";
 import { format } from "date-fns";
+import { SupplierInvoiceFileLink } from "./SupplierInvoiceFileLink";
+import {
+  deleteSupplierInvoice,
+  removeSupplierInvoiceFile,
+  uploadSupplierInvoiceFile,
+} from "./supplierInvoiceFiles";
 
 interface SupplierInvoicesDialogProps {
   supplier: any;
@@ -80,15 +78,7 @@ export function SupplierInvoicesDialog({
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (invoiceId: string) => {
-      const { error } = await supabase
-        .from("supplier_invoices")
-        .delete()
-        .eq("id", invoiceId);
-      if (error) {
-        throw error;
-      }
-    },
+    mutationFn: deleteSupplierInvoice,
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["supplier-invoices", supplier?.id, tenantId],
@@ -147,27 +137,9 @@ export function SupplierInvoicesDialog({
     }
     setIsUploading(true);
     try {
-      let fileUrl: string | null = null;
-      let fileName: string | null = null;
-
-      if (file) {
-        const ext = file.name.split(".").pop();
-        const path = `${tenantId}/${supplier.id}/${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabase.storage
-          .from("supplier-invoices")
-          .upload(path, file);
-        if (uploadError) {
-          throw uploadError;
-        }
-        const { data: urlData, error: urlError } = await supabase.storage
-          .from("supplier-invoices")
-          .createSignedUrl(path, 60 * 60 * 24 * 365 * 10);
-        if (urlError || !urlData) {
-          throw urlError ?? new Error("Failed to sign URL");
-        }
-        fileUrl = urlData.signedUrl;
-        fileName = file.name;
-      }
+      const filePath = file
+        ? await uploadSupplierInvoiceFile(tenantId, supplier.id, file)
+        : null;
 
       const { error } = await supabase.from("supplier_invoices").insert({
         tenant_id: tenantId,
@@ -176,12 +148,15 @@ export function SupplierInvoicesDialog({
         invoice_amount: parseFloat(invoiceAmount),
         invoice_date: invoiceDate || null,
         invoice_month: invoiceMonth,
-        file_url: fileUrl,
-        file_name: fileName,
+        file_path: filePath,
+        file_name: file?.name ?? null,
         ai_extracted: isExtracting ? false : !!file,
         notes: notes || null,
       });
       if (error) {
+        if (filePath) {
+          await removeSupplierInvoiceFile(filePath);
+        }
         throw error;
       }
 
@@ -363,17 +338,7 @@ export function SupplierInvoicesDialog({
                       </TableCell>
                       <TableCell>{inv.invoice_month || "-"}</TableCell>
                       <TableCell>
-                        {inv.file_url ? (
-                          <a
-                            href={inv.file_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <Download className="h-4 w-4 text-primary hover:text-primary/80" />
-                          </a>
-                        ) : (
-                          "-"
-                        )}
+                        <SupplierInvoiceFileLink invoice={inv} />
                       </TableCell>
                       <TableCell>
                         <Button
@@ -381,7 +346,7 @@ export function SupplierInvoicesDialog({
                           size="icon"
                           onClick={() => {
                             if (confirm("למחוק חשבונית זו?")) {
-                              deleteMutation.mutate(inv.id);
+                              deleteMutation.mutate(inv);
                             }
                           }}
                         >
