@@ -1,7 +1,9 @@
 import {
-  commandCenterPictureStore,
+  bucketPictureStore,
   loadTurnPictures,
 } from "../attachments/picture-store.ts";
+import { pictureBucketOf } from "../attachments/picture-request.ts";
+import { pictureCallerOf } from "./picture-caller.ts";
 import { targetCanSee } from "../attachments/vision.ts";
 import type { ProviderChainState } from "./loop-contracts.ts";
 import type { RunState } from "./state.ts";
@@ -56,7 +58,7 @@ export async function loadProviderChain(
     throw new Error("לא מוגדר אף מפתח מודל AI פעיל באינטגרציית מודלי AI");
   }
   run.turnPictures = await loadTurnPictures(
-    commandCenterPictureStore(run.supabase),
+    bucketPictureStore(run.supabase, pictureBucketOf(pictureCallerOf(run))),
     run.pictureRequest,
     { wanted: llmChain.some(targetCanSee), userId: run.callerUserId },
   );

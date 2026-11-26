@@ -40,6 +40,7 @@ import { observeManusGroupMember } from "../_shared/carmen-observe-group-member.
 import { consumeGroupActivation } from "../_shared/carmen-group-verification.ts";
 import { isUnresolvedGroupAuthor } from "./group-author.ts";
 import { makeVoiceSender } from "./voice-sender.ts";
+import { manusPicture } from "./inbound-picture.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1943,6 +1944,8 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
             msgContainer,
             resolvedGroupMsg,
           ),
+          // Read only if the turn reaches Carmen's brain, with this line's key (AIO-683).
+          picture: manusPicture(payload, msgContainer, integ.api_key),
           // From this line, even when the group routes to another tenant.
           sendVoice: makeVoiceSender(supabase, {
             tenantId,
@@ -2137,6 +2140,8 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
           { tenantHasActiveManus: true },
         ),
         isVoiceMessage: messageIsVoice(payload, msgContainer, resolvedMsg),
+        // Read only if the turn reaches Carmen's brain, with this line's key (AIO-683).
+        picture: manusPicture(payload, msgContainer, integ.api_key),
         sendVoice: makeVoiceSender(supabase, {
           tenantId,
           integrationId: integ.id,

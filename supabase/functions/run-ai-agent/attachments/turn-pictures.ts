@@ -16,7 +16,7 @@ export type TurnPicture = { name: string; path: string; dataUrl?: string };
 /** Why a picture was not read, as the brain is told to pass on to the user. */
 export const PICTURE_REFUSALS = {
   service_caller:
-    "pictures are read only for a signed-in user writing in the site chat",
+    "pictures are read only for a signed-in user writing in the site chat or a WhatsApp message to Carmen",
   not_a_storage_path: "it did not arrive as a file uploaded to this chat",
   other_folder: "it is not in this user's own upload folder",
   too_many: `at most ${MAX_TURN_PICTURES} pictures are read in one message`,

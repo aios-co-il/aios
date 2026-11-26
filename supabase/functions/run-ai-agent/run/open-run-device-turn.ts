@@ -3,6 +3,7 @@ import { commandCenterScreenshotStore } from "../device-turn/screenshot.ts";
 import type { RunState } from "./state.ts";
 import { openDeviceTurn } from "../device-turn/turn.ts";
 import { readPictureRequest } from "../attachments/picture-request.ts";
+import { pictureCallerOf } from "./picture-caller.ts";
 
 /** Resolves device continuation before parsing pictures or attempting the fast lane. */
 export async function openRunDeviceTurn(
@@ -28,10 +29,7 @@ export async function openRunDeviceTurn(
     return run.deviceTurn.reply;
   }
   run.pictureRequest = withDevicePictures(
-    readPictureRequest(run.input.bodyJson.attachments, {
-      authKind: run.input.request.authKind,
-      userId: run.callerUserId,
-    }),
+    readPictureRequest(run.input.bodyJson.attachments, pictureCallerOf(run)),
     run.deviceTurn.pictures,
   );
 }

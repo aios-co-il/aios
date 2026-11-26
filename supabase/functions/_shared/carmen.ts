@@ -89,8 +89,17 @@ import {
   orgAssistantName,
   personalAssistantName,
 } from "./carmen/assistant-name.ts";
+import type { TurnPictureAttachment } from "../run-ai-agent/attachments/contract.ts";
+import {
+  type InboundPicture,
+  whatsappPictureBucket,
+  withInboundPicture,
+} from "./carmen/whatsapp-picture/turn.ts";
 
 const CARMEN_SESSION_IDLE_MINUTES_DEFAULT = 5;
+
+/** The request Carmen answers when a picture came with nothing but her call word. */
+const PICTURE_ONLY_TEXT = "[תמונה]";
 
 type CarmenSessionRow = Tables<"carmen_whatsapp_sessions">;
 
@@ -1388,6 +1397,8 @@ export async function runCarmenAI(
    * (stored-brain-pick.ts) under the owner's own grants.
    */
   followOwnerBrain = false,
+  /** A picture sent with the message, stored in the org's folder (whatsapp-picture/, AIO-683). */
+  attachments: Array<TurnPictureAttachment> = [],
 ): Promise<string> {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -1423,6 +1434,7 @@ export async function runCarmenAI(
     ...(automationCtx ? { carmen_automation: automationCtx } : {}),
     // Whose character to speak as (service-only in run-ai-agent).
     ...personaRequestFields(personaSource ?? null, followOwnerBrain),
+    ...(attachments.length > 0 ? { attachments } : {}),
   });
 
   // Try once; retry once after 1s ONLY for transient failures (network error, 5xx,
@@ -1673,6 +1685,11 @@ export interface CarmenContext {
   connectionRole?: CarmenConnectionRole;
   /** True when the inbound message was a voice note (transcribed audio). */
   isVoiceMessage?: boolean;
+  /**
+   * The picture sent with this message, not downloaded yet (AIO-683): read only when the
+   * turn reaches Carmen's brain, from the receiving line's own provider.
+   */
+  picture?: InboundPicture | null;
   /** Optional transport voice sender — when set and the inbound was voice,
    * Carmen's replies are mirrored as voice notes (text is always sent too). */
   sendVoice?: (chatId: string, text: string) => Promise<boolean>;
@@ -2730,20 +2747,31 @@ export async function handleCarmenMessage(
       );
       const mergedHistory = buildCarmenMergedHistory(recentContext, history);
       const isolationNote = `\n\n[בידוד שיחה] chat_id=${chatId}. עני רק בהקשר של השיחה הזו (סשן נוכחי). אל תגררי נושאים משיחות פרטיות/קבוצות אחרות או מימים קודמים אלא אם המשתמש ביקש במפורש לזכור.`;
-      carmenResponse = await runCarmenAI(
-        supabase,
-        activeSession.agent_id,
+      carmenResponse = await withInboundPicture(
+        whatsappPictureBucket(supabase),
         tenantId,
-        messageText + groupNotes + identityContext + isolationNote,
-        mergedHistory,
-        effectivePhone,
-        effectiveName,
-        waNotify,
-        // Only the automation that routes this session may contribute
-        // instructions — never another automation's.
-        routingAutomationId === earlyAutomation?.id ? automationCtx : null,
-        personaSource,
-        followOwnerBrain === true,
+        ctx.picture,
+        (picture) =>
+          runCarmenAI(
+            supabase,
+            activeSession.agent_id,
+            tenantId,
+            messageText +
+              picture.note +
+              groupNotes +
+              identityContext +
+              isolationNote,
+            mergedHistory,
+            effectivePhone,
+            effectiveName,
+            waNotify,
+            // Only the automation that routes this session may contribute
+            // instructions — never another automation's.
+            routingAutomationId === earlyAutomation?.id ? automationCtx : null,
+            personaSource,
+            followOwnerBrain === true,
+            picture.attachments,
+          ),
       );
     } catch (err) {
       // AI failed twice (with retry). Stay silent — don't send "מצטערת..." to the user.
@@ -3036,6 +3064,11 @@ export async function handleCarmenMessage(
     .replace(CARMEN_NAME_VARIANT_RE, "") // strip "קרמן"/"כארמן" voice spellings
     .trim();
 
+  // A picture sent with the keyword is the request itself: Carmen answers it.
+  if (ctx.picture && contentAfterKeyword.length <= 2) {
+    contentAfterKeyword = PICTURE_ONLY_TEXT;
+  }
+
   // If the user already asked a question after the keyword, answer it directly (single message).
   // Otherwise send a brief greeting only. Either way — save the assistant reply to history
   // so the echo-guard catches the provider mirroring it back.
@@ -3065,18 +3098,29 @@ export async function handleCarmenMessage(
     );
     const mergedHistory = buildCarmenMergedHistory(recentContext, []);
     const isolationNote = `\n\n[בידוד שיחה] chat_id=${chatId}. עני רק בהקשר של השיחה הזו (סשן נוכחי). אל תגררי נושאים משיחות פרטיות/קבוצות אחרות או מימים קודמים אלא אם המשתמש ביקש במפורש לזכור.`;
-    const carmenResponse = await runCarmenAI(
-      supabase,
-      agentId,
+    const carmenResponse = await withInboundPicture(
+      whatsappPictureBucket(supabase),
       tenantId,
-      contentAfterKeyword + groupNotes + identityContext + isolationNote,
-      mergedHistory,
-      phoneNumber,
-      senderName,
-      waNotify,
-      automationCtx,
-      personaSource,
-      followOwnerBrain === true,
+      ctx.picture,
+      (picture) =>
+        runCarmenAI(
+          supabase,
+          agentId,
+          tenantId,
+          contentAfterKeyword +
+            picture.note +
+            groupNotes +
+            identityContext +
+            isolationNote,
+          mergedHistory,
+          phoneNumber,
+          senderName,
+          waNotify,
+          automationCtx,
+          personaSource,
+          followOwnerBrain === true,
+          picture.attachments,
+        ),
     );
 
     if (carmenResponse.includes(DUAL_CARMEN_SKIP)) {

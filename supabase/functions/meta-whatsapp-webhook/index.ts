@@ -17,6 +17,7 @@ import {
   normalizedPhoneCandidates,
   shouldApplyDeliveryStatus,
 } from "../_shared/meta-whatsapp.ts";
+import { metaLineToken, metaPicture } from "./inbound-picture.ts";
 
 const jsonHeaders = { "Content-Type": "application/json" };
 
@@ -714,6 +715,14 @@ Deno.serve(async (request) => {
                 isManualOutgoing: false,
                 isGroup: false,
                 sourceChannel: "own_instance",
+                // Read only if the turn reaches Carmen's brain, with this
+                // number's own token (AIO-683).
+                picture: metaPicture(item.message, {
+                  token: () => metaLineToken(admin, integration.id),
+                  graphVersion:
+                    settings.graph_version ??
+                    Deno.env.get("META_GRAPH_API_VERSION"),
+                }),
               });
             } catch (carmenError) {
               console.error(
