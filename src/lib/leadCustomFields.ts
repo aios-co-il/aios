@@ -138,3 +138,27 @@ export function mergeLeadCustomFieldValues(
 
   return merged;
 }
+
+/** The choices of a select custom field, from the stored strings or label/value pairs. */
+export function leadCustomFieldOptions(
+  options: unknown,
+): Array<{ label: string; value: string }> {
+  if (!Array.isArray(options)) {
+    return [];
+  }
+
+  return options.flatMap((option) => {
+    if (typeof option === "string") {
+      return [{ label: option, value: option }];
+    }
+    if (!option || typeof option !== "object") {
+      return [];
+    }
+    const item = option as Record<string, unknown>;
+    const value = String(item.value ?? item.label ?? "").trim();
+    if (!value) {
+      return [];
+    }
+    return [{ value, label: String(item.label ?? value) }];
+  });
+}

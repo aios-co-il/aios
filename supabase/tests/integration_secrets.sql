@@ -62,6 +62,23 @@ BEGIN
     failures := failures || format('update copy: got %s, want access-2/refresh-1', coalesce(got, 'no row'));
   END IF;
 
+  -- A reconnect that changes only the refresh token: it alone changes.
+  SET LOCAL ROLE authenticated;
+  BEGIN
+    UPDATE public.tenant_integrations
+      SET settings = settings || '{"refresh_token": "refresh-2"}'
+      WHERE id = google_id;
+  EXCEPTION WHEN insufficient_privilege THEN
+    failures := failures || 'the owner''s refresh-token update failed on integration_secrets';
+  END;
+  RESET ROLE;
+
+  SELECT access_token || '/' || refresh_token INTO got
+  FROM public.integration_secrets WHERE integration_id = google_id;
+  IF got IS DISTINCT FROM 'access-2/refresh-2' THEN
+    failures := failures || format('refresh-token update: got %s, want access-2/refresh-2', coalesce(got, 'no row'));
+  END IF;
+
   -- No browser role reaches integration_secrets: the owner, another member, anon.
   FOR got IN SELECT unnest(array['owner', 'member', 'anon']) LOOP
     PERFORM set_config('request.jwt.claims',

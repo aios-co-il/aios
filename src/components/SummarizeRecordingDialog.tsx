@@ -35,8 +35,7 @@ import {
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCrossTenantAgencyIds } from "@/hooks/useCrossTenantAgencyIds";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { ReplyMarkdown } from "@/components/ReplyMarkdown/ReplyMarkdown";
 import { SUMMARY_PROSE_CLASS } from "@/components/recordings/SummaryViewerDialog";
 
 interface SummarizeRecordingDialogProps {
@@ -837,9 +836,7 @@ export default function SummarizeRecordingDialog({
                 dir="rtl"
               >
                 <div className={SUMMARY_PROSE_CLASS}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {result.summary}
-                  </ReactMarkdown>
+                  <ReplyMarkdown>{result.summary}</ReplyMarkdown>
                 </div>
               </div>
               {result.file_url && (

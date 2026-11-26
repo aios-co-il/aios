@@ -76,6 +76,7 @@ import {
 import type { Tables } from "./database.types.ts";
 import type { DbClient } from "./supabase-clients.ts";
 import { loadCarmenAgent } from "./carmen/load-carmen-agent.ts";
+import { USE_BRAIN_PICK } from "./carmen/brain-engine/stored-pick.ts";
 import { loadCallWords, loadCallerPersona } from "./carmen/persona-runtime.ts";
 import {
   DEFAULT_ASSISTANT_NAME,
@@ -1376,6 +1377,12 @@ export async function runCarmenAI(
   automationCtx?: CarmenAutomationContext | null,
   /** The personal line's owner, whose character Carmen speaks as; null on the main line. */
   personaUserId?: string | null,
+  /**
+   * Whether the turn also runs on that owner's stored brain (AIO-654): asked
+   * with the flag the in-app surfaces send, and resolved in run-ai-agent
+   * (stored-brain-pick.ts) under the owner's own grants.
+   */
+  followOwnerBrain = false,
 ): Promise<string> {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -1411,6 +1418,7 @@ export async function runCarmenAI(
     ...(automationCtx ? { carmen_automation: automationCtx } : {}),
     // Whose character to speak as on a personal line (service-only in run-ai-agent).
     ...(personaUserId ? { persona_user_id: personaUserId } : {}),
+    ...(personaUserId && followOwnerBrain ? { [USE_BRAIN_PICK]: true } : {}),
   });
 
   // Try once; retry once after 1s ONLY for transient failures (network error, 5xx,
@@ -1590,6 +1598,13 @@ export interface CarmenContext {
   integrationId: string;
   /** User who owns the integration (used as Carmen session owner); null when unowned. */
   connectionUserId: string | null;
+  /**
+   * True when the webhook vouches that a personal line may run on its owner's
+   * stored brain (AIO-654): connectionUserId is the line's real owner and the
+   * line's role was read, not guessed. Unset means no: a Meta line's user is
+   * the tenant's oldest member, not an owner.
+   */
+  followOwnerBrain?: boolean;
   /** Provider chat id (e.g. "972501234567@c.us"). */
   chatId: string;
   /** Counterpart phone (digits only or with country code). */
@@ -2024,6 +2039,7 @@ export async function handleCarmenMessage(
     tenantId,
     integrationId,
     connectionUserId,
+    followOwnerBrain,
     phoneNumber,
     sourcePhoneNumber,
     senderName,
@@ -2689,6 +2705,7 @@ export async function handleCarmenMessage(
         // instructions — never another automation's.
         routingAutomationId === earlyAutomation?.id ? automationCtx : null,
         personaUserId,
+        followOwnerBrain === true,
       );
     } catch (err) {
       // AI failed twice (with retry). Stay silent — don't send "מצטערת..." to the user.
@@ -3023,6 +3040,7 @@ export async function handleCarmenMessage(
       waNotify,
       automationCtx,
       personaUserId,
+      followOwnerBrain === true,
     );
 
     if (carmenResponse.includes(DUAL_CARMEN_SKIP)) {
@@ -3100,6 +3118,7 @@ export async function handleCarmenMessage(
         waNotify,
         automationCtx,
         personaUserId,
+        followOwnerBrain === true,
       );
     } catch (err) {
       console.error("[CARMEN] contextual opener failed, falling back:", err);
