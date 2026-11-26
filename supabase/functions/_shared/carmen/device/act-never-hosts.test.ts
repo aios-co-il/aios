@@ -129,25 +129,6 @@ Deno.test("act floor: a tenant can only add", async (t) => {
     }
   });
 
-  await t.step("an entry pasted as an address is read as its host", () => {
-    for (const entry of [
-      "https://crm.example.com",
-      "https://crm.example.com/deals?id=1#top",
-      "http://CRM.example.com:8080/",
-      "crm.example.com/",
-      "crm.example.com/deals",
-      "crm.example.com:8443",
-    ]) {
-      assertEquals(
-        ["crm.example.com", "eu.crm.example.com", "example.com"].map((host) =>
-          isActNeverHost(`https://${host}/`, [entry]),
-        ),
-        [true, true, false],
-        entry,
-      );
-    }
-  });
-
   await t.step("an internationalised entry matches the tab's punycode", () => {
     assertStrictEquals(
       isActNeverHost("https://בנק.example/", ["בנק.example"]),
@@ -156,7 +137,7 @@ Deno.test("act floor: a tenant can only add", async (t) => {
   });
 
   await t.step("a blank entry names nothing", () => {
-    for (const added of [[], [""], ["  ", "*", ".", "*."]]) {
+    for (const added of [[], [""], ["  ", "\t"]]) {
       assertStrictEquals(isActNeverHost("https://example.com/", added), false);
     }
   });
@@ -167,6 +148,11 @@ Deno.test("act floor: a tenant can only add", async (t) => {
       "https://",
       "mailto:someone",
       "a b.com/x",
+      "*",
+      ".",
+      "*.",
+      "...",
+      "localhost",
     ]) {
       assertThrows(
         () => isActNeverHost("https://example.com/", [entry]),
@@ -193,6 +179,26 @@ Deno.test("act floor: a tenant can only add", async (t) => {
       "foo.*",
       "foo.com*",
       "https://foo.com,bar.com/path",
+      // An address is not a domain: its path, port or scheme typo could hide a second host.
+      "https://crm.example.com",
+      "crm.example.com/deals",
+      "crm.example.com:8443",
+      "https:/foo.com",
+      "https//foo.com",
+      "foo.com/bar.com",
+      "foo.com\\bar.com",
+      "foo.com?bar.com",
+      "foo.com#bar.com",
+      "foo.com@bar.com",
+      // Punctuation that punycode would turn into letters of a host no tab can have.
+      "\u201cfoo.com\u201d",
+      "\u2018foo.com\u2019",
+      "\u00abfoo.com\u00bb",
+      "foo.com\u3001bar.com",
+      "foo.com\u060cbar.com",
+      "foo.com\u30fbbar.com",
+      "foo.com\u2013bar.com",
+      "foo.com\u2014bar.com",
       // No spelling removes a host: this one is refused, not read as "all but".
       "!paypal.com",
     ]) {

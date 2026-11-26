@@ -155,39 +155,41 @@ export function isActNeverHost(
 const FLOOR_HOSTS: ReadonlyArray<string> =
   Object.values(ACT_NEVER_HOSTS).flat();
 
-/** Whether an entry already says how it is reached, as a pasted address does. */
-const HAS_SCHEME = /^[a-z][a-z0-9+.-]*:\/\//i;
-
-/** URL parsing drops these without a word, which would glue two pasted lines into one host. */
-const DROPPED_BY_URL_PARSING = /[\t\n\r]/;
+/**
+ * A tenant's entry as people write a domain, in any script: two or more labels of letters,
+ * digits and hyphens, with an optional leading `*.` or dot. It is checked before punycode,
+ * which would turn a curly quote or a foreign comma into letters of a host no tab can have.
+ * An address, a path or two domains in one entry are not a domain.
+ */
+const WRITTEN_DOMAIN =
+  /^(?:\*?\.)?[\p{L}\p{M}\p{N}-]+(?:\.[\p{L}\p{M}\p{N}-]+)+\.?$/u;
 
 /**
  * A host as a tab can have it: labels of a to z, digits and hyphens, joined by dots
- * (punycode included). URL parsing also lets `,` `;` `*` and quotes through, and a host
- * holding one of them is two entries in one line, a quoted paste or a misplaced wildcard.
+ * (punycode included).
  */
 export const PLAIN_HOST = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*$/;
 
 /**
  * The host a tenant's entry names, as a list of one; a blank entry names none. A bare
- * domain, a `*.domain` and an address pasted from the browser all read as the same host.
- * Anything else throws: an entry that matches no tab protects nothing.
+ * domain and a `*.domain` read as the same host. Anything else throws: an entry that
+ * matches no tab protects nothing.
  */
 function addedDomain(entry: string): Array<string> {
-  const domain = entry.trim().replace(/^\*?\.*/, "");
+  const written = entry.trim();
 
-  if (!domain) {
+  if (!written) {
     return [];
   }
-  const address = HAS_SCHEME.test(domain) ? domain : `https://${domain}`;
+  const address = `https://${written.replace(/^\*?\./, "")}`;
   const hostname =
-    !DROPPED_BY_URL_PARSING.test(domain) && URL.canParse(address)
+    WRITTEN_DOMAIN.test(written) && URL.canParse(address)
       ? webHostname(new URL(address))
       : "";
 
   if (!PLAIN_HOST.test(hostname)) {
     throw new TypeError(
-      `Act-floor entry is not a host or an address: ${JSON.stringify(entry)}`,
+      `Act-floor entry is not a domain: ${JSON.stringify(entry)}`,
     );
   }
   return [hostname];
