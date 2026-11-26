@@ -16,14 +16,19 @@ class CallMotionTest {
     }
 
     @Test
-    fun activationLineFollowsThePickedVoice() {
-        assertEquals(R.raw.carmen_with_you_danit, ActivationCue.lineFor("danit"))
-        assertEquals(R.raw.carmen_with_you_zina, ActivationCue.lineFor("zina"))
-        assertEquals(R.raw.carmen_with_you_yael, ActivationCue.lineFor("yael"))
-        // No pick, OpenAI, or a voice without a recording: the default voice's line.
-        assertEquals(R.raw.carmen_with_you_yael, ActivationCue.lineFor(null))
-        assertEquals(R.raw.carmen_with_you_yael, ActivationCue.lineFor(VoicePreference.OPENAI))
-        assertEquals(R.raw.carmen_with_you_yael, ActivationCue.lineFor("someone-new"))
+    fun activationLineFollowsTheStoredVoice() {
+        // The clips the app holds, by name, as the phone's resources answer (0 = no such clip).
+        val clips = mapOf(
+            "carmen_with_you_danit" to R.raw.carmen_with_you_danit,
+            "carmen_with_you_zina" to R.raw.carmen_with_you_zina,
+        )
+        val clipNamed = { name: String -> clips[name] ?: 0 }
+
+        assertEquals(R.raw.carmen_with_you_danit, ActivationCue.lineFor("danit", clipNamed))
+        assertEquals(R.raw.carmen_with_you_zina, ActivationCue.lineFor("zina", clipNamed))
+        // No pick, or a voice without a recording (every OpenAI voice today): the default line.
+        assertEquals(R.raw.carmen_with_you_yael, ActivationCue.lineFor(null, clipNamed))
+        assertEquals(R.raw.carmen_with_you_yael, ActivationCue.lineFor("marin", clipNamed))
     }
 
     @Test

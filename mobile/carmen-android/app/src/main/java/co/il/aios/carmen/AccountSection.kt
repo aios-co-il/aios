@@ -6,8 +6,11 @@ import android.widget.Button
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 
-/** Account block on the settings screen: who is signed in, and sign in / sign out. */
-class AccountSection(private val activity: AppCompatActivity) {
+/**
+ * Account block on the settings screen: who is signed in, and sign in / sign out.
+ * [onSignedOut] runs after a sign-out, so the screen can redraw what belonged to the account.
+ */
+class AccountSection(private val activity: AppCompatActivity, private val onSignedOut: () -> Unit) {
 
     private val account = AiosAccount(activity)
     private val status: TextView = activity.findViewById(R.id.account_text)
@@ -36,5 +39,6 @@ class AccountSection(private val activity: AppCompatActivity) {
         // Signs the in-app web screen out too (supabase-js keeps its session in localStorage).
         WebStorage.getInstance().deleteAllData()
         render()
+        onSignedOut()
     }
 }

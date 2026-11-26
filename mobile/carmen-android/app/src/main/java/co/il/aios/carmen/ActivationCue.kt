@@ -7,8 +7,8 @@ import android.util.Log
 
 /**
  * What the user hears the moment Carmen is activated, before her live call connects (AIO-543):
- * a soft burst of typing, then "אני כבר איתך" recorded in the voice the phone is set to. Once
- * connected she greets herself with a varied line from the server.
+ * a soft burst of typing, then "אני כבר איתך" recorded in the voice the user stored
+ * ([VoicePreference]). Once connected she greets herself with a varied line from the server.
  *
  * Her live voice wins: [silence] stops the typing and skips the line if it has not started yet.
  */
@@ -31,7 +31,7 @@ class ActivationCue(context: Context, private val voiceId: String?) {
     fun play(onDone: () -> Unit = {}) {
         this.onDone = onDone
         playClip(R.raw.carmen_typing, TYPING_VOLUME) {
-            if (silenced) finish() else playClip(lineFor(voiceId), 1f) { finish() }
+            if (silenced) finish() else playClip(lineFor(voiceId, ::rawClip), 1f) { finish() }
         }
     }
 
@@ -55,6 +55,9 @@ class ActivationCue(context: Context, private val voiceId: String?) {
         player = null
         typingPlaying = false
     }
+
+    /** The `res/raw` clip with this name, or 0 when the app has none. */
+    private fun rawClip(name: String): Int = app.resources.getIdentifier(name, "raw", app.packageName)
 
     private fun playClip(clip: Int, volume: Float, then: () -> Unit) {
         release()
@@ -85,14 +88,17 @@ class ActivationCue(context: Context, private val voiceId: String?) {
         private const val TAG = "ActivationCue"
         private const val TYPING_VOLUME = 0.6f
 
+        /** The `res/raw` name of a voice's line; `keep.xml` keeps these clips through shrinking. */
+        fun lineName(voiceId: String): String = "carmen_with_you_$voiceId"
+
         /**
-         * "אני כבר איתך" in the picked voice. Keys match `elevenlabs-voices.ts`; OpenAI, no pick
-         * or a voice without a recording uses the default voice's.
+         * "אני כבר איתך" in the stored voice: the clip named after its id, found through
+         * [clipNamed] (0 = none), so a voice gets its line by adding a recording. No pick, or a
+         * voice without a recording, uses the default line.
          */
-        fun lineFor(voiceId: String?): Int = when (voiceId) {
-            "danit" -> R.raw.carmen_with_you_danit
-            "zina" -> R.raw.carmen_with_you_zina
-            else -> R.raw.carmen_with_you_yael
+        fun lineFor(voiceId: String?, clipNamed: (String) -> Int): Int {
+            val clip = if (voiceId == null) 0 else clipNamed(lineName(voiceId))
+            return if (clip == 0) R.raw.carmen_with_you_yael else clip
         }
     }
 }

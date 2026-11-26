@@ -9,6 +9,7 @@ import {
   planScheduledSyncWindows,
 } from "../_shared/report-sync-window.ts";
 import { planHistoryBackfill } from "../_shared/ads-sync/history-backfill.ts";
+import { publicFunctionUrl } from "../_shared/public-api/url.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -239,7 +240,7 @@ Deno.serve(async (req) => {
     }
 
     const results: Array<any> = [];
-    const webhookUrl = `${supabaseUrl}/functions/v1/webhook-google-ads-sync`;
+    const webhookUrl = publicFunctionUrl("webhook-google-ads-sync");
 
     // ---- Direct API path: self-chaining batches ----
     // The Supabase edge gateway rate-limits ~28 sync-google-ads-data invocations

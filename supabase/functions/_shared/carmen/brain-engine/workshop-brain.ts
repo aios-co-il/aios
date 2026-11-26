@@ -7,6 +7,7 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { WORKSHOP_SKIN } from "../../workshop/tool-definitions.ts";
 import { type BrainEngine, resolveBrainEngine } from "./load.ts";
+import { namesBrain } from "./stored-pick.ts";
 
 export const WORKSHOP_BRAIN = "openrouter";
 
@@ -34,10 +35,9 @@ export async function resolveWorkshopAwareEngine(
 
 /** A workshop chat turn on the app (not WhatsApp) where the user picked no brain. */
 export function workshopDefaultApplies(body: EngineBody) {
-  const picked = typeof body.brain_slug === "string" && body.brain_slug !== "";
   const inWorkshop =
     Array.isArray(body.task_skills) && body.task_skills.includes(WORKSHOP_SKIN);
-  return inWorkshop && !picked && body.surface !== "whatsapp";
+  return inWorkshop && !namesBrain(body) && body.surface !== "whatsapp";
 }
 
 /**

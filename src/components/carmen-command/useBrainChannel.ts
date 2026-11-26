@@ -3,8 +3,6 @@ import {
   channelHealthBanner,
   isInputLocked,
   sendPathForRoute,
-  storageKeyForRoute,
-  type BrainRoute,
   type ConversationChannelStatus,
 } from "@/lib/agentChannelRouting";
 import {
@@ -13,6 +11,7 @@ import {
   type ChannelSendResult,
 } from "./brainChannelApi";
 import { getSessionSkin } from "@/lib/carmenSessionSkin";
+import { useBrainPick } from "./choices/useBrainPick";
 import { useBrainRoutes } from "./useBrainRoutes";
 import { useParliamentActions } from "./useParliamentActions";
 
@@ -31,31 +30,12 @@ export function useBrainChannel(tenantId: string | null) {
   const [status, setStatus] = useState<ConversationChannelStatus>("idle");
   const [externalUrl, setExternalUrl] = useState<string | null>(null);
 
-  const selectRoute = useCallback(
-    async (route: BrainRoute, conversationId?: string | null) => {
-      selectedRef.current = route;
-      setSelected(route);
-      setStatus("idle");
-      if (tenantId) {
-        localStorage.setItem(storageKeyForRoute(tenantId), route.slug);
-      }
-      if (!tenantId) {
-        return;
-      }
-      try {
-        await postChannel({
-          action: "select_route",
-          tenant_id: tenantId,
-          brain_route_id: route.id,
-          brain_slug: route.slug,
-          conversation_id: conversationId || undefined,
-        });
-      } catch {
-        /* selection is local-first */
-      }
-    },
-    [tenantId, selectedRef, setSelected],
-  );
+  const { selectRoute, pickRoute, storedPick } = useBrainPick({
+    tenantId,
+    selectedRef,
+    setSelected,
+    setStatus,
+  });
 
   const send = useCallback(
     async (args: ChannelSendArgs): Promise<ChannelSendResult> => {
@@ -139,6 +119,8 @@ export function useBrainChannel(tenantId: string | null) {
     routes,
     selected,
     selectRoute,
+    pickRoute,
+    storedPick,
     noBrainAccess,
     routesReady,
     status,

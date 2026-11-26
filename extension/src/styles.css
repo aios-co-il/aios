@@ -130,6 +130,14 @@ input[type="checkbox"] {
   color: var(--text-muted);
   cursor: default;
 }
+.btn.secondary {
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn.secondary:hover {
+  border-color: var(--primary);
+}
 .btn.danger {
   background: #dc2626;
   color: white;
@@ -179,6 +187,64 @@ input[type="checkbox"] {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Carmen side panel: a thin bar over the framed Command Center */
+body.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+.panel-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.panel-bar label.checkbox,
+.panel-bar .link {
+  font-size: 12px;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.tab-controls {
+  /* Groups the chip and the switch for showing and hiding; they stay items of the bar. */
+  display: contents;
+}
+.tab-chip {
+  /* A panel is narrow: the chip takes its own row so the tab's title stays readable. */
+  flex: 1 0 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.tab-chip.shared {
+  border-color: var(--primary);
+  color: var(--text);
+}
+.panel-notice {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.panel-notice a {
+  color: var(--accent);
+}
+.panel-frame {
+  flex: 1;
+  width: 100%;
+  border: none;
 }
 
 /* Recorder window */
