@@ -45,8 +45,11 @@ SET public = false,
 CREATE TABLE IF NOT EXISTS public.client_update_attachments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   update_id uuid NOT NULL REFERENCES public.client_updates (id) ON DELETE CASCADE,
-  tenant_id uuid NOT NULL REFERENCES public.tenants (id) ON DELETE CASCADE,
-  client_id uuid NOT NULL REFERENCES public.clients (id) ON DELETE CASCADE,
+  -- Copied from the entry by the guard below. No foreign keys of their own:
+  -- the entry's cascade already covers them, and a second path to clients
+  -- or tenants could make API embeds between those tables ambiguous.
+  tenant_id uuid NOT NULL,
+  client_id uuid NOT NULL,
   storage_path text NOT NULL,
   file_name text NOT NULL CHECK (char_length(btrim(file_name)) BETWEEN 1 AND 255),
   mime_type text NOT NULL,
@@ -66,8 +69,11 @@ COMMENT ON TABLE public.client_update_attachments IS
 
 -- Before insert: takes the tenant and client from the entry, so a row cannot
 -- point at another org or client; requires the storage path the entry owns
--- ({tenant}/{client}/{update}/{id}.{ext}), a type and size the bucket accepts,
--- and at most 10 files per entry. Rows are never edited.
+-- ({tenant}/{client}/{update}/{id}.{ext}), a type and size the bucket accepts
+-- (refused when the bucket row is missing), and at most 10 files per entry
+-- (the entry row is locked so parallel uploads cannot pass the cap); strips
+-- control and bidi-override characters that could disguise a file name's
+-- extension. Rows are never edited.
 CREATE OR REPLACE FUNCTION public.client_update_attachments_guard()
 RETURNS trigger
   LANGUAGE plpgsql
@@ -88,13 +94,17 @@ BEGIN
   IF TG_OP = 'INSERT' THEN
     SELECT u.tenant_id, u.client_id INTO v_tenant, v_client
     FROM public.client_updates AS u
-    WHERE u.id = NEW.update_id;
+    WHERE u.id = NEW.update_id
+    FOR NO KEY UPDATE;
     IF v_tenant IS NULL THEN
       RAISE EXCEPTION 'client_update_attachments: update % not found', NEW.update_id
         USING ERRCODE = 'foreign_key_violation';
     END IF;
     NEW.tenant_id := v_tenant;
     NEW.client_id := v_client;
+    NEW.file_name := btrim(regexp_replace(
+      NEW.file_name, '[\x01-\x1f\x7f\u202a-\u202e\u2066-\u2069]', '', 'g'
+    ));
 
     IF NEW.storage_path !~ (
       '^' || v_tenant || '/' || v_client || '/' || NEW.update_id || '/'
@@ -107,11 +117,11 @@ BEGIN
     SELECT b.file_size_limit, b.allowed_mime_types INTO v_limit, v_types
     FROM storage.buckets AS b
     WHERE b.id = 'client-update-attachments';
-    IF NOT (NEW.mime_type = ANY (v_types)) THEN
+    IF (NEW.mime_type = ANY (v_types)) IS NOT TRUE THEN
       RAISE EXCEPTION 'client_update_attachments: type % is not allowed', NEW.mime_type
         USING ERRCODE = 'check_violation', HINT = 'attachment_type';
     END IF;
-    IF NEW.size_bytes > v_limit THEN
+    IF (NEW.size_bytes <= v_limit) IS NOT TRUE THEN
       RAISE EXCEPTION 'client_update_attachments: % bytes is over the % byte limit', NEW.size_bytes, v_limit
         USING ERRCODE = 'check_violation', HINT = 'attachment_size';
     END IF;

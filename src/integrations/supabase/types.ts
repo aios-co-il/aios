@@ -6043,20 +6043,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "client_update_attachments_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "client_update_attachments_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "client_update_attachments_update_id_fkey"
             columns: ["update_id"]
             isOneToOne: false

@@ -187,12 +187,33 @@ BEGIN
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
 
+  -- An uploaded file is never replaced: there is no UPDATE policy.
+  UPDATE storage.objects SET owner = v_author
+  WHERE bucket_id = 'client-update-attachments' AND name = v_path;
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows <> 0 THEN
+    RAISE EXCEPTION 'an uploaded file must not be replaceable, updated %', v_rows;
+  END IF;
+
   IF pg_temp.qa_visible_rows(v_update) <> 1 OR pg_temp.qa_visible_files(v_prefix) <> 1 THEN
     RAISE EXCEPTION 'the author must read their attachment and its file';
   END IF;
 
-  -- At most 10 files per entry.
-  FOR v_i IN 1..9 LOOP
+  -- A right-to-left override that would show "invoice‮fdp.exe" as
+  -- "invoiceexe.pdf" is stripped from the stored name.
+  INSERT INTO public.client_update_attachments (id, update_id, storage_path, file_name, mime_type, size_bytes)
+  SELECT g, v_update_b, v_own || '/' || v_client_b || '/' || v_update_b || '/' || g || '.pdf',
+    E'invoice‮fdp.exe', 'application/pdf', 10
+  FROM gen_random_uuid() AS g;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.client_update_attachments
+    WHERE update_id = v_update_b AND file_name = 'invoicefdp.exe'
+  ) THEN
+    RAISE EXCEPTION 'a bidi override must be stripped from the file name';
+  END IF;
+
+  -- At most 10 files per entry (the row above is the first).
+  FOR v_i IN 1..8 LOOP
     INSERT INTO public.client_update_attachments (id, update_id, storage_path, file_name, mime_type, size_bytes)
     SELECT g, v_update_b, v_own || '/' || v_client_b || '/' || v_update_b || '/' || g || '.png',
       'p.png', 'image/png', 10
