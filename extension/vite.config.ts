@@ -21,6 +21,9 @@ export default defineConfig(({ mode }) => {
         environment.publishableKey,
       ),
       "import.meta.env.VITE_APP_ORIGIN": JSON.stringify(environment.appOrigin),
+      "import.meta.env.VITE_SUPABASE_ORIGINS": JSON.stringify(
+        environment.supabaseOrigins,
+      ),
     },
     plugins: [manifestPlugin(environment)],
     build: {

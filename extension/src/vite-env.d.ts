@@ -3,4 +3,6 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL: string;
   readonly VITE_SUPABASE_PUBLISHABLE_KEY: string;
   readonly VITE_APP_ORIGIN: string;
+  /** An array literal, unlike the strings above. */
+  readonly VITE_SUPABASE_ORIGINS: ReadonlyArray<string>;
 }
