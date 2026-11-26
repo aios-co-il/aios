@@ -3,8 +3,9 @@
  * browser tab. One definition for the server (which offers the tools and records each
  * action), the site (which passes an action's id to the panel) and the extension (which
  * acts). Pure, no imports, so all three can load it. What each tool reports back is in
- * results.ts, whether the user is asked first is in card-rule.ts, and the pages no action
- * may touch are in never-controllable.ts and act-never-hosts.ts.
+ * results.ts, whether the user is asked first is in card-rule.ts, the fields nothing is
+ * typed into are in field-rule.ts, and the pages no action may touch are in
+ * never-controllable.ts and act-never-hosts.ts.
  */
 
 /** Whether a tool only looks at the page or changes something in the browser. */
@@ -84,19 +85,25 @@ export const DEVICE_TOOLS = {
   browser_screenshot: {
     risk: "read",
     description:
-      "צילום החלק הגלוי של הלשונית הפתוחה, כשהטקסט של הדף לא מספיק כדי להבין מה מוצג בו.",
+      "צילום החלק הגלוי של הלשונית הפתוחה, כשהטקסט של הדף לא מספיק כדי להבין מה מוצג בו. לא זמין באתרי דואר, הודעות, בנקים ותשלומים, ולא בדפים עם שדות סיסמה או תשלום.",
     parameters: { type: "object", properties: {}, required: [] },
   },
 } as const satisfies Record<string, DeviceToolDefinition>;
 
 export type DeviceToolName = keyof typeof DEVICE_TOOLS;
 
-/** The arguments of one tool, read off its schema. */
-export type DeviceToolArgs<Tool extends DeviceToolName> = {
-  [
-    Argument in keyof (typeof DEVICE_TOOLS)[Tool]["parameters"]["properties"]
-  ]: string;
-};
+/**
+ * The arguments of one tool, read off its schema. A tool without arguments takes an empty
+ * object and nothing else.
+ */
+export type DeviceToolArgs<Tool extends DeviceToolName> = [
+  keyof ToolProperties<Tool>,
+] extends [never]
+  ? Record<string, never>
+  : { [Argument in keyof ToolProperties<Tool>]: string };
+
+type ToolProperties<Tool extends DeviceToolName> =
+  (typeof DEVICE_TOOLS)[Tool]["parameters"]["properties"];
 
 /**
  * The tool names: what the server's offer filter keeps, what the direct-tools block list
