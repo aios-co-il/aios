@@ -15,6 +15,7 @@ import {
 import { PermanentError } from "./carmen-config.ts";
 import { serviceClient } from "./supabase-clients.ts";
 import { ORG_PERSONA_FIELD } from "./carmen/persona-runtime.ts";
+import { ORG_STYLE_SETTING_KEY } from "./carmen/personas.ts";
 import { withConsoleErrors } from "./testing/console-errors.ts";
 import { CLIENT_INTAKE_REPLY_HE } from "./carmen/client-intake.ts";
 import {
@@ -1041,7 +1042,7 @@ Deno.test(
       return [
         {
           tenant_id: TENANT,
-          setting_key: "carmen_avatar_style",
+          setting_key: ORG_STYLE_SETTING_KEY,
           setting_value: { style },
         },
       ];
