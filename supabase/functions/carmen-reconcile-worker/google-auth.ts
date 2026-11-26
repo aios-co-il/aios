@@ -25,7 +25,7 @@ export type GoogleEnv = {
 
 /** The table's Google Ads credentials; throws a typed error when it cannot be read. */
 export async function resolveGoogleAuth(
-  db: Pick<DbClient, "from">,
+  db: Pick<DbClient, "from" | "rpc">,
   table: ReconcileTable,
   env: GoogleEnv,
   budget: CallBudget,
