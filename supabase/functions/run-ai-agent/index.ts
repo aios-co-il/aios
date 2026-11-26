@@ -7,6 +7,7 @@ import { FAST_LANE_MODELS } from "./llm/fallback-models.ts";
 
 import { buildLLMChain } from "./llm/chain.ts";
 import { connectedBrainHint } from "./llm/connection-hint.ts";
+import { fetchChainLink } from "./llm/link-fetch.ts";
 import { PRIORITY_TOOLS } from "./llm/tool-cap.ts";
 import { capToolsForTarget } from "./llm/tool-cap.ts";
 import { recordProviderFailover } from "./llm/failover.ts";
@@ -211,7 +212,7 @@ import {
   type BrainEngine,
   type BrainEngineTarget,
 } from "../_shared/carmen/brain-engine/load.ts";
-import { resolveWorkshopAwareEngine } from "../_shared/carmen/brain-engine/workshop-brain.ts";
+import { resolvePickAwareEngine } from "./stored-brain-pick.ts";
 import {
   failoverReason,
   movesToNextLink,
@@ -368,6 +369,12 @@ import {
   resolveSkillsBySlug,
 } from "../_shared/skills/registry.ts";
 import { DEV_ENVIRONMENT_STANDING } from "../_shared/environments-standing.ts";
+import {
+  parseScreenContext,
+  SCREEN_CONTEXT_SOURCE,
+  sidebarContextJson,
+  withBrowserTab,
+} from "../_shared/carmen/screen-context.ts";
 import { selfQuestionsStanding } from "../_shared/carmen/self-questions.ts";
 import {
   applyToolForceIncludes,
@@ -1808,7 +1815,7 @@ async function executeTool(
 import { requireAuth } from "../_shared/security.ts";
 import type { Surface } from "./surface.ts";
 import { bindRunAgentCaller, runCallerPhone } from "./caller-trust.ts";
-import { runTenantDenied } from "./run-tenant-access.ts";
+import { runTenantDenied } from "../_shared/agent-runs/run-tenant-access.ts";
 import { INSTRUCTION_TRIGGER_RE } from "./instruction-trigger.ts";
 import { runStopCheck, stoppedReply } from "./run-cancel.ts";
 import { type FastLaneChannel, fastLaneFits } from "./fast-lane/eligibility.ts";
@@ -3107,13 +3114,11 @@ async function handleRunAgent(
       systemPrompt += `\n\n=== הקשר סטודיו (משימה מבודדת) ===\n${promptAddon}`;
     }
 
-    const ctxMeta = bodyJson.context_metadata;
+    const screenContext = parseScreenContext(bodyJson.context_metadata);
     if (
       isCarmen &&
       surface === "internal_chat" &&
-      ctxMeta &&
-      typeof ctxMeta === "object" &&
-      ctxMeta.source === "command_center_sidebar"
+      screenContext?.source === SCREEN_CONTEXT_SOURCE.commandCenterSidebar
     ) {
       systemPrompt +=
         "\n\n🛠️ === Command Center sidecar (system fix context) ===\n" +
@@ -3124,7 +3129,7 @@ async function handleRunAgent(
         "Never open duplicate Cursor sessions — if dispatch timed out, use attach_dev_task_session with the bc- id.\n" +
         "Legacy direct mcp_Cursor__request_dev_task only if dev_tasks workflow is unavailable, and also only after his yes in a later message.\n" +
         "Always include path + entity context in any dev task you create.\n" +
-        `context_metadata: ${JSON.stringify(ctxMeta).slice(0, 4000)}`;
+        `context_metadata: ${sidebarContextJson(screenContext, 4000)}`;
     }
 
     // Hard rule for both V1 and V2: only allowlisted requesters may escalate
@@ -4021,8 +4026,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       }
     }
 
-    // Add current message
-    messages.push({ role: "user", content: command_text });
+    // Add current message. A browser tab the extension's panel reported joins it as data:
+    // the page wrote its title and address, so they never reach the system prompt.
+    const userTurn = withBrowserTab(command_text, bodyJson.context_metadata);
+    messages.push({ role: "user", content: userTurn });
 
     let finalOutput = "";
     const toolLog: Array<any> = [];
@@ -4038,7 +4045,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       const manusBody: any = {
         action: "create_task",
         tenantId: agent.tenant_id,
-        prompt: command_text,
+        prompt: userTurn,
       };
       const manusRes = await fetch(`${SUPABASE_URL}/functions/v1/manus-api`, {
         method: "POST",
@@ -4218,7 +4225,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         console.log(
           `[AGENT] Round ${round + 1}/${maxRounds}, provider=${llm.label}`,
         );
-        res = await fetch(llm.url, {
+        res = await fetchChainLink(llm, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${llm.key}`,
@@ -5195,7 +5202,8 @@ Deno.serve(async (req) => {
 
   // The brain the user picked runs Carmen's loop (_shared/carmen/brain-engine);
   // the route, grant and keys are all read here, never taken from the body.
-  const engine = await resolveWorkshopAwareEngine(
+  // A surface without a picker asks for the user's stored pick (./stored-brain-pick.ts).
+  const engine = await resolvePickAwareEngine(
     guardClient,
     auth,
     bodyJson,

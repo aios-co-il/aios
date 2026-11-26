@@ -58,6 +58,7 @@ import {
 import { ClientsTitle } from "@/components/ClientsPage/ClientsTitle";
 import { ClientsKpiList } from "@/components/ClientsPage/ClientsKpiList";
 import { ClientsSearchInput } from "@/components/ClientsPage/ClientsSearchInput";
+import { HeaderSearch } from "@/components/layout/HeaderSearch/HeaderSearch";
 import { ClientsSidePanel } from "@/components/ClientsPage/ClientsSidePanel";
 import { ModuleSidePanelItem } from "@/components/shared/ModuleSidePanel/ModuleSidePanelItem";
 import { ClientsToolbar } from "@/components/ClientsPage/ClientsToolbar";
@@ -576,18 +577,14 @@ export default function Clients() {
             <AddClientForm />
           </ClientsToolbar>
         </div>
-        <div className="hidden shrink-0 items-center gap-2 md:flex">
-          {viewMode !== "chat" && (
+        {viewMode !== "chat" && (
+          <HeaderSearch>
             <ClientsSearchInput
               value={filters.search}
               onChange={(value) => setFilter("search", value)}
-              className="w-72"
             />
-          )}
-          <div className="ms-auto">
-            <AddClientForm />
-          </div>
-        </div>
+          </HeaderSearch>
+        )}
 
         {/* Import dialogs opened from the import / export menu */}
         {showImportCSV && (

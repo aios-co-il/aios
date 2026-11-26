@@ -29,7 +29,7 @@ import {
 
 const NOW = Date.parse("2026-08-03T12:00:00.000Z");
 const FRESH = "2026-08-03T10:00:00.000Z";
-const DAY_OLD = "2026-08-02T12:30:00.000Z"; // ~23.5h — must NOT be stale (twice-daily cadence)
+const DAY_OLD = "2026-08-02T12:30:00.000Z"; // ~23.5h — must NOT be stale (missed runs + morning race)
 const STALE = "2026-07-20T08:00:00.000Z";
 const VERY_OLD_COLUMN = "2026-03-27T04:00:00.000Z";
 
@@ -77,21 +77,18 @@ Deno.test("isSyncStale uses freshest timestamp", () => {
   );
 });
 
-Deno.test(
-  "isSyncStale tolerates ~24h gap (twice-daily sync + morning race)",
-  () => {
-    assertStrictEquals(
-      isSyncStale(
-        {
-          last_sync_at: DAY_OLD,
-          integration_settings: {},
-        },
-        NOW,
-      ),
-      false,
-    );
-  },
-);
+Deno.test("isSyncStale tolerates ~24h gap (missed runs + morning race)", () => {
+  assertStrictEquals(
+    isSyncStale(
+      {
+        last_sync_at: DAY_OLD,
+        integration_settings: {},
+      },
+      NOW,
+    ),
+    false,
+  );
+});
 
 Deno.test(
   "pickFreshestTablePerPlatform ignores abandoned Meta duplicate",

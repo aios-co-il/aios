@@ -28,6 +28,7 @@ import {
   CREATIVE_DIRECT_SKIN_SLUG,
 } from "../_shared/creativeDirectStanding.ts";
 import { getRepoUrl } from "../_shared/github-repo.ts";
+import { publicFunctionUrl } from "../_shared/public-api/url.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -1013,7 +1014,7 @@ Deno.serve(async (req) => {
       `${CREATIVE_MARKER} job ${jobId}`,
       "You are already in the Creative Direct chat. This is one job.",
       "When the PNG is ready, POST it back. Do not open a PR. Do not edit the repo.",
-      `POST ${SUPABASE_URL}/functions/v1/cursor-generate-creative`,
+      `POST ${publicFunctionUrl("cursor-generate-creative")}`,
       "Content-Type: application/json",
       `Body JSON: {"action":"complete","tenant_id":"${tenantId}","item_id":"${itemId}","job_id":"${jobId}","job_token":"${jobToken}","image_base64":"<png-base64>","variation":{"id":"${variationId}","name":${JSON.stringify(String(variation.name || "וריאציה"))},"format":${JSON.stringify(String(variation.format || "1:1"))},"copy_key":${JSON.stringify(variation.copy_key ?? null)},"copy_label":${JSON.stringify(variation.copy_label ?? null)},"copy_text":${JSON.stringify(String(variation.copy_text || "").slice(0, 400))},"parent_id":${JSON.stringify(variation.parent_id ?? null)}}}`,
     ].join("\n");

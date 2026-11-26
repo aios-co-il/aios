@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactElement } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -68,7 +68,8 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-export function AddClientForm() {
+/** The new-client dialog; `trigger` replaces the default button. */
+export function AddClientForm({ trigger }: { trigger?: ReactElement } = {}) {
   const [open, setOpen] = useState(false);
   const [additionalContacts, setAdditionalContacts] = useState<
     Array<{ contact_name: string; phone: string; email: string; role: string }>
@@ -239,10 +240,12 @@ export function AddClientForm() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus className="ml-2 h-4 w-4" />
-          הוסף לקוח
-        </Button>
+        {trigger ?? (
+          <Button>
+            <Plus className="ml-2 h-4 w-4" />
+            הוסף לקוח
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent
         dir="rtl"

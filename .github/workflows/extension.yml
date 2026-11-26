@@ -1,0 +1,81 @@
+# Type-checks the Chrome extension (extension/) and builds it for Production and Staging.
+# Production's values come from tracked files. Staging's come from the public repository
+# variables the Carmen Android workflow already reads (Staging URL and publishable key),
+# so no secret is used. The Staging build is uploaded as artifact extension-staging.
+# This workflow is path-filtered and does not run on merge_group, so keep it out of the
+# develop ruleset's required checks (docs/agents/releases.md).
+name: Extension
+
+on:
+  pull_request:
+    paths:
+      - "extension/**"
+      # The build reads Production's address and key, and each environment's app address, from these.
+      - ".env"
+      - "supabase/config.toml"
+      # The two pure modules the panel shares with the site and the server; the type-check and build compile them.
+      - "supabase/functions/_shared/carmen/screen-context.ts"
+      - "supabase/functions/_shared/carmen/device/panel-envelope.ts"
+      - ".github/workflows/extension.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: extension-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: extension
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.x
+      - name: Install with the extension's lockfile
+        run: bun install --frozen-lockfile
+      - name: Type-check
+        run: bun run typecheck
+      - name: Build for Production
+        run: bun run build
+      - name: Staging build refuses missing or Production values
+        run: |
+          if bun run build:staging; then
+            echo "::error::The Staging build succeeded without VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY; it must fail instead of falling back."
+            exit 1
+          fi
+          set -a
+          . ../.env
+          set +a
+          if bun run build:staging; then
+            echo "::error::The Staging build accepted Production's address and key from the root .env."
+            exit 1
+          fi
+          echo "Both builds above failed as they must."
+      - name: Build for Staging
+        # Staging backend (public URL and publishable key), scoped to this step.
+        env:
+          VITE_SUPABASE_URL: ${{ vars.CARMEN_ANDROID_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.CARMEN_ANDROID_SUPABASE_KEY }}
+        run: |
+          if [ -z "$VITE_SUPABASE_URL" ] || [ -z "$VITE_SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "::error::Set repository variables CARMEN_ANDROID_SUPABASE_URL and CARMEN_ANDROID_SUPABASE_KEY (Staging URL and publishable key); the Staging extension is not built without them."
+            exit 1
+          fi
+          bun run build:staging
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension-staging
+          path: extension/dist-staging
+          if-no-files-found: error

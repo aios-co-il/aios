@@ -17,6 +17,31 @@ describe("AuthPage session bootstrap", () => {
     },
   );
 
+  it("returns a restored session to the page the sign-in link carried", async () => {
+    auth.session = session;
+    auth.getAuthenticatorAssuranceLevel.mockResolvedValue({
+      data: { currentLevel: "aal1", nextLevel: "aal1" },
+      error: null,
+    });
+
+    renderAuth(`/auth?next=${encodeURIComponent("/t/test/card-drafts")}`);
+
+    expect(await screen.findByText("Card drafts route")).toBeInTheDocument();
+  });
+
+  it("returns to the requested page after Google sign-in drops the link's query", async () => {
+    sessionStorage.setItem("aios-auth-return-path", "/t/test/card-drafts");
+
+    renderAuth("/auth?code=oauth-code");
+    auth.session = session;
+    await act(async () => {
+      auth.listener?.("SIGNED_IN", session);
+      auth.listener?.("INITIAL_SESSION", session);
+    });
+
+    expect(await screen.findByText("Card drafts route")).toBeInTheDocument();
+  });
+
   it("waits for an OAuth callback session and navigates only once", async () => {
     renderAuth("/auth?code=oauth-code");
     expect(screen.queryByLabelText("אימייל")).not.toBeInTheDocument();

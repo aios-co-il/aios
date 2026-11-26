@@ -27,29 +27,12 @@ export type BrainRoute = {
   session_status?: string | null;
 };
 
-/** Command Center opens on Carmen Direct (Cursor open chat), not the knights table. */
+/**
+ * Carmen Direct (Cursor open chat), not the knights table: the Command
+ * Center's first paint, before the user's brain list and their stored pick
+ * (carmen_user_choices) are known, and the brain of a chat that names none.
+ */
 export const DEFAULT_BRAIN_SLUG = "cursor";
-
-export function readSavedRouteSlug(
-  tenantId: string | null | undefined,
-): string | null {
-  if (!tenantId) {
-    return null;
-  }
-  try {
-    return localStorage.getItem(storageKeyForRoute(tenantId));
-  } catch {
-    return null;
-  }
-}
-
-/** First paint is Carmen Direct (כרמן ישיר). Saved slug is not applied until a chat is restored. */
-export function initialSelectedRoute(
-  _tenantId?: string | null,
-  routes: Array<BrainRoute> = FALLBACK_BRAIN_ROUTES,
-): BrainRoute {
-  return pickDefaultRoute(routes);
-}
 
 /** Last chat's brain wins. Empty session stays on Carmen Direct. */
 export function routeForRestoredChat(
@@ -126,10 +109,6 @@ export const FALLBACK_BRAIN_ROUTES: Array<BrainRoute> = [
     config: { seats: ["cursor", "grok", "codex"], rounds: 1, chair: "carmen" },
   },
 ];
-
-export function storageKeyForRoute(tenantId: string): string {
-  return `aios:brain-route:${tenantId}`;
-}
 
 export function pickDefaultRoute(
   list: Array<BrainRoute>,

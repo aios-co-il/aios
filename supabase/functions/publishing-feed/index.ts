@@ -1,9 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import {
+  articleImagesOnPublicApi,
   type MagazineImageKind,
   publishingImageProxyUrl,
   resolveArticleImageFields,
 } from "../_shared/publishing-images.ts";
+import { publicApiUrl } from "../_shared/public-api/url.ts";
 
 const jsonHeaders = {
   "Content-Type": "application/json",
@@ -80,14 +82,16 @@ Deno.serve(async (request) => {
     });
   }
 
+  // Stored proxy URLs on a supabase.co address move to the public API (AIO-647).
+  const publicBase = publicApiUrl();
   const datedArticles = (articles ?? []).map((article) => {
     const withSafeImages = resolveArticleImageFields(
       article,
       (kind: MagazineImageKind) =>
-        publishingImageProxyUrl(supabaseUrl, article.id, kind),
+        publishingImageProxyUrl(publicApiUrl(), article.id, kind),
     );
     return {
-      ...withSafeImages,
+      ...articleImagesOnPublicApi(withSafeImages, publicBase),
       article_date: article.source_month ?? article.published_at,
       actual_published_at: article.published_at,
       published_at: article.source_month ?? article.published_at,

@@ -15,7 +15,6 @@ import {
   routeForTableAddress,
   channelHealthBanner,
   billingNoteForRoute,
-  initialSelectedRoute,
   routeForRestoredChat,
 } from "./agentChannelRouting.ts";
 
@@ -47,12 +46,11 @@ test("default brain is Carmen Direct; first paint opens solo HUD not knights tab
   expect(DEFAULT_BRAIN_SLUG).toBe("cursor");
   expect(pickDefaultRoute(FALLBACK_BRAIN_ROUTES).slug).toBe("cursor");
   expect(pickDefaultRoute(FALLBACK_BRAIN_ROUTES, "grok").slug).toBe("grok");
-  expect(initialSelectedRoute("tenant-with-saved-parliament").slug).toBe(
-    "cursor",
-  );
-  expect(hudStage({ routeType: initialSelectedRoute(null).route_type })).toBe(
-    "direct",
-  );
+  expect(
+    hudStage({
+      routeType: pickDefaultRoute(FALLBACK_BRAIN_ROUTES).route_type,
+    }),
+  ).toBe("direct");
 });
 
 test("restored chat keeps its own brain; empty session stays on Carmen Direct", () => {

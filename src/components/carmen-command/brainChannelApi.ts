@@ -8,7 +8,7 @@ import {
   type ChannelHealth,
   type ConversationChannelStatus,
 } from "@/lib/agentChannelRouting";
-import type { SystemFixContextMetadata } from "@/lib/systemFixContext";
+import type { ScreenContextMetadata } from "@/lib/systemFixContext";
 
 export type ChannelSendResult = {
   ok: boolean;
@@ -136,7 +136,7 @@ export type ChannelSendArgs = {
   history: Array<{ role: string; content: string }>;
   idempotencyKey: string;
   route?: BrainRoute;
-  contextMetadata?: SystemFixContextMetadata | null;
+  contextMetadata?: ScreenContextMetadata | null;
   attachments?: Array<{
     name: string;
     url: string;
