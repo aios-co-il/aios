@@ -41,6 +41,10 @@ Rules: every value is a dev/test credential created for this purpose, never copi
 
 - `PUBLIC_API_URL`: the project's custom domain, `https://api.aios.co.il` on Production only, set with `supabase secrets set` (not in `config.toml`, so branches never get it). The Google connect functions (Calendar, Gmail, Ads, Analytics, Search Console) build their callback from it, so Google shows our domain; without it they use `SUPABASE_URL`. The domain must be active for functions and its callbacks must be in the Google OAuth client's redirect URIs before it is set. Changing it fails a connect that is open at that moment, because Google issued the code for the old callback; the user connects again.
 
+## Only with Gmail's own Google project
+
+- `GMAIL_GOOGLE_CLIENT_ID`, `GMAIL_GOOGLE_CLIENT_SECRET`: the OAuth client of a Google project that holds only the Gmail permission (`gmail.modify`). Gmail's permission is restricted, so Google asks for a yearly security assessment of the project that requests it; in its own project that review does not hold up Calendar, Ads, Analytics and Search Console. Set both with `supabase secrets set` (not in `config.toml`), or neither: without them Gmail uses `GOOGLE_CLIENT_ID`. The client's redirect URIs must hold the `gmail-auth` callback (`<PUBLIC_API_URL or SUPABASE_URL>/functions/v1/gmail-auth`) before they are set. A refresh token works only with the client that issued it, so after the switch every user connects Gmail again.
+
 ## Open points
 
 - Preview branches are deleted on PR close, so a per-branch `secrets set` needs automation if any PR branch needs Develop-only secrets. Default: they get Core only.

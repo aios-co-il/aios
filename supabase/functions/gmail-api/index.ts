@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { gmailGoogleClient } from "../_shared/google-oauth/google-client.ts";
 // Gmail API proxy v1
 
 const corsHeaders = {
@@ -14,15 +15,14 @@ async function refreshTokenIfNeeded(supabaseService: any, tokenData: any) {
     return tokenData.access_token;
   }
 
-  const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
-  const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
+  const { clientId, clientSecret } = gmailGoogleClient();
 
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      client_id: clientId!,
-      client_secret: clientSecret!,
+      client_id: clientId,
+      client_secret: clientSecret,
       refresh_token: tokenData.refresh_token,
       grant_type: "refresh_token",
     }),

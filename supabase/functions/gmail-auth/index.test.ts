@@ -27,6 +27,8 @@ const env = {
   SUPABASE_SERVICE_ROLE_KEY: "test-service",
   GOOGLE_CLIENT_ID: "test-client",
   GOOGLE_CLIENT_SECRET: "test-secret",
+  GMAIL_GOOGLE_CLIENT_ID: null,
+  GMAIL_GOOGLE_CLIENT_SECRET: null,
   PUBLIC_API_URL: null,
 };
 
@@ -105,6 +107,34 @@ Deno.test({
         assertEquals(
           new URL(authUrl).searchParams.get("redirect_uri"),
           "https://api.aios.co.il/functions/v1/gmail-auth",
+        );
+      },
+    );
+
+    await t.step(
+      "the authorize URL names Gmail's own Google client when it is set",
+      async () => {
+        const { response } = await run(init("member"), {
+          ...env,
+          GMAIL_GOOGLE_CLIENT_ID: "gmail-client",
+          GMAIL_GOOGLE_CLIENT_SECRET: "gmail-secret",
+        });
+        const { authUrl } = await response.json();
+        assertEquals(
+          new URL(authUrl).searchParams.get("client_id"),
+          "gmail-client",
+        );
+      },
+    );
+
+    await t.step(
+      "the authorize URL names the common Google client without Gmail's own",
+      async () => {
+        const { response } = await run(init("member"));
+        const { authUrl } = await response.json();
+        assertEquals(
+          new URL(authUrl).searchParams.get("client_id"),
+          "test-client",
         );
       },
     );

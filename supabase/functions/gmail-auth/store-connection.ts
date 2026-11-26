@@ -3,6 +3,7 @@ import {
   callbackUri,
   exchangeGoogleCode,
 } from "../_shared/google-oauth/exchange-code.ts";
+import { gmailGoogleClient } from "../_shared/google-oauth/google-client.ts";
 import { missingGrantedScopes } from "../_shared/google-oauth/granted-scopes.ts";
 import { UserFacingError } from "../_shared/google-oauth/user-facing-error.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
@@ -21,6 +22,7 @@ export async function storeGmailConnection(
   const tokens = await exchangeGoogleCode(
     code,
     callbackUri("gmail-auth", null),
+    gmailGoogleClient(),
   );
   if (!tokens.refresh_token) {
     throw new Error("Google returned no refresh token for Gmail");
