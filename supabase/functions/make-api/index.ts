@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { publicFunctionUrl } from "../_shared/public-api/url.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1101,8 +1102,7 @@ serve(async (req) => {
         }
 
         const patchWebhookUrl =
-          webhook_url ||
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/webhook-google-ads-sync`;
+          webhook_url || publicFunctionUrl("webhook-google-ads-sync");
 
         try {
           // Step 1: Get the current blueprint
