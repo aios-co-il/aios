@@ -1,11 +1,8 @@
 import {
-  claimsPanelNamespace,
   PANEL_MESSAGE,
-  panelCapabilities,
   panelSignal,
   panelTabContext,
   type PanelMessage,
-  parsePanelMessage,
 } from "../../supabase/functions/_shared/carmen/device/panel-envelope";
 import type { BrowserTab } from "../../supabase/functions/_shared/carmen/screen-context";
 import {
@@ -16,6 +13,10 @@ import {
   setTabShared,
 } from "./activeTab";
 import { APP_ORIGIN } from "./config";
+import { capabilitiesMessage } from "./device/capabilities";
+import { dropSiteGrants } from "./device/chromeDevice";
+import { panelReadActions } from "./device/panelDevice";
+import { routeSiteMessage } from "./device/siteMessage";
 import { supabase } from "./supabase";
 import { loadTenants, preferredTenant } from "./tenants";
 
@@ -48,6 +49,10 @@ main().catch((error) => {
  * nothing and says to sign in from the popup.
  */
 async function main(): Promise<void> {
+  // A site grant lasts one panel session (plan §2.6).
+  await dropSiteGrants().catch((error) => {
+    console.error("[carmen-panel] removing site grants failed", error);
+  });
   el<HTMLAnchorElement>("open-site").href = APP_ORIGIN;
   el<HTMLAnchorElement>("notice-link").href = APP_ORIGIN;
 
@@ -80,7 +85,17 @@ async function commandCenterUrl(): Promise<string | null> {
 function frameSite(siteUrl: string): void {
   el<HTMLAnchorElement>("open-site").href = siteUrl;
   el<HTMLAnchorElement>("notice-link").href = siteUrl;
-  window.addEventListener("message", onMessage);
+  const readActions = panelReadActions(post);
+  // Only from the framed site at the app's exact origin; anything else is dropped.
+  window.addEventListener("message", (event) =>
+    routeSiteMessage(
+      event,
+      { appOrigin: APP_ORIGIN, frameWindow: frame.contentWindow },
+      { ...readActions, onHello },
+    ),
+  );
+  // Nothing runs once the panel is gone: a card still waiting is reported cancelled.
+  window.addEventListener("pagehide", readActions.onPanelClose);
   frame.classList.remove("hidden");
   frame.src = siteUrl;
   setTimeout(
@@ -98,28 +113,22 @@ async function followSharedTab(): Promise<void> {
   await syncTabSharing();
 }
 
-/** Reads a message only from the framed site at the app's exact origin; anything else is dropped. */
-function onMessage(event: MessageEvent): void {
-  if (event.origin !== APP_ORIGIN || event.source !== frame.contentWindow) {
-    if (claimsPanelNamespace(event.data)) {
-      console.warn(
-        "[carmen-panel] dropped a message that is not from the framed site",
-        event.origin,
-      );
-    }
-    return;
-  }
-  if (parsePanelMessage(event.data)?.type !== PANEL_MESSAGE.hello) {
-    console.warn("[carmen-panel] dropped an unexpected message from the site");
-    return;
-  }
+/** The site's chat has mounted: say ready, then what this panel can do and which tab it sees. */
+function onHello(): void {
   siteListening = true;
   // A hello comes from a chat that has just mounted and knows no tab yet.
   sentTab = undefined;
   notice.classList.add("hidden");
   post(panelSignal(PANEL_MESSAGE.ready));
-  post(panelCapabilities());
+  postCapabilities();
   showAndSendTab();
+}
+
+/** Tells a listening site what the panel can do now. */
+function postCapabilities(): void {
+  if (siteListening) {
+    post(capabilitiesMessage(tabShared));
+  }
 }
 
 /** The switch asks Chrome for the permission, then shows the state Chrome ended in. */
@@ -140,6 +149,7 @@ async function syncTabSharing(): Promise<void> {
     return false;
   });
   shareSwitch.checked = tabShared;
+  postCapabilities();
   await refreshTab();
 }
 

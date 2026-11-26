@@ -13,9 +13,13 @@ on:
       # The build reads Production's address and key, and each environment's app address, from these.
       - ".env"
       - "supabase/config.toml"
-      # The two pure modules the panel shares with the site and the server; the type-check and build compile them.
+      # The pure modules the panel shares with the site and the server; the type-check and build compile them.
       - "supabase/functions/_shared/carmen/screen-context.ts"
-      - "supabase/functions/_shared/carmen/device/panel-envelope.ts"
+      - "supabase/functions/_shared/carmen/skin-gallery.ts"
+      - "supabase/functions/_shared/carmen/skin-roles.ts"
+      - "supabase/functions/_shared/carmen/device/**"
+      - "supabase/functions/_shared/public-api/hosts.ts"
+      - "supabase/functions/carmen-device-action/result.ts"
       - ".github/workflows/extension.yml"
   workflow_dispatch:
 

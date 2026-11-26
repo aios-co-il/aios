@@ -28,6 +28,26 @@
       <a id="notice-link" target="_blank" rel="noopener">פתחו את AIOS בלשונית</a
       >, התחברו שם, ואז פתחו את החלונית מחדש.
     </div>
+    <div
+      id="grant-card"
+      class="grant-card hidden"
+      role="dialog"
+      aria-labelledby="grant-title"
+    >
+      <div id="grant-title" class="grant-title"></div>
+      <p class="grant-text">
+        כרמן תקרא את הכותרת ואת הטקסט שמוצגים בדף, בלי מה שמוקלד בשדות. Chrome
+        ישאל אם לאפשר לתוסף לגשת לאתר הזה, וההרשאה תוסר כשהחלונית תיפתח מחדש.
+      </p>
+      <div class="grant-actions">
+        <button id="grant-allow" class="btn primary" type="button">
+          לאפשר קריאה
+        </button>
+        <button id="grant-decline" class="btn secondary" type="button">
+          לא עכשיו
+        </button>
+      </div>
+    </div>
     <iframe
       id="carmen-frame"
       class="panel-frame hidden"
