@@ -26,7 +26,10 @@ const isNoCredit = (error: unknown) =>
 
 /** Refused before any job was accepted, so moving on cannot charge twice. */
 const refusedBeforeSubmit = (error: unknown) =>
-  !flagged(error, "submitted") && (isNoCredit(error) || isRejectedKey(error));
+  !flagged(error, "submitted") &&
+  (isNoCredit(error) ||
+    isRejectedKey(error) ||
+    flagged(error, "modelUnavailable"));
 
 /** The tenant has the fallback engine's key; it is read from Vault only when a fallback needs it. */
 async function openRouterReady(
@@ -56,7 +59,8 @@ async function openRouterReady(
  * are named in providers/index.ts):
  *   a plan that cannot make video -> its planFallbacks (ElevenLabs: Higgsfield, with a key)
  *     -> FALLBACK_VIDEO_PROVIDER (OpenRouter, with a key) -> PREVIEW_PROVIDER (free)
- *   any paid engine with no credits or a rejected key -> FALLBACK_VIDEO_PROVIDER -> PREVIEW_PROVIDER
+ *   any paid engine with no credits, a rejected key or no model it still serves
+ *     -> FALLBACK_VIDEO_PROVIDER -> PREVIEW_PROVIDER
  * Only before any provider accepted a job: once a job id is saved the run resumes that job or
  * fails, so a scene is never paid for twice.
  */

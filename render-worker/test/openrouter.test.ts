@@ -6,9 +6,11 @@ import {
 } from "../src/providers/openrouter.ts";
 import { fakeFetch, headerOf, jsonBodyOf } from "./fakes.ts";
 
-test("OpenRouter clips send the still as the first frame, 3 to 15 s", () => {
-  expect(openRouterClipSeconds(2)).toBe(3);
-  expect(openRouterClipSeconds(40)).toBe(15);
+test("OpenRouter clips send the still as the first frame, 3 to 15 s on Kling", () => {
+  expect(openRouterClipSeconds(2, "kwaivgi/kling-v3.0-std")).toBe(3);
+  expect(openRouterClipSeconds(40, "kwaivgi/kling-v3.0-std")).toBe(15);
+  // The default, Veo 3.1 Fast, renders 4, 6 or 8 s.
+  expect(openRouterClipSeconds(2)).toBe(4);
   const body = openRouterClipBody({
     prompt: "p",
     imageUrl: "https://x/a.png",
@@ -97,7 +99,8 @@ test("a talking scene goes to the talking model with audio and the Hebrew line",
   expect(sent[0].duration).toBe(6);
   expect(sent[0].prompt).toMatch(/שלום לכולם/);
   expect(p.estimate({ durationS: 5, talking: true }).usd).toBe(2.4);
-  expect(p.estimate({ durationS: 5 }).usd).toBe(0.42);
+  // Veo 3.1 Fast renders 6 s for a 5 s scene at $0.08 a second.
+  expect(p.estimate({ durationS: 5 }).usd).toBe(0.48);
 });
 
 test("a refused submit is marked as before submit so the clip can fall back", async () => {
@@ -113,6 +116,68 @@ test("a refused submit is marked as before submit so the clip can fall back", as
   expect(error.submitted).toBe(false);
   expect(error.status).toBe(402);
   expect(error.message).toMatch(/openrouter submit 402/);
+});
+
+test("a model OpenRouter no longer serves moves the clip to the next model before any job", async () => {
+  const { openRouterProvider } = await import("../src/providers/openrouter.ts");
+  const sent: Array<string> = [];
+  const p = openRouterProvider({
+    apiKey: "sk-or",
+    model: "kwaivgi/kling-v3.0-std",
+    fetchImpl: fakeFetch(async (_url, init) => {
+      const { model } = jsonBodyOf<{ model: string }>(init);
+      sent.push(model);
+      return model === "kwaivgi/kling-v3.0-std"
+        ? json(404, {
+            message: "No endpoints found for kwaivgi/kling-v3.0-std.",
+            code: 404,
+          })
+        : json(202, { id: "next1", status: "pending" });
+    }),
+  });
+  const result = await p.submit({ prompt: "p", imageUrl: "https://x/a.png" });
+  expect(result).toStrictEqual({
+    jobId: "next1",
+    model: "x-ai/grok-imagine-video",
+  });
+  expect(sent).toStrictEqual([
+    "kwaivgi/kling-v3.0-std",
+    "x-ai/grok-imagine-video",
+  ]);
+});
+
+test("when no model in the list is served the refusal says so and is marked before submit", async () => {
+  const { openRouterProvider } = await import("../src/providers/openrouter.ts");
+  let calls = 0;
+  const p = openRouterProvider({
+    apiKey: "sk-or",
+    fetchImpl: async () => {
+      calls += 1;
+      return json(404, { message: "No endpoints found for the model." });
+    },
+  });
+  const error = await p
+    .submit({ prompt: "p", imageUrl: "https://x/a.png" })
+    .catch((caught) => caught);
+  expect(calls).toBe(3);
+  expect(error.submitted).toBe(false);
+  expect(error.modelUnavailable).toBe(true);
+});
+
+test("a refusal other than a missing model never tries another model", async () => {
+  const { openRouterProvider } = await import("../src/providers/openrouter.ts");
+  let calls = 0;
+  const p = openRouterProvider({
+    apiKey: "sk-or",
+    fetchImpl: async () => {
+      calls += 1;
+      return json(400, { error: { message: "bad prompt" } });
+    },
+  });
+  await expect(
+    p.submit({ prompt: "p", imageUrl: "https://x/a.png" }),
+  ).rejects.toThrow(/openrouter submit 400/);
+  expect(calls).toBe(1);
 });
 
 test("poll maps failed, cancelled and expired to failed and the rest to pending", async () => {
@@ -153,6 +218,7 @@ test("a short Kling clip is estimated at OpenRouter's 5 s minimum, and the real 
   const { openRouterProvider } = await import("../src/providers/openrouter.ts");
   const p = openRouterProvider({
     apiKey: "k",
+    model: "kwaivgi/kling-v3.0-std",
     fetchImpl: async (url) =>
       String(url).endsWith("/content?index=0")
         ? new Response(new Uint8Array([1, 2]))
