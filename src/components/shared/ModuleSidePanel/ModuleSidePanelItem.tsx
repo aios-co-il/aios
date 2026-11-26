@@ -13,6 +13,8 @@ export interface ModuleSidePanelItemProps
   extends PanelRowProps, Omit<ComponentPropsWithoutRef<"button">, "value"> {
   /** Marks the selected option in a group, such as the current view. */
   active?: boolean;
+  /** Fills the row in the brand colour: the screen's main action. */
+  primary?: boolean;
 }
 
 /**
@@ -30,6 +32,7 @@ export const ModuleSidePanelItem = forwardRef<
     value,
     tone,
     active,
+    primary,
     iconClassName,
     className,
     title,
@@ -53,6 +56,8 @@ export const ModuleSidePanelItem = forwardRef<
           "disabled:pointer-events-none disabled:opacity-50",
           active &&
             "bg-surface-inset font-semibold text-foreground shadow-elevation-1",
+          primary &&
+            "bg-primary font-semibold text-primary-foreground shadow-elevation-1 hover:bg-primary/90 hover:text-primary-foreground",
           className,
         )}
         {...buttonProps}

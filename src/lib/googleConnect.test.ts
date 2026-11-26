@@ -1,95 +1,30 @@
-import { describe, expect, it } from "vitest";
-import { fragmentConnectCode, popupConnectCode } from "./googleConnect";
+import { describe, expect, it, vi } from "vitest";
+import { connectErrorMessage } from "./googleConnect";
 
-const SUPABASE_URL = "https://project.supabase.co";
-
-const ATTEMPT_STATE = "the-state";
-
-describe("popupConnectCode", () => {
-  it("returns the code our edge function posted for this attempt", () => {
-    expect(
-      popupConnectCode(
-        codeMessage(SUPABASE_URL, "gmail-auth", ATTEMPT_STATE),
-        "gmail-auth",
-        ATTEMPT_STATE,
-        SUPABASE_URL,
-      ),
-    ).toEqual({
-      provider: "gmail-auth",
-      code: "the-code",
-      state: ATTEMPT_STATE,
-    });
+describe("connectErrorMessage", () => {
+  it("says in Hebrew why a connect returned without a code", () => {
+    expect(connectErrorMessage("access_denied")).toBe("החיבור ל-Google בוטל.");
+    expect(connectErrorMessage("invalid_state")).toBe(
+      "קישור החיבור פג תוקף. נסו להתחבר שוב.",
+    );
+    expect(connectErrorMessage("missing_code")).toBe(
+      "Google לא החזיר אישור לחיבור. נסו להתחבר שוב.",
+    );
+    expect(connectErrorMessage("server_error")).toContain("(server_error)");
   });
 
-  it("ignores the same message from another origin", () => {
-    expect(
-      popupConnectCode(
-        codeMessage("https://evil.example", "gmail-auth", ATTEMPT_STATE),
-        "gmail-auth",
-        ATTEMPT_STATE,
-        SUPABASE_URL,
-      ),
-    ).toBeNull();
+  it("never returns an inherited object member for a crafted code", () => {
+    for (const code of ["__proto__", "constructor", "tostring"]) {
+      expect(typeof connectErrorMessage(code)).toBe("string");
+    }
+    expect(connectErrorMessage("__proto__")).toContain("(__proto__)");
   });
 
-  it("ignores a code meant for another provider", () => {
-    expect(
-      popupConnectCode(
-        codeMessage(SUPABASE_URL, "google-calendar-auth", ATTEMPT_STATE),
-        "gmail-auth",
-        ATTEMPT_STATE,
-        SUPABASE_URL,
-      ),
-    ).toBeNull();
-  });
-
-  it("ignores the code of another, overlapping attempt", () => {
-    expect(
-      popupConnectCode(
-        codeMessage(SUPABASE_URL, "gmail-auth", "the-other-attempt"),
-        "gmail-auth",
-        ATTEMPT_STATE,
-        SUPABASE_URL,
-      ),
-    ).toBeNull();
-  });
-
-  it("ignores every message when the Supabase URL is missing", () => {
-    expect(
-      popupConnectCode(
-        codeMessage(SUPABASE_URL, "gmail-auth", ATTEMPT_STATE),
-        "gmail-auth",
-        ATTEMPT_STATE,
-        "",
-      ),
-    ).toBeNull();
+  it("never shows text a crafted link put in the error", () => {
+    expect(connectErrorMessage("Your account is suspended, call +1-555")).toBe(
+      "החיבור ל-Google נכשל. נסו להתחבר שוב.",
+    );
   });
 });
 
-describe("fragmentConnectCode", () => {
-  it("reads the provider, code and state a full-page connect left", () => {
-    expect(
-      fragmentConnectCode(
-        "#google_connect=google-ads-auth&code=c%2F1&state=s.sig",
-      ),
-    ).toEqual({ provider: "google-ads-auth", code: "c/1", state: "s.sig" });
-  });
-
-  it("ignores an unrelated or incomplete fragment", () => {
-    expect(fragmentConnectCode("")).toBeNull();
-    expect(fragmentConnectCode("#tab=settings")).toBeNull();
-    expect(
-      fragmentConnectCode("#google_connect=google-ads-auth&code=c"),
-    ).toBeNull();
-    expect(
-      fragmentConnectCode("#google_connect=other&code=c&state=s"),
-    ).toBeNull();
-  });
-});
-
-function codeMessage(origin: string, provider: string, state: string) {
-  return new MessageEvent("message", {
-    origin,
-    data: { type: "google_connect_code", provider, code: "the-code", state },
-  });
-}
+vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));

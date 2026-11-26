@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
-import { Filter, Star, Users } from "lucide-react";
+import { Filter, Plus, Star, Users } from "lucide-react";
 
+import { AddLeadForm } from "@/components/forms/AddLeadForm";
 import { LEAD_VIEW_ICONS } from "@/components/leads/leadViewIcons";
 import { LeadDefaultViewMenu } from "@/components/leads/LeadViewModeToggle";
 import { ModuleSidePanel } from "@/components/shared/ModuleSidePanel/ModuleSidePanel";
@@ -42,8 +43,8 @@ interface LeadsSidePanelProps extends LeadsPanelToolsProps {
 
 /**
  * The desktop controls of the Leads screen as a side panel: title and count,
- * the views, the headline figures, filters, table and list tools, and lead
- * intake at the bottom.
+ * add lead, the views, the headline figures, filters, table and list tools,
+ * and lead intake at the bottom.
  */
 export function LeadsSidePanel({
   subtitle,
@@ -72,6 +73,9 @@ export function LeadsSidePanel({
         />
       }
     >
+      <AddLeadForm
+        trigger={<ModuleSidePanelItem primary icon={Plus} label="הוסף ליד" />}
+      />
       <ModuleSidePanelSection label="תצוגה">
         {LEAD_VIEW_MODES.map((mode) => (
           <ModuleSidePanelItem

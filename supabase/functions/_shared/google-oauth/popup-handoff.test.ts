@@ -1,0 +1,201 @@
+import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
+import { withRuntime } from "../testing/served-handler.ts";
+import { redirectHandoffError } from "./handoff-response.ts";
+import { oauthStateKey, signOAuthState } from "./oauth-state.ts";
+import { popupCallbackResponse } from "./popup-handoff.ts";
+
+const CALLBACK = "https://api.aios.co.il/functions/v1/gmail-auth";
+
+const env = { GOOGLE_CLIENT_SECRET: "test-secret", APP_URL: null };
+
+/** A state the callback accepts, started on Staging. */
+function stagingState(): Promise<string> {
+  return signOAuthState(
+    {
+      userId: "11111111-1111-4111-8111-111111111111",
+      tenantId: "22222222-2222-4222-8222-222222222222",
+      origin: "https://staging.aios.co.il",
+      addNew: false,
+    },
+    oauthStateKey("test-secret"),
+  );
+}
+
+/** The callback's page for this query, under the test environment. */
+function callbackPage(query: string): Promise<string> {
+  return withRuntime({ env, fetch: globalThis.fetch }, async () => {
+    const response = await popupCallbackResponse(
+      "gmail-auth",
+      new URL(`${CALLBACK}?${query}`),
+      { requireTenant: true },
+    );
+    assertEquals(response.status, 200);
+    return await response.text();
+  });
+}
+
+Deno.test(
+  "the popup hands the code to the app origin that started it",
+  async () => {
+    const state = await stagingState();
+    const page = await callbackPage(
+      `code=the-code&state=${encodeURIComponent(state)}`,
+    );
+
+    assertStringIncludes(page, '"type":"google_connect_code"');
+    assertStringIncludes(page, '"code":"the-code"');
+    assertStringIncludes(page, '"https://staging.aios.co.il")');
+  },
+);
+
+Deno.test(
+  "refused consent tells the app that started it, with Google's error",
+  async () => {
+    const state = await stagingState();
+    const page = await callbackPage(
+      `error=access_denied&state=${encodeURIComponent(state)}`,
+    );
+
+    assertStringIncludes(page, '"type":"google_connect_error"');
+    assertStringIncludes(page, '"error":"access_denied"');
+    assertStringIncludes(page, '"https://staging.aios.co.il")');
+  },
+);
+
+Deno.test("an unsigned state hands over no code", async () => {
+  const page = await callbackPage("code=the-code&state=forged");
+
+  assertStringIncludes(page, '"type":"google_connect_error"');
+  assertStringIncludes(page, '"error":"invalid_state"');
+  assertEquals(page.includes("the-code"), false);
+  assertStringIncludes(page, '"https://aios.co.il")');
+});
+
+Deno.test(
+  "a state that tries to close the script tag stays inside the JSON",
+  async () => {
+    const page = await callbackPage(
+      `code=c&state=${encodeURIComponent("</script><script>alert(1)</script>")}`,
+    );
+
+    assertEquals(page.includes("</script><script>"), false);
+    // A backslash, then u003c: the escaped "<".
+    assertStringIncludes(page, `${String.fromCharCode(92)}u003c/script>`);
+  },
+);
+
+Deno.test(
+  "a full-page error goes in the fragment of the integrations page",
+  async () => {
+    const response = await withRuntime({ env, fetch: globalThis.fetch }, () =>
+      Promise.resolve(
+        redirectHandoffError("google-ads-auth", null, null, "invalid_state"),
+      ),
+    );
+
+    assertEquals(
+      response.headers.get("Location"),
+      "https://aios.co.il/t/app/integrations#google_connect=google-ads-auth&error=invalid_state",
+    );
+  },
+);
+
+Deno.test(
+  "no code and no error is reported as missing_code, not as a refusal",
+  async () => {
+    const state = await stagingState();
+    const page = await callbackPage(`state=${encodeURIComponent(state)}`);
+
+    assertStringIncludes(page, '"error":"missing_code"');
+  },
+);
+
+/** A signed state with these values; `ageMs` back-dates it past the TTL. */
+function signedState(
+  origin: string,
+  tenantId: string | null,
+  ageMs = 0,
+): Promise<string> {
+  return signOAuthState(
+    {
+      userId: "11111111-1111-4111-8111-111111111111",
+      tenantId,
+      origin,
+      addNew: false,
+    },
+    oauthStateKey("test-secret"),
+    Date.now() - ageMs,
+  );
+}
+
+const STATE_AGE_PAST_TTL_MS = 20 * 60 * 1000;
+
+Deno.test(
+  "an expired state's error goes back to the app origin it started from",
+  async () => {
+    const state = await signedState(
+      "https://staging.aios.co.il",
+      "22222222-2222-4222-8222-222222222222",
+      STATE_AGE_PAST_TTL_MS,
+    );
+    const page = await callbackPage(
+      `code=c&state=${encodeURIComponent(state)}`,
+    );
+
+    assertStringIncludes(page, '"error":"invalid_state"');
+    assertStringIncludes(page, '"https://staging.aios.co.il")');
+  },
+);
+
+Deno.test(
+  "an unverified state claiming another site's origin never gets the message",
+  async () => {
+    const state = await signedState(
+      "https://evil.example",
+      "22222222-2222-4222-8222-222222222222",
+      STATE_AGE_PAST_TTL_MS,
+    );
+    const page = await callbackPage(
+      `code=c&state=${encodeURIComponent(state)}`,
+    );
+
+    assertEquals(page.includes('evil.example")'), false);
+    assertStringIncludes(page, '"https://aios.co.il")');
+  },
+);
+
+Deno.test(
+  "a verified state without a tenant keeps its app origin",
+  async () => {
+    const state = await signedState("https://staging.aios.co.il", null);
+    const page = await callbackPage(
+      `code=c&state=${encodeURIComponent(state)}`,
+    );
+
+    assertStringIncludes(page, '"error":"invalid_state"');
+    assertStringIncludes(page, '"https://staging.aios.co.il")');
+  },
+);
+
+Deno.test(
+  "a full-page error returns to an allowed app origin only",
+  async () => {
+    const locations = await withRuntime({ env, fetch: globalThis.fetch }, () =>
+      Promise.resolve(
+        ["https://staging.aios.co.il", "https://evil.example"].map((origin) =>
+          redirectHandoffError(
+            "google-ads-auth",
+            origin,
+            null,
+            "invalid_state",
+          ).headers.get("Location"),
+        ),
+      ),
+    );
+
+    assertEquals(locations, [
+      "https://staging.aios.co.il/t/app/integrations#google_connect=google-ads-auth&error=invalid_state",
+      "https://aios.co.il/t/app/integrations#google_connect=google-ads-auth&error=invalid_state",
+    ]);
+  },
+);

@@ -43,16 +43,15 @@ export function completeDaysWindow(
 
 /**
  * Yesterday counts only once a sync ran after it ended in the account's zone.
- * The nightly run starts before the morning sync, so without this every active
- * campaign would show yesterday's partial day as a mismatch. Older days are
+ * The nightly run starts before the first sync of the day, so without this
+ * every active campaign would show yesterday's partial day as a mismatch. Older days are
  * always compared, so a stalled sync still shows up as missing days.
  *
  * Known sync gap, reported on purpose: the scheduled Meta insights sync
  * (cron-sync-facebook-insights) plans its window by Jerusalem date. For an
- * account far behind Jerusalem (America/*) the morning run stores that
- * account's yesterday while it is still running and the afternoon run starts
- * from the next day, so the day stays partial until the 3-day lookback
- * re-fetches it. Those stored rows really are short, so they show up as spend
+ * account far behind Jerusalem (America/*) the first run of the day stores
+ * that account's yesterday while it is still running and the later runs fetch
+ * only the next day, so the day stays partial until the lookback re-fetches it. Those stored rows really are short, so they show up as spend
  * mismatches until the sync plans by the account's own zone.
  */
 export function pendingDates(

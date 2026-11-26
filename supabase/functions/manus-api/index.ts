@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { publicFunctionUrl } from "../_shared/public-api/url.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -228,8 +229,7 @@ serve(async (req) => {
       }
 
       case "register_webhook": {
-        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-        const webhookUrl = `${supabaseUrl}/functions/v1/manus-webhook`;
+        const webhookUrl = publicFunctionUrl("manus-webhook");
 
         const res = await fetch(`${MANUS_API_URL}/webhooks`, {
           method: "POST",
