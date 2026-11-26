@@ -370,9 +370,9 @@ import {
 } from "../_shared/skills/registry.ts";
 import { DEV_ENVIRONMENT_STANDING } from "../_shared/environments-standing.ts";
 import {
-  formatScreenContext,
   parseScreenContext,
   SCREEN_CONTEXT_SOURCE,
+  sidebarContextJson,
   withBrowserTab,
 } from "../_shared/carmen/screen-context.ts";
 import { selfQuestionsStanding } from "../_shared/carmen/self-questions.ts";
@@ -3129,7 +3129,7 @@ async function handleRunAgent(
         "Never open duplicate Cursor sessions — if dispatch timed out, use attach_dev_task_session with the bc- id.\n" +
         "Legacy direct mcp_Cursor__request_dev_task only if dev_tasks workflow is unavailable, and also only after his yes in a later message.\n" +
         "Always include path + entity context in any dev task you create.\n" +
-        `context_metadata: ${formatScreenContext(screenContext, 4000)}`;
+        `context_metadata: ${sidebarContextJson(screenContext, 4000)}`;
     }
 
     // Hard rule for both V1 and V2: only allowlisted requesters may escalate
@@ -4028,10 +4028,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 
     // Add current message. A browser tab the extension's panel reported joins it as data:
     // the page wrote its title and address, so they never reach the system prompt.
-    messages.push({
-      role: "user",
-      content: withBrowserTab(command_text, bodyJson.context_metadata),
-    });
+    const userTurn = withBrowserTab(command_text, bodyJson.context_metadata);
+    messages.push({ role: "user", content: userTurn });
 
     let finalOutput = "";
     const toolLog: Array<any> = [];
@@ -4047,7 +4045,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       const manusBody: any = {
         action: "create_task",
         tenantId: agent.tenant_id,
-        prompt: command_text,
+        prompt: userTurn,
       };
       const manusRes = await fetch(`${SUPABASE_URL}/functions/v1/manus-api`, {
         method: "POST",

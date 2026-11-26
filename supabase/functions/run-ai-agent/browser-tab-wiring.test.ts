@@ -17,10 +17,24 @@ Deno.test(
     await t.step("Carmen's loop adds it to the user message it sends", () => {
       assert(
         runAiAgent.includes(
-          "content: withBrowserTab(command_text, bodyJson.context_metadata),",
+          "const userTurn = withBrowserTab(command_text, bodyJson.context_metadata);",
         ),
       );
+      assert(runAiAgent.includes('{ role: "user", content: userTurn }'));
     });
+
+    await t.step(
+      "a Manus-engine agent gets it in the task it is handed",
+      () => {
+        const manusTask = runAiAgent.slice(
+          runAiAgent.indexOf("const manusBody"),
+          runAiAgent.indexOf("const manusRes"),
+        );
+
+        assert(manusTask.includes("prompt: userTurn,"));
+        assertStrictEquals(manusTask.includes("command_text"), false);
+      },
+    );
 
     await t.step("the system prompt reads only the sidecar's context", () => {
       const systemMessage = runAiAgent.indexOf(
@@ -31,7 +45,7 @@ Deno.test(
       assert(systemMessage > 0);
       assertStrictEquals(beforeMessages.includes("withBrowserTab("), false);
       assertStrictEquals(
-        beforeMessages.split("formatScreenContext(").length - 1,
+        beforeMessages.split("sidebarContextJson(").length - 1,
         1,
       );
       assert(

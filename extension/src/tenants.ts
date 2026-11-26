@@ -17,14 +17,28 @@ export async function loadTenants(): Promise<Array<TenantOption>> {
   const seen = new Set<string>();
   const result: Array<TenantOption> = [];
   for (const row of data ?? []) {
-    const t = row.tenants as unknown as TenantOption | null;
-    if (t && !seen.has(t.id)) {
+    const t = row.tenants;
+    if (isTenantOption(t) && !seen.has(t.id)) {
       seen.add(t.id);
       result.push(t);
     }
   }
   return result.sort((a, b) =>
     (a.name || "").localeCompare(b.name || "", "he"),
+  );
+}
+
+/** Narrows a joined `tenants` value, which is null when the user cannot read that organization. */
+function isTenantOption(value: unknown): value is TenantOption {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    typeof value.id === "string" &&
+    "name" in value &&
+    typeof value.name === "string" &&
+    "slug" in value &&
+    (value.slug === null || typeof value.slug === "string")
   );
 }
 

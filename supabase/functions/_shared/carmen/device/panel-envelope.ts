@@ -6,7 +6,11 @@
  * it; nothing sends or reads them yet. Each side also checks the sender's exact origin
  * before it reads a message.
  */
-import { type BrowserTab, parseBrowserTab } from "../screen-context.ts";
+import {
+  type BrowserTab,
+  isObject,
+  parseBrowserTab,
+} from "../screen-context.ts";
 
 export const PANEL_PROTOCOL_VERSION = 1;
 
@@ -24,8 +28,10 @@ export const PANEL_MESSAGE = {
   tabContext: "carmen:tab-context",
 } as const;
 
+const CAPABILITIES = ["tab-context"] as const;
+
 /** What an extension build can do for the site. The next stage adds its action names. */
-export type PanelCapability = "tab-context";
+export type PanelCapability = (typeof CAPABILITIES)[number];
 
 type PanelSignalType = typeof PANEL_MESSAGE.hello | typeof PANEL_MESSAGE.ready;
 
@@ -41,8 +47,6 @@ export type PanelMessage =
       v: number;
       tab: BrowserTab | null;
     };
-
-const CAPABILITIES: Array<PanelCapability> = ["tab-context"];
 
 /** Reads a received value; null for another version, an unknown kind or a malformed payload. */
 export function parsePanelMessage(data: unknown): PanelMessage | null {
@@ -87,7 +91,7 @@ export function panelSignal(type: PanelSignalType): PanelMessage {
 
 /** The capabilities message: this build's own, or the known ones among a received list. */
 export function panelCapabilities(
-  received: Array<unknown> = CAPABILITIES,
+  received: ReadonlyArray<unknown> = CAPABILITIES,
 ): PanelMessage {
   return {
     type: PANEL_MESSAGE.capabilities,
@@ -103,9 +107,4 @@ export function panelTabContext(tab: unknown): PanelMessage {
     v: PANEL_PROTOCOL_VERSION,
     tab: parseBrowserTab(tab),
   };
-}
-
-/** Narrows an unvalidated value to an object whose keys can be tested. */
-function isObject(value: unknown): value is object {
-  return typeof value === "object" && value !== null;
 }

@@ -5,10 +5,7 @@ import {
   extensionId,
   extensionOrigins,
 } from "../extension/build/extensionKey.ts";
-import {
-  frameAncestorsPolicy,
-  wholeSitePolicy,
-} from "./check-extension-frame-ancestors.ts";
+import { frameAncestorsPolicy } from "./check-extension-frame-ancestors.ts";
 
 describe("check-extension-frame-ancestors", () => {
   test("an id is the key's hash in Chrome's a-to-p alphabet", () => {
@@ -26,19 +23,5 @@ describe("check-extension-frame-ancestors", () => {
     expect(frameAncestorsPolicy(["chrome-extension://abc"])).toBe(
       "frame-ancestors 'self' chrome-extension://abc",
     );
-  });
-
-  test("reads the policy of the whole-site rule only", () => {
-    const policy = { key: "Content-Security-Policy", value: "frame-ancestors" };
-
-    expect(
-      wholeSitePolicy({ headers: [{ source: "/(.*)", headers: [policy] }] }),
-    ).toBe("frame-ancestors");
-    expect(
-      wholeSitePolicy({
-        headers: [{ source: "/assets/(.*)", headers: [policy] }],
-      }),
-    ).toBeUndefined();
-    expect(wholeSitePolicy({})).toBeUndefined();
   });
 });

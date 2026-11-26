@@ -210,6 +210,10 @@ body.panel {
   white-space: nowrap;
   text-decoration: none;
 }
+.tab-controls {
+  /* Groups the chip and the switch for showing and hiding; they stay items of the bar. */
+  display: contents;
+}
 .tab-chip {
   /* A panel is narrow: the chip takes its own row so the tab's title stays readable. */
   flex: 1 0 100%;

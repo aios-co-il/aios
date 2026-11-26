@@ -108,7 +108,8 @@ We use the org's own connected models. Standardized helper: `supabase/functions/
 
 ## Screen context (`context_metadata`)
 
-- **One definition:** `supabase/functions/_shared/carmen/screen-context.ts` holds the sources, the parser and the text each becomes; the site, the Chrome extension and both server formatters import it. `command_center_sidebar` is an AIOS screen and joins the system prompt. `browser_extension_tab` is the tab beside the extension's side panel (address without query or fragment, and title): the page wrote both, so it reaches every brain as a labelled data block in the user's turn and never the system prompt.
+- **One definition:** `supabase/functions/_shared/carmen/screen-context.ts` holds the sources, the parser and the text each becomes; the site, the Chrome extension and both server formatters import it. `command_center_sidebar` is an AIOS screen and joins the system prompt. `browser_extension_tab` is the tab beside the extension's side panel (address without query or fragment, and title): the page wrote both, so it reaches the brain that answers a message sent from the chat as a labelled data block in the user's turn and never the system prompt.
+- **Not covered yet:** a question asked by voice (the realtime `ask_carmen` tool) carries no browser tab (AIO-656).
 - **The panel's channel:** the side panel and the framed Command Center talk through the versioned `carmen:` messages in `_shared/carmen/device/panel-envelope.ts`; a new device ability adds a message kind there. Each side accepts only the other's exact origin: the extension ids come from `extension/build/extensionKey.ts`, and `pnpm test:guards` fails when `vercel.json`'s `frame-ancestors` disagrees with them.
 
 ## Client card writes (`client_updates`)

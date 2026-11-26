@@ -7,23 +7,30 @@
   </head>
   <body class="panel">
     <header class="panel-bar">
-      <div id="tab-chip" class="tab-chip">הלשונית לא משותפת עם כרמן</div>
-      <label class="checkbox">
-        <input type="checkbox" id="share-tab" />
-        כרמן רואה את הלשונית
-      </label>
+      <div id="tab-controls" class="tab-controls hidden">
+        <div id="tab-chip" class="tab-chip"></div>
+        <label class="checkbox">
+          <input type="checkbox" id="share-tab" />
+          כרמן רואה את הלשונית
+        </label>
+      </div>
       <a id="open-site" class="link" target="_blank" rel="noopener"
         >פתיחה בלשונית</a
       >
     </header>
+    <div id="signin-notice" class="panel-notice hidden">
+      כדי לדבר עם כרמן כאן, התחברו ב-popup של התוסף (הסמל של AIOS בסרגל הכלים)
+      ובחרו ארגון, ואז סגרו ופתחו את החלונית מחדש.
+    </div>
     <div id="frame-notice" class="panel-notice hidden">
-      כרמן לא נטענה כאן?
+      כרמן לא ענתה בחלונית. אם אתם כבר מחוברים ל-AIOS, סגרו ופתחו את החלונית
+      מחדש. אם לא,
       <a id="notice-link" target="_blank" rel="noopener">פתחו את AIOS בלשונית</a
-      >, התחברו שם, ואז סגרו ופתחו את החלונית מחדש.
+      >, התחברו שם, ואז פתחו את החלונית מחדש.
     </div>
     <iframe
       id="carmen-frame"
-      class="panel-frame"
+      class="panel-frame hidden"
       title="כרמן"
       allow="microphone"
     ></iframe>

@@ -6,7 +6,7 @@ import {
   panelSignal,
   panelTabContext,
 } from "@functions/_shared/carmen/device/panel-envelope.ts";
-import { EXTENSION_ORIGINS, extensionOriginsIn } from "./extensionOrigins";
+import { EXTENSION_ORIGINS } from "./extensionOrigins";
 import { useExtensionTabContext } from "./useExtensionTabContext";
 
 const PANEL_ORIGIN = EXTENSION_ORIGINS[0];
@@ -59,12 +59,9 @@ describe("useExtensionTabContext", () => {
 
   it("the extension origins are the ones vercel.json lets frame the site", () => {
     expect(EXTENSION_ORIGINS.length).toBeGreaterThan(0);
-    expect(
-      extensionOriginsIn(
-        `frame-ancestors 'self' chrome-extension://${"a".repeat(32)} https://x`,
-      ),
-    ).toEqual([`chrome-extension://${"a".repeat(32)}`]);
-    expect(extensionOriginsIn("frame-ancestors 'self'")).toEqual([]);
+    for (const origin of EXTENSION_ORIGINS) {
+      expect(origin).toMatch(/^chrome-extension:\/\/[a-p]{32}$/);
+    }
   });
 
   it("does nothing on the site itself", () => {

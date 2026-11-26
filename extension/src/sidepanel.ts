@@ -11,6 +11,7 @@ import type { BrowserTab } from "../../supabase/functions/_shared/carmen/screen-
 import {
   isTabShared,
   onActiveTabChange,
+  onTabSharingChange,
   readActiveTab,
   setTabShared,
 } from "./activeTab";
@@ -19,8 +20,8 @@ import { supabase } from "./supabase";
 import { loadTenants, preferredTenant } from "./tenants";
 
 // The framed Command Center says hello when its chat is mounted. With no hello by then,
-// the frame is on a sign-in page or was refused (Staging sits behind Vercel's sign-in,
-// which does not allow framing), so the panel offers the site in a tab.
+// the frame is on the site's sign-in page, was refused (Staging sits behind Vercel's
+// sign-in, which does not allow framing) or is still loading, so the panel says what to do.
 const HELLO_WAIT_MS = 8000;
 
 const frame = el<HTMLIFrameElement>("carmen-frame");
@@ -31,40 +32,38 @@ const notice = el<HTMLDivElement>("frame-notice");
 let activeTab: BrowserTab | null = null;
 let tabShared = false;
 let siteListening = false;
+/** The tab the site was last told about; undefined when it has not been told since its hello. */
+let sentTab: BrowserTab | null | undefined;
 
 main().catch((error) => {
   console.error("[carmen-panel] failed to start", error);
   notice.classList.remove("hidden");
 });
 
-/** Frames the Command Center and keeps it told which tab Carmen may see. */
+/**
+ * Frames the Command Center and keeps it told which tab Carmen may see. With no session
+ * or organization in the extension there is no address to frame, so the panel frames
+ * nothing and says to sign in from the popup.
+ */
 async function main(): Promise<void> {
   el<HTMLAnchorElement>("open-site").href = APP_ORIGIN;
   el<HTMLAnchorElement>("notice-link").href = APP_ORIGIN;
-  window.addEventListener("message", onMessage);
 
   const siteUrl = await commandCenterUrl();
-  el<HTMLAnchorElement>("open-site").href = siteUrl;
-  el<HTMLAnchorElement>("notice-link").href = siteUrl;
-  frame.src = siteUrl;
-  setTimeout(
-    () => notice.classList.toggle("hidden", siteListening),
-    HELLO_WAIT_MS,
-  );
-
-  tabShared = await isTabShared();
-  shareSwitch.checked = tabShared;
-  shareSwitch.addEventListener("change", onShareSwitch);
-  onActiveTabChange(refreshTab);
-  await refreshTab();
+  if (!siteUrl) {
+    el<HTMLDivElement>("signin-notice").classList.remove("hidden");
+    return;
+  }
+  frameSite(siteUrl);
+  await followSharedTab();
 }
 
 /**
  * The active organization's Command Center, chosen as the popup chooses its organization,
- * so opening the panel never switches the organization under a recording. Without a
- * session or an organization it is the site's front page.
+ * so opening the panel never switches the organization under a recording. Null without a
+ * session or an organization.
  */
-async function commandCenterUrl(): Promise<string> {
+async function commandCenterUrl(): Promise<string | null> {
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -72,7 +71,29 @@ async function commandCenterUrl(): Promise<string> {
 
   return tenant?.slug
     ? `${APP_ORIGIN}/t/${encodeURIComponent(tenant.slug)}/command-center`
-    : APP_ORIGIN;
+    : null;
+}
+
+/** Loads the site in the frame, and shows the notice if it has not said hello in time. */
+function frameSite(siteUrl: string): void {
+  el<HTMLAnchorElement>("open-site").href = siteUrl;
+  el<HTMLAnchorElement>("notice-link").href = siteUrl;
+  window.addEventListener("message", onMessage);
+  frame.classList.remove("hidden");
+  frame.src = siteUrl;
+  setTimeout(
+    () => notice.classList.toggle("hidden", siteListening),
+    HELLO_WAIT_MS,
+  );
+}
+
+/** Shows the switch and the chip, and follows the grant and the active tab from now on. */
+async function followSharedTab(): Promise<void> {
+  el<HTMLDivElement>("tab-controls").classList.remove("hidden");
+  shareSwitch.addEventListener("change", onShareSwitch);
+  onTabSharingChange(syncTabSharing);
+  onActiveTabChange(refreshTab);
+  await syncTabSharing();
 }
 
 /** Reads a message only from the framed site at the app's exact origin; anything else is dropped. */
@@ -91,6 +112,8 @@ function onMessage(event: MessageEvent): void {
     return;
   }
   siteListening = true;
+  // A hello comes from a chat that has just mounted and knows no tab yet.
+  sentTab = undefined;
   notice.classList.add("hidden");
   post(panelSignal(PANEL_MESSAGE.ready));
   post(panelCapabilities());
@@ -99,12 +122,15 @@ function onMessage(event: MessageEvent): void {
 
 /** The switch asks Chrome for the permission, then shows the state Chrome ended in. */
 async function onShareSwitch(): Promise<void> {
-  try {
-    tabShared = await setTabShared(shareSwitch.checked);
-  } catch (error) {
+  await setTabShared(shareSwitch.checked).catch((error) => {
     console.error("[carmen-panel] changing tab sharing failed", error);
-    tabShared = await isTabShared();
-  }
+  });
+  await syncTabSharing();
+}
+
+/** Sets the switch to the grant Chrome holds, which another window's panel may have changed. */
+async function syncTabSharing(): Promise<void> {
+  tabShared = await isTabShared();
   shareSwitch.checked = tabShared;
   await refreshTab();
 }
@@ -118,16 +144,27 @@ async function refreshTab(): Promise<void> {
   showAndSendTab();
 }
 
-/** Shows on the chip what Carmen sees, and tells the site once it listens. */
+/**
+ * Shows on the chip what Carmen sees, and tells the site once it listens. Chrome reports
+ * several updates per page load, so a tab with the address and title already sent is not
+ * sent again.
+ */
 function showAndSendTab(): void {
   const seen = tabShared ? activeTab : null;
 
   chip.textContent = chipText(seen);
   chip.title = seen?.url ?? "";
   chip.classList.toggle("shared", !!seen);
-  if (siteListening) {
-    post(panelTabContext(seen));
+  if (!siteListening || (sentTab !== undefined && isSameTab(sentTab, seen))) {
+    return;
   }
+  sentTab = seen;
+  post(panelTabContext(seen));
+}
+
+/** Whether two tabs, or two absences of one, are the same to Carmen. */
+function isSameTab(one: BrowserTab | null, other: BrowserTab | null): boolean {
+  return one?.url === other?.url && one?.title === other?.title;
 }
 
 /** The chip's words for a shared tab, a tab that is never sent, and sharing switched off. */

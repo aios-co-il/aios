@@ -3,23 +3,35 @@ import {
   parseBrowserTab,
 } from "../../supabase/functions/_shared/carmen/screen-context";
 
-// Chrome words this permission "Read your browsing history", so it is optional and the
-// user grants it from the panel's switch. The grant is also the switch's only state.
-const TAB_SHARING: chrome.permissions.Permissions = { permissions: ["tabs"] };
+/**
+ * The permission behind the panel's "Carmen sees the tab" switch. Chrome words it "Read
+ * your browsing history", so the manifest lists it as optional and the user grants it
+ * from the switch. The grant is also the switch's only state.
+ */
+export const TAB_SHARING_PERMISSION = "tabs";
+
+const TAB_SHARING: chrome.permissions.Permissions = {
+  permissions: [TAB_SHARING_PERMISSION],
+};
 
 /** Whether the user lets Carmen see the active tab. */
 export function isTabShared(): Promise<boolean> {
   return chrome.permissions.contains(TAB_SHARING);
 }
 
-/** Asks Chrome to grant or drop tab sharing, from a click; resolves to the state it ends in. */
-export async function setTabShared(shared: boolean): Promise<boolean> {
+/** Asks Chrome to grant or drop tab sharing, from a click; the user may refuse the grant. */
+export async function setTabShared(shared: boolean): Promise<void> {
   if (shared) {
-    return chrome.permissions.request(TAB_SHARING);
+    await chrome.permissions.request(TAB_SHARING);
+  } else {
+    await chrome.permissions.remove(TAB_SHARING);
   }
-  await chrome.permissions.remove(TAB_SHARING);
+}
 
-  return isTabShared();
+/** Calls `onChange` when tab sharing is granted or dropped anywhere, such as another window's panel. */
+export function onTabSharingChange(onChange: () => void): void {
+  chrome.permissions.onAdded.addListener(onChange);
+  chrome.permissions.onRemoved.addListener(onChange);
 }
 
 /**

@@ -2,11 +2,16 @@ import { createHash } from "node:crypto";
 import type { EnvironmentName } from "./environment";
 
 /**
- * The public half of each build's signing key (base64 DER), written into the manifest as
- * "key". It fixes the extension's id on every machine, which the site's framing rule in
+ * The public half of each build's key (base64 DER), written into the manifest as "key".
+ * It fixes the id of an unpacked build on every machine, which the site's framing rule in
  * vercel.json names. Each environment has its own, so both builds load in one Chrome.
- * The private halves are never in the repository: they are needed only to publish to the
- * Chrome Web Store.
+ *
+ * A Chrome Web Store item has its own key and id. When a build is published there, put the
+ * public key the Developer Dashboard shows for the item (Package, "View public key") here
+ * and the id it gives in vercel.json: Chrome documents that as the way to keep one id for
+ * the unpacked and the store build. `pnpm test:guards` fails until the two files agree.
+ *
+ * The private halves are never in the repository; no build reads them.
  */
 export const EXTENSION_PUBLIC_KEYS: Record<EnvironmentName, string> = {
   production:

@@ -1,8 +1,8 @@
 import type { ChannelAttachment, ChannelProvider } from "./types.ts";
 import {
-  formatScreenContext,
   parseScreenContext,
   SCREEN_CONTEXT_SOURCE,
+  sidebarContextJson,
 } from "../carmen/screen-context.ts";
 import { publicApiUrl } from "../public-api/url.ts";
 
@@ -164,7 +164,7 @@ function screenContextBlock(screenContext: unknown): string {
   }
   return (
     `\n\nThe screen the user is looking at in AIOS:\n` +
-    `${formatScreenContext(context, SCREEN_CONTEXT_MAX)}\n`
+    `${sidebarContextJson(context, SCREEN_CONTEXT_MAX)}\n`
   );
 }
 

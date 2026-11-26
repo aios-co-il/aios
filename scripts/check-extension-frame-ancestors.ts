@@ -8,14 +8,10 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { extensionOrigins } from "../extension/build/extensionKey.ts";
-
-/** The vercel.json rule that covers every path of the site. */
-export const WHOLE_SITE = "/(.*)";
-
-type VercelHeader = { key: string; value: string };
-type VercelConfig = {
-  headers?: Array<{ source: string; headers: Array<VercelHeader> }>;
-};
+import {
+  WHOLE_SITE,
+  wholeSitePolicy,
+} from "../src/components/carmen-command/frameAncestors.ts";
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   runGuard(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
@@ -26,18 +22,11 @@ export function frameAncestorsPolicy(origins: Array<string>): string {
   return `frame-ancestors 'self' ${origins.join(" ")}`;
 }
 
-/** The Content-Security-Policy vercel.json sends on every path; undefined when it sends none. */
-export function wholeSitePolicy(config: VercelConfig): string | undefined {
-  return config.headers
-    ?.find((rule) => rule.source === WHOLE_SITE)
-    ?.headers.find((header) => header.key === "Content-Security-Policy")?.value;
-}
-
 /** Compares vercel.json under `root` with the extension keys; exits 1 on a difference. */
 function runGuard(root: string): void {
   const expected = frameAncestorsPolicy(extensionOrigins());
   const actual = wholeSitePolicy(
-    JSON.parse(readFileSync(resolve(root, "vercel.json"), "utf8")),
+    JSON.parse(readFileSync(resolve(root, "vercel.json"), "utf8")).headers,
   );
 
   if (actual !== expected) {
