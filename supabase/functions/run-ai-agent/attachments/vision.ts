@@ -15,7 +15,7 @@ export type VisionTarget = Pick<LLMTarget, "label" | "connectionId">;
  */
 export function targetCanSee(target: VisionTarget): boolean {
   return (
-    !target.connectionId &&
+    target.connectionId === undefined &&
     MODEL_CATALOG.some(
       (model) =>
         model.id === target.label && model.capabilities?.includes("vision"),

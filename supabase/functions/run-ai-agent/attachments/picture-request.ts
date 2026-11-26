@@ -10,10 +10,10 @@ import {
 import { MAX_PICTURE_BYTES, MAX_TURN_PICTURES } from "./contract.ts";
 import {
   NO_PICTURES,
-  type PictureRef,
   type PictureRefusal,
   type RefusedPicture,
   refusePicture,
+  type TurnPicture,
   type TurnPictures,
 } from "./turn-pictures.ts";
 
@@ -25,13 +25,15 @@ export type PictureCaller = {
   userId: string | null;
 };
 
-/** The chat attaches at most six files; entries past this are counted, not read. */
+/** Entries past this are counted, not read: a flood of them costs one log line. */
 const MAX_ENTRIES_READ = 12;
+/** The most of a file's name that is quoted, in characters. */
 const NAME_MAX = 80;
-/** `<user id>/<file name>`: exactly what the chat's upload writes. */
+/**
+ * `<user id>/<file name>`: exactly what the chat's upload writes. Nothing that reads as an
+ * address fits it: no scheme, no leading slash, no backslash, no second folder.
+ */
 const OWN_FILE = /^([0-9a-f-]{36})\/([A-Za-z0-9._-]{1,300})$/i;
-/** Anything that reads as an address rather than a path in the bucket. */
-const ADDRESS = /^[a-z][a-z0-9+.-]*:|^\/|\\/i;
 
 /** The pictures this request may show a brain, and the ones refused with the reason. */
 export function readPictureRequest(
@@ -42,7 +44,7 @@ export function readPictureRequest(
     return NO_PICTURES;
   }
   const entries = Array.isArray(raw) ? raw : [raw];
-  const pictures: Array<PictureRef> = [];
+  const pictures: Array<TurnPicture> = [];
   const refused: Array<RefusedPicture> = [];
 
   for (const entry of entries.slice(0, MAX_ENTRIES_READ)) {
@@ -62,11 +64,12 @@ export function readPictureRequest(
     refused.push(
       refusePicture(`${unread} more files`, "too_many", {
         userId: caller.userId,
+        path: null,
       }),
     );
   }
 
-  return { pictures, dataUrls: [], refused };
+  return { pictures, refused };
 }
 
 /** The path of the caller's own picture this entry names, or why it may not be read. */
@@ -80,12 +83,13 @@ function checkEntry(
   if (!isObject(entry) || "url" in entry || !hasPath(entry)) {
     return "not_a_storage_path";
   }
-  const file = ADDRESS.test(entry.path) ? null : OWN_FILE.exec(entry.path);
+  const file = OWN_FILE.exec(entry.path);
 
   if (!file || file[2] === "." || file[2] === "..") {
     return "not_a_storage_path";
   }
-  if (file[1].toLowerCase() !== caller.userId.toLowerCase()) {
+  // Exactly as signed: storage names are case sensitive, and so are its folder policies.
+  if (file[1] !== caller.userId) {
     return "other_folder";
   }
   if (!("type" in entry) || entry.type !== "image") {
@@ -100,21 +104,29 @@ function checkEntry(
   return tooLarge ? "too_large" : { path: entry.path };
 }
 
-/** The name the user gave the file, safe to quote in a prompt and a log line. */
+/**
+ * The name the user gave the file, safe to quote in a prompt and a log line: one line, no
+ * square brackets (the notes about pictures open and close with them), cut between
+ * characters so half an emoji never reaches a provider.
+ */
 function pictureName(entry: unknown): string {
-  const name =
+  const given =
     isObject(entry) && "name" in entry && typeof entry.name === "string"
-      ? oneLine(withoutFormatCharacters(entry.name)).slice(0, NAME_MAX)
+      ? entry.name
       : "";
+  const clean = oneLine(withoutFormatCharacters(given).replace(/[[\]]/g, ""));
 
-  return name || "picture";
+  return Array.from(clean).slice(0, NAME_MAX).join("") || "picture";
 }
 
-/** What the log keeps of a refused entry. */
+/** What the log keeps of a refused entry: its path only when it is a path in the bucket. */
 function refusalDetail(entry: unknown, caller: PictureCaller) {
+  const isStoragePath =
+    isObject(entry) && hasPath(entry) && OWN_FILE.test(entry.path);
+
   return {
     userId: caller.userId,
-    path: isObject(entry) && "path" in entry ? entry.path : undefined,
+    path: isStoragePath ? entry.path : null,
   };
 }
 

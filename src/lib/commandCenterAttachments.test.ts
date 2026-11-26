@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  carmenTurn,
   formatAttachmentsForPrompt,
-  splitTurnAttachments,
 } from "./commandCenterAttachments";
 
 // These formatting tests do not need a hosted Supabase client.
@@ -27,7 +27,7 @@ describe("formatAttachmentsForPrompt", () => {
   });
 });
 
-describe("splitTurnAttachments", () => {
+describe("carmenTurn", () => {
   const shot = {
     name: "shot.png",
     url: "https://x/signed/shot.png?token=secret",
@@ -42,10 +42,9 @@ describe("splitTurnAttachments", () => {
     path: "user-1/2-a.pdf",
   };
 
-  it("sends a picture as its storage path, with no link anywhere", () => {
-    const turn = splitTurnAttachments([shot], " מה כתוב כאן? ", "📎");
+  it("sends a picture by its storage path, with no link in that entry", () => {
+    const turn = carmenTurn([shot], " מה כתוב כאן? ");
 
-    expect(turn.commandText).toBe("מה כתוב כאן?");
     expect(turn.pictures).toEqual([
       {
         name: "shot.png",
@@ -54,37 +53,42 @@ describe("splitTurnAttachments", () => {
         size: 1200,
       },
     ]);
-    expect(JSON.stringify(turn)).not.toContain("https://");
+    expect(JSON.stringify(turn.pictures)).not.toContain("https://");
   });
 
-  it("uses the placeholder for a message that is pictures only", () => {
-    const turn = splitTurnAttachments([shot], "", "📎 קבצים מצורפים");
+  it("keeps the text Carmen was always sent, every attachment a line", () => {
+    const turn = carmenTurn([shot, pdf], " בדוק ");
 
-    expect(turn.commandText).toBe("📎 קבצים מצורפים");
+    expect(turn.commandText).toBe(
+      formatAttachmentsForPrompt([shot, pdf], "בדוק"),
+    );
   });
 
-  it("keeps other files as text with their link, as before", () => {
-    const turn = splitTurnAttachments([shot, pdf], "בדוק", "📎");
+  // The workshop takes the look to follow from this line: `referenceThisTurn` reads exactly
+  // this shape (supabase/functions/_shared/workshop/brief-reading.test.ts), and Carmen's
+  // tools that save or rework a picture take its address from it.
+  it("an attached picture keeps its line and link for the workshop", () => {
+    const turn = carmenTurn([shot], "סרטון בסגנון הזה");
 
-    expect(turn.pictures.map((picture) => picture.name)).toEqual(["shot.png"]);
-    expect(turn.commandText).toBe(formatAttachmentsForPrompt([pdf], "בדוק"));
-    expect(turn.commandText).not.toContain("shot.png");
+    expect(turn.commandText).toBe(
+      `סרטון בסגנון הזה\n\n📎 קבצים מצורפים (1):\n- תמונה: shot.png → ${shot.url}`,
+    );
   });
 
-  it("a picture without a stored path stays a text line", () => {
+  it("only pictures that were stored go by path", () => {
     const linked = {
       name: "old.png",
       url: "https://x/o.png",
       type: "image" as const,
     };
-    const turn = splitTurnAttachments([linked], "", "📎");
+    const turn = carmenTurn([linked, pdf], "");
 
     expect(turn.pictures).toEqual([]);
     expect(turn.commandText).toContain("https://x/o.png");
   });
 
   it("a message without attachments is its text", () => {
-    expect(splitTurnAttachments([], "שלום", "📎")).toEqual({
+    expect(carmenTurn([], " שלום ")).toEqual({
       commandText: "שלום",
       pictures: [],
     });

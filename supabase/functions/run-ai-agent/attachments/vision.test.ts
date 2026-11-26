@@ -37,6 +37,13 @@ Deno.test("targetCanSee", async (t) => {
       targetCanSee({ label: "brain:openrouter/x", connectionId: "c2" }),
       false,
     );
+    assertEquals(
+      targetCanSee({
+        label: "google/gemini-3-flash-preview",
+        connectionId: "",
+      }),
+      false,
+    );
   });
 
   // Why a picture turn is pinned off the fast lane, and why failover strips image parts.

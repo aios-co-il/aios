@@ -1,7 +1,7 @@
 import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { messagesForProvider } from "../stream-completion.ts";
 import {
-  historyTextWithPictures,
+  providerRefusedPictures,
   textOnlyTurn,
   withTurnPictures,
 } from "./picture-turn.ts";
@@ -22,15 +22,19 @@ const messages = [
 const userTurn = { at: 3, text: "מה כתוב כאן?" };
 
 const loaded: TurnPictures = {
-  pictures: [{ name: "shot.png", path: "u/shot.png" }],
-  dataUrls: [DATA_URL],
+  pictures: [{ name: "shot.png", path: "u/shot.png", dataUrl: DATA_URL }],
   refused: [],
 };
 
 /** The content of the user's turn as this link receives it. */
-function turnContent(turn: TurnPictures, target: VisionTarget) {
-  return withTurnPictures(messages, userTurn, turn, target)[userTurn.at]
-    .content;
+function turnContent(
+  turn: TurnPictures,
+  target: VisionTarget,
+  refusedBy?: ReadonlySet<string>,
+) {
+  return withTurnPictures(messages, userTurn, turn, target, refusedBy)[
+    userTurn.at
+  ].content;
 }
 
 Deno.test("withTurnPictures", async (t) => {
@@ -82,6 +86,17 @@ Deno.test("withTurnPictures", async (t) => {
     }
   });
 
+  await t.step(
+    "a blind link says what to do when the engine already sees",
+    () => {
+      const content = turnContent(loaded, BLIND);
+
+      assert(typeof content === "string");
+      assert(content.includes("If that is already her engine"));
+      assert(content.includes("send the message again"));
+    },
+  );
+
   await t.step("a connected brain is treated as one that cannot see", () => {
     assert(typeof turnContent(loaded, CONNECTED) === "string");
   });
@@ -99,7 +114,10 @@ Deno.test("withTurnPictures", async (t) => {
   });
 
   await t.step("pictures that were never read are not claimed as seen", () => {
-    const unread = { ...loaded, dataUrls: [] };
+    const unread = {
+      ...loaded,
+      pictures: [{ name: "shot.png", path: "u/shot.png" }],
+    };
 
     assert(typeof turnContent(unread, SEEING) === "string");
   });
@@ -126,13 +144,16 @@ Deno.test("withTurnPictures", async (t) => {
   await t.step("a turn whose every picture was refused still says so", () => {
     const turn: TurnPictures = {
       pictures: [],
-      dataUrls: [],
       refused: [{ name: "a.pdf", refusal: "not_a_picture" }],
     };
     const content = turnContent(turn, SEEING);
 
     assert(typeof content === "string");
-    assert(content.includes('- "a.pdf": it is not a JPEG, PNG, WEBP or GIF'));
+    assert(
+      content.includes(
+        '- "a.pdf": it is not a picture of these types: JPEG, PNG, WEBP, GIF',
+      ),
+    );
     assertEquals(content.includes("cannot read pictures"), false);
   });
 
@@ -162,27 +183,52 @@ Deno.test("textOnlyTurn", async (t) => {
   });
 });
 
-Deno.test("historyTextWithPictures", async (t) => {
-  await t.step("keeps a short marker per picture, read or refused", () => {
-    const turn: TurnPictures = {
-      ...loaded,
-      refused: [{ name: "big].png", refusal: "too_large" }],
-    };
+Deno.test("a provider that refuses the pictures", async (t) => {
+  const refusers = new Set([SEEING.label]);
 
+  await t.step("counts only for a call that carried image parts", () => {
+    for (const status of [400, 413, 422]) {
+      assertEquals(
+        providerRefusedPictures(status, loaded, SEEING, new Set()),
+        true,
+        String(status),
+      );
+    }
+    assertEquals(providerRefusedPictures(400, loaded, BLIND, new Set()), false);
     assertEquals(
-      historyTextWithPictures("מה כתוב כאן?", turn),
-      "מה כתוב כאן?\n[תמונה: shot.png]\n[תמונה: big.png]",
+      providerRefusedPictures(400, NO_PICTURES, SEEING, new Set()),
+      false,
     );
   });
 
-  await t.step("never keeps the bytes or the storage path", () => {
-    const saved = historyTextWithPictures("x", loaded);
-
-    assertEquals(saved.includes("base64"), false);
-    assertEquals(saved.includes("u/shot.png"), false);
+  await t.step("leaves every other failure to the loop's own rules", () => {
+    for (const status of [401, 403, 429, 500, 503]) {
+      assertEquals(
+        providerRefusedPictures(status, loaded, SEEING, new Set()),
+        false,
+        String(status),
+      );
+    }
   });
 
-  await t.step("a turn without pictures is saved as written", () => {
-    assertEquals(historyTextWithPictures("שלום", NO_PICTURES), "שלום");
+  await t.step("is tried once for each link", () => {
+    assertEquals(providerRefusedPictures(400, loaded, SEEING, refusers), false);
+  });
+
+  await t.step("the retry carries no image part and says why", () => {
+    const content = turnContent(loaded, SEEING, refusers);
+
+    assert(typeof content === "string");
+    assertEquals(content.includes("base64"), false);
+    assert(content.includes("the model refused them"));
+    assert(content.includes('"shot.png"'));
+    assert(content.includes("never guess"));
+    assertEquals(content.includes("this brain cannot read pictures"), false);
+  });
+
+  await t.step("another link of the chain still gets the pictures", () => {
+    const other = { label: "anthropic/claude-sonnet-4-6" };
+
+    assert(Array.isArray(turnContent(loaded, other, refusers)));
   });
 });

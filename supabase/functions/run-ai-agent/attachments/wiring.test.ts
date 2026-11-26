@@ -53,17 +53,34 @@ Deno.test("attached pictures are wired through Carmen's loop", async (t) => {
   await t.step("every model call decides for the link it goes to", () => {
     const call = between("const payload: any = {", "const temp =");
 
-    assert(
-      call.includes(
-        "withTurnPictures(messages, pictureTurnAt, turnPictures, llm),",
-      ),
-    );
+    assert(call.includes("withTurnPictures("));
+    assert(call.includes("pictureRefusers,"));
     assertStrictEquals(
       runAiAgent.split("messagesForProvider(").length - 1,
       1,
       "one model call site: a second one must place the pictures too",
     );
   });
+
+  await t.step(
+    "a link that refuses the pictures is retried without them",
+    () => {
+      const retry = between(
+        "// A provider that will not read the request with the pictures",
+        "if (llm.connectionId) {",
+      );
+
+      assert(retry.includes("providerRefusedPictures("));
+      assert(retry.includes("pictureRefusers.add(llm.label);"));
+      assert(retry.includes("console.warn("));
+      assert(retry.includes("continue;"));
+      // Failover keeps its place: quota, a refused key and a missing model move on first.
+      assert(
+        runAiAgent.indexOf("movesToNextLink(res.status") <
+          runAiAgent.lastIndexOf("providerRefusedPictures("),
+      );
+    },
+  );
 
   await t.step("the loop's own messages stay text", () => {
     assert(runAiAgent.includes('{ role: "user", content: userTurn }'));
@@ -78,19 +95,22 @@ Deno.test("attached pictures are wired through Carmen's loop", async (t) => {
     const manusTask = between("const manusBody", "const manusRes");
 
     assert(
-      manusTask.includes(
-        "manusBody.prompt = textOnlyTurn(userTurn, pictureRequest);",
-      ),
+      manusTask.includes("prompt: textOnlyTurn(userTurn, pictureRequest),"),
     );
+    assertStrictEquals(manusTask.includes("manusBody.prompt ="), false);
   });
 
-  await t.step("the saved conversation keeps a marker, not the picture", () => {
-    assert(
-      runAiAgent.includes(
-        "message: historyTextWithPictures(String(command_text), turnPictures),",
-      ),
-    );
-  });
+  await t.step(
+    "the saved conversation is the user's text, never the picture",
+    () => {
+      const saved = between(
+        "await saveConversationTurn(supabase, {",
+        "answer:",
+      );
+
+      assert(saved.includes("message: String(command_text),"));
+    },
+  );
 
   await t.step("no address of a picture is signed for a brain", () => {
     assertStrictEquals(runAiAgent.includes("createSignedUrl"), false);

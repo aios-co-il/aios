@@ -1834,7 +1834,7 @@ import {
   loadTurnPictures,
 } from "./attachments/picture-store.ts";
 import {
-  historyTextWithPictures,
+  providerRefusedPictures,
   textOnlyTurn,
   withTurnPictures,
 } from "./attachments/picture-turn.ts";
@@ -4068,10 +4068,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       const manusBody: any = {
         action: "create_task",
         tenantId: agent.tenant_id,
-        prompt: userTurn,
+        // Manus takes text only: attached pictures become the line saying they were not read.
+        prompt: textOnlyTurn(userTurn, pictureRequest),
       };
-      // Manus takes text only: attached pictures become the line saying they were not read.
-      manusBody.prompt = textOnlyTurn(userTurn, pictureRequest);
       const manusRes = await fetch(`${SUPABASE_URL}/functions/v1/manus-api`, {
         method: "POST",
         headers: {
@@ -4144,6 +4143,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       pictureRequest,
       { wanted: llmChain.some(targetCanSee), userId: callerUserId },
     );
+    // The links whose provider refused a request that carried the pictures (by label).
+    const pictureRefusers = new Set<string>();
     let activeIdx = 0;
     let llm = llmChain[activeIdx];
     console.log(
@@ -4206,7 +4207,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           // Per call: a link that cannot see (the first, or one failed over to) gets no
           // image part, only the line saying so.
           messages: messagesForProvider(
-            withTurnPictures(messages, pictureTurnAt, turnPictures, llm),
+            withTurnPictures(
+              messages,
+              pictureTurnAt,
+              turnPictures,
+              llm,
+              pictureRefusers,
+            ),
             llm.provider,
           ),
         };
@@ -4311,6 +4318,22 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             failoverReason(res.status, err),
           ).catch(() => {});
           continue; // retry the same round on the next provider
+        }
+        // A provider that will not read the request with the pictures in it (a type or a size
+        // it does not take) is asked once more without them, so the turn still gets an answer.
+        if (
+          providerRefusedPictures(
+            res.status,
+            turnPictures,
+            llm,
+            pictureRefusers,
+          )
+        ) {
+          pictureRefusers.add(llm.label);
+          console.warn(
+            `[AGENT] ${llm.label} refused the attached pictures (${res.status}); asking again without them`,
+          );
+          continue;
         }
         if (llm.connectionId) {
           throw new Error(
@@ -4655,8 +4678,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         userId: callerUserId,
         conversationId: serverConversationId,
         history: serverConversationHistory,
-        // A picture is kept as a short marker: never its bytes or a link to it.
-        message: historyTextWithPictures(String(command_text), turnPictures),
+        message: String(command_text),
         answer: String(finalOutput || ""),
       });
     }

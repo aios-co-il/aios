@@ -126,7 +126,7 @@ import { systemFixPromptAddon } from "@/lib/systemFixContext";
 import {
   COMMAND_CENTER_FILE_ACCEPT,
   COMMAND_CENTER_MAX_FILES,
-  splitTurnAttachments,
+  carmenTurn,
   uploadCommandCenterAttachments,
   type CommandCenterAttachment,
 } from "@/lib/commandCenterAttachments";
@@ -780,11 +780,10 @@ export const CarmenChatBar = forwardRef<
       const sendRoute = brain.selected;
       const displayText =
         trimmed || (pendingAttachments.length ? "📎 קבצים מצורפים" : "");
-      // Carmen's own loop reads pictures from storage by path; other files stay links in text.
-      const { commandText: agentText, pictures } = splitTurnAttachments(
+      // Carmen's own loop also reads each picture from storage, by its path (AIO-675).
+      const { commandText: agentText, pictures } = carmenTurn(
         pendingAttachments,
         trimmed,
-        displayText,
       );
       setMessages((prev) => [
         ...prev,

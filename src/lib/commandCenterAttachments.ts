@@ -36,36 +36,24 @@ export function formatAttachmentsForPrompt(
 
 /**
  * What Carmen's own loop (run-ai-agent) is sent for a message with attachments (AIO-675).
- * Pictures go as storage paths the server reads itself, with no link in the text; any other
- * file stays a line of text with its link, as before. `placeholder` stands in for the text
- * of a message that is pictures only.
+ * The text is what it always was, every attachment a line with its link: the workshop reads
+ * an attached picture's line as the look to follow (`referenceThisTurn`), and her tools that
+ * save or rework a picture take its address from there. Each picture also goes by storage
+ * path, so the server reads the bytes itself and shows them to a brain that can see.
  */
-export function splitTurnAttachments(
+export function carmenTurn(
   attachments: Array<CommandCenterAttachment>,
   typedText: string,
-  placeholder: string,
 ): { commandText: string; pictures: Array<TurnPictureAttachment> } {
-  const pictures: Array<TurnPictureAttachment> = [];
-  const files: Array<CommandCenterAttachment> = [];
-
-  for (const attachment of attachments) {
-    if (attachment.type === "image" && attachment.path) {
-      pictures.push({
-        name: attachment.name,
-        path: attachment.path,
-        type: attachment.type,
-        size: attachment.size,
-      });
-    } else {
-      files.push(attachment);
-    }
-  }
   const text = typedText.trim();
+  const pictures = attachments.flatMap(({ name, path, type, size }) =>
+    type === "image" && path ? [{ name, path, type, size }] : [],
+  );
 
   return {
-    commandText: files.length
-      ? formatAttachmentsForPrompt(files, text)
-      : text || placeholder,
+    commandText: attachments.length
+      ? formatAttachmentsForPrompt(attachments, text)
+      : text,
     pictures,
   };
 }

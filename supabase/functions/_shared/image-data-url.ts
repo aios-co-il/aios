@@ -31,6 +31,11 @@ const SIGNATURES: Array<{
   { mime: "image/gif", parts: [{ at: 0, bytes: [0x47, 0x49, 0x46, 0x38] }] },
 ];
 
+/** The types by the names a person knows them by ("JPEG", "PNG", …). */
+export const INLINE_IMAGE_TYPE_NAMES: Array<string> = SIGNATURES.map(
+  ({ mime }) => mime.slice("image/".length).toUpperCase(),
+);
+
 /** The picture type these bytes start as, or null when they are not one of the four. */
 export function sniffImageMime(bytes: Uint8Array): InlineImageMime | null {
   const match = SIGNATURES.find(({ parts }) =>
