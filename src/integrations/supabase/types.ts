@@ -4840,6 +4840,38 @@ export type Database = {
           },
         ]
       }
+      carmen_user_choices: {
+        Row: {
+          brain_slug: string | null
+          tenant_id: string
+          updated_at: string
+          user_id: string
+          voice: string | null
+        }
+        Insert: {
+          brain_slug?: string | null
+          tenant_id: string
+          updated_at?: string
+          user_id?: string
+          voice?: string | null
+        }
+        Update: {
+          brain_slug?: string | null
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+          voice?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "carmen_user_choices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       carmen_whatsapp_identities: {
         Row: {
           allowed_group_ids: string[] | null

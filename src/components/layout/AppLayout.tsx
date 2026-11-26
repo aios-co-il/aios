@@ -2,6 +2,8 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { GlobalApprovalsBell } from "@/components/agents/GlobalApprovalsBell";
 import { HeaderModuleShortcuts } from "./HeaderModuleShortcuts";
+import { HeaderSearchProvider } from "./HeaderSearch/HeaderSearchProvider";
+import { HeaderSearchSlot } from "./HeaderSearch/HeaderSearchSlot";
 import { Outlet } from "react-router-dom";
 import { Suspense } from "react";
 import { RoutedModulePermissionGate } from "@/components/ModulePermissionGate";
@@ -25,7 +27,17 @@ function RouteContentLoader() {
   return <CarmenLoadingScreen />;
 }
 
+/** The signed-in app frame, with the header search slot its screens fill. */
 export function AppLayout() {
+  return (
+    <HeaderSearchProvider>
+      <AppFrame />
+    </HeaderSearchProvider>
+  );
+}
+
+/** The sidebar, the header and the routed screen. */
+function AppFrame() {
   const { userId } = useCurrentUser();
   const { currentTenantId, setCurrentTenantId, currentTenant } = useTenant();
   const contentFadeRef = useCarmenContentFade<HTMLDivElement>();
@@ -51,6 +63,7 @@ export function AppLayout() {
                   מערכת ניהול סוכנויות
                 </h1>
               </div>
+              <HeaderSearchSlot />
               <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4 flex-shrink-0">
                 <HeaderModuleShortcuts />
                 <AgencySelector />

@@ -39,6 +39,21 @@ Deno.test("isAutomationRun", async (t) => {
       false,
     );
   });
+
+  await t.step(
+    "only a service caller names the automation; a user's is dropped",
+    () => {
+      const asUser = bindRunAgentCaller(
+        { automation_id: AUTOMATION },
+        { kind: "user", userId: OWNER },
+      );
+      const asService = runAiAgentSees({ automation_id: AUTOMATION });
+
+      assertStrictEquals(asUser.automation_id, undefined);
+      assertStrictEquals(isAutomationRun(asUser), false);
+      assertStrictEquals(asService.automation_id, AUTOMATION);
+    },
+  );
 });
 
 Deno.test("runMayDecideApprovals", async (t) => {

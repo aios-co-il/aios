@@ -10,6 +10,7 @@ import {
   signOAuthState,
 } from "../_shared/google-oauth/oauth-state.ts";
 import { userFacingMessage } from "../_shared/google-oauth/user-facing-error.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 import { buildCalendarAuthorizeUrl } from "./authorize-url.ts";
 import { storeCalendarConnection } from "./store-connection.ts";
 import { callbackUri } from "../_shared/google-oauth/exchange-code.ts";
@@ -66,15 +67,12 @@ Deno.serve(async (req) => {
       throw new Error("Unauthorized - user not authenticated");
     }
 
+    // calendar_tokens is server-only; every query below filters by this user.
+    const tokensClient = serviceClient();
+
     // Handle disconnect (DELETE method or action: 'disconnect')
     if (req.method === "DELETE") {
-      // Use service role key to delete (bypasses RLS)
-      const serviceClient = createClient(
-        Deno.env.get("SUPABASE_URL") ?? "",
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      );
-
-      const { error: deleteError } = await serviceClient
+      const { error: deleteError } = await tokensClient
         .from("calendar_tokens")
         .delete()
         .eq("user_id", user.id);
@@ -88,9 +86,6 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    // For non-DELETE requests, use anon client
-    const supabaseClient = anonClient;
 
     const requestBody = await req.json();
     const action = requestBody.action;
@@ -113,12 +108,7 @@ Deno.serve(async (req) => {
 
     // Handle disconnect via action (for POST requests from supabase.functions.invoke)
     if (action === "disconnect") {
-      const serviceClient = createClient(
-        Deno.env.get("SUPABASE_URL") ?? "",
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      );
-
-      const { error: deleteError } = await serviceClient
+      const { error: deleteError } = await tokensClient
         .from("calendar_tokens")
         .delete()
         .eq("user_id", user.id);
@@ -147,7 +137,7 @@ Deno.serve(async (req) => {
       // complete reuses the stored one only for the same, known Google account.
       // A token marked needs_reconnect stopped working, so it is never reused.
       const { data: existingToken, error: existingTokenError } =
-        await supabaseClient
+        await tokensClient
           .from("calendar_tokens")
           .select("refresh_token, google_email, needs_reconnect")
           .eq("user_id", user.id)
@@ -184,11 +174,16 @@ Deno.serve(async (req) => {
 
     // Check connection status
     if (action === "status") {
-      const { data: tokenData } = await supabaseClient
+      const { data: tokenData, error: statusError } = await tokensClient
         .from("calendar_tokens")
-        .select("*")
+        .select("google_email")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
+      if (statusError) {
+        throw new Error(
+          `calendar_tokens status failed: ${statusError.message}`,
+        );
+      }
 
       return new Response(
         JSON.stringify({

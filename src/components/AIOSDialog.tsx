@@ -43,6 +43,7 @@ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { invalidateAIEntityQueries } from "@/lib/aiInvalidation";
+import { USE_BRAIN_PICK } from "@functions/_shared/carmen/brain-engine/stored-pick.ts";
 import {
   loadMicCaptureMode,
   logTranscribeOnlyEvent,
@@ -333,6 +334,7 @@ export function AIOSDialog({
             surface: "internal_chat",
             stream: true,
             conversation_history: conversationHistory,
+            [USE_BRAIN_PICK]: true,
           }),
         },
       );
@@ -694,6 +696,7 @@ export function AIOSDialog({
             surface: "internal_chat",
             stream: true,
             conversation_history: followUpHistory,
+            [USE_BRAIN_PICK]: true,
           }),
         },
       );

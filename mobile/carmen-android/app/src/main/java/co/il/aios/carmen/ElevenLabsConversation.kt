@@ -80,8 +80,7 @@ class ElevenLabsConversation(
 
     /** The session, or null after handing an unavailable ElevenLabs to [onUnavailable]. */
     private fun mintSession(): ElevenLabsSession? {
-        val body = JSONObject().put("provider", "elevenlabs")
-        voice?.let { body.put("voice", it) }
+        val body = LiveConversation.sessionRequest(account.session().tenantId, voice, LiveConversation.ELEVENLABS)
         return account.callFunction("carmen-realtime-session", body).use { response ->
             val json = JSONObject(response.body?.string() ?: "{}")
             when {

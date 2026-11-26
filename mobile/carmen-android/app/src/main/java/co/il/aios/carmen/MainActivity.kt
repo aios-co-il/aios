@@ -83,7 +83,10 @@ class MainActivity : AppCompatActivity() {
         // Re-read Carmen's style on every visit: it may have changed on the web meanwhile.
         val portraitView = findViewById<android.widget.ImageView>(R.id.home_portrait)
         CarmenLook.showPortrait(portraitView)
-        CarmenLook.refresh(this, AiosAccount(this)) { CarmenLook.showPortrait(portraitView) }
+        val account = AiosAccount(this)
+        CarmenLook.refresh(this, account) { CarmenLook.showPortrait(portraitView) }
+        // The voice may have been picked on the web meanwhile; the next call speaks in it.
+        VoicePreference(this, account).refresh()
         portrait.start()
         handler.post(refresh)
     }
