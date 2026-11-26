@@ -46,11 +46,11 @@ const NAME_MAX = 80;
  */
 const OWN_FILE = /^([0-9a-f-]{36})\/([A-Za-z0-9._-]{1,300})$/i;
 /**
- * `<tenant id>/whatsapp-inbound/<file name>`: exactly what the WhatsApp webhooks write
+ * `whatsapp-inbound/<tenant id>/<file name>`: exactly what the WhatsApp webhooks write
  * (`whatsappPicturePath`), with nothing that reads as an address or climbs a folder.
  */
 const ORG_WHATSAPP_FILE = new RegExp(
-  `^([0-9a-f-]{36})/${WHATSAPP_PICTURES_FOLDER}/([A-Za-z0-9._-]{1,300})$`,
+  `^${WHATSAPP_PICTURES_FOLDER}/([0-9a-f-]{36})/([A-Za-z0-9._-]{1,300})$`,
   "i",
 );
 

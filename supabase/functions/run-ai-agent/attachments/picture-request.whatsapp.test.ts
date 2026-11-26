@@ -66,12 +66,12 @@ Deno.test(
       () => {
         for (const path of [
           `${TENANT}/a.jpg`,
-          `${TENANT}/creatives/a.jpg`,
-          `${TENANT}/whatsapp-inbound/../a.jpg`,
-          `${TENANT}/whatsapp-inbound/..`,
-          `${TENANT}/whatsapp-inbound/sub/a.jpg`,
-          `/${TENANT}/whatsapp-inbound/a.jpg`,
-          `https://evil.example/${TENANT}/whatsapp-inbound/a.jpg`,
+          `${TENANT}/whatsapp-inbound/a.jpg`,
+          `whatsapp-inbound/${TENANT}/../a.jpg`,
+          `whatsapp-inbound/${TENANT}/..`,
+          `whatsapp-inbound/${TENANT}/sub/a.jpg`,
+          `/whatsapp-inbound/${TENANT}/a.jpg`,
+          `https://evil.example/whatsapp-inbound/${TENANT}/a.jpg`,
         ]) {
           assertEquals(refusalOf(picture(path)), "not_a_storage_path", path);
         }

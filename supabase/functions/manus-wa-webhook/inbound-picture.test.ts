@@ -65,12 +65,13 @@ Deno.test("manusPicture: a Manus picture message", async (t) => {
     "an address off the gateway is refused, and the key never leaves",
     async () => {
       const { fetcher, calls } = recordingFetch();
-      const picture = manusPicture(
-        { hasMedia: true, type: "image", url: "https://evil.example/a.png" },
-        {},
-        "line-key",
-        fetcher,
-      );
+      // As the webhook's unified payload carries it: any field may hold the address.
+      const payload: Record<string, unknown> = {
+        hasMedia: true,
+        type: "image",
+        url: "https://evil.example/a.png",
+      };
+      const picture = manusPicture(payload, {}, "line-key", fetcher);
 
       assertEquals(await picture?.read(), {
         ok: false,

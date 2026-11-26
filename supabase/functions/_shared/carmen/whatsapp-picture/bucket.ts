@@ -1,18 +1,20 @@
 /**
  * Where a picture sent to Carmen on WhatsApp waits for its turn (AIO-683): the private
- * `carmen-media` bucket, whose storage policies give each org only its own top folder
- * (`20261009000100_catchup_shipped_schema.sql`), under that org's `whatsapp-inbound` folder.
- * The webhooks write here and run-ai-agent reads here; the file is removed after the turn.
+ * `carmen-media` bucket, under `whatsapp-inbound/<tenant id>/`. The bucket's storage policies
+ * let a signed-in member reach only a top folder named by their org's id
+ * (`20261009000100_catchup_shipped_schema.sql`), so no member can list or read this folder,
+ * not even while the turn runs: a picture from a chat a member may not see stays hidden from
+ * them. Only the service client writes and reads it, and the file is removed after the turn.
  */
 export const WHATSAPP_PICTURES_BUCKET = "carmen-media";
 
-/** The folder inside the org's own folder that holds pictures waiting for a turn. */
+/** The top folder that holds pictures waiting for a turn, one folder per org inside it. */
 export const WHATSAPP_PICTURES_FOLDER = "whatsapp-inbound";
 
-/** The stored path of one picture of an org's turn: `<tenant id>/whatsapp-inbound/<file>`. */
+/** The stored path of one picture of an org's turn: `whatsapp-inbound/<tenant id>/<file>`. */
 export function whatsappPicturePath(
   tenantId: string,
   fileName: string,
 ): string {
-  return `${tenantId}/${WHATSAPP_PICTURES_FOLDER}/${fileName}`;
+  return `${WHATSAPP_PICTURES_FOLDER}/${tenantId}/${fileName}`;
 }

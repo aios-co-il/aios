@@ -110,8 +110,9 @@ async function storePicture(
   picture: InboundPicture,
 ): Promise<{ path: string } | { refusal: PictureFetchRefusal | "not_stored" }> {
   const read = await picture.read().catch((cause): PictureFetchResult => {
+    // The message may quote a signed address: only the error's kind is logged.
     console.warn(
-      `[whatsapp-picture] read failed: ${String(cause).slice(0, 200)}`,
+      `[whatsapp-picture] read failed: ${cause instanceof Error ? cause.name : "error"}`,
     );
     return { ok: false, refusal: "download_failed" };
   });

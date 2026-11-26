@@ -74,7 +74,7 @@ export async function fetchAllowed(
       });
     } catch (cause) {
       console.warn(
-        `[whatsapp-picture] download failed: ${hostOf(target)}: ${String(cause).slice(0, 200)}`,
+        `[whatsapp-picture] download failed: ${hostOf(target)}: ${errorKind(cause)}`,
       );
       return { refusal: "download_failed" };
     }
@@ -143,6 +143,11 @@ function joined(chunks: Array<Uint8Array>, total: number): Uint8Array {
     at += chunk.length;
   }
   return bytes;
+}
+
+/** An error's kind for a log line: its message may quote the signed address. */
+function errorKind(cause: unknown): string {
+  return cause instanceof Error ? cause.name : "error";
 }
 
 /** The host of an address, for a log line: never its path or query, which may be signed. */

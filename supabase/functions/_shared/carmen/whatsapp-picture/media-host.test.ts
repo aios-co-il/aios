@@ -91,6 +91,23 @@ Deno.test("pictureUrlProblem: refused addresses", async (t) => {
     assertEquals(pictureUrlProblem("not a url", MANUS), "not_a_url");
   });
 
+  await t.step("encoded separators and dot segments in the path", () => {
+    for (const url of [
+      "https://sw-media-out.storage.yandexcloud.net/7103123456/..%2F1101999999/a.jpg",
+      "https://sw-media-out.storage.yandexcloud.net/7103123456/..%5C1101999999/a.jpg",
+      "https://sw-media-out.storage.yandexcloud.net/7103123456/a%2Eb/a.jpg",
+    ]) {
+      assertEquals(pictureUrlProblem(url, GREEN), "odd_path", url);
+    }
+    // Dot segments, plain or encoded, are resolved by the parser before the folder is checked.
+    for (const url of [
+      "https://sw-media-out.storage.yandexcloud.net/7103123456/../1101999999/a.jpg",
+      "https://sw-media-out.storage.yandexcloud.net/7103123456/%2e%2e/1101999999/a.jpg",
+    ]) {
+      assertEquals(pictureUrlProblem(url, GREEN), "other_line", url);
+    }
+  });
+
   await t.step("credentials in the address", () => {
     assertEquals(
       pictureUrlProblem("https://u:p@whatsappgw-pzpyrrww.manus.space/a", MANUS),

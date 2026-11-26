@@ -42,7 +42,8 @@ export type PictureUrlProblem =
   | "has_credentials"
   | "private_host"
   | "host_not_allowed"
-  | "other_line";
+  | "other_line"
+  | "odd_path";
 
 /** Why this address may not be fetched for this line, or null when it may. */
 export function pictureUrlProblem(
@@ -63,6 +64,10 @@ export function pictureUrlProblem(
   }
   if (isPrivateHost(url.hostname)) {
     return "private_host";
+  }
+  // A server may decode these after the folder check: `/<own id>/..%2F<other id>/…`.
+  if (/%2f|%5c|%2e|\\/i.test(url.pathname)) {
+    return "odd_path";
   }
 
   return hostProblem(url, line);

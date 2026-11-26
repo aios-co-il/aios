@@ -62,7 +62,7 @@ Deno.test("withInboundPicture: the turn gets the picture", async (t) => {
 
       assertEquals(uploaded.length, 1);
       assert(
-        new RegExp(`^${TENANT}/whatsapp-inbound/[0-9a-f-]{36}\\.jpg$`).test(
+        new RegExp(`^whatsapp-inbound/${TENANT}/[0-9a-f-]{36}\\.jpg$`).test(
           uploaded[0].path,
         ),
         uploaded[0].path,
