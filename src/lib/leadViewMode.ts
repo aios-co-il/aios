@@ -18,11 +18,14 @@ export function parseLeadViewMode(
     : null;
 }
 
-/** Table keeps the CRM screen and opens the chat record as a popup. */
+/**
+ * Where a clicked lead opens. Table and pipeline keep their screen and open
+ * the chat record as a popup; the chat view selects the lead in place.
+ */
 export type LeadOpenSurface = "popup" | "chat";
 
 export function leadOpenSurface(viewMode: LeadViewMode): LeadOpenSurface {
-  return viewMode === "table" ? "popup" : "chat";
+  return viewMode === "chat" ? "chat" : "popup";
 }
 
 function getStorage(): Pick<Storage, "getItem" | "setItem"> | null {

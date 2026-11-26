@@ -8,9 +8,9 @@ import {
   LEAD_VIEW_MODE_STORAGE_KEY,
 } from "./leadViewMode.ts";
 
-test("CRM table opens the chat record as a popup", () => {
+test("CRM table and pipeline open the chat record as a popup", () => {
   expect(leadOpenSurface("table")).toBe("popup");
-  expect(leadOpenSurface("kanban")).toBe("chat");
+  expect(leadOpenSurface("kanban")).toBe("popup");
   expect(leadOpenSurface("chat")).toBe("chat");
 });
 
