@@ -21,6 +21,53 @@
 alter table public.integration_secrets
   alter constraint integration_secrets_integration_id_fkey deferrable initially deferred;
 
+-- Settings saved double-encoded (a JSON string holding the object), decoded.
+-- Any other value, and text that does not hold an object, is returned as it is.
+create or replace function public.decoded_integration_settings(p_settings jsonb)
+returns jsonb
+language plpgsql
+immutable
+set search_path to 'public'
+as $$
+declare
+  v_decoded jsonb;
+begin
+  if jsonb_typeof(p_settings) is distinct from 'string' then
+    return p_settings;
+  end if;
+
+  begin
+    v_decoded := (p_settings #>> '{}')::jsonb;
+  exception when data_exception or program_limit_exceeded then
+    return p_settings;
+  end;
+
+  if jsonb_typeof(v_decoded) = 'object' then
+    return v_decoded;
+  end if;
+
+  return p_settings;
+end;
+$$;
+
+revoke all on function public.decoded_integration_settings(jsonb) from public, anon, authenticated;
+
+-- Decode the Google rows saved that way before anything else, so the move
+-- below treats them like every other row. updated_at keeps its value, and the
+-- disconnect triggers stay off: a decoded needs_reauth is not a new disconnect.
+alter table public.tenant_integrations disable trigger update_tenant_integrations_updated_at;
+alter table public.tenant_integrations disable trigger on_integration_disconnected;
+alter table public.tenant_integrations disable trigger on_integration_disconnect_event;
+
+update public.tenant_integrations ti
+set settings = public.decoded_integration_settings(ti.settings)
+where public.is_google_integration_type(ti.integration_type)
+  and jsonb_typeof(ti.settings) = 'string';
+
+alter table public.tenant_integrations enable trigger on_integration_disconnect_event;
+alter table public.tenant_integrations enable trigger on_integration_disconnected;
+alter table public.tenant_integrations enable trigger update_tenant_integrations_updated_at;
+
 -- Moves a Google row's tokens into integration_secrets and clears them from
 -- the row. A token the write does not carry keeps its stored value. Security
 -- definer: members still edit their own Google rows from the browser.
@@ -33,18 +80,8 @@ as $$
 declare
   v_access text := nullif(new.api_key, '');
   v_refresh text;
-  v_decoded jsonb;
 begin
-  if jsonb_typeof(new.settings) = 'string' then
-    begin
-      v_decoded := (new.settings #>> '{}')::jsonb;
-    exception when invalid_text_representation then
-      v_decoded := null;
-    end;
-    if jsonb_typeof(v_decoded) = 'object' then
-      new.settings := v_decoded;
-    end if;
-  end if;
+  new.settings := public.decoded_integration_settings(new.settings);
   v_refresh := nullif(new.settings ->> 'refresh_token', '');
 
   -- An insert with an existing connection's id is refused here: under ON
@@ -105,11 +142,7 @@ set api_key = ti.api_key,
       else ti.settings
     end
 where public.is_google_integration_type(ti.integration_type)
-  and (
-    ti.api_key is not null
-    or ti.settings ? 'refresh_token'
-    or jsonb_typeof(ti.settings) = 'string'
-  );
+  and (ti.api_key is not null or ti.settings ? 'refresh_token');
 
 alter table public.tenant_integrations enable trigger update_tenant_integrations_updated_at;
 
