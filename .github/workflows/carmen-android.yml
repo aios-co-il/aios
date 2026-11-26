@@ -8,10 +8,16 @@ on:
     paths:
       - "mobile/carmen-android/**"
       - ".github/workflows/carmen-android.yml"
+      # The site's files the build reads for the Mini Me (MiniMeResources in app/build.gradle.kts).
+      - "src/components/carmen/MiniMe/images/**"
+      - "supabase/functions/_shared/carmen/personas.ts"
   push:
     branches: [develop, main]
     paths:
       - "mobile/carmen-android/**"
+      # The site's files the build reads for the Mini Me (MiniMeResources in app/build.gradle.kts).
+      - "src/components/carmen/MiniMe/images/**"
+      - "supabase/functions/_shared/carmen/personas.ts"
   workflow_dispatch:
 
 permissions:

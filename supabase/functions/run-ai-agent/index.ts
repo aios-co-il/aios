@@ -1831,6 +1831,13 @@ import {
 } from "./fast-lane/answer.ts";
 import { loadOrgBrief } from "../_shared/carmen/org-brief/brief.ts";
 import { type FastLaneCaller, fastLaneBriefScope } from "./fast-lane/scope.ts";
+import {
+  type DeviceActionReply,
+  devicePauseAnswer,
+  openDeviceTurn,
+} from "./device-turn/turn.ts";
+import { deviceRequestOf, fixContinuationText } from "./device-turn/request.ts";
+import { savedTurnMessages } from "./device-turn/saved-turn.ts";
 import { readPictureRequest } from "./attachments/picture-request.ts";
 import {
   commandCenterPictureStore,
@@ -1964,7 +1971,12 @@ async function handleRunAgent(
 
     const isCarmenAgent = isCarmenAgentRow(agent);
     const tokenOptimize = shouldUseTokenOptimize(agent, isCarmenAgent);
-    if (emit && tokenOptimize && !pinSkillsOnly) {
+    if (
+      emit &&
+      tokenOptimize &&
+      !pinSkillsOnly &&
+      !deviceRequestOf(bodyJson).continuation
+    ) {
       emit({
         type: "status",
         content: buildQuickAck(String(command_text || "")),
@@ -2128,7 +2140,8 @@ async function handleRunAgent(
             .slice(-24);
         }
       }
-      if (!serverConversationId) {
+      // A device continuation resumes its step's own conversation, never a new one.
+      if (!serverConversationId && !deviceRequestOf(bodyJson).continuation) {
         const clientHistory = (
           Array.isArray(conversation_history) ? conversation_history : []
         )
@@ -2160,6 +2173,27 @@ async function handleRunAgent(
       }
     }
 
+    // Steps in the user's browser (./device-turn): a continuation resumes its run from the
+    // step's row or is answered here; a typed message closes the steps nobody will finish.
+    const deviceTurn = await openDeviceTurn(supabase, emit, {
+      body: bodyJson,
+      authKind: request.authKind,
+      surface,
+      isCarmen: isCarmenAgent,
+      pinSkillsOnly,
+      inWorkshop: inWorkshopRequest,
+      automationRun,
+      taskMode: task_mode,
+      pickedBrain: Boolean(brainEngine),
+      agentEngine: modelOverride || agent.engine,
+      tenantId: resolvedTenantId,
+      userId: callerUserId,
+      conversationId: serverConversationId,
+    });
+    if (deviceTurn.reply) {
+      return deviceTurn.reply;
+    }
+
     // Pictures attached in the site chat (attachments/, AIO-675): storage paths in the
     // signed-in caller's own folder only. Read later, once the brains of the turn are known.
     const pictureRequest = readPictureRequest(bodyJson.attachments, {
@@ -2185,6 +2219,7 @@ async function handleRunAgent(
         channel: fastLaneChannel,
         isCarmen: isCarmenAgent,
         pinned: Boolean(
+          deviceTurn.pinsModel ||
           brainEngine ||
           modelOverride ||
           pinSkillsOnly ||
@@ -2970,15 +3005,18 @@ async function handleRunAgent(
       // Per-agent memory recall: pull relevant past episodes.
       // Carmen uses fast FTS (cheap, indexed). Other agents use embedding similarity.
       try {
-        const recalled = isCarmen
-          ? await recallAgentMemoryFTS(supabase, {
-              tenant_id: resolvedTenantId,
-              agent_id,
-              query_text: command_text,
-              limit: 5,
-              min_importance: 30,
-            })
-          : await recallAgentMemory(supabase, agent_id, command_text, 6);
+        // A continuation's text is the fixed contract string: nothing to recall by.
+        const recalled = deviceTurn.continuing
+          ? []
+          : isCarmen
+            ? await recallAgentMemoryFTS(supabase, {
+                tenant_id: resolvedTenantId,
+                agent_id,
+                query_text: command_text,
+                limit: 5,
+                min_importance: 30,
+              })
+            : await recallAgentMemory(supabase, agent_id, command_text, 6);
         if (recalled.length > 0) {
           const block = recalled
             .map(
@@ -4029,6 +4067,17 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       );
     }
 
+    // After every tool source above: a turn holding page text loses the tools that send or
+    // write, and only a turn from the extension's panel is offered the browser read.
+    filteredTools = deviceTurn.withoutWithheld(filteredTools);
+    exposedMcpTools.splice(
+      0,
+      exposedMcpTools.length,
+      ...deviceTurn.withoutWithheld(exposedMcpTools),
+    );
+    rebuildToolsForApi();
+    expandAgentTools(deviceTurn.offeredTools);
+
     // Build messages with conversation history
     const messages: Array<any> = [{ role: "system", content: systemPrompt }];
 
@@ -4044,9 +4093,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       }
     }
 
-    // Add current message. A browser tab the extension's panel reported joins it as data:
-    // the page wrote its title and address, so they never reach the system prompt.
-    const userTurn = withBrowserTab(command_text, bodyJson.context_metadata);
+    // Add current message. A browser tab the extension's panel reported, and a resumed
+    // device step's outcome, join it as data: a page wrote them, so they never reach the
+    // system prompt.
+    const userTurn = deviceTurn.userTurn(
+      withBrowserTab(command_text, bodyJson.context_metadata),
+    );
     messages.push({ role: "user", content: userTurn });
     // Where each model call puts this turn's pictures, or the line saying they were not read.
     const pictureTurnAt = { at: messages.length - 1, text: userTurn };
@@ -4188,6 +4240,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     // The chat's stop button: checked before each round and each tool (_shared/carmen/run-stop.ts).
     const runStopped = runStopCheck(supabase, bodyJson.run_id, callerUserId);
     let stoppedByUser = false;
+    // A device tool call ends the turn; the site hands this step to the extension's panel.
+    let deviceAction: DeviceActionReply | null = null;
     for (let round = 0; round < maxRounds; round++) {
       if (await runStopped()) {
         stoppedByUser = true;
@@ -4452,6 +4506,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             };
           } else if (workshopRefusal) {
             result = workshopRefusal;
+          } else if (deviceTurn.handles(toolName)) {
+            result = await deviceTurn.call(toolName, toolArgs);
           } else if (toolName === "search_agent_tools") {
             const discovered = (
               await searchToolsFromIndex(
@@ -4593,6 +4649,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           }
         }
 
+        // Only a row the device side's own call wrote pauses the turn, one per message.
+        deviceAction = deviceTurn.pausedAt(result);
+        if (deviceAction) {
+          break;
+        }
+
         if (
           round === 0 &&
           toolName === "get_latest_campaign_pulse" &&
@@ -4627,6 +4689,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       }
 
       messages.push(...toolResults);
+      // The turn ends at the step: the model's own text is the answer, never the filler.
+      if (deviceAction) {
+        finalOutput = devicePauseAnswer(msg.content);
+        emitText(finalOutput);
+        break;
+      }
       if (budgetSay) {
         sayToUser.push(budgetSay);
       }
@@ -4675,7 +4743,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         userId: callerUserId,
         conversationId: serverConversationId,
         history: serverConversationHistory,
-        message: String(command_text),
+        // A continuation's text is the fixed contract string: only its answer is saved.
+        message: deviceTurn.continuing ? null : String(command_text),
         answer: String(finalOutput || ""),
       });
     }
@@ -4697,7 +4766,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     // 7. Auto-memory for non-Carmen agents (fire and forget, doesn't block response).
-    if (resolvedTenantId && finalOutput && command_text?.trim().length >= 10) {
+    // Never from an answer built on page text: it could come back in a system prompt.
+    if (
+      resolvedTenantId &&
+      finalOutput &&
+      !deviceTurn.continuing &&
+      command_text?.trim().length >= 10
+    ) {
       const memPromise = summarizeAndStoreAgentMemory({
         supabase,
         tenant_id: resolvedTenantId,
@@ -4757,6 +4832,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         tools_used: toolLog.map((t) => t.tool),
         tool_log: toolLog,
         conversation_id: serverConversationId,
+        device_action: deviceAction,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
@@ -4921,7 +4997,10 @@ async function fastLaneTarget(
   return null;
 }
 
-/** Saves the user's message and the answer to the conversation (last 60 messages). */
+/**
+ * Saves the user's message and the answer to the conversation (last 60 messages); on a
+ * device continuation the answer joins the paused answer (./device-turn/saved-turn.ts).
+ */
 async function saveConversationTurn(
   supabase: AgentDatabaseClient,
   turn: {
@@ -4929,15 +5008,11 @@ async function saveConversationTurn(
     userId: string;
     conversationId: string;
     history: Array<ChatTurn>;
-    message: string;
+    message: string | null;
     answer: string;
   },
 ): Promise<void> {
-  const messages = [
-    ...turn.history,
-    { role: "user", content: turn.message },
-    { role: "assistant", content: turn.answer },
-  ].slice(-60);
+  const messages = savedTurnMessages(turn.history, turn.message, turn.answer);
   const { error } = await supabase
     .from("ai_conversations")
     .update({ messages, updated_at: new Date().toISOString() })
@@ -5243,6 +5318,8 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+  // A device continuation's command_text is the contract's fixed string (./device-turn).
+  fixContinuationText(bodyJson);
 
   const wantStream = bodyJson.stream === true;
   const surface: Surface =
@@ -5343,6 +5420,7 @@ Deno.serve(async (req) => {
             output: final.output,
             tools_used: final.tools_used,
             error: final.error,
+            device_action: final.device_action,
           });
         } catch (e: any) {
           emit({ type: "error", error: e?.message || String(e) });

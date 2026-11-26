@@ -10,7 +10,7 @@ import type { PageLocation } from "../_shared/carmen/device/results.ts";
 import type { Database, Json } from "../_shared/database.types.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import type { PanelStatus } from "./report.ts";
-import type { AnyToolResult } from "./result.ts";
+import type { AnyToolResult } from "../_shared/carmen/device-result-check.ts";
 
 export type ActionDb = Pick<DbClient, "from">;
 
