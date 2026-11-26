@@ -1,17 +1,50 @@
 import type { DbClient } from "../supabase-clients.ts";
 import {
   BUILTIN_PERSONAS,
+  ORG_STYLE_SETTING_KEY,
   type PersonaProfile,
   type PersonaRowFields,
   isBuiltinPersonaKey,
+  orgStylePersonaKey,
+  parseOrgStyle,
   personaFromRow,
   usableCallWords,
 } from "./personas.ts";
 
 type Db = Pick<DbClient, "from">;
 
+/**
+ * Whose character a turn speaks as: a member's pick (the signed-in user, or a
+ * personal WhatsApp line's owner), or the organization's choice on its main
+ * WhatsApp line (AIO-654).
+ */
+export type PersonaSource =
+  | { kind: "user"; userId: string }
+  | { kind: "organization" };
+
+/**
+ * The service-only run-ai-agent request field that says a turn arrived on the
+ * organization's main WhatsApp line, so it speaks as the organization's choice
+ * of character.
+ */
+export const ORG_PERSONA_FIELD = "org_persona";
+
 const ROW_FIELDS =
   "id, builtin_key, owner_user_id, display_name, call_words, intro_line, look, mood, personality, soul, writing_style";
+
+/** The character a turn speaks as, or null when it speaks as Carmen herself. */
+export function loadPersona(
+  db: Db,
+  tenantId: string | null,
+  source: PersonaSource | null,
+): Promise<PersonaProfile | null> {
+  if (!source) {
+    return Promise.resolve(null);
+  }
+  return source.kind === "user"
+    ? loadCallerPersona(db, tenantId, source.userId)
+    : loadOrgPersona(db, tenantId);
+}
 
 /**
  * The character the user picked in the org (`carmen_persona_choices`), with
@@ -42,16 +75,11 @@ export async function loadCallerPersona(
 }
 
 /**
- * The call words of the character the user picked, lowercased. They wake the
- * agent only on a WhatsApp line that user connected for themselves; the org's
- * main Carmen line keeps its own keywords (AIO-576).
+ * A character's call words, lowercased. On WhatsApp they wake the line whose
+ * character it is: a personal line its owner's (AIO-576), the main line the
+ * organization's (AIO-654), each next to the line's own keywords.
  */
-export async function loadCallWords(
-  db: Db,
-  tenantId: string | null,
-  userId: string | null,
-): Promise<Array<string>> {
-  const persona = await loadCallerPersona(db, tenantId, userId);
+export function callWordsOf(persona: PersonaProfile | null): Array<string> {
   // Words saved before validation existed (or written around the app) are checked again here.
   const words = usableCallWords(persona?.callWords ?? []).map((word) =>
     word.trim().toLowerCase(),
@@ -94,11 +122,38 @@ const WRITING_STYLES: Record<string, string> = {
   playful: "משחקי",
 };
 
-/** The picked key as a character the user may use. */
+/**
+ * The organization's character: the Mini Me (with the organization's edit)
+ * when its Carmen style is the Mini Me, else null so the line stays Carmen. It
+ * reads no member's row. A failed read is logged and read as Carmen, so the
+ * main line keeps answering as it does today.
+ */
+async function loadOrgPersona(
+  db: Db,
+  tenantId: string | null,
+): Promise<PersonaProfile | null> {
+  if (!tenantId) {
+    return null;
+  }
+  const { data, error } = await db
+    .from("tenant_settings")
+    .select("setting_value")
+    .eq("tenant_id", tenantId)
+    .eq("setting_key", ORG_STYLE_SETTING_KEY)
+    .maybeSingle();
+  if (error) {
+    console.error("[persona] organization style lookup failed", error.message);
+    return null;
+  }
+  const key = orgStylePersonaKey(parseOrgStyle(data?.setting_value));
+  return key ? resolvePersona(db, tenantId, null, key) : null;
+}
+
+/** The picked key as a character the user (or, with no user, the organization) may use. */
 async function resolvePersona(
   db: Db,
   tenantId: string,
-  userId: string,
+  userId: string | null,
   key: string,
 ): Promise<PersonaProfile | null> {
   const rows = await loadRows(db, tenantId);
@@ -126,12 +181,12 @@ interface StoredRow extends PersonaRowFields {
 /**
  * A key as a character: a built-in as the user's own version, else the org's
  * edit, else its defaults; or a created one. A user's own row counts only for
- * that user.
+ * that user, and never with no user.
  */
 function pickPersona(
   rows: Array<StoredRow>,
   key: string,
-  userId: string,
+  userId: string | null,
 ): PersonaProfile | null {
   if (isBuiltinPersonaKey(key)) {
     const builtinRows = rows.filter((row) => row.builtin_key === key);

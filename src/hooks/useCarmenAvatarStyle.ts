@@ -9,20 +9,21 @@ import { useToast } from "./use-toast";
 import { useCurrentTenant } from "./useCurrentTenant";
 import { useOptionalTenant } from "@/contexts/TenantContext";
 import { useActivePersona } from "@/components/carmen/personas/useActivePersona";
+import {
+  ORG_STYLE_SETTING_KEY,
+  PERSONA_LOOKS,
+  type PersonaLook,
+  parseOrgStyle,
+} from "../../supabase/functions/_shared/carmen/personas";
 
 /**
  * How Carmen is drawn: glass orbs (default), the Mini Me, or the
- * illustrated character.
+ * illustrated character. The organization's main WhatsApp line reads the same
+ * setting (AIO-654), so the list and its parsing live in the edge module.
  */
-export type CarmenAvatarStyle = "minime" | "orbs" | "character";
+export type CarmenAvatarStyle = PersonaLook;
 
-export const CARMEN_AVATAR_STYLES: Array<CarmenAvatarStyle> = [
-  "orbs",
-  "minime",
-  "character",
-];
-const DEFAULT_STYLE: CarmenAvatarStyle = "orbs";
-const SETTING_KEY = "carmen_avatar_style";
+const DEFAULT_STYLE: CarmenAvatarStyle = PERSONA_LOOKS[0];
 
 /**
  * How Carmen is drawn for the signed-in user: the look of the character they
@@ -97,12 +98,12 @@ async function fetchStyle(tenantId: string): Promise<CarmenAvatarStyle> {
     .from("tenant_settings")
     .select("setting_value")
     .eq("tenant_id", tenantId)
-    .eq("setting_key", SETTING_KEY)
+    .eq("setting_key", ORG_STYLE_SETTING_KEY)
     .maybeSingle();
   if (error) {
     throw error;
   }
-  return parseStyle(data?.setting_value);
+  return parseOrgStyle(data?.setting_value);
 }
 
 /** Stores the style for the organization. */
@@ -116,7 +117,7 @@ async function saveStyle(
   const { error } = await supabase.from("tenant_settings").upsert(
     {
       tenant_id: tenantId,
-      setting_key: SETTING_KEY,
+      setting_key: ORG_STYLE_SETTING_KEY,
       setting_value: { style },
     },
     { onConflict: "tenant_id,setting_key" },
@@ -124,13 +125,4 @@ async function saveStyle(
   if (error) {
     throw error;
   }
-}
-
-/** Validates the stored JSON (`{ style }`). */
-export function parseStyle(value: unknown): CarmenAvatarStyle {
-  const style =
-    value && typeof value === "object"
-      ? (value as { style?: unknown }).style
-      : undefined;
-  return CARMEN_AVATAR_STYLES.find((item) => item === style) ?? DEFAULT_STYLE;
 }

@@ -14,6 +14,8 @@ import {
 } from "./carmen.ts";
 import { PermanentError } from "./carmen-config.ts";
 import { serviceClient } from "./supabase-clients.ts";
+import { ORG_PERSONA_FIELD } from "./carmen/persona-runtime.ts";
+import { withConsoleErrors } from "./testing/console-errors.ts";
 import { CLIENT_INTAKE_REPLY_HE } from "./carmen/client-intake.ts";
 import {
   accessFlagsFor,
@@ -89,7 +91,12 @@ function fakeDb(
           filters.push((row) => values.includes(row[column]));
           return query;
         },
-        maybeSingle: () => Promise.resolve({ data: rows()[0] ?? null }),
+        maybeSingle: () =>
+          Promise.resolve(
+            errors[table]
+              ? { data: null, error: errors[table] }
+              : { data: rows()[0] ?? null },
+          ),
         single: () => Promise.resolve({ data: rows()[0] ?? null }),
         insert: (values: Row) => {
           updates.push({ table, values, ids: [] });
@@ -1021,6 +1028,239 @@ Deno.test(
           handled: false,
           reason: "secondary_no_trigger",
         });
+      },
+    );
+  },
+);
+
+Deno.test(
+  "handleCarmenMessage runs the org's main line as the org's choice of character (AIO-654)",
+  async (t) => {
+    /** The org's Carmen style row, as Settings → Branding stores it. */
+    function orgStyle(style: string) {
+      return [
+        {
+          tenant_id: TENANT,
+          setting_key: "carmen_avatar_style",
+          setting_value: { style },
+        },
+      ];
+    }
+
+    /** A message typed on the org's main line in a private chat, with a fresh session to open. */
+    function mainLineTurn(
+      extra: Record<string, Array<Row>>,
+      messageText: string,
+      errors: Record<string, { message: string }> = {},
+    ): CarmenContext {
+      return {
+        supabase: tenantDb(
+          { carmen_integration_id: "integration-1" },
+          {
+            carmen_whatsapp_sessions: [
+              { id: "session-new", tenant_id: TENANT, status: "ended" },
+            ],
+            ...extra,
+          },
+          {},
+          [],
+          errors,
+        ),
+        tenantId: TENANT,
+        integrationId: "integration-1",
+        connectionUserId: "user-1",
+        connectionRole: "primary",
+        phoneNumber: "972500000001",
+        senderName: "Owner",
+        messageText,
+        isIncoming: false,
+        isManualOutgoing: true,
+        isGroup: false,
+        chatId: "972500000001@c.us",
+        sourceChannel: "own_instance",
+      };
+    }
+
+    /** Runs one turn; the stubbed run-ai-agent answers "{}", so Carmen falls back to her fixed lines. */
+    function run(ctx: CarmenContext) {
+      return capturingSends(() => handleCarmenMessage(ctx).catch(() => null));
+    }
+
+    /** The run-ai-agent request body of a turn. */
+    function runBody(posted: Array<PostedSend>) {
+      return posted.find((send) => send.fn === "run-ai-agent")?.body ?? {};
+    }
+
+    await t.step(
+      "the Mini Me style wakes the main line on the Mini Me's call word and names it in the request",
+      async () => {
+        // Carmen woke when the turn reached run-ai-agent.
+        const { posted } = await run(
+          mainLineTurn(
+            { tenant_settings: orgStyle("minime") },
+            "מיני מי, מה המצב?",
+          ),
+        );
+
+        const body = runBody(posted);
+        assertStrictEquals(body.surface, "whatsapp");
+        assertStrictEquals(body[ORG_PERSONA_FIELD], true);
+        assertStrictEquals("persona_user_id" in body, false);
+        assertStrictEquals(USE_BRAIN_PICK in body, false);
+      },
+    );
+
+    await t.step(
+      "the main line still wakes on its own keyword under the Mini Me style",
+      async () => {
+        const { posted } = await run(
+          mainLineTurn(
+            { tenant_settings: orgStyle("minime") },
+            "כרמן, מה המצב?",
+          ),
+        );
+
+        assertStrictEquals(runBody(posted)[ORG_PERSONA_FIELD], true);
+      },
+    );
+
+    await t.step(
+      "the Mini Me style greets as the Mini Me, over the agent's display name",
+      async () => {
+        const agents = [
+          {
+            id: "agent-1",
+            tenant_id: TENANT,
+            name: "כרמן",
+            metadata: { visual_identity: { displayName: "רוני" } },
+          },
+        ];
+        const minime = await run(
+          mainLineTurn(
+            { tenant_settings: orgStyle("minime"), ai_agents: agents },
+            "מיני מי",
+          ),
+        );
+        const orbs = await run(
+          mainLineTurn(
+            { tenant_settings: orgStyle("orbs"), ai_agents: agents },
+            "כרמן",
+          ),
+        );
+
+        assertStringIncludes(JSON.stringify(minime.posted), "היי, מיני מי כאן");
+        assertStringIncludes(JSON.stringify(orbs.posted), "היי, רוני כאן");
+        // The same send functions carry both turns: only the words differ.
+        assertEquals(
+          minime.posted.map((send) => send.fn),
+          orbs.posted.map((send) => send.fn),
+        );
+      },
+    );
+
+    await t.step(
+      "in an opted-in group, the Mini Me's call word addresses the main line",
+      async () => {
+        const scope = {
+          carmen_scope_mode: "specific_group",
+          carmen_allowed_group_ids: [GROUP_CHAT],
+        };
+        /** A group message on the main line under `style`. */
+        function turn(style: string) {
+          return groupTurn(
+            tenantDb(scope, { tenant_settings: orgStyle(style) }),
+            LID,
+          ).ctx;
+        }
+
+        const orbs = await run({
+          ...turn("orbs"),
+          messageText: "מיני מי, מה המצב?",
+        });
+        const minime = await run({
+          ...turn("minime"),
+          messageText: "מיני מי, מה המצב?",
+        });
+
+        assertEquals(orbs.result, {
+          handled: false,
+          reason: "group_not_addressed",
+        });
+        assertStrictEquals(
+          minime.result?.handled === false &&
+            minime.result.reason === "group_not_addressed",
+          false,
+        );
+      },
+    );
+
+    await t.step(
+      "the orbs and the illustrated character keep the main line Carmen",
+      async () => {
+        for (const style of ["orbs", "character"]) {
+          const { result, posted } = await run(
+            mainLineTurn(
+              { tenant_settings: orgStyle(style) },
+              "מיני מי, מה המצב?",
+            ),
+          );
+
+          assertEquals(result, { handled: false, reason: "no_keyword" }, style);
+          assertEquals(posted, [], style);
+        }
+      },
+    );
+
+    await t.step(
+      "a failed style read keeps the main line Carmen and logs",
+      async () => {
+        const { result: turn, logged } = await withConsoleErrors(() =>
+          run(
+            mainLineTurn({}, "מיני מי, מה המצב?", {
+              tenant_settings: { message: "settings unavailable" },
+            }),
+          ),
+        );
+
+        assertEquals(turn.result, { handled: false, reason: "no_keyword" });
+        assertEquals(turn.posted, []);
+        assertStringIncludes(
+          logged,
+          "[persona] organization style lookup failed",
+        );
+      },
+    );
+
+    await t.step(
+      "a personal line keeps its owner's character under the Mini Me style",
+      async () => {
+        const ownerPicksAios = [
+          { tenant_id: TENANT, user_id: "user-1", persona_key: "aios" },
+        ];
+        /** The owner typing `messageText` on their own (secondary) line. */
+        function personal(messageText: string): CarmenContext {
+          return {
+            ...mainLineTurn(
+              {
+                tenant_settings: orgStyle("minime"),
+                carmen_persona_choices: ownerPicksAios,
+              },
+              messageText,
+            ),
+            connectionRole: "secondary",
+          };
+        }
+
+        const org = await run(personal("מיני מי, מה המצב?"));
+        assertEquals(org.result, {
+          handled: false,
+          reason: "secondary_no_trigger",
+        });
+
+        const own = await run(personal("AIOS, מה המצב?"));
+        const body = runBody(own.posted);
+        assertEquals(body.persona_user_id, "user-1");
+        assertStrictEquals(ORG_PERSONA_FIELD in body, false);
       },
     );
   },

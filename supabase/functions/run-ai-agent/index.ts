@@ -317,7 +317,8 @@ import {
 } from "./workshop-turn-setup.ts";
 import { callerAddressLine } from "../_shared/carmen/user-address.ts";
 import {
-  loadCallerPersona,
+  type PersonaSource,
+  loadPersona,
   personaPromptSection,
 } from "../_shared/carmen/persona-runtime.ts";
 
@@ -1815,7 +1816,7 @@ async function executeTool(
 import { requireAuth } from "../_shared/security.ts";
 import type { Surface } from "./surface.ts";
 import { bindRunAgentCaller, runCallerPhone } from "./caller-trust.ts";
-import { personalLineOwner } from "./line-owner-pick.ts";
+import { turnPersonaSource } from "./turn-persona.ts";
 import { runTenantDenied } from "../_shared/agent-runs/run-tenant-access.ts";
 import { INSTRUCTION_TRIGGER_RE } from "./instruction-trigger.ts";
 import { runStopCheck } from "../_shared/carmen/run-stop.ts";
@@ -2024,15 +2025,8 @@ async function handleRunAgent(
     if (!callerUserId && resolvedUserId && resolvedUserId !== "system") {
       callerUserId = resolvedUserId;
     }
-    // Whose agent character Carmen speaks as (AIO-576): the signed-in user in the
-    // app, the owner of a personal WhatsApp line (service-only persona_user_id),
-    // and nobody on the org's main Carmen line or in tasks.
-    const personaUserId =
-      surface === "whatsapp"
-        ? personalLineOwner(bodyJson)
-        : surface === "internal_chat" || surface === "aios"
-          ? callerUserId
-          : null;
+    // Whose agent character Carmen speaks as (AIO-576, AIO-654).
+    const personaSource = turnPersonaSource(surface, bodyJson, callerUserId);
     if (callerUserId) {
       const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
@@ -2209,7 +2203,7 @@ async function handleRunAgent(
       const fastReply = await tryFastLane(supabase, emit, {
         tenantId: resolvedTenantId,
         userId: callerUserId,
-        personaUserId,
+        personaSource,
         callerName,
         agentId: agent_id,
         agentName: agent.name || "כרמן",
@@ -3108,10 +3102,11 @@ async function handleRunAgent(
     // The profile name wins over user_name, which some screens set to a department label.
     systemPrompt += await callerAddressLine(supabase, callerUserId, callerName);
     // The character the caller picked (AIO-570) names Carmen for them and sets her
-    // intro, personality, soul and mood; without a pick, and on the org's main
-    // WhatsApp line (AIO-576), she stays herself.
+    // intro, personality, soul and mood. On WhatsApp it is a personal line's
+    // owner's pick, or the org's choice on the main line (AIO-654); without
+    // one she stays herself.
     const callerPersona = isCarmen
-      ? await loadCallerPersona(supabase, resolvedTenantId, personaUserId)
+      ? await loadPersona(supabase, resolvedTenantId, personaSource)
       : null;
     if (callerPersona) {
       systemPrompt += personaPromptSection(callerPersona);
@@ -4799,8 +4794,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 type FastLaneRequest = {
   tenantId: string;
   userId: string | null;
-  /** Whose agent character to answer as; null on the org's main Carmen line. */
-  personaUserId: string | null;
+  /** Whose agent character to answer as; null when Carmen answers as herself. */
+  personaSource: PersonaSource | null;
   callerName: string | null;
   agentId: string;
   agentName: string;
@@ -4829,7 +4824,7 @@ async function tryFastLane(
     ),
     callerAddressLine(supabase, turn.userId, turn.callerName),
     // The fast lane answers only as Carmen, so the caller's character applies here too.
-    loadCallerPersona(supabase, turn.tenantId, turn.personaUserId),
+    loadPersona(supabase, turn.tenantId, turn.personaSource),
   ]);
   if (!target) {
     return null;
