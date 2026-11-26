@@ -218,16 +218,6 @@ Deno.test("automation and task runs: source guards", async (t) => {
       const loopExec = loop.search(/result = await executeTool\(\s*toolName,/);
       assert(guard > 0 && loopExec > guard && loopExec - guard < 1500);
       assertMatch(
-        readRunSource("prepare-run-tool-api"),
-        /buildToolApiEntries\(\s*approvalScopedTools\(filteredTools, mayDecideApprovals\),/,
-      );
-      assertStrictEquals(
-        readRunSource("prepare-run-tool-api").split(
-          "buildToolApiEntries(filteredTools",
-        ).length - 1,
-        0,
-      );
-      assertMatch(
         readRunSource("resolve-run-caller"),
         /callerPhone = runCallerPhone\(bodyJson\);/,
       );

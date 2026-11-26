@@ -14,6 +14,7 @@ export interface FixtureOptions {
   body?: Partial<RunBody>;
   maxRounds?: number;
   settings?: Record<string, string>;
+  skills?: Array<{ slug: string; system_prompt: string }>;
   modelResponses?: Array<{ status?: number; body: unknown }>;
   emit?: (event: unknown) => void;
 }
@@ -76,6 +77,10 @@ export async function runFixture(options: FixtureOptions = {}) {
       };
     }
 
+    if (url.pathname.endsWith("/ai_skills") && options.skills) {
+      data = options.skills;
+    }
+
     if (url.pathname.endsWith("/chat/completions")) {
       const response = responses.shift();
       status = response?.status ?? 200;
@@ -102,8 +107,6 @@ export async function runFixture(options: FixtureOptions = {}) {
   async function noFastReply() {
     return null;
   }
-  /** Conversation persistence is asserted separately from these tenant-only fixtures. */
-  async function noSave() {}
 
   try {
     const result = await runOrchestratedAgent(
@@ -131,7 +134,8 @@ export async function runFixture(options: FixtureOptions = {}) {
           }),
         executeTool,
         tryFastLane: noFastReply,
-        saveConversationTurn: noSave,
+        // These tenant-only runs do not persist an app conversation.
+        saveConversationTurn: async () => {},
         SUPABASE_URL: "https://example.supabase.co",
         SUPABASE_SERVICE_ROLE_KEY: "test-key",
         corsHeaders: {

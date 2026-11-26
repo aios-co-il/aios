@@ -42,6 +42,12 @@ Deno.test(
     const second = attempts[1].body as { model: string; messages: unknown };
     assertEquals(first.model, "gemini-3-flash-preview");
     assertEquals(second.model, "gpt-5.4-mini");
+    assert(Array.isArray(first.messages));
+    assert(
+      first.messages.some(
+        (message) => message.role === "user" && message.content === "hello",
+      ),
+    );
     assertEquals(second.messages, first.messages);
   },
 );
@@ -87,12 +93,14 @@ Deno.test(
         messages: Array<{
           role: string;
           tool_calls?: unknown;
+          tool_call_id?: string;
           content?: unknown;
         }>;
       }
     ).messages;
     assertEquals(messages.at(-2)?.tool_calls, [toolCall]);
     assertEquals(messages.at(-1)?.role, "tool");
+    assertEquals(messages.at(-1)?.tool_call_id, "call1");
     assertEquals(
       messages.at(-1)?.content,
       JSON.stringify({ count: 0, memories: [] }),

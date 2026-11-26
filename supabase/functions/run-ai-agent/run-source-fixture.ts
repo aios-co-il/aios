@@ -8,7 +8,7 @@ export function readRunSource(file: string): string {
     .replace(/\b(\w+): \1\b/g, "$1");
 }
 
-/** Composes owning modules in the same sequence the run orchestrator executes. */
+/** Collects owners for source-presence guards; file positions do not prove execution order. */
 export function readRunStages(): string {
   const source = Deno.readTextFileSync(
     new URL("./run/agent.ts", import.meta.url),
