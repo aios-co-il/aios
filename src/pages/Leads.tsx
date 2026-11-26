@@ -134,6 +134,7 @@ import {
 import { LeadsKanbanStage } from "@/components/LeadsPage/LeadsKanbanStage";
 import { LeadsPaginationBar } from "@/components/LeadsPage/LeadsPaginationBar";
 import { LeadsSearchInput } from "@/components/LeadsPage/LeadsSearchInput";
+import { HeaderSearch } from "@/components/layout/HeaderSearch/HeaderSearch";
 import { LeadsSidePanel } from "@/components/LeadsPage/LeadsSidePanel";
 import { LeadsSummaryList } from "@/components/LeadsPage/LeadsSummaryList";
 import { LeadsTableCard } from "@/components/LeadsPage/LeadsTableCard";
@@ -3229,21 +3230,10 @@ export default function Leads() {
             </Sheet>
           </div>
 
-          {/* Desktop: search above the list; the rest is in the side panel */}
-          <div
-            className={cn(
-              "hidden shrink-0 items-center gap-2 md:flex",
-              viewMode === "table" && "pb-2.5",
-              // Kanban scrolls this column, so the row stays on top as the old header did.
-              !fillsScreen && "sticky top-0 z-40 bg-background py-2",
-            )}
-          >
-            <LeadsSearchInput
-              value={searchQuery}
-              onChange={setSearchQuery}
-              className="w-72"
-            />
-          </div>
+          {/* Desktop: search is in the app header; the rest is in the side panel */}
+          <HeaderSearch>
+            <LeadsSearchInput value={searchQuery} onChange={setSearchQuery} />
+          </HeaderSearch>
 
           {/* Filters Dialog */}
           <LeadFiltersDialog

@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { publicFunctionUrl } from "../_shared/public-api/url.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,8 +44,8 @@ Deno.serve(async (req) => {
   }
 
   const settings = config.settings || {};
-  const trackEndpoint = `${supabaseUrl}/functions/v1/analytics-track`;
-  const identifyEndpoint = `${supabaseUrl}/functions/v1/analytics-identify`;
+  const trackEndpoint = publicFunctionUrl("analytics-track");
+  const identifyEndpoint = publicFunctionUrl("analytics-identify");
 
   // Generate the tracking script
   const script = `

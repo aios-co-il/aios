@@ -24,6 +24,7 @@ import {
   manusSendRefusal,
   stagingBlockResponse,
 } from "./send-guard.ts";
+import { publicFunctionUrl } from "../_shared/public-api/url.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -201,7 +202,7 @@ Deno.serve(async (req) => {
 
       // Generate a unique webhook secret for this instance
       const webhookSecret = crypto.randomUUID().replace(/-/g, "");
-      const webhookUrl = `${SUPABASE_URL}/functions/v1/manus-wa-webhook`;
+      const webhookUrl = publicFunctionUrl("manus-wa-webhook");
 
       // 1. Create instance in Gateway via Admin API (WORKER_SECRET authenticated)
       const newInstance = await gatewayAdmin("/api/admin/instances", "POST", {

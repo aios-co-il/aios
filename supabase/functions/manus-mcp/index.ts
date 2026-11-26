@@ -29,6 +29,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { getRepoSlug } from "../_shared/github-repo.ts";
+import { publicFunctionUrl } from "../_shared/public-api/url.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -465,7 +466,7 @@ async function handleToolCall(
   const BEARER = Deno.env.get("MANUS_MCP_BEARER") || "<MANUS_MCP_BEARER>";
   const notifyInstruction =
     `\n\nWhen you finish, please notify David on WhatsApp by calling:\n` +
-    `POST ${SUPABASE_URL}/functions/v1/manus-notify\n` +
+    `POST ${publicFunctionUrl("manus-notify")}\n` +
     `Headers: { "Authorization": "Bearer ${BEARER}", "Content-Type": "application/json" }\n` +
     `Body: { "tenant_id": "${ctx.tenantId}", "message": "<your concise result summary with task link>" }`;
 

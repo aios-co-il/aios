@@ -21,8 +21,10 @@
 
 ```bash
 cd extension
-bun install        # או: npm install
-bun run build      # או: npm run build  →  extension/dist/
+bun install              # לפי extension/bun.lock
+bun run typecheck        # בדיקת טיפוסים: קוד התוסף וקובצי הבנייה
+bun run build            # Production  →  extension/dist/
+bun run build:staging    # Staging     →  extension/dist-staging/
 ```
 
 1. פתח `chrome://extensions`
@@ -30,11 +32,27 @@ bun run build      # או: npm run build  →  extension/dist/
 3. **Load unpacked** → בחר את התיקייה `extension/dist`
 4. הצמד את התוסף לסרגל והתחבר עם חשבון ה-AIOS שלך
 
-לאחר שינוי קוד: `bun run build` ואז ↻ (reload) בעמוד `chrome://extensions`.
+לאחר שינוי קוד: `bun run build` ואז ↻ (reload) בעמוד `chrome://extensions`. `bun run dev` ו-`bun run dev:staging` בונים מחדש בכל שמירה.
+
+## סביבות
+
+כל בנייה מחוברת לסביבה אחת. הכתובות והמפתח נקראים בזמן הבנייה מהמקום שבו הם כבר שמורים (`build/environment.ts`), וערך חסר או שגוי מפיל את הבנייה. גם `manifest.json` נוצר בבנייה (`build/manifest.ts`), כך ש-`host_permissions` תמיד תואמים לכתובת שהקוד פונה אליה.
+
+- **Production** (`bun run build`): נבנה רק מקבצים שב-git, ולכן משתני סביבה במסוף או קבצים מקומיים לא משנים אותו.
+  - כתובת הפרויקט והמפתח הציבורי: `.env` שבשורש הריפו (אותו מקור של האתר ושל אפליקציית האנדרואיד).
+  - הדומיין שהתוסף פונה אליו: `extension/.env.production`.
+  - כתובת האתר: `site_url` תחת `[remotes.production.auth]` ב-`supabase/config.toml`.
+- **Staging** (`bun run build:staging`): הערכים של AIOS Staging לא שמורים ב-git.
+  - `VITE_SUPABASE_URL` ו-`VITE_SUPABASE_PUBLISHABLE_KEY` מגיעים ממשתני הסביבה (למשל `.envrc` לפי `.envrc.example` שבשורש) או מקובץ מקומי `extension/.env.staging.local`.
+  - כתובת האתר: `site_url` תחת `[remotes.develop.auth]` ב-`supabase/config.toml`.
+  - בלי הערכים הבנייה נכשלת, ואם התקבלו ערכי Production היא מסרבת. אין נפילה שקטה ל-Production.
+  - התוסף נקרא "AIOS Rec (Staging)" ונבנה לתיקייה נפרדת, כך שאפשר לטעון אותו ב-Chrome לצד גרסת ה-Production (`Load unpacked` → `extension/dist-staging`).
+
+ב-GitHub, ה-workflow `Extension` (`.github/workflows/extension.yml`) בודק טיפוסים ובונה לשתי הסביבות בכל PR שנוגע בתוסף, ומעלה את בניית ה-Staging כ-artifact בשם `extension-staging`.
 
 ## הערות
 
-- ה-anon key של Supabase מוטמע בקוד (`src/config.ts`) — זהו מפתח ציבורי; כל הגישה נאכפת ע"י RLS עם ה-JWT של המשתמש המחובר.
+- ה-anon key של Supabase מוטמע בתוסף בזמן הבנייה (`src/config.ts`) — זהו מפתח ציבורי; כל הגישה נאכפת ע"י RLS עם ה-JWT של המשתמש המחובר.
 - בחירת ארגון בתוסף מעדכנת את `user_active_tenant` (כמו באפליקציה) — זה נדרש כדי ש-RLS יזהה את הטננט הפעיל.
 - ההקלטה נעצרת גם בלחיצה על "Stop sharing" של Chrome.
 - קבצים ישנים/ידניים גדולים מ-25MB: השרת מפצל אוטומטית MP3 ו-WAV; פורמטים אחרים (m4a/webm) גדולים מדי יקבלו שגיאה ברורה עם הנחיה.
