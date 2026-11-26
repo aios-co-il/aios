@@ -13,8 +13,9 @@ Deno.test(
     // when the landing page kind added its two tools and its kind to workshop_start_project
     // (AIO-607), then workshop_import_landing_page, when workshop_import_file let a direct
     // brain put its files on the board, when the five read-only SEO tools joined before the
-    // workshop tail, when the five approval-gated SEO actions followed them, and when
-    // create_agent_task said its repeating schedules are read in Israel time.
+    // workshop tail, when the five approval-gated SEO actions followed them, when
+    // create_agent_task said its repeating schedules are read in Israel time, and when
+    // list_updates said it returns the names of the files attached to each entry.
     // Includes descriptions, parameters, required fields, and object-key ordering.
     const digest = await crypto.subtle.digest(
       "SHA-256",
@@ -25,7 +26,7 @@ Deno.test(
     ).join("");
     assertEquals(
       hex,
-      "aae2a3d0ab468fac0fad0c32bfaa347602655a18abc5690bf23ae6ccf0f71541",
+      "f1af9508417b1a60b4808bd0967ed4e2e30452a0e1e96c38f670411e80f2e7e0",
     );
   },
 );

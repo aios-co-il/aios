@@ -3,7 +3,7 @@ import { CLIENT_CARD_SOURCES } from "../../_shared/client-card/sources.ts";
 export const clientUpdatesTools = [
   {
     name: "list_updates",
-    description: `רשימת עדכונים ללקוח או ליד. ללקוח: כולל מי רשם (author), סוג העדכון (update_type) ומקור (source: ${CLIENT_CARD_SOURCES.join(" / ")}).`,
+    description: `רשימת עדכונים ללקוח או ליד. ללקוח: כולל מי רשם (author), סוג העדכון (update_type) ומקור (source: ${CLIENT_CARD_SOURCES.join(" / ")}), ושמות הקבצים שצורפו (attachments, בלי קישורים).`,
     parameters: {
       type: "object",
       properties: {

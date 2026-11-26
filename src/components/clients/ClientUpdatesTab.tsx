@@ -64,6 +64,10 @@ import {
   type ClientMoodStatus,
 } from "@/lib/clientMoodHistory";
 import { SeoUpdateModal } from "@/components/clients/SeoUpdateModal";
+import { CLIENT_UPDATE_ATTACHMENT_COLUMNS } from "@/components/clients/updateAttachments/attachmentRules";
+import { uploadClientUpdateAttachments } from "@/components/clients/updateAttachments/clientUpdateAttachments";
+import { ClientUpdateAttachmentPicker } from "@/components/clients/updateAttachments/ClientUpdateAttachmentPicker";
+import { ClientUpdateAttachmentList } from "@/components/clients/updateAttachments/ClientUpdateAttachmentList";
 
 interface ClientUpdatesTabProps {
   clientId: string;
@@ -117,6 +121,7 @@ export function ClientUpdatesTab({
   const [editingTask, setEditingTask] = useState<any>(null);
   const [newUpdate, setNewUpdate] = useState("");
   const [newUpdateType, setNewUpdateType] = useState<string>("weekly_update");
+  const [newFiles, setNewFiles] = useState<Array<File>>([]);
   const [seoUpdateOpen, setSeoUpdateOpen] = useState(false);
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenant();
@@ -257,7 +262,9 @@ export function ClientUpdatesTab({
     queryFn: async () => {
       let query = supabase
         .from("client_updates")
-        .select("*")
+        .select(
+          `*, client_update_attachments (${CLIENT_UPDATE_ATTACHMENT_COLUMNS})`,
+        )
         .eq("client_id", clientId)
         .order("created_at", { ascending: false });
 
@@ -308,27 +315,41 @@ export function ClientUpdatesTab({
     mutationFn: async ({
       content,
       updateType,
+      files,
     }: {
       content: string;
       updateType: string;
+      files: Array<File>;
     }) => {
       if (!tenantId || !user?.id) {
         throw new Error("Missing tenant or user");
       }
-      const { error } = await supabase.from("client_updates").insert({
-        client_id: clientId,
-        tenant_id: tenantId,
-        user_id: user.id,
-        content,
-        update_type: updateType,
-      } as any);
+      const { data: entry, error } = await supabase
+        .from("client_updates")
+        .insert({
+          client_id: clientId,
+          tenant_id: tenantId,
+          user_id: user.id,
+          content,
+          update_type: updateType,
+        })
+        .select("id, tenant_id, client_id")
+        .single();
       if (error) {
         throw error;
       }
+      return uploadClientUpdateAttachments(entry, files);
     },
-    onSuccess: () => {
+    onSuccess: (failedFiles) => {
       queryClient.invalidateQueries({ queryKey: ["client-updates", clientId] });
       setNewUpdate("");
+      setNewFiles([]);
+      if (failedFiles.length) {
+        toast.error(
+          `העדכון נשמר, אך לא הצלחנו לצרף: ${failedFiles.join(", ")}`,
+        );
+        return;
+      }
       toast.success("העדכון נוסף בהצלחה");
     },
     onError: (error) => {
@@ -355,7 +376,13 @@ export function ClientUpdatesTab({
 
   // Delete update mutation
   const deleteUpdateMutation = useMutation({
-    mutationFn: deleteClientUpdate,
+    mutationFn: ({
+      id,
+      attachmentPaths,
+    }: {
+      id: string;
+      attachmentPaths: Array<string>;
+    }) => deleteClientUpdate(id, attachmentPaths),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["client-updates", clientId] });
       toast.success("העדכון נמחק בהצלחה");
@@ -404,6 +431,7 @@ export function ClientUpdatesTab({
     addUpdateMutation.mutate({
       content: newUpdate.trim(),
       updateType: newUpdateType,
+      files: newFiles,
     });
   };
 
@@ -583,6 +611,11 @@ export function ClientUpdatesTab({
                   )}
                 </Button>
               </div>
+              <ClientUpdateAttachmentPicker
+                files={newFiles}
+                onChange={setNewFiles}
+                disabled={addUpdateMutation.isPending}
+              />
             </div>
 
             <div className="md:col-span-3 min-w-0 space-y-3 md:border-s md:ps-4 border-border/60">
@@ -809,6 +842,9 @@ export function ClientUpdatesTab({
                               <p className="text-sm whitespace-pre-wrap">
                                 {update.content}
                               </p>
+                              <ClientUpdateAttachmentList
+                                attachments={update.client_update_attachments}
+                              />
                               <div className="flex items-center justify-between mt-2">
                                 <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                                   <User className="h-3 w-3 shrink-0" />
@@ -846,7 +882,13 @@ export function ClientUpdatesTab({
                                       variant="ghost"
                                       className="h-6 w-6 text-destructive hover:text-destructive"
                                       onClick={() =>
-                                        deleteUpdateMutation.mutate(update.id)
+                                        deleteUpdateMutation.mutate({
+                                          id: update.id,
+                                          attachmentPaths:
+                                            update.client_update_attachments.map(
+                                              (file) => file.storage_path,
+                                            ),
+                                        })
                                       }
                                       disabled={deleteUpdateMutation.isPending}
                                     >

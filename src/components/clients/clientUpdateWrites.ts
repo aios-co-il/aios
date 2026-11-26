@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { removeClientUpdateAttachmentFiles } from "@/components/clients/updateAttachments/clientUpdateAttachments";
 
 /**
  * Edits a card entry's text. RLS skips a row the user may not edit without an
@@ -19,8 +20,16 @@ export async function editClientUpdate(
   requireChangedRow(data, "edit", id);
 }
 
-/** Deletes a card entry; throws when RLS left the row in place. */
-export async function deleteClientUpdate(id: string): Promise<void> {
+/**
+ * Deletes a card entry and its attached files; throws when RLS left the row
+ * in place. The files go first: their storage policy needs the attachment
+ * rows, which deleting the entry cascades away.
+ */
+export async function deleteClientUpdate(
+  id: string,
+  attachmentPaths: Array<string> = [],
+): Promise<void> {
+  await removeClientUpdateAttachmentFiles(attachmentPaths);
   const { data, error } = await supabase
     .from("client_updates")
     .delete()
