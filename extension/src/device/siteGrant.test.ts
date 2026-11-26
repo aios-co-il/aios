@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { grantsToDrop, sitePattern } from "./siteGrant.ts";
+import { CAPTURE_GRANT, grantsToDrop, sitePattern } from "./siteGrant.ts";
 
 describe("sitePattern", () => {
   it("asks for one https host on any path", () => {
@@ -22,5 +22,11 @@ describe("grantsToDrop", () => {
       ),
     ).toEqual(["https://shop.example/*", "https://news.example/*"]);
     expect(grantsToDrop(required, required)).toEqual([]);
+  });
+
+  it("drops a capture grant a closed panel left behind, so no read rides on it", () => {
+    expect(grantsToDrop([CAPTURE_GRANT], ["https://aios.co.il/*"])).toEqual([
+      CAPTURE_GRANT,
+    ]);
   });
 });

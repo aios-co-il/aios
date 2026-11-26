@@ -21,7 +21,7 @@ import {
 } from "./readFlow.ts";
 import { decideReadStep, type ReadStep } from "./readStep.ts";
 import { askOnShotCard } from "./shotAsk.ts";
-import { refusedShot, shotArguments } from "./shotStep.ts";
+import { refusedShot, sensitiveFrames, shotArguments } from "./shotStep.ts";
 import { StepStopped, untilStopped } from "./stoppableDeps.ts";
 
 /** The browser calls a screenshot needs beyond the read's. */
@@ -93,28 +93,38 @@ async function shotUnlessStopped(
   }
   progress.observed = page.location;
 
-  const asked = await askOnShotCard(tab, page, allowed, progress, deps);
-  if (asked !== "allowed") {
-    return asked;
+  const approved = await askOnShotCard(tab, page, allowed, progress, deps);
+  if ("status" in approved) {
+    return approved;
   }
   if (!(await stillTheSamePage(tab, deps))) {
     return changed(progress);
   }
-  return captureAndStore(tab, page, progress, unstopped);
+  return captureAndStore(tab, page, approved.sensitive, progress, unstopped);
 }
 
 /**
- * Captures, checks that the tab did not move while it was captured, and stores the picture.
- * A tab that moved discards the picture before anything is stored.
+ * Captures, checks that the tab did not move and that the page did not grow a password or
+ * payment field the card did not name while it was captured, and stores the picture. A
+ * picture that fails either check is discarded before anything is stored.
  */
 async function captureAndStore(
   tab: TabFacts,
   page: ReadablePage,
+  cardSaidSensitive: boolean,
   progress: ReadProgress,
   deps: ShotDeps,
 ): Promise<ReadOutcome> {
   const picture = await deps.captureTab();
+  // Read while the grant still reaches every frame, and given back right after.
+  const sensitiveNow = sensitiveFrames(await deps.pageFields(tab.id));
   await deps.dropCaptureGrant();
+  if (sensitiveNow && !cardSaidSensitive) {
+    console.warn(
+      "[carmen-panel] browser_screenshot: the page showed a sensitive field after the card",
+    );
+    return changed(progress);
+  }
   if (!(await stillTheSamePage(tab, deps))) {
     return changed(progress);
   }

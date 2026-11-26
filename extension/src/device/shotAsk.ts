@@ -21,14 +21,17 @@ import {
 import type { ReadablePage, ShotDeps } from "./shotFlow.ts";
 import { refusedShot, sensitiveFrames, shotRule } from "./shotStep.ts";
 
-/** `allowed` after the card's tap (and a second one on a page found sensitive), otherwise how the step ended. */
+/**
+ * The user's approval after the card's tap (and a second one on a page found sensitive),
+ * with whether the card they approved named the page sensitive; otherwise how the step ended.
+ */
 export async function askOnShotCard(
   tab: TabFacts,
   page: ReadablePage,
   allowed: boolean,
   progress: ReadProgress,
   deps: ShotDeps,
-): Promise<"allowed" | ReadOutcome> {
+): Promise<{ sensitive: boolean } | ReadOutcome> {
   const url = tab.url ?? "";
   const granted = await deps.hasGrant(page.pattern);
   const before = shotRule(
@@ -45,6 +48,9 @@ export async function askOnShotCard(
   if (first !== "allowed") {
     return first;
   }
+  if (before === "ask") {
+    return { sensitive: true };
+  }
   const after = shotRule(
     url,
     sensitiveFrames(await deps.pageFields(tab.id)),
@@ -54,9 +60,11 @@ export async function askOnShotCard(
   if (after !== "free" && after !== "ask") {
     return refusedShot(after);
   }
-  return after === "ask" && before !== "ask"
-    ? card(page, true, progress, deps)
-    : "allowed";
+  if (after === "free") {
+    return { sensitive: false };
+  }
+  const second = await card(page, true, progress, deps);
+  return second === "allowed" ? { sensitive: true } : second;
 }
 
 /** Shows one screenshot card, whose tap asks Chrome for the capture grant; `allowed`, or how the step ended. */

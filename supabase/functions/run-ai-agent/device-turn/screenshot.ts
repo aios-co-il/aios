@@ -139,8 +139,10 @@ export async function discardUnusedScreenshots(
     .eq("tool", "browser_screenshot")
     .eq("status", "done")
     .is("consumed_at", null);
+  // Logged, never thrown: the page text of the conversation's other steps is still cleared.
   if (error) {
-    throw new Error(`reading the unused screenshots failed: ${error.message}`);
+    console.error("[device] reading the unused screenshots failed", error);
+    return;
   }
   for (const row of data ?? []) {
     const result = toolResult("browser_screenshot", row.result, owner.userId);

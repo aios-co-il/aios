@@ -168,6 +168,23 @@ describe("a screenshot of a sensitive page", () => {
     expect(refused.shots.drops).toBeGreaterThan(0);
   });
 
+  it("a page that shows a password field only while it is captured: the picture is discarded", async () => {
+    const device = shotDevice(true);
+    device.deps.pageFields = vi
+      .fn()
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValue([PASSWORD]);
+    const { running } = await started(device);
+
+    device.shots.answer("allowed");
+    await running;
+
+    expect(device.deps.captureTab).toHaveBeenCalledTimes(1);
+    expect(device.deps.uploadShot).not.toHaveBeenCalled();
+    expect(device.completed[0]).toMatchObject({ status: "target_changed" });
+  });
+
   it("a frame that answers anything but field facts counts as sensitive", async () => {
     const device = shotDevice(false);
     device.deps.pageFields = vi.fn(async () => [[], undefined]);

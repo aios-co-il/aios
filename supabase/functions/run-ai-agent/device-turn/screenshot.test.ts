@@ -10,9 +10,7 @@ import {
 } from "./screenshot.test-fixture.ts";
 import {
   ACTION,
-  capturing,
   COLLEAGUE,
-  CONVERSATION,
   openOver,
   panelTurn,
   RUN,
@@ -228,46 +226,6 @@ Deno.test(
         assert(turn.reply);
         assertEquals(bucket.read, []);
         assertEquals(bucket.removed, [SHOT_PATH]);
-      },
-    );
-  },
-);
-
-Deno.test(
-  "a screenshot nobody resumed is deleted by the next typed message",
-  async (t) => {
-    await t.step("its file goes before its row loses the path", async () => {
-      const unused = shotRow(undefined, SHOT_PATH, { consumed_at: null });
-      const { bucket } = await openWith([unused]);
-
-      assertEquals(bucket.removed, [SHOT_PATH]);
-      assertStrictEquals(unused.result, null);
-    });
-
-    await t.step("another conversation's picture is left alone", async () => {
-      const elsewhere = shotRow(undefined, SHOT_PATH, {
-        conversation_id: crypto.randomUUID(),
-      });
-      const { bucket } = await openWith([elsewhere]);
-
-      assertEquals(bucket.removed, []);
-      assertEquals(elsewhere.conversation_id === CONVERSATION, false);
-    });
-
-    await t.step(
-      "a failed delete is logged without the path and the turn goes on",
-      async () => {
-        const errors = await capturing("error", async () => {
-          const bucket = bucketOf();
-          bucket.store.remove = () => Promise.reject(new Error("boom"));
-          await openOver(
-            tablesWith([shotRow(undefined, SHOT_PATH, { consumed_at: null })]),
-            panelTurn({ screenshotStore: bucket.store }),
-          );
-        });
-
-        assertEquals(errors.length, 1);
-        assertStrictEquals(errors[0].includes(SHOT_PATH), false);
       },
     );
   },

@@ -16,12 +16,13 @@ type FakeResult = {
  * row with a fresh id, and `.upsert()` with `ignoreDuplicates` adds one unless a row already
  * holds the same values in its `onConflict` columns. `.or()` and `.limit()` keep every row:
  * a test holds only the rows such a filter would match. A query resolves through `.maybeSingle()`, `.single()` or by being
- * awaited for every row. `failing` names a table whose queries return an error.
+ * awaited for every row. `failing` names a table whose queries return an error, or picks
+ * the failing queries by their table and `.eq()` filters.
  */
 export function fakeDb(
   tables: FakeTables,
   visible: (row: FakeRow) => boolean = () => true,
-  failing?: string,
+  failing?: string | ((table: string, equals: FakeRow) => boolean),
 ): ActionDb {
   /** One query on a table. */
   function from(table: string) {
@@ -30,10 +31,15 @@ export function fakeDb(
     let inserted: FakeRow | null = null;
     let orderedBy: string | null = null;
     let conflictColumns: Array<string> = [];
+    const equals: FakeRow = {};
 
     /** Runs the query: its write, then the rows it matches. */
     function run(): FakeResult {
-      if (table === failing) {
+      const fails =
+        typeof failing === "function"
+          ? failing(table, equals)
+          : table === failing;
+      if (fails) {
         return { data: null, error: { message: "boom" } };
       }
       if (inserted) {
@@ -79,6 +85,7 @@ export function fakeDb(
         return query;
       },
       eq(column: string, value: unknown) {
+        equals[column] = value;
         filters.push((row) => row[column] === value);
         return query;
       },
