@@ -46,6 +46,24 @@
             android:padding="16dp" />
     </ScrollView>
 
+    <!-- The pictures attached to the next message, filled by ChatActivity.showAttached. -->
+    <HorizontalScrollView
+        android:id="@+id/chat_pictures_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/carmen_card"
+        android:paddingHorizontal="10dp"
+        android:paddingTop="10dp"
+        android:scrollbars="none"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/chat_pictures"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal" />
+    </HorizontalScrollView>
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -53,6 +71,15 @@
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:padding="10dp">
+
+        <ImageButton
+            android:id="@+id/chat_attach"
+            android:layout_width="44dp"
+            android:layout_height="48dp"
+            android:layout_marginEnd="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/chat_attach"
+            android:src="@drawable/ic_attach_picture" />
 
         <EditText
             android:id="@+id/chat_input"

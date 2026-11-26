@@ -11,6 +11,9 @@ on:
       # The site's files the build reads for the Mini Me (MiniMeResources in app/build.gradle.kts).
       - "src/components/carmen/MiniMe/images/**"
       - "supabase/functions/_shared/carmen/personas.ts"
+      # The site's files the build reads for the chat pictures' limits and bucket (AIO-684).
+      - "supabase/functions/run-ai-agent/attachments/contract.ts"
+      - "supabase/functions/_shared/agent-channel/attachment-bucket.ts"
   push:
     branches: [develop, main]
     paths:
@@ -18,6 +21,9 @@ on:
       # The site's files the build reads for the Mini Me (MiniMeResources in app/build.gradle.kts).
       - "src/components/carmen/MiniMe/images/**"
       - "supabase/functions/_shared/carmen/personas.ts"
+      # The site's files the build reads for the chat pictures' limits and bucket (AIO-684).
+      - "supabase/functions/run-ai-agent/attachments/contract.ts"
+      - "supabase/functions/_shared/agent-channel/attachment-bucket.ts"
   workflow_dispatch:
 
 permissions:
