@@ -1,4 +1,9 @@
 import type { ChannelAttachment, ChannelProvider } from "./types.ts";
+import {
+  formatScreenContext,
+  parseScreenContext,
+  SCREEN_CONTEXT_SOURCE,
+} from "../carmen/screen-context.ts";
 import { publicApiUrl } from "../public-api/url.ts";
 
 export function aiosEnvironmentLabel(): "staging" | "production" {
@@ -152,17 +157,14 @@ export function buildCallbackInstructions(args: {
 
 /** The Command Center sidecar's screen context, as JSON the session can read; "" for anything else. */
 function screenContextBlock(screenContext: unknown): string {
-  if (
-    !screenContext ||
-    typeof screenContext !== "object" ||
-    !("source" in screenContext) ||
-    screenContext.source !== "command_center_sidebar"
-  ) {
+  const context = parseScreenContext(screenContext);
+
+  if (context?.source !== SCREEN_CONTEXT_SOURCE.commandCenterSidebar) {
     return "";
   }
   return (
     `\n\nThe screen the user is looking at in AIOS:\n` +
-    `${JSON.stringify(screenContext).slice(0, SCREEN_CONTEXT_MAX)}\n`
+    `${formatScreenContext(context, SCREEN_CONTEXT_MAX)}\n`
   );
 }
 

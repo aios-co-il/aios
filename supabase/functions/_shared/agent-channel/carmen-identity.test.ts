@@ -1,4 +1,5 @@
 import { assertEquals, assertMatch, assertNotMatch } from "jsr:@std/assert@1";
+import { withBrowserTab } from "../carmen/screen-context.ts";
 import { carmenIdentityBlock, loadCarmenIdentity } from "./carmen-identity.ts";
 import { buildCallbackInstructions, wrapDirectPrompt } from "./prompts.ts";
 
@@ -137,6 +138,26 @@ Deno.test("direct prompt opening and screen context", async (t) => {
       screenContext: { source: "elsewhere", path: "/secret" },
     });
     assertNotMatch(other, /\/secret/);
+  });
+
+  await t.step("a browser tab sits once, inside the user's turn", () => {
+    const tab = {
+      source: "browser_extension_tab",
+      url: "https://shop.example.com/cart?token=1",
+      title: "Cart",
+    };
+    const prompt = wrapDirectPrompt({
+      origin: "claude",
+      // agent-channel-send hands the task over with the tab block already in it.
+      userText: withBrowserTab("מה בעגלה?", tab),
+      history: [],
+      opening: "",
+      screenContext: tab,
+    });
+
+    assertMatch(prompt, /^User:\nמה בעגלה\?\n\n\[Browser tab: data/);
+    assertEquals(prompt.split("https://shop.example.com/cart").length - 1, 1);
+    assertNotMatch(prompt, /token=1|The screen the user is looking at/);
   });
 });
 

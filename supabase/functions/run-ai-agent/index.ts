@@ -369,6 +369,12 @@ import {
   resolveSkillsBySlug,
 } from "../_shared/skills/registry.ts";
 import { DEV_ENVIRONMENT_STANDING } from "../_shared/environments-standing.ts";
+import {
+  formatScreenContext,
+  parseScreenContext,
+  SCREEN_CONTEXT_SOURCE,
+  withBrowserTab,
+} from "../_shared/carmen/screen-context.ts";
 import { selfQuestionsStanding } from "../_shared/carmen/self-questions.ts";
 import {
   applyToolForceIncludes,
@@ -3108,13 +3114,11 @@ async function handleRunAgent(
       systemPrompt += `\n\n=== הקשר סטודיו (משימה מבודדת) ===\n${promptAddon}`;
     }
 
-    const ctxMeta = bodyJson.context_metadata;
+    const screenContext = parseScreenContext(bodyJson.context_metadata);
     if (
       isCarmen &&
       surface === "internal_chat" &&
-      ctxMeta &&
-      typeof ctxMeta === "object" &&
-      ctxMeta.source === "command_center_sidebar"
+      screenContext?.source === SCREEN_CONTEXT_SOURCE.commandCenterSidebar
     ) {
       systemPrompt +=
         "\n\n🛠️ === Command Center sidecar (system fix context) ===\n" +
@@ -3125,7 +3129,7 @@ async function handleRunAgent(
         "Never open duplicate Cursor sessions — if dispatch timed out, use attach_dev_task_session with the bc- id.\n" +
         "Legacy direct mcp_Cursor__request_dev_task only if dev_tasks workflow is unavailable, and also only after his yes in a later message.\n" +
         "Always include path + entity context in any dev task you create.\n" +
-        `context_metadata: ${JSON.stringify(ctxMeta).slice(0, 4000)}`;
+        `context_metadata: ${formatScreenContext(screenContext, 4000)}`;
     }
 
     // Hard rule for both V1 and V2: only allowlisted requesters may escalate
@@ -4022,8 +4026,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       }
     }
 
-    // Add current message
-    messages.push({ role: "user", content: command_text });
+    // Add current message. A browser tab the extension's panel reported joins it as data:
+    // the page wrote its title and address, so they never reach the system prompt.
+    messages.push({
+      role: "user",
+      content: withBrowserTab(command_text, bodyJson.context_metadata),
+    });
 
     let finalOutput = "";
     const toolLog: Array<any> = [];

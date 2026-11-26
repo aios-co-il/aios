@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <title>AIOS — כרמן</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body class="panel">
+    <header class="panel-bar">
+      <div id="tab-chip" class="tab-chip">הלשונית לא משותפת עם כרמן</div>
+      <label class="checkbox">
+        <input type="checkbox" id="share-tab" />
+        כרמן רואה את הלשונית
+      </label>
+      <a id="open-site" class="link" target="_blank" rel="noopener"
+        >פתיחה בלשונית</a
+      >
+    </header>
+    <div id="frame-notice" class="panel-notice hidden">
+      כרמן לא נטענה כאן?
+      <a id="notice-link" target="_blank" rel="noopener">פתחו את AIOS בלשונית</a
+      >, התחברו שם, ואז סגרו ופתחו את החלונית מחדש.
+    </div>
+    <iframe
+      id="carmen-frame"
+      class="panel-frame"
+      title="כרמן"
+      allow="microphone"
+    ></iframe>
+
+    <script type="module" src="/src/sidepanel.ts"></script>
+  </body>
+</html>
