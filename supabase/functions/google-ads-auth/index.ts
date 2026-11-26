@@ -1,4 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import {
+  withGoogleToken,
+  withGoogleTokens,
+} from "../_shared/google-oauth/integration-tokens.ts";
 import { allowedAppOrigin } from "../_shared/google-oauth/app-origin.ts";
 import {
   isCompleteRefusal,
@@ -275,13 +279,14 @@ async function refreshAccessToken(_supabase: any, tenantId: string) {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
   );
 
-  const { data: integration } = await serviceClient
+  const { data: storedIntegration } = await serviceClient
     .from("tenant_integrations")
     .select("*")
     .eq("tenant_id", tenantId)
     .eq("integration_type", "google_ads")
     .eq("is_active", true)
     .maybeSingle();
+  const integration = await withGoogleToken(serviceClient, storedIntegration);
 
   if (!integration?.settings?.refresh_token) {
     return new Response(JSON.stringify({ error: "No refresh token found" }), {
@@ -405,8 +410,12 @@ async function getAccessibleGoogleAdsIntegrations(
     sharedIntegrations = data || [];
   }
 
+  const withTokens = await withGoogleTokens(serviceClient, [
+    ...(tenantIntegrations || []),
+    ...sharedIntegrations,
+  ]);
   const map = new Map<string, any>();
-  for (const i of [...(tenantIntegrations || []), ...sharedIntegrations]) {
+  for (const i of withTokens) {
     if (i?.id && i?.api_key) {
       map.set(i.id, i);
     }
