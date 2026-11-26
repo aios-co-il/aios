@@ -23,6 +23,11 @@ import type { GoogleCampaignGoal } from "../_shared/campaign-goal/google-classif
 import { operationalCampaignStates } from "../_shared/campaign-goal/delivery-status.ts";
 import { enrichConversionCategories } from "./conversion-enrichment.ts";
 import {
+  AD_CONTENT_GAQL_FIELDS,
+  type GoogleAdContent,
+  googleAdContent,
+} from "./ad-content.ts";
+import {
   detectGoogleAdsError,
   googleAdsErrorBody,
   isManagerAccountError,
@@ -41,7 +46,7 @@ const DEVELOPER_TOKEN = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN") || "";
 const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID") || "";
 const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET") || "";
 
-interface GoogleAdsRecord {
+interface GoogleAdsRecord extends GoogleAdContent {
   date: string;
   entity_level?: "campaign" | "adset" | "ad";
   campaign_id: string;
@@ -638,6 +643,10 @@ Deno.serve(async (req) => {
             cost_per_conversion:
               parseInt(result.metrics?.costPerConversion || "0") / 1000000,
             roas: Math.round(roas * 100) / 100,
+            // The ad's copy, for the report's ad card; ad rows only.
+            ...(entityLevel === "ad"
+              ? googleAdContent(result.adGroupAd?.ad)
+              : {}),
           });
         }
       }
@@ -708,7 +717,7 @@ Deno.serve(async (req) => {
         ad_group.id,
         ad_group.name,
         ad_group_ad.ad.id,
-        ad_group_ad.ad.name,
+        ad_group_ad.ad.name,${AD_CONTENT_GAQL_FIELDS},
         ${gaqlMetrics}
       FROM ad_group_ad
       WHERE segments.date BETWEEN '${startIso}' AND '${endIso}'
