@@ -5,7 +5,14 @@
 // the Hebrew line in the prompt, so the clip speaks it with matching lips.
 // Request shape is from the docs; verify the talking slug, generate_audio and
 // Hebrew speech with one paid call before relying on it.
+import { flagged } from "../guard.ts";
 import { providerJson } from "./json.ts";
+import {
+  fallbackVideoModels,
+  modelGone,
+  OPENROUTER_VIDEO_MODEL,
+  videoUsdPerSecond,
+} from "./openrouter-models.ts";
 import type { OpenRouterVideoResponse } from "./responses.ts";
 import type {
   EstimateInput,
@@ -21,15 +28,11 @@ const BASE = () =>
     /\/$/,
     "",
   );
-export const OPENROUTER_VIDEO_MODEL = "kwaivgi/kling-v3.0-std";
 export const OPENROUTER_TALKING_MODEL = "google/veo-3.1";
 const MODEL = () =>
   process.env.OPENROUTER_VIDEO_MODEL || OPENROUTER_VIDEO_MODEL;
 const TALKING_MODEL = () =>
   process.env.OPENROUTER_TALKING_MODEL || OPENROUTER_TALKING_MODEL;
-// kling-v3.0-std on OpenRouter: $0.084 per output second (720p, no audio).
-const USD_PER_SECOND = () =>
-  Number(process.env.OPENROUTER_VIDEO_USD_PER_SECOND) || 0.084;
 // Veo 3.1 with audio: planning estimate until the first paid talking clip.
 const TALKING_USD_PER_SECOND = () =>
   Number(process.env.OPENROUTER_TALKING_USD_PER_SECOND) || 0.4;
@@ -138,10 +141,10 @@ export function openRouterProvider({
     });
     const data = await providerJson<OpenRouterVideoResponse>(response);
     if (!response.ok) {
-      throw beforeSubmit(
-        `openrouter submit ${response.status}: ${JSON.stringify(data.error ?? data).slice(0, 300)}`,
-        response.status,
-      );
+      const message = `openrouter submit ${response.status}: ${JSON.stringify(data.error ?? data).slice(0, 300)}`;
+      throw Object.assign(beforeSubmit(message, response.status), {
+        modelUnavailable: modelGone(response.status, message),
+      });
     }
     if (!data.id) {
       throw beforeSubmit("openrouter submit returned no job id");
@@ -167,19 +170,39 @@ export function openRouterProvider({
       const seconds = openRouterClipSeconds(durationS, chosen);
       const billed =
         family(chosen) === "kling" ? Math.max(5, seconds) : seconds;
-      return { credits: 0, usd: +(billed * USD_PER_SECOND()).toFixed(2) };
+      return {
+        credits: 0,
+        usd: +(billed * videoUsdPerSecond(chosen)).toFixed(2),
+      };
     },
     async submit(input: MediaInput): Promise<SubmitResult> {
       const talking = input.talking === true;
-      const submitModel = talking ? TALKING_MODEL() : chosen;
-      const { jobId } = await submitBody(
-        openRouterClipBody({
-          ...input,
-          model: submitModel,
-          generateAudio: talking,
-        }),
-      );
-      return talking ? { jobId, model: submitModel } : { jobId };
+      // A clip moves to the next model only when OpenRouter refused the one before it, so
+      // nothing was accepted or charged yet.
+      const models = talking
+        ? [TALKING_MODEL()]
+        : [...new Set([chosen, ...fallbackVideoModels()])];
+      let refusal: unknown = null;
+      for (const submitModel of models) {
+        try {
+          const { jobId } = await submitBody(
+            openRouterClipBody({
+              ...input,
+              model: submitModel,
+              generateAudio: talking,
+            }),
+          );
+          return talking || submitModel !== chosen
+            ? { jobId, model: submitModel }
+            : { jobId };
+        } catch (error) {
+          if (!flagged(error, "modelUnavailable")) {
+            throw error;
+          }
+          refusal = error;
+        }
+      }
+      throw refusal;
     },
     submitBody,
     async poll(jobId: string): Promise<PollResult> {
