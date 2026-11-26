@@ -39,6 +39,7 @@ import {
 import { observeManusGroupMember } from "../_shared/carmen-observe-group-member.ts";
 import { consumeGroupActivation } from "../_shared/carmen-group-verification.ts";
 import { isUnresolvedGroupAuthor } from "./group-author.ts";
+import { makeVoiceSender } from "./voice-sender.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -473,30 +474,6 @@ function messageIsVoice(
   }
   const url = pickAudioUrl(payload, msgContainer);
   return looksAudio(payload, msgContainer, url);
-}
-
-// Send Carmen's reply as a voice note too (best-effort, via send-manus-wa-voice)
-function makeVoiceSender(
-  tenantId: string,
-): (chatId: string, text: string) => Promise<boolean> {
-  return async (toChatId: string, text: string): Promise<boolean> => {
-    try {
-      const r = await fetch(
-        `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-manus-wa-voice`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          },
-          body: JSON.stringify({ tenant_id: tenantId, to: toChatId, text }),
-        },
-      );
-      return r.ok;
-    } catch {
-      return false;
-    }
-  };
 }
 
 function ok(body: Record<string, unknown>, status = 200) {
@@ -1966,7 +1943,11 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
             msgContainer,
             resolvedGroupMsg,
           ),
-          sendVoice: makeVoiceSender(groupTenantId),
+          // From this line, even when the group routes to another tenant.
+          sendVoice: makeVoiceSender(supabase, {
+            tenantId,
+            integrationId: integ.id,
+          }),
         });
         if (result.handled) {
           carmenOutcome = result.outcome;
@@ -2156,7 +2137,10 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
           { tenantHasActiveManus: true },
         ),
         isVoiceMessage: messageIsVoice(payload, msgContainer, resolvedMsg),
-        sendVoice: makeVoiceSender(tenantId),
+        sendVoice: makeVoiceSender(supabase, {
+          tenantId,
+          integrationId: integ.id,
+        }),
       });
       if (result.handled) {
         carmenOutcome = result.outcome;
