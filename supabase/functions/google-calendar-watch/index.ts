@@ -7,6 +7,7 @@
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { publicFunctionUrl } from "../_shared/public-api/url.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -85,8 +86,6 @@ async function stopExistingChannel(
 }
 
 async function startWatch(serviceClient: any, userId: string) {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-
   const { data: token, error } = await serviceClient
     .from("calendar_tokens")
     .select("*")
@@ -114,7 +113,7 @@ async function startWatch(serviceClient: any, userId: string) {
   }
 
   const channelId = crypto.randomUUID();
-  const webhookUrl = `${supabaseUrl}/functions/v1/google-calendar-webhook`;
+  const webhookUrl = publicFunctionUrl("google-calendar-webhook");
 
   const r = await fetch(
     "https://www.googleapis.com/calendar/v3/calendars/primary/events/watch",

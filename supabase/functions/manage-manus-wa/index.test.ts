@@ -27,7 +27,11 @@ const LINE = {
 type Call = { token: string; body: Record<string, unknown> };
 
 /** Runs these requests through the deployed handler on Staging; returns each status and body, and the gateway posts. */
-async function run(calls: Array<Call>, failing: Record<string, string> = {}) {
+async function run(
+  calls: Array<Call>,
+  failing: Record<string, string> = {},
+  extraEnv: Record<string, string> = {},
+) {
   const http = fakeSupabaseHttp({
     supabaseUrl: SUPABASE_URL,
     tables: {
@@ -46,6 +50,7 @@ async function run(calls: Array<Call>, failing: Record<string, string> = {}) {
     APP_ENV: "staging",
     STAGING_SAFE_MODE: "true",
     STAGING_ALLOWED_PHONE_NUMBERS: ALLOWED_PHONE,
+    ...extraEnv,
   };
   const replies = await withRuntime({ env, fetch: http.fetch }, async () => {
     const handle = await servedHandler(new URL("./index.ts", import.meta.url));
@@ -146,6 +151,36 @@ Deno.test({
           body: { error: "Internal error" },
         });
         assertStrictEquals(gateway.length, 0);
+      },
+    );
+
+    await t.step(
+      "create_instance registers the webhook on PUBLIC_API_URL, not SUPABASE_URL",
+      async () => {
+        const { gateway } = await run(
+          [
+            {
+              token: SERVICE_KEY,
+              body: {
+                action: "create_instance",
+                tenantId: TENANT,
+                displayName: "Carmen",
+              },
+            },
+          ],
+          {},
+          {
+            MANUS_GATEWAY_WORKER_SECRET: "worker-secret",
+            PUBLIC_API_URL: "https://api.aios.co.il",
+          },
+        );
+
+        assertStrictEquals(gateway.length, 1);
+        assertStrictEquals(gateway[0].url.pathname, "/api/admin/instances");
+        assertStrictEquals(
+          (gateway[0].body as { webhookUrl: string }).webhookUrl,
+          "https://api.aios.co.il/functions/v1/manus-wa-webhook",
+        );
       },
     );
   },

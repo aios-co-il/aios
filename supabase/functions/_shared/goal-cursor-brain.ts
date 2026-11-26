@@ -13,6 +13,7 @@ import {
   cursorApiKey,
 } from "./agent-channel/cursor-api.ts";
 import { hmacSha256Hex, timingSafeEqual } from "./security.ts";
+import { publicFunctionUrl } from "./public-api/url.ts";
 
 export const BRAIN_REQUEST_TYPES = [
   "plan",
@@ -123,13 +124,12 @@ export function buildGoalBrainCallbackBlock(args: {
   goalId: string;
   token: string;
 }): string {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   return (
     `\n\n--- GOAL ENGINE BRAIN CALLBACK (required) ---\n` +
     `You are the Cursor Direct orchestration brain for Carmen's autonomous goals.\n` +
     `Reply with a single JSON object (wrap in \`\`\`json fence). No prose outside the fence unless needed.\n\n` +
     `When finished, POST your full answer to AIOS:\n` +
-    `POST ${supabaseUrl}/functions/v1/goal-brain-callback\n` +
+    `POST ${publicFunctionUrl("goal-brain-callback")}\n` +
     `Headers:\n` +
     `  Authorization: Bearer ${args.token}\n` +
     `  Content-Type: application/json\n` +

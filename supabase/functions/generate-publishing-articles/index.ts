@@ -8,6 +8,7 @@ import {
   publishingImageProxyUrl,
   publishingImageStoragePath,
 } from "../_shared/publishing-images.ts";
+import { publicApiUrl } from "../_shared/public-api/url.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -338,11 +339,7 @@ async function generateArticleImage(
     return null;
   }
   return {
-    url: publishingImageProxyUrl(
-      Deno.env.get("SUPABASE_URL")!,
-      articleId,
-      kind,
-    ),
+    url: publishingImageProxyUrl(publicApiUrl(), articleId, kind),
     prompt,
   };
 }

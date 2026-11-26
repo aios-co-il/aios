@@ -26,6 +26,7 @@ import {
 import { appOrigin } from "../_shared/carmen/skin-gallery.ts";
 import { resolveBroadcastRecipientClientId } from "./recipient-client.ts";
 import { tenantSlugOf } from "./tenant-slug.ts";
+import { publicApiUrl } from "../_shared/public-api/url.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -189,7 +190,7 @@ async function sendOne(
       fromName: b.from_name || undefined,
       replyTo: b.reply_to || undefined,
       headers: {
-        "List-Unsubscribe": `<${oneClickUnsubscribeUrl(SB_URL, r.id)}>`,
+        "List-Unsubscribe": `<${oneClickUnsubscribeUrl(publicApiUrl(), r.id)}>`,
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
       },
       tags: [{ name: "broadcast_id", value: b.id }],
