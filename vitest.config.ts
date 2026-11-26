@@ -34,6 +34,7 @@ export default defineConfig({
             "render-worker/test/**/*.test.ts",
             "scripts/**/*.test.mjs",
             "scripts/**/*.test.ts",
+            "vite-plugins/**/*.test.ts",
             ".github/scripts/**/*.test.mjs",
             ".claude/hooks/**/*.test.mjs",
             ".claude/hooks/**/*.test.ts",

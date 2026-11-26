@@ -1,14 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
+import { COMMAND_CENTER_FILES_BUCKET } from "../../supabase/functions/_shared/agent-channel/attachment-bucket.ts";
+import type { ChannelAttachment } from "../../supabase/functions/_shared/agent-channel/types.ts";
+import type { TurnPictureAttachment } from "../../supabase/functions/run-ai-agent/attachments/contract.ts";
 
-export type CommandCenterAttachment = {
-  name: string;
-  url: string;
-  type: "image" | "file";
-  size?: number;
-  path?: string;
-};
+/** A file attached in the Command Center chat: the shape the edge functions define. */
+export type CommandCenterAttachment = ChannelAttachment;
 
-const BUCKET = "command-center-files";
+const BUCKET = COMMAND_CENTER_FILES_BUCKET;
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
 const MAX_FILES = 6;
 const ACCEPT =
@@ -34,6 +32,30 @@ export function formatAttachmentsForPrompt(
   const body = lines.join("\n");
   const prefix = userText?.trim() ? `${userText.trim()}\n\n` : "";
   return `${prefix}📎 קבצים מצורפים (${attachments.length}):\n${body}`;
+}
+
+/**
+ * What Carmen's own loop (run-ai-agent) is sent for a message with attachments (AIO-675).
+ * The text is what it always was, every attachment a line with its link: the workshop reads
+ * an attached picture's line as the look to follow (`referenceThisTurn`), and her tools that
+ * save or rework a picture take its address from there. Each picture also goes by storage
+ * path, so the server reads the bytes itself and shows them to a brain that can see.
+ */
+export function carmenTurn(
+  attachments: Array<CommandCenterAttachment>,
+  typedText: string,
+): { commandText: string; pictures: Array<TurnPictureAttachment> } {
+  const text = typedText.trim();
+  const pictures = attachments.flatMap(({ name, path, type, size }) =>
+    type === "image" && path ? [{ name, path, type, size }] : [],
+  );
+
+  return {
+    commandText: attachments.length
+      ? formatAttachmentsForPrompt(attachments, text)
+      : text,
+    pictures,
+  };
 }
 
 export async function uploadCommandCenterAttachments(

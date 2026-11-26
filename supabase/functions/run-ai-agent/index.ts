@@ -1815,9 +1815,11 @@ async function executeTool(
 import { requireAuth } from "../_shared/security.ts";
 import type { Surface } from "./surface.ts";
 import { bindRunAgentCaller, runCallerPhone } from "./caller-trust.ts";
+import { personalLineOwner } from "./line-owner-pick.ts";
 import { runTenantDenied } from "../_shared/agent-runs/run-tenant-access.ts";
 import { INSTRUCTION_TRIGGER_RE } from "./instruction-trigger.ts";
-import { runStopCheck, stoppedReply } from "./run-cancel.ts";
+import { runStopCheck } from "../_shared/carmen/run-stop.ts";
+import { stoppedReply } from "./run-cancel.ts";
 import { type FastLaneChannel, fastLaneFits } from "./fast-lane/eligibility.ts";
 import { fastLaneInstructions } from "./fast-lane/instructions.ts";
 import {
@@ -1828,6 +1830,18 @@ import {
 } from "./fast-lane/answer.ts";
 import { loadOrgBrief } from "../_shared/carmen/org-brief/brief.ts";
 import { type FastLaneCaller, fastLaneBriefScope } from "./fast-lane/scope.ts";
+import { readPictureRequest } from "./attachments/picture-request.ts";
+import {
+  commandCenterPictureStore,
+  loadTurnPictures,
+} from "./attachments/picture-store.ts";
+import {
+  providerRefusedPictures,
+  textOnlyTurn,
+  withTurnPictures,
+} from "./attachments/picture-turn.ts";
+import { asksForPictures } from "./attachments/turn-pictures.ts";
+import { targetCanSee } from "./attachments/vision.ts";
 
 // Emit function used by the streaming wrapper to push SSE events to the client.
 // In non-streaming mode it's a no-op.
@@ -2015,7 +2029,7 @@ async function handleRunAgent(
     // and nobody on the org's main Carmen line or in tasks.
     const personaUserId =
       surface === "whatsapp"
-        ? asUuidOrNull(bodyJson.persona_user_id)
+        ? personalLineOwner(bodyJson)
         : surface === "internal_chat" || surface === "aios"
           ? callerUserId
           : null;
@@ -2152,6 +2166,13 @@ async function handleRunAgent(
       }
     }
 
+    // Pictures attached in the site chat (attachments/, AIO-675): storage paths in the
+    // signed-in caller's own folder only. Read later, once the brains of the turn are known.
+    const pictureRequest = readPictureRequest(bodyJson.attachments, {
+      authKind: request.authKind,
+      userId: callerUserId,
+    });
+
     // A quick model answers small talk and what the org brief already covers before the full
     // setup (memory, skills, tools) runs; anything else falls through unchanged (fast-lane/).
     const fastLaneChannel: FastLaneChannel | null =
@@ -2179,6 +2200,8 @@ async function handleRunAgent(
           bodyJson.carmen_automation ||
           findingDraftReply.shortCode ||
           findingDraftReply.approveCode ||
+          // The fast lane's models are not chosen for sight: pictures go to the full brain.
+          asksForPictures(pictureRequest) ||
           (Array.isArray(task_skills) && task_skills.length > 0),
         ),
       })
@@ -4030,6 +4053,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     // the page wrote its title and address, so they never reach the system prompt.
     const userTurn = withBrowserTab(command_text, bodyJson.context_metadata);
     messages.push({ role: "user", content: userTurn });
+    // Where each model call puts this turn's pictures, or the line saying they were not read.
+    const pictureTurnAt = { at: messages.length - 1, text: userTurn };
 
     let finalOutput = "";
     const toolLog: Array<any> = [];
@@ -4045,7 +4070,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       const manusBody: any = {
         action: "create_task",
         tenantId: agent.tenant_id,
-        prompt: userTurn,
+        // Manus takes text only: attached pictures become the line saying they were not read.
+        prompt: textOnlyTurn(userTurn, pictureRequest),
       };
       const manusRes = await fetch(`${SUPABASE_URL}/functions/v1/manus-api`, {
         method: "POST",
@@ -4113,6 +4139,14 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     if (llmChain.length === 0) {
       throw new Error("לא מוגדר אף מפתח מודל AI פעיל באינטגרציית מודלי AI");
     }
+    // The pictures' bytes, read from our own storage only when a brain of this turn can see.
+    const turnPictures = await loadTurnPictures(
+      commandCenterPictureStore(supabase),
+      pictureRequest,
+      { wanted: llmChain.some(targetCanSee), userId: callerUserId },
+    );
+    // The links whose provider refused a request that carried the pictures (by label).
+    const pictureRefusers = new Set<string>();
     let activeIdx = 0;
     let llm = llmChain[activeIdx];
     console.log(
@@ -4156,7 +4190,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     };
     let silentNudges = 0;
     let roundsRun = 0;
-    // The chat's stop button: checked before each round and each tool (run-cancel.ts).
+    // The chat's stop button: checked before each round and each tool (_shared/carmen/run-stop.ts).
     const runStopped = runStopCheck(supabase, bodyJson.run_id, callerUserId);
     let stoppedByUser = false;
     for (let round = 0; round < maxRounds; round++) {
@@ -4172,7 +4206,18 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         const cappedTools = capToolsForTarget(llm, toolsForAPI);
         const payload: any = {
           model: llm.model,
-          messages: messagesForProvider(messages, llm.provider),
+          // Per call: a link that cannot see (the first, or one failed over to) gets no
+          // image part, only the line saying so.
+          messages: messagesForProvider(
+            withTurnPictures(
+              messages,
+              pictureTurnAt,
+              turnPictures,
+              llm,
+              pictureRefusers,
+            ),
+            llm.provider,
+          ),
         };
         const temp = safeTemp ?? llm.temperature;
         if (temp !== undefined) {
@@ -4275,6 +4320,22 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             failoverReason(res.status, err),
           ).catch(() => {});
           continue; // retry the same round on the next provider
+        }
+        // A provider that will not read the request with the pictures in it (a type or a size
+        // it does not take) is asked once more without them, so the turn still gets an answer.
+        if (
+          providerRefusedPictures(
+            res.status,
+            turnPictures,
+            llm,
+            pictureRefusers,
+          )
+        ) {
+          pictureRefusers.add(llm.label);
+          console.warn(
+            `[AGENT] ${llm.label} refused the attached pictures (${res.status}); asking again without them`,
+          );
+          continue;
         }
         if (llm.connectionId) {
           throw new Error(

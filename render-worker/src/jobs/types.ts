@@ -52,6 +52,8 @@ export interface RunOutput {
   /** What this run paid for each sound effect, in USD, by effect name. */
   sound_effects_cost_usd?: Record<string, unknown>;
   sound_effects_error?: string | null;
+  /** The model a clip's provider job runs on when it is not the engine's own (jobs/clip.ts). */
+  provider_model?: string;
   [key: string]: unknown;
 }
 
