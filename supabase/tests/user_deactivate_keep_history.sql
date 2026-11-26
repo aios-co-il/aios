@@ -44,7 +44,7 @@ DECLARE
   rejoiner2 uuid := gen_random_uuid(); late uuid := gen_random_uuid();
   rejoin_email text := 'qa-rejoin-' || gen_random_uuid() || '@example.invalid';
   late_email text := 'qa-late-' || gen_random_uuid() || '@example.invalid';
-  card_writer uuid; card_solo uuid; card_mover uuid; solo_session uuid; mover_session uuid;
+  card_writer uuid; card_solo uuid; card_mover uuid; card_viewer uuid; solo_session uuid; mover_session uuid;
   cu_writer uuid; cu_hard uuid; cu_viewer uuid; tu_writer uuid; tu_hard uuid;
   solo_since timestamptz;
   r record;
@@ -101,6 +101,11 @@ BEGIN
   RETURNING id INTO client_b;
   INSERT INTO public.campaigner_agencies (campaigner_id, agency_id) VALUES (card_mover, agency_a);
   INSERT INTO public.client_team (client_id, campaigner_id) VALUES (client_a, card_mover);
+  -- The viewer reads client_a's card entries, so they must see client_a.
+  INSERT INTO public.campaigners (full_name, tenant_id, active)
+  VALUES ('QA Viewer card', t_a, true) RETURNING id INTO card_viewer;
+  UPDATE public.profiles SET campaigner_id = card_viewer WHERE id = viewer;
+  INSERT INTO public.client_team (client_id, campaigner_id) VALUES (client_a, card_viewer);
   INSERT INTO public.client_updates (client_id, tenant_id, user_id, content)
   VALUES (client_a, t_a, writer, 'written by the writer') RETURNING id INTO cu_writer;
   INSERT INTO public.client_updates (client_id, tenant_id, user_id, content)

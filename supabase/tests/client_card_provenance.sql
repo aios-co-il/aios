@@ -358,6 +358,11 @@ BEGIN
     RAISE EXCEPTION 'A user who cannot see the client sees its entries';
   END IF;
 
+  -- ... their own org's entries on it included (AIO-TBD) ...
+  IF EXISTS (SELECT 1 FROM public.client_updates WHERE id = v_other_row) THEN
+    RAISE EXCEPTION 'A user who cannot see the client sees their own org''s entry on it';
+  END IF;
+
   -- ... and cannot write on it: no new entry, no edit of an own entry still
   -- on it, no move of an own entry onto it.
   BEGIN
@@ -366,11 +371,11 @@ BEGIN
     RAISE EXCEPTION 'A user who cannot see the client wrote an entry on it';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
-  BEGIN
-    UPDATE public.client_updates SET content = 'Must be denied' WHERE id = v_other_row;
+  UPDATE public.client_updates SET content = 'Must be denied' WHERE id = v_other_row;
+  GET DIAGNOSTICS affected = ROW_COUNT;
+  IF affected <> 0 THEN
     RAISE EXCEPTION 'A user who cannot see the client edited an entry on it';
-  EXCEPTION WHEN insufficient_privilege THEN NULL;
-  END;
+  END IF;
   BEGIN
     UPDATE public.client_updates SET client_id = v_client WHERE id = v_moved_row;
     RAISE EXCEPTION 'A user moved an entry onto a client they cannot see';
