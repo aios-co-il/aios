@@ -1,19 +1,21 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import {
   draftOf,
   draftProblem,
-  landingPageUrl,
   type LandingSettingsDraft,
   type TrackingDraft,
 } from "./landingSettings";
 import { LandingAddressFields } from "./LandingAddressFields";
 import { LandingDomainSection } from "./LandingDomainSection";
+import { LandingSettingsHeader } from "./LandingSettingsHeader";
 import { LandingTrackingFields } from "./LandingTrackingFields";
 import { LeadDestinationFields } from "./LeadDestinationFields";
 import { useLandingSettings } from "./useLandingSettings";
+import { useSettingsOpen } from "./useSettingsOpen";
 
 /**
  * A landing project's settings: its address, where its leads go, and its site's tracking ids and
@@ -37,6 +39,7 @@ export function LandingSettingsPanel({
   const [draft, setDraft] = useState<LandingSettingsDraft | null>(null);
   const [saves, setSaves] = useState(0);
   const [trackingSaves, setTrackingSaves] = useState(0);
+  const [expanded, setExpanded] = useSettingsOpen();
   const savedKey = saved ? JSON.stringify(draftOf(saved)) : null;
 
   // The form follows its own stored fields: it starts over when another project opens, when those
@@ -95,76 +98,75 @@ export function LandingSettingsPanel({
   }
 
   return (
-    <section
-      aria-label="הגדרות עמוד נחיתה"
-      className="shrink-0 space-y-4 border-b bg-muted/30 p-4"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">הגדרות עמוד נחיתה</h2>
-        {saved.pageExists ? (
-          <a
-            href={landingPageUrl(saved.subdomain, saved.slug)}
-            target="_blank"
-            rel="noreferrer"
-            dir="ltr"
-            className="inline-flex items-center gap-1 text-sm text-primary underline-offset-4 hover:underline"
-          >
-            {landingPageUrl(saved.subdomain, saved.slug).replace(
-              "https://",
-              "",
-            )}
-            <ExternalLink className="h-3.5 w-3.5" />
-          </a>
-        ) : null}
-      </div>
+    <Collapsible asChild open={expanded} onOpenChange={setExpanded}>
+      <section
+        aria-label="הגדרות עמוד נחיתה"
+        className="shrink-0 border-b bg-muted/30 px-4 py-2"
+      >
+        <LandingSettingsHeader expanded={expanded} saved={saved} />
 
-      <LandingAddressFields draft={draft} saved={saved} onChange={setDraft} />
-
-      <LeadDestinationFields
-        draft={draft}
-        hasStoredUrl={hasStoredUrl}
-        onChange={setDraft}
-      />
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Button
-          type="button"
-          size="sm"
-          disabled={!!problem || save.isPending}
-          onClick={submit}
+        {/* Stays mounted while closed, so unsaved drafts survive; scrolls inside a capped height,
+            so the page's copy below stays in view. */}
+        <CollapsibleContent
+          forceMount
+          hidden={!expanded}
+          className="max-h-[50vh] space-y-4 overflow-y-auto pb-2 pt-2"
         >
-          {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          שמירה
-        </Button>
-        {problem ? (
-          <p className="text-sm text-muted-foreground">{problem}</p>
-        ) : null}
-      </div>
+          <LandingAddressFields
+            draft={draft}
+            saved={saved}
+            onChange={setDraft}
+          />
 
-      {saved.siteExists ? (
-        <LandingTrackingFields
-          // A new project starts from its own saved ids: an unsaved draft never carries over.
-          key={itemId}
-          saved={saved.tracking}
-          saves={trackingSaves}
-          pending={saveTracking.isPending || siteBusy}
-          onSave={submitTracking}
-        />
-      ) : (
-        <p className="text-xs text-muted-foreground">
-          אחרי שמירת כתובת האתר אפשר להוסיף לו קודי מעקב ודומיין.
-        </p>
-      )}
+          <LeadDestinationFields
+            draft={draft}
+            hasStoredUrl={hasStoredUrl}
+            onChange={setDraft}
+          />
 
-      {saved.siteExists ? (
-        <LandingDomainSection
-          // Its own state per project: an answer or a draft never carries over.
-          key={`domain-${itemId}`}
-          itemId={itemId}
-          saved={saved}
-          settingsBusy={siteBusy}
-        />
-      ) : null}
-    </section>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              size="sm"
+              disabled={!!problem || save.isPending}
+              onClick={submit}
+            >
+              {save.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : null}
+              שמירה
+            </Button>
+            {problem ? (
+              <p className="text-sm text-muted-foreground">{problem}</p>
+            ) : null}
+          </div>
+
+          {saved.siteExists ? (
+            <LandingTrackingFields
+              // A new project starts from its own saved ids: an unsaved draft never carries over.
+              key={itemId}
+              saved={saved.tracking}
+              saves={trackingSaves}
+              pending={saveTracking.isPending || siteBusy}
+              onSave={submitTracking}
+            />
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              אחרי שמירת כתובת האתר אפשר להוסיף לו קודי מעקב ודומיין.
+            </p>
+          )}
+
+          {saved.siteExists ? (
+            <LandingDomainSection
+              // Its own state per project: an answer or a draft never carries over.
+              key={`domain-${itemId}`}
+              itemId={itemId}
+              saved={saved}
+              settingsBusy={siteBusy}
+            />
+          ) : null}
+        </CollapsibleContent>
+      </section>
+    </Collapsible>
   );
 }
