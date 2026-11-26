@@ -1,5 +1,5 @@
-import { ELEVENLABS_VOICES } from "./elevenlabs-voices.ts";
-import { OPENAI_VOICES } from "./voice-choice.ts";
+import { ELEVENLABS_VOICES } from "../_shared/carmen/voices/elevenlabs-voices.ts";
+import { OPENAI_VOICES } from "../_shared/carmen/voices/voice-choice.ts";
 
 /** Who speaks a voice, and so which kind of session a client opens for it. */
 export type CarmenVoiceProvider = "openai" | "elevenlabs";
@@ -25,7 +25,8 @@ type VoiceListReply = {
 /**
  * Every voice Carmen can speak in a live conversation, in picker order: her Hebrew
  * ElevenLabs voices first, then the OpenAI Realtime ones. Each list stays in its own module
- * (`elevenlabs-voices.ts`, `voice-choice.ts`), so adding a voice there adds it here.
+ * (`_shared/carmen/voices/elevenlabs-voices.ts`, `voice-choice.ts`), so adding a voice there
+ * adds it here.
  */
 export const CARMEN_VOICES: ReadonlyArray<CarmenVoiceOption> = [
   ...withProvider(ELEVENLABS_VOICES, "elevenlabs"),
