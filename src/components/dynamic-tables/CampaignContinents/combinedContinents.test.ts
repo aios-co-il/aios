@@ -56,7 +56,7 @@ describe("combinedContinents", () => {
       ]),
     ).toStrictEqual([
       ["אסיה", true, false],
-      ["דרום אמריקה", false, true],
+      ["אמריקה", false, true],
       ["כללי", false, true],
     ]);
   });

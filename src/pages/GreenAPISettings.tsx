@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
@@ -381,13 +382,12 @@ export default function GreenAPISettings({
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/green-api-webhook`;
 
-  const copyWebhookUrl = () => {
-    navigator.clipboard.writeText(webhookUrl);
-    toast({
-      title: "הועתק ללוח",
-      description: "כתובת ה-Webhook הועתקה בהצלחה",
-    });
-  };
+  const copyWebhookUrl = () =>
+    void copyToClipboard(
+      webhookUrl,
+      "הועתק ללוח",
+      "כתובת ה-Webhook הועתקה בהצלחה",
+    );
 
   return (
     <div

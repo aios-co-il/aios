@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useEffect, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -104,10 +105,8 @@ export function FacebookDeliveryModeSection({
     }
   };
 
-  const copy = (txt: string, label: string) => {
-    navigator.clipboard.writeText(txt);
-    toast({ title: "הועתק!", description: label });
-  };
+  const copy = (txt: string, label: string) =>
+    void copyToClipboard(txt, "הועתק!", label);
 
   const pageStatus = pageId ? pageSubs[pageId] : null;
 

@@ -3,6 +3,7 @@ import {
   whatsappTestSendAllowed,
 } from "./staging-whatsapp-test.ts";
 import { emailTestSendAllowed, envTestEmails } from "./staging-email-test.ts";
+import { isSupabaseApiHost } from "./public-api/hosts.ts";
 
 /** Installed before an Edge entrypoint loads, only by the Staging deployer.
  * Independent of APP_ENV and copied database data. No production opt-out flag.
@@ -18,8 +19,9 @@ export function outboundAllowed(url, method, ownOrigin) {
       target.pathname,
     );
   }
-  // Copied integration URLs must never invoke Production services, even with GET.
-  if (target.hostname.endsWith(".supabase.co")) {
+  // Copied integration URLs must never invoke Production services, even with GET:
+  // no other project's supabase.co host and no api*.aios.co.il custom domain.
+  if (isSupabaseApiHost(target.hostname)) {
     return false;
   }
   const verb = method.toUpperCase();

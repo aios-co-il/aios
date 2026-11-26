@@ -30,34 +30,54 @@ export function safeSegment(value: unknown, fallback = "general") {
   return /^[A-Za-z0-9_-]{1,80}$/.test(text) ? text : fallback;
 }
 
-const defaultHosts = () =>
-  [
-    process.env.SUPABASE_URL ? new URL(process.env.SUPABASE_URL).host : "",
+/** The hosts of this project's API: SUPABASE_URL and its custom domain PUBLIC_API_URL (https://api.aios.co.il). */
+function projectHosts(
+  urls: Array<unknown> = [process.env.SUPABASE_URL, process.env.PUBLIC_API_URL],
+) {
+  return urls.map(hostOf).filter(Boolean);
+}
+
+/** The project's hosts plus the extra media hosts in MEDIA_URL_HOSTS. */
+function defaultHosts() {
+  return [
+    ...projectHosts(),
     ...String(process.env.MEDIA_URL_HOSTS ?? "")
       .split(",")
       .map((host) => host.trim())
       .filter(Boolean),
-  ].filter(Boolean);
+  ];
+}
+
+/** The host of a URL, or "" when it is unset or not a URL. */
+function hostOf(url: unknown) {
+  try {
+    return url ? new URL(String(url)).host : "";
+  } catch {
+    return "";
+  }
+}
 
 /**
  * The bucket and path behind a link to this project's private entity-attachments bucket, or null.
  * The app keeps uploads as entity-attachments links that nobody can fetch as they are, and
  * signs them when it reads them (src/components/marketing/lib/resolveCreativeImageUrl.ts).
- * The worker downloads them with its own key instead.
+ * The worker downloads them with its own key instead. The browser builds these links from
+ * VITE_SUPABASE_URL, which on Production is the custom domain, so both project hosts count.
  */
 export function privateStorageObject(
   url: unknown,
-  projectUrl = process.env.SUPABASE_URL,
+  projectUrls: Array<string | undefined> = [
+    process.env.SUPABASE_URL,
+    process.env.PUBLIC_API_URL,
+  ],
 ): StoredObject | null {
   let link: URL;
-  let project: URL;
   try {
     link = new URL(String(url));
-    project = new URL(String(projectUrl));
   } catch {
     return null;
   }
-  if (link.host !== project.host) {
+  if (!projectHosts(projectUrls).includes(link.host)) {
     return null;
   }
   const match = link.pathname.match(
@@ -73,7 +93,7 @@ export function privateStorageObject(
   }
 }
 
-/** https only, on the Supabase project, *.supabase.co, or MEDIA_URL_HOSTS. */
+/** https only, on the Supabase project (SUPABASE_URL or PUBLIC_API_URL), *.supabase.co, or MEDIA_URL_HOSTS. */
 export function assertMediaUrl(url: unknown, hosts = defaultHosts()) {
   let parsed: URL;
   try {

@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { Copy, RefreshCw, Webhook } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
 import { Code } from "./Code";
 import { PbxInboundDocs } from "./PbxInboundDocs";
 import { generateSecret, type SetPbxField } from "./types";
@@ -38,12 +38,9 @@ function ReadOnlyRow({
 }
 
 export function PbxInboundCard({ tenantId, secret, set, isSaved }: Props) {
-  const { toast } = useToast();
   const baseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pbx-webhook?tenant_id=${tenantId}`;
-  const copy = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast({ title: "הועתק!", description: "הטקסט הועתק ללוח" });
-  };
+  const copy = (text: string) =>
+    void copyToClipboard(text, "הועתק!", "הטקסט הועתק ללוח");
 
   return (
     <Card>

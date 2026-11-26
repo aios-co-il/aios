@@ -12,6 +12,8 @@
  *    instead of inventing a new queue.
  */
 
+import type { CarmenWaNotify } from "./carmen-session-identity.ts";
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -47,15 +49,7 @@ export interface SpawnSubagentParams {
    * result back into the originating WhatsApp chat on completion — so
    * "אני עובדת על זה ברקע" doesn't become a dead end on the user's phone.
    */
-  notify?: {
-    surface: "whatsapp";
-    tenant_id: string;
-    automation_id: string | null;
-    connection_user_id: string;
-    chat_id: string;
-    phone_number: string | null;
-    is_group: boolean;
-  } | null;
+  notify?: CarmenWaNotify | null;
 }
 
 export interface SpawnSubagentResult {

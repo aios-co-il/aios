@@ -1,4 +1,6 @@
+import type { AdAccountShortcut } from "@/lib/adAccountUrl";
 import type { AdsReportRecord } from "@/components/reports/AdsGoalTables/adsGoalTablesTypes";
+import { shareResponseError } from "@/lib/rangeRefusedError";
 import type { SharedSeoPayload } from "./sharedSeoPayload";
 
 /** A shared table's record as public-table sends it (a full crm_records row). */
@@ -20,6 +22,8 @@ export type SharedTablePayload = SharedSeoPayload & {
   table?: SharedTableInfo;
   fields?: Array<{ field_key: string; field_label: string }>;
   records?: Array<SharedTableRecord>;
+  /** The "open ad account" buttons, built by public-table. */
+  ad_account_links?: Array<AdAccountShortcut>;
   error?: string;
 };
 
@@ -31,6 +35,7 @@ export function sharedTableKey(shareToken: string) {
 /**
  * Reads the share link's report from public-table. It is a public endpoint
  * read without a session, so the publishable key goes in the header.
+ * A 400 (a refused window) throws a RangeRefusedError.
  */
 export async function fetchPublicTable(
   shareToken: string,
@@ -42,7 +47,8 @@ export async function fetchPublicTable(
     headers: { apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
   });
   if (!res.ok) {
-    throw new Error(await res.text());
+    // A refused window is a RangeRefusedError, so the page keeps its dates.
+    throw await shareResponseError(res, "public-table");
   }
   return res.json();
 }

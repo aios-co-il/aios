@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -1478,11 +1479,11 @@ export default function Automations() {
                       null,
                       2,
                     );
-                    await navigator.clipboard.writeText(example);
-                    toast({
-                      title: "הועתק",
-                      description: "דוגמת ה-JSON הועתקה",
-                    });
+                    await copyToClipboard(
+                      example,
+                      "הועתק",
+                      "דוגמת ה-JSON הועתקה",
+                    );
                   }}
                 >
                   <Copy className="h-4 w-4 ml-1" />

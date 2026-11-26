@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { ReportNameCell } from "@/components/report-ui/ReportTable";
+import { FacebookEntityNameCell } from "@/components/reports/AdPreview/FacebookEntityNameCell";
 import { PreviousValueHead } from "@/components/reports/PreviousPeriod/PreviousValueCell";
 import { Card } from "@/components/ui/card";
 import {
@@ -54,10 +54,10 @@ export function FacebookSalesTable({
                 key={`ecom-${groupKey}`}
                 className="border-b hover:bg-muted/30"
               >
-                <ReportNameCell
+                <FacebookEntityNameCell
                   name={campaign.name}
-                  on={!campaign.off}
-                  className="p-2 text-right"
+                  off={campaign.off}
+                  adId={campaign.adId}
                 />
                 <SalesCells
                   campaigns={[campaign]}

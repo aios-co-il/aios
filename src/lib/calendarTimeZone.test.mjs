@@ -28,3 +28,11 @@ test("Jerusalem day bounds wrap midnight correctly", () => {
   ).toBeTruthy();
   expect(iso.end.includes("2026-08-24")).toBeTruthy();
 });
+
+test("Jerusalem last_9_days is 9 full days ending yesterday in Israel", () => {
+  // 23:30 UTC is already 28 Aug in Israel, so yesterday there is 27 Aug.
+  const now = new Date("2026-08-27T23:30:00Z");
+  const calendar = getJerusalemDashboardDateRange("last_9_days", now);
+  expect(calendar.startDate).toBe("2026-08-19");
+  expect(calendar.endDate).toBe("2026-08-27");
+});

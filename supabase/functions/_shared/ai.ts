@@ -498,8 +498,9 @@ export async function aiVisionJSON(
 }
 
 // Diarized speech-to-text (ElevenLabs Scribe v2) — separates multiple speakers
-// in one audio file. Used for the system/tab channel of meeting recordings so
-// remote participants get individual labels. Requires ELEVENLABS_API_KEY;
+// in one audio file. Used for single-file recordings (manual uploads, calls)
+// and for the system/tab channel of meeting recordings, so each speaker gets a
+// label. Requires ELEVENLABS_API_KEY;
 // returns null when the key is missing or the request fails (callers fall
 // back to Whisper without diarization). Language is auto-detected (handles
 // mixed Hebrew/English meetings).
@@ -564,6 +565,7 @@ export async function aiDiarizeTranscribe(
     if (current) {
       segments.push(current);
     }
+    logScribeUsage(audio.size, words);
     const cleaned = segments
       .map((s) => ({ ...s, text: s.text.trim() }))
       .filter((s) => s.text);
@@ -572,6 +574,26 @@ export async function aiDiarizeTranscribe(
     console.error("[scribe] failed", e);
     return null;
   }
+}
+
+// Scribe v2 API price per audio hour (elevenlabs.io/pricing/api).
+const SCRIBE_USD_PER_HOUR = 0.2;
+
+/**
+ * Logs one Scribe call to ai_usage_log. Scribe bills per audio second, and the
+ * last word's end time is the closest measure of the audio length we get back.
+ */
+function logScribeUsage(bytes: number, words: Array<{ end?: unknown }>): void {
+  const seconds = words.reduce(
+    (max, w) => Math.max(max, Number(w.end) || 0),
+    0,
+  );
+  logAiUsage({
+    source: "aiDiarizeTranscribe",
+    model: "scribe_v2",
+    cost_usd: +((seconds / 3600) * SCRIBE_USD_PER_HOUR).toFixed(6),
+    meta: { bytes, seconds: Math.round(seconds), estimated: true },
+  });
 }
 
 // OpenAI TTS voices usable for Carmen. 'shimmer'/'nova' read Hebrew well.

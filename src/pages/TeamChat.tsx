@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
@@ -80,6 +81,7 @@ import {
   Phone,
   Globe,
 } from "lucide-react";
+import { ContactValue } from "@/components/contact/ContactValue";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ConvertMessageToTaskDialog } from "@/components/chat/ConvertMessageToTaskDialog";
@@ -1038,10 +1040,7 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
                     </p>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       {member.phone && (
-                        <span className="flex items-center gap-1">
-                          <Phone className="h-3 w-3" />
-                          <span dir="ltr">{member.phone}</span>
-                        </span>
+                        <ContactValue kind="phone" value={member.phone} />
                       )}
                       {member.notification_group_link && (
                         <span className="flex items-center gap-1">
@@ -2666,11 +2665,9 @@ function ManageChannelMembersDialog({
     onError: (err: any) => toast.error(err.message),
   });
 
-  const copyInviteLink = () => {
-    if (inviteLink) {
-      navigator.clipboard.writeText(inviteLink);
+  const copyInviteLink = async () => {
+    if (inviteLink && (await copyToClipboard(inviteLink, "הקישור הועתק"))) {
       setCopied(true);
-      toast.success("הקישור הועתק");
       setTimeout(() => setCopied(false), 2000);
     }
   };

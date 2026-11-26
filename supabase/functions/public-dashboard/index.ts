@@ -6,12 +6,14 @@ import {
   filterWooOrdersForRevenue,
 } from "../_shared/wooRevenue.ts";
 import { toPublicTableSettings } from "../_shared/share-links/public-table-settings.ts";
+import { dashboardAdAccountLinks } from "./dashboard-ad-account-links.ts";
 import {
   EVENT_REPORT_TYPES,
   fetchEventTotals,
   withFullEventTotals,
 } from "./event-totals.ts";
-import { parseRequestRange, wooWindowIso } from "./request-range.ts";
+import { parseRequestRange } from "../_shared/share-links/request-range.ts";
+import { wooWindowIso } from "./request-range.ts";
 import { readsCampaignRowsOnly, tagTableRecords } from "./table-records.ts";
 import { fetchWindowRecords } from "./window-records.ts";
 
@@ -44,7 +46,9 @@ Deno.serve(async (req) => {
     // Look up the share
     const { data: share, error: shareError } = await supabase
       .from("dashboard_shares")
-      .select("*, crm_dashboards(*, clients(name, website), agencies(name))")
+      .select(
+        "*, crm_dashboards(*, clients(name, website, tenant_id, meta_ads_url, google_ads_url), agencies(name))",
+      )
       .eq("share_token", shareToken)
       .eq("is_active", true)
       .single();
@@ -744,6 +748,8 @@ Deno.serve(async (req) => {
           force_irrelevant: seoForceIrrelevant,
         },
         seo_monthly: seoMonthly,
+        // Built here so the response carries finished links, not account ids.
+        ad_account_links: dashboardAdAccountLinks(dashboard, allTables),
         has_email_restriction: false,
       }),
 

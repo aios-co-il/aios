@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -185,14 +186,12 @@ export function MFASettings() {
     }
   };
 
-  const copySecret = () => {
-    if (secret) {
-      navigator.clipboard.writeText(secret);
+  const copySecret = async () => {
+    if (
+      secret &&
+      (await copyToClipboard(secret, "הועתק!", "הסוד הועתק ללוח"))
+    ) {
       setCopiedSecret(true);
-      toast({
-        title: "הועתק!",
-        description: "הסוד הועתק ללוח",
-      });
       setTimeout(() => setCopiedSecret(false), 2000);
     }
   };

@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -917,8 +918,10 @@ export default function ChatView({
                   variant="secondary"
                   className="h-5 text-xs gap-1 cursor-pointer hover:bg-secondary/80"
                   onClick={() => {
-                    navigator.clipboard.writeText(telegramChatId);
-                    toast.success(`Chat ID הועתק: ${telegramChatId}`);
+                    void copyToClipboard(
+                      telegramChatId,
+                      `Chat ID הועתק: ${telegramChatId}`,
+                    );
                   }}
                   title="לחץ להעתקת ה-Chat ID"
                 >
@@ -1086,10 +1089,10 @@ export default function ChatView({
                           <code
                             className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded cursor-pointer hover:bg-muted/80"
                             onClick={() => {
-                              navigator.clipboard.writeText(
+                              void copyToClipboard(
                                 (contact as any).group_chat_id,
+                                "מזהה הקבוצה הועתק",
                               );
-                              toast.success("מזהה הקבוצה הועתק");
                             }}
                             title="לחץ להעתקה"
                           >

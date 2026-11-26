@@ -2,7 +2,7 @@
  * Reader side of truthful sync freshness (see outcome.ts): did the latest sync
  * run of a crm_tables row refresh its data? The report pages show the latest
  * run at once; the pulse and the health probe alert only on a streak of
- * SYNC_FAILURES_BEFORE_ALERT runs (hasRepeatedSyncFailures), so one transient
+ * SYNC_FAILURES_BEFORE_ALERT runs (hasRepeatedSyncFailures), so a transient
  * failure raises no connection alert.
  */
 import { isRecord } from "./is-record.ts";
