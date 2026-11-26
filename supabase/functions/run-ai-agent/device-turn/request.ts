@@ -7,6 +7,8 @@
  * (carmen-device-action), which a forged flag cannot do.
  */
 import {
+  DEVICE_CONTINUATION_TEXT,
+  type DeviceRequestFields,
   type DeviceToolName,
   isDeviceToolName,
 } from "../../_shared/carmen/device/contract.ts";
@@ -22,17 +24,37 @@ export type DeviceRequest = {
 
 /** Reads the request body's device fields; anything malformed announces nothing. */
 export function deviceRequestOf(body: unknown): DeviceRequest {
-  const device = fieldOf(body, "device");
+  const device = fieldOf(body, "device" satisfies keyof DeviceRequestFields);
   const tools = fieldOf(device, "tools");
-  const continuation = fieldOf(body, "device_continuation");
+  const continuation = continuationField(body);
 
   return {
     announced: Array.isArray(tools) ? tools.filter(isDeviceToolName) : [],
     continuation:
-      continuation === undefined || continuation === null
+      continuation === undefined
         ? null
         : { actionId: asUuidOrNull(continuation) },
   };
+}
+
+/**
+ * Plan rule 10: a continuation's `command_text` is the contract's fixed string whatever the
+ * client sent, so page text never travels in it and no text shortcut, acknowledgement or
+ * memory step reads anything a page could have written. Called on the body as it arrives.
+ */
+export function fixContinuationText(body: Record<string, unknown>): void {
+  if (continuationField(body) !== undefined) {
+    body.command_text = DEVICE_CONTINUATION_TEXT;
+  }
+}
+
+/** The continuation field when the body has one that is set, else undefined. */
+function continuationField(body: unknown): unknown {
+  const value = fieldOf(
+    body,
+    "device_continuation" satisfies keyof DeviceRequestFields,
+  );
+  return value === null ? undefined : value;
 }
 
 /** One field of an unvalidated object, or undefined. */

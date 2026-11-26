@@ -4,10 +4,14 @@
  * id. A call that fails a check writes no row and goes back to the model as a tool error,
  * so the turn goes on without a step.
  */
-import { deviceCardRule } from "../../_shared/carmen/device/card-rule.ts";
+import {
+  deviceCardRule,
+  holdsAnotherOrigin,
+} from "../../_shared/carmen/device/card-rule.ts";
 import {
   DEVICE_STEPS_PER_MESSAGE,
   DEVICE_TOOLS,
+  type DeviceActionReply,
   type DeviceToolName,
   isDeviceToolName,
 } from "../../_shared/carmen/device/contract.ts";
@@ -18,9 +22,6 @@ import {
   readRunSteps,
   type RunKey,
 } from "./rows.ts";
-
-/** What the site needs to hand the step to the panel: its id and tool, nothing to act on. */
-export type DeviceActionReply = { action_id: string; tool: DeviceToolName };
 
 /** What a device tool call returns to the loop. */
 export type DeviceToolResult =
@@ -34,8 +35,6 @@ export type StepTurn = RunKey & {
   tabUrl: string;
   offered: ReadonlyArray<DeviceToolName>;
   origins: EnvironmentOrigins;
-  /** The run holds page text from another origin: a card rule input. */
-  tainted: boolean;
   now: () => Date;
 };
 
@@ -47,14 +46,10 @@ export async function startDeviceStep(
   args: unknown,
 ): Promise<DeviceToolResult> {
   if (!isDeviceToolName(toolName) || !turn.offered.includes(toolName)) {
-    return refusal(toolName, "not_offered", "הכלי לא זמין בתור הזה.");
+    return notOffered(toolName);
   }
   if (!argumentsFit(toolName, args)) {
     return refusal(toolName, "invalid_arguments", "הארגומנטים לא תואמים לכלי.");
-  }
-  const rule = cardRule(toolName, turn);
-  if (rule !== "free" && rule !== "ask") {
-    return refusal(toolName, rule, "אין לי גישה לדף הזה.");
   }
   const steps = await readRunSteps(db, turn);
   if (steps.length >= DEVICE_STEPS_PER_MESSAGE) {
@@ -63,6 +58,10 @@ export async function startDeviceStep(
       "step_limit",
       "הגעתי למספר הפעולות בדפדפן להודעה אחת.",
     );
+  }
+  const rule = cardRule(toolName, turn, tabTainted(turn, steps));
+  if (rule !== "free" && rule !== "ask") {
+    return refusal(toolName, rule, "אין לי גישה לדף הזה.");
   }
 
   const actionId = await insertStep(db, {
@@ -96,13 +95,17 @@ function argumentsFit(tool: DeviceToolName, args: unknown): boolean {
  * The card rule for the step on the reported tab, or `configuration` when the contract
  * throws on this environment's settings: logged, and the step is refused.
  */
-function cardRule(tool: DeviceToolName, turn: StepTurn): string {
+function cardRule(
+  tool: DeviceToolName,
+  turn: StepTurn,
+  tainted: boolean,
+): string {
   try {
     return deviceCardRule({
       tool,
       url: turn.tabUrl,
       trusted: false,
-      tainted: turn.tainted,
+      tainted,
       origins: turn.origins,
       // The tenant's own floor hosts arrive with the act tools (AIO-656).
       addedActNeverHosts: [],
@@ -117,6 +120,31 @@ function cardRule(tool: DeviceToolName, turn: StepTurn): string {
     );
     return "configuration";
   }
+}
+
+/**
+ * Whether the run already holds page text from an origin other than this tab's (plan rule
+ * 9): the card rule's taint input, measured against the tab the step is for. Logged.
+ */
+function tabTainted(
+  turn: StepTurn,
+  steps: Array<{ observed_origin: string | null }>,
+): boolean {
+  const origins = steps.flatMap((step) =>
+    step.observed_origin ? [step.observed_origin] : [],
+  );
+  const tainted = holdsAnotherOrigin(turn.tabUrl, origins);
+  if (tainted) {
+    console.warn(
+      `[device] run=${turn.runId} step tainted: the run read another origin`,
+    );
+  }
+  return tainted;
+}
+
+/** The refusal of a device tool this turn was not offered. */
+export function notOffered(toolName: string): DeviceToolResult {
+  return refusal(toolName, "not_offered", "הכלי לא זמין בתור הזה.");
 }
 
 /** A refused call: logged with the reason, returned to the model as a tool error. */

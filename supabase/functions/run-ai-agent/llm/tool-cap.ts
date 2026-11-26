@@ -1,3 +1,4 @@
+import { DEVICE_TOOL_NAMES } from "../../_shared/carmen/device/contract.ts";
 import { REFRESH_PULSE_TOOL_NAME } from "../../_shared/carmen/pulse-tools.ts";
 import { PULSE_TARGET_TOOL_NAMES } from "../../_shared/carmen/pulse-targets/tool-defs.ts";
 import { NATIVE_DEV_TASK_TOOLS } from "../../_shared/dev-escalation-auth.ts";
@@ -75,6 +76,8 @@ export const PRIORITY_TOOLS = new Set([
   ...NATIVE_DEV_TASK_TOOLS,
   // Offered only inside the workshop skin, where they are the main tools.
   ...WORKSHOP_TOOLS.map((tool) => tool.name),
+  // Appended last and only on a turn from the extension's panel (AIO-686).
+  ...DEVICE_TOOL_NAMES,
 ]);
 
 export function capToolsForTarget<T extends { function?: { name?: string } }>(

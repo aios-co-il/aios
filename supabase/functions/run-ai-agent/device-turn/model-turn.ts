@@ -3,7 +3,9 @@
  * withhold, the user turn, and the answer to a device or withheld tool call.
  */
 import {
+  DEVICE_ACTION_EVENT,
   DEVICE_TOOLS,
+  type DeviceActionReply,
   isDeviceToolName,
 } from "../../_shared/carmen/device/contract.ts";
 import type { EnvironmentOrigins } from "../../_shared/carmen/device/never-controllable.ts";
@@ -15,8 +17,8 @@ import type {
   offeredDeviceTools,
 } from "./eligibility.ts";
 import type { DeviceDb } from "./rows.ts";
-import { type DeviceToolResult, startDeviceStep } from "./step.ts";
-import { sendsOrWrites, withheldToolRefusal } from "./withheld.ts";
+import { type DeviceToolResult, notOffered, startDeviceStep } from "./step.ts";
+import { withheldAfterPageRead, withheldToolRefusal } from "./withheld.ts";
 
 export type Emit = ((event: unknown) => void) | undefined;
 
@@ -36,6 +38,8 @@ export type DeviceTurnInput = Omit<
 export type DeviceTurn = {
   /** The request resumes a paused run: its fixed `command_text` is not saved. */
   continuing: boolean;
+  /** Carmen's full loop must answer: a resumed run, or a turn offered a device tool. */
+  pinsModel: boolean;
   /** The whole answer when the request ends before any model call, else null. */
   reply: Response | null;
   /** The device tools to add to the model's tools. */
@@ -52,11 +56,18 @@ export type DeviceTurn = {
     toolName: string,
     args: unknown,
   ): Promise<DeviceToolResult | ReturnType<typeof withheldToolRefusal>>;
+  /**
+   * The step a tool result started, emitted as the device action event, or null. Only a
+   * result `call` returned after writing a row counts: a look-alike from any other tool
+   * (a connector's, say) never pauses the turn or reaches the site.
+   */
+  pausedAt(result: unknown): DeviceActionReply | null;
 };
 
-/** A turn being opened: its database, input, environment, clock and verdict. */
+/** A turn being opened: its database, stream, input, environment, clock and verdict. */
 export type OpenTurn = {
   db: DeviceDb;
+  emit: Emit;
   input: DeviceTurnInput;
   origins: EnvironmentOrigins;
   now: () => Date;
@@ -71,28 +82,30 @@ export function deviceTurn(
 ): DeviceTurn {
   const { verdict, input } = turn;
   const holdsPageData = resumed !== null;
+  const written = new WeakMap<object, DeviceActionReply>();
 
   return {
     continuing: holdsPageData,
+    pinsModel: holdsPageData || offered.length > 0,
     reply: null,
     offeredTools: offered.map((name) => ({ name, ...DEVICE_TOOLS[name] })),
     withoutWithheld: (tools) =>
-      holdsPageData ? tools.filter((tool) => !sendsOrWrites(tool.name)) : tools,
+      holdsPageData
+        ? tools.filter((tool) => !withheldAfterPageRead(tool.name))
+        : tools,
     userTurn: (text) =>
       resumed ? `${text}\n\n${deviceDataBlock(resumed)}` : text,
     handles: (toolName) =>
-      isDeviceToolName(toolName) || (holdsPageData && sendsOrWrites(toolName)),
-    call: (toolName, args) => {
+      isDeviceToolName(toolName) ||
+      (holdsPageData && withheldAfterPageRead(toolName)),
+    call: async (toolName, args) => {
       if (!isDeviceToolName(toolName)) {
-        return Promise.resolve(withheldToolRefusal(toolName));
+        return withheldToolRefusal(toolName);
       }
-      if (verdict.refusal !== null || !input.userId) {
-        return Promise.resolve({
-          error: "not_offered",
-          message: "הכלי לא זמין בתור הזה.",
-        });
+      if (verdict.refusal !== null || !verdict.tabUrl || !input.userId) {
+        return notOffered(toolName);
       }
-      return startDeviceStep(
+      const result = await startDeviceStep(
         turn.db,
         {
           tenantId: input.tenantId,
@@ -102,12 +115,24 @@ export function deviceTurn(
           tabUrl: verdict.tabUrl,
           offered,
           origins: turn.origins,
-          tainted: resumed?.tainted ?? false,
           now: turn.now,
         },
         toolName,
         args,
       );
+      if ("device_action" in result) {
+        written.set(result, result.device_action);
+      }
+      return result;
+    },
+    pausedAt: (result) => {
+      const action =
+        result && typeof result === "object" ? written.get(result) : undefined;
+      if (!action) {
+        return null;
+      }
+      turn.emit?.({ type: DEVICE_ACTION_EVENT, ...action });
+      return action;
     },
   };
 }
@@ -116,11 +141,13 @@ export function deviceTurn(
 export function answered(reply: Response): DeviceTurn {
   return {
     continuing: true,
+    pinsModel: true,
     reply,
     offeredTools: [],
     withoutWithheld: (tools) => tools,
     userTurn: (text) => text,
     handles: () => false,
     call: () => Promise.reject(new Error("answered without the model")),
+    pausedAt: () => null,
   };
 }

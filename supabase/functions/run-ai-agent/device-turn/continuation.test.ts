@@ -21,6 +21,7 @@ import {
   OTHER_TENANT,
   panelTurn,
   SNAPSHOT,
+  TAB_CONTEXT,
   tablesWith,
 } from "./turn.test-fixture.ts";
 
@@ -178,35 +179,30 @@ Deno.test(
 );
 
 Deno.test(
-  "a step nobody finished is closed with a guarded update",
+  "a continuation resumes whatever tab the user is on now",
   async (t) => {
-    await t.step("a pending step past its life becomes expired", async () => {
-      const step = actionRow({
-        conversation_id: CONVERSATION,
-        expires_at: NOW.toISOString(),
+    const contexts: Array<[string, unknown]> = [
+      [
+        "an AIOS tab",
+        { ...TAB_CONTEXT, url: "https://staging.aios.co.il/command" },
+      ],
+      ["no screen context", undefined],
+    ];
+    for (const [name, context] of contexts) {
+      await t.step(name, async () => {
+        const step = doneRow();
+        const { turn } = await continueOver(
+          [step],
+          [],
+          continuationBody(ACTION, { context_metadata: context }),
+        );
+
+        assertStrictEquals(turn.reply, null);
+        assert(turn.userTurn("").includes("status: done"));
+        // No readable tab: the next step is not offered.
+        assertEquals(turn.offeredTools, []);
       });
-      const { turn } = await continueOver([step]);
-
-      assertStrictEquals(turn.reply, null);
-      assertStrictEquals(step.status, "expired");
-      assert(turn.userTurn("").includes("status: expired"));
-    });
-
-    await t.step(
-      "a claimed step, also one left by a failed stop read, becomes outcome_unknown",
-      async () => {
-        const step = actionRow({
-          conversation_id: CONVERSATION,
-          status: "claimed",
-          claimed_at: NOW.toISOString(),
-        });
-        const { turn } = await continueOver([step]);
-
-        assertStrictEquals(step.status, "outcome_unknown");
-        assert(turn.userTurn("").includes("status: outcome_unknown"));
-        assertStrictEquals(turn.userTurn("").includes("page:"), false);
-      },
-    );
+    }
   },
 );
 

@@ -1,28 +1,41 @@
 /**
  * Plan rule 9 (AIO-686): once a device result is in a run, a page may be steering the
- * model, so the server tools that send outward or write are withheld on that turn: not
- * offered, and refused if called anyway. The list is composed of the lists that already
- * name such tools, never retyped: every connector (`mcp_`) tool; every tool a direct caller
- * may not run or needs approval for (`classifyDirectTool`: sends, deletions, access, money,
- * agent spawning, approvals, coding agents); and every tool with an approval risk class
- * (`approvalRiskClass`: ad spend, accounting, broadcasts, configuration).
- *
- * Unverified (plan §7): which other writing tools run without approval today. A tool on
- * none of these lists stays offered.
+ * model, so the turn keeps only tools that read. Every other server tool is withheld: not
+ * offered, and refused if called anyway. The list is an allowlist on purpose: a tool that
+ * writes without approval (save_memory, whose `instructions` reach every later system
+ * prompt; create_agent_task; create_* and update_*) is withheld without anyone naming it,
+ * and so is every connector tool and every tool added later. A catalogue-wide read flag
+ * would replace this list (AIO-656).
  */
-import { classifyDirectTool } from "../../_shared/carmen-direct-tools.mjs";
-import { approvalRiskClass } from "../../_shared/carmen/approvals/risk-classes.ts";
 import { isDeviceToolName } from "../../_shared/carmen/device/contract.ts";
 
-/** Whether a server tool sends outward or writes, so a turn holding page text withholds it. */
-export function sendsOrWrites(toolName: string): boolean {
-  if (isDeviceToolName(toolName)) {
-    return false;
-  }
+/**
+ * The tools a turn holding page text keeps. Each one only reads (kb_open and
+ * kb_recall_conversation also touch an access timestamp); withheld.test.ts checks each is
+ * in the catalogue, runs directly and has no approval class.
+ */
+export const PAGE_TURN_READ_TOOLS: ReadonlyArray<string> = [
+  "recall_memory",
+  "recall_memory_fts",
+  "kb_search",
+  "kb_open",
+  "kb_list_folder",
+  "kb_recall_conversation",
+  "list_clients",
+  "get_client_info",
+  "list_leads",
+  "search_entities",
+  "list_tasks",
+  "get_dashboard_stats",
+  "recall_recent_action",
+  "list_campaigners",
+  "list_sales_people",
+];
+
+/** Whether a turn holding page text withholds a server tool: every one but the reads. */
+export function withheldAfterPageRead(toolName: string): boolean {
   return (
-    toolName.startsWith("mcp_") ||
-    classifyDirectTool(toolName) !== "direct" ||
-    approvalRiskClass({ tool_name: toolName }) !== "unknown"
+    !isDeviceToolName(toolName) && !PAGE_TURN_READ_TOOLS.includes(toolName)
   );
 }
 

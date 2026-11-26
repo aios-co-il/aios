@@ -8,12 +8,9 @@
  * the panel, which claims, reads and completes the row (carmen-device-action). The site then
  * sends a continuation with the same run_id: `openDeviceTurn` resumes from the row or answers
  * without the model, and the turn saves only its answer. A typed message also closes every
- * step of its conversation nobody will finish.
+ * step of its conversation nobody will finish and clears the page text nobody resumed.
  */
-import {
-  DEVICE_PAUSE_LINE,
-  isDeviceToolName,
-} from "../../_shared/carmen/device/contract.ts";
+import { DEVICE_PAUSE_LINE } from "../../_shared/carmen/device/contract.ts";
 import { continuedTurn } from "./continued-turn.ts";
 import {
   deviceTurnVerdict,
@@ -30,10 +27,9 @@ import {
 import { deviceRequestOf } from "./request.ts";
 import type { DeviceDb } from "./rows.ts";
 import { settleOpenSteps } from "./settle.ts";
-import type { DeviceActionReply } from "./step.ts";
 
+export type { DeviceActionReply } from "../../_shared/carmen/device/contract.ts";
 export type { DeviceTurn, DeviceTurnInput } from "./model-turn.ts";
-export type { DeviceActionReply } from "./step.ts";
 
 /** Opens the turn's device side: a resumed run, a refused continuation or a typed message. */
 export async function openDeviceTurn(
@@ -50,12 +46,11 @@ export async function openDeviceTurn(
     runId: input.body.run_id,
     contextMetadata: input.body.context_metadata,
   });
-  const turn = { db, input, origins, now, verdict };
+  const turn = { db, emit, input, origins, now, verdict };
 
   if (request.continuation) {
     return await continuedTurn(
       turn,
-      emit,
       request.continuation.actionId,
       request.announced,
     );
@@ -66,22 +61,6 @@ export async function openDeviceTurn(
     offeredDeviceTools(verdict, request.announced, 0),
     null,
   );
-}
-
-/** The step a tool result started, when the model's call wrote one. */
-export function deviceActionOf(result: unknown): DeviceActionReply | null {
-  if (!result || typeof result !== "object" || !("device_action" in result)) {
-    return null;
-  }
-  const action = result.device_action;
-  return action &&
-    typeof action === "object" &&
-    "action_id" in action &&
-    typeof action.action_id === "string" &&
-    "tool" in action &&
-    isDeviceToolName(action.tool)
-    ? { action_id: action.action_id, tool: action.tool }
-    : null;
 }
 
 /** The saved answer of a turn that paused at a step: the model's own text, else the pause line. */

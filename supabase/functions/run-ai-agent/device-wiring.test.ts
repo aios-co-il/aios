@@ -49,7 +49,7 @@ Deno.test("run-ai-agent wires the device steps (AIO-686)", async (t) => {
       assert(
         runAiAgent
           .slice(at("fastLaneFits({"), at("const fastReply"))
-          .includes("deviceTurn.continuing ||"),
+          .includes("deviceTurn.pinsModel ||"),
       );
     },
   );
@@ -92,7 +92,7 @@ Deno.test("run-ai-agent wires the device steps (AIO-686)", async (t) => {
   await t.step(
     "the step is read from the tool's result, never from tool_call, and ends the turn",
     () => {
-      const read = at("deviceAction = deviceActionOf(result);");
+      const read = at("deviceAction = deviceTurn.pausedAt(result);");
       const pause = at(
         "if (deviceAction) {\n        finalOutput = devicePauseAnswer(msg.content);\n        emitText(finalOutput);\n        break;\n      }",
       );
@@ -107,9 +107,7 @@ Deno.test("run-ai-agent wires the device steps (AIO-686)", async (t) => {
       assert(
         runAiAgent
           .slice(read, pause)
-          .includes(
-            'emit?.({ type: "device_action", ...deviceAction });\n          break;',
-          ),
+          .includes("if (deviceAction) {\n          break;\n        }"),
       );
       assert(pause > at("messages.push(...toolResults);"));
       // Before the filler: a paused turn always has an answer, so fallbackReply never runs.
@@ -125,10 +123,43 @@ Deno.test("run-ai-agent wires the device steps (AIO-686)", async (t) => {
     );
     assert(
       runAiAgent.includes(
-        '...(turn.message === null ? [] : [{ role: "user", content: turn.message }]),',
+        "const messages = savedTurnMessages(turn.history, turn.message, turn.answer);",
       ),
     );
   });
+
+  await t.step(
+    "a continuation's text is fixed before anything reads the body",
+    () => {
+      const fixed = at("fixContinuationText(bodyJson);");
+
+      // After the tenant guard, which must read the body first (run-tenant-access.test.ts).
+      assert(fixed > at("const tenantDenied = await runTenantDenied("));
+      assert(fixed < at("const wantStream = bodyJson.stream === true;"));
+      assert(fixed < runAiAgent.lastIndexOf("await handleRunAgent("));
+    },
+  );
+
+  await t.step(
+    "a continuation skips the acknowledgement, the recall and the auto-memory",
+    () => {
+      assert(
+        runAiAgent.includes(
+          '!pinSkillsOnly &&\n      !deviceRequestOf(bodyJson).continuation\n    ) {\n      emit({\n        type: "status",',
+        ),
+      );
+      assert(
+        runAiAgent.includes(
+          "const recalled = deviceTurn.continuing\n          ? []\n          : isCarmen",
+        ),
+      );
+      assert(
+        runAiAgent.includes(
+          "finalOutput &&\n      !deviceTurn.continuing &&\n      command_text?.trim().length >= 10",
+        ),
+      );
+    },
+  );
 
   await t.step("both replies tell the site a step is waiting", () => {
     assert(

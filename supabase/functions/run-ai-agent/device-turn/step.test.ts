@@ -4,7 +4,6 @@ import {
   DEVICE_STEPS_PER_MESSAGE,
 } from "../../_shared/carmen/device/contract.ts";
 import { startDeviceStep, type StepTurn } from "./step.ts";
-import { deviceActionOf } from "./turn.ts";
 import {
   actionRow,
   BROKEN_ORIGINS,
@@ -48,7 +47,7 @@ Deno.test(
             NOW.getTime() + DEVICE_CARD_LIFE_MS,
           ).toISOString(),
         });
-        assertEquals(deviceActionOf(result), {
+        assertEquals(turn.pausedAt(result), {
           action_id: String(id),
           tool: "browser_read_page",
         });
@@ -62,7 +61,7 @@ Deno.test(
 
         const result = await turn.call("browser_read_page", {});
 
-        assertEquals(Object.keys(deviceActionOf(result) ?? {}).sort(), [
+        assertEquals(Object.keys(turn.pausedAt(result) ?? {}).sort(), [
           "action_id",
           "tool",
         ]);
@@ -82,7 +81,7 @@ Deno.test("a device call that fails a check writes no row", async (t) => {
     const { turn } = await openOver(steps, input);
     const result = await turn.call(tool, args);
 
-    assertStrictEquals(deviceActionOf(result), null);
+    assertStrictEquals(turn.pausedAt(result), null);
     return { result, rows: steps.carmen_device_actions };
   }
 
@@ -143,7 +142,7 @@ Deno.test("a device call that fails a check writes no row", async (t) => {
     const { turn } = await openOver(steps, panelTurn());
 
     assertEquals(
-      deviceActionOf(await turn.call("browser_read_page", {}))?.tool,
+      turn.pausedAt(await turn.call("browser_read_page", {}))?.tool,
       "browser_read_page",
     );
   });
@@ -159,7 +158,6 @@ function stepTurn(tabUrl: string, origins = ORIGINS): StepTurn {
     tabUrl,
     offered: ["browser_read_page"],
     origins,
-    tainted: false,
     now: () => NOW,
   };
 }
@@ -203,3 +201,46 @@ Deno.test("the step checks the page itself before it writes", async (t) => {
     },
   );
 });
+
+Deno.test(
+  "the step's taint is the tab against the pages the run already read",
+  async (t) => {
+    /** The warnings a read on example.com logs when the run already read `origins`. */
+    async function warningsAfter(origins: Array<string>) {
+      const tables = tablesWith(
+        origins.map((origin, index) =>
+          actionRow({
+            id: `read-${index}`,
+            status: "done",
+            observed_origin: origin,
+          }),
+        ),
+      );
+      return await capturing("warn", () =>
+        startDeviceStep(
+          fakeDb(tables),
+          stepTurn(`${PAGE.origin}${PAGE.path}`),
+          "browser_read_page",
+          {},
+        ),
+      );
+    }
+
+    await t.step(
+      "a run that read another site is tainted on this tab, whatever its own order",
+      async () => {
+        const warnings = await warningsAfter(["https://other.example"]);
+
+        assertEquals(
+          warnings.filter((line) => line.includes("tainted")).length,
+          1,
+        );
+      },
+    );
+
+    await t.step("a run that read only this site is not", async () => {
+      assertEquals(await warningsAfter([PAGE.origin]), []);
+      assertEquals(await warningsAfter([]), []);
+    });
+  },
+);

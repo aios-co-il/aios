@@ -1832,11 +1832,11 @@ import { loadOrgBrief } from "../_shared/carmen/org-brief/brief.ts";
 import { type FastLaneCaller, fastLaneBriefScope } from "./fast-lane/scope.ts";
 import {
   type DeviceActionReply,
-  deviceActionOf,
   devicePauseAnswer,
   openDeviceTurn,
 } from "./device-turn/turn.ts";
-import { deviceRequestOf } from "./device-turn/request.ts";
+import { deviceRequestOf, fixContinuationText } from "./device-turn/request.ts";
+import { savedTurnMessages } from "./device-turn/saved-turn.ts";
 
 // Emit function used by the streaming wrapper to push SSE events to the client.
 // In non-streaming mode it's a no-op.
@@ -1958,7 +1958,12 @@ async function handleRunAgent(
 
     const isCarmenAgent = isCarmenAgentRow(agent);
     const tokenOptimize = shouldUseTokenOptimize(agent, isCarmenAgent);
-    if (emit && tokenOptimize && !pinSkillsOnly) {
+    if (
+      emit &&
+      tokenOptimize &&
+      !pinSkillsOnly &&
+      !deviceRequestOf(bodyJson).continuation
+    ) {
       emit({
         type: "status",
         content: buildQuickAck(String(command_text || "")),
@@ -2201,7 +2206,7 @@ async function handleRunAgent(
         channel: fastLaneChannel,
         isCarmen: isCarmenAgent,
         pinned: Boolean(
-          deviceTurn.continuing ||
+          deviceTurn.pinsModel ||
           brainEngine ||
           modelOverride ||
           pinSkillsOnly ||
@@ -2985,15 +2990,18 @@ async function handleRunAgent(
       // Per-agent memory recall: pull relevant past episodes.
       // Carmen uses fast FTS (cheap, indexed). Other agents use embedding similarity.
       try {
-        const recalled = isCarmen
-          ? await recallAgentMemoryFTS(supabase, {
-              tenant_id: resolvedTenantId,
-              agent_id,
-              query_text: command_text,
-              limit: 5,
-              min_importance: 30,
-            })
-          : await recallAgentMemory(supabase, agent_id, command_text, 6);
+        // A continuation's text is the fixed contract string: nothing to recall by.
+        const recalled = deviceTurn.continuing
+          ? []
+          : isCarmen
+            ? await recallAgentMemoryFTS(supabase, {
+                tenant_id: resolvedTenantId,
+                agent_id,
+                query_text: command_text,
+                limit: 5,
+                min_importance: 30,
+              })
+            : await recallAgentMemory(supabase, agent_id, command_text, 6);
         if (recalled.length > 0) {
           const block = recalled
             .map(
@@ -4587,10 +4595,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           }
         }
 
-        // Read from the result, never from tool_call: only a written row is a step. One per message.
-        deviceAction = deviceActionOf(result);
+        // Only a row the device side's own call wrote pauses the turn, one per message.
+        deviceAction = deviceTurn.pausedAt(result);
         if (deviceAction) {
-          emit?.({ type: "device_action", ...deviceAction });
           break;
         }
 
@@ -4705,7 +4712,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     // 7. Auto-memory for non-Carmen agents (fire and forget, doesn't block response).
-    if (resolvedTenantId && finalOutput && command_text?.trim().length >= 10) {
+    // Never from an answer built on page text: it could come back in a system prompt.
+    if (
+      resolvedTenantId &&
+      finalOutput &&
+      !deviceTurn.continuing &&
+      command_text?.trim().length >= 10
+    ) {
       const memPromise = summarizeAndStoreAgentMemory({
         supabase,
         tenant_id: resolvedTenantId,
@@ -4931,8 +4944,8 @@ async function fastLaneTarget(
 }
 
 /**
- * Saves the user's message and the answer to the conversation (last 60 messages); the
- * answer alone when there is no message of the user's to save (a device continuation).
+ * Saves the user's message and the answer to the conversation (last 60 messages); on a
+ * device continuation the answer joins the paused answer (./device-turn/saved-turn.ts).
  */
 async function saveConversationTurn(
   supabase: AgentDatabaseClient,
@@ -4945,11 +4958,7 @@ async function saveConversationTurn(
     answer: string;
   },
 ): Promise<void> {
-  const messages = [
-    ...turn.history,
-    ...(turn.message === null ? [] : [{ role: "user", content: turn.message }]),
-    { role: "assistant", content: turn.answer },
-  ].slice(-60);
+  const messages = savedTurnMessages(turn.history, turn.message, turn.answer);
   const { error } = await supabase
     .from("ai_conversations")
     .update({ messages, updated_at: new Date().toISOString() })
@@ -5255,6 +5264,8 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+  // A device continuation's command_text is the contract's fixed string (./device-turn).
+  fixContinuationText(bodyJson);
 
   const wantStream = bodyJson.stream === true;
   const surface: Surface =

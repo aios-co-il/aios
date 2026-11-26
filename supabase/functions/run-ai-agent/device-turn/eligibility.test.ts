@@ -99,6 +99,18 @@ Deno.test(
         },
       ],
     ];
+    await t.step(
+      "the tab decides only the offer: a tab-less turn keeps its run, for a continuation",
+      () => {
+        assertEquals(deviceTurnVerdict(facts({ contextMetadata: undefined })), {
+          refusal: null,
+          runId: RUN,
+          conversationId: CONVERSATION,
+          tabUrl: null,
+        });
+      },
+    );
+
     for (const [name, overrides] of excluded) {
       await t.step(`not for ${name}`, () => {
         assertEquals(offered(overrides), []);
@@ -152,7 +164,13 @@ Deno.test(
           return Promise.resolve();
         });
 
-        assertEquals(verdict, { refusal: "configuration" });
+        assertEquals(verdict, {
+          refusal: null,
+          runId: RUN,
+          conversationId: CONVERSATION,
+          tabUrl: null,
+        });
+        assertEquals(offeredDeviceTools(verdict, ["browser_read_page"], 0), []);
         assertStrictEquals(errors.length, 1);
       },
     );

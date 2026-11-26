@@ -5,7 +5,12 @@
  * failed on an unreadable stop and left it claimed), and a new typed message cancels a card
  * still waiting. carmen-device-action never writes these.
  */
-import type { DeviceActionStatus } from "../../_shared/carmen/device/contract.ts";
+import {
+  DEVICE_ACTION_STATUS,
+  DEVICE_OPEN_STATUSES,
+  type DeviceActionStatus,
+} from "../../_shared/carmen/device/contract.ts";
+import { isClosedStatus } from "./data-block.ts";
 import {
   type DeviceDb,
   type Owner,
@@ -14,7 +19,11 @@ import {
   TABLE,
 } from "./rows.ts";
 
-/** What a waiting card becomes: `cancelled` when the user wrote again, else it keeps waiting. */
+/**
+ * What an open step becomes: `cancelled` when the user wrote again (a claimed step is then
+ * closed at once), else it keeps waiting, and a claimed step stays the panel's until its life
+ * is over, so an early continuation never closes a step the panel is still running.
+ */
 type WaitingCard = "cancelled" | "keep";
 
 /**
@@ -38,7 +47,9 @@ export async function settleStep(
     step.id,
     {
       ...transition,
-      expiredBy: transition.to === "expired" ? now : undefined,
+      // Closed for its age, so the write holds only while the step's life is still over.
+      expiredBy:
+        transition.to === "expired" || waitingCard === "keep" ? now : undefined,
     },
     now,
   );
@@ -50,6 +61,9 @@ export async function settleStep(
 /**
  * A new typed message in the conversation: every card still waiting is cancelled and every
  * step left claimed is closed, so "a new message cancels the card" holds on the server too.
+ * Then no closed step of the conversation can be resumed any more, and the page text of one
+ * nobody resumed (the site dropped its continuation) is cleared rather than kept until the
+ * table's retention deletes the row.
  */
 export async function settleOpenSteps(
   db: DeviceDb,
@@ -61,6 +75,31 @@ export async function settleOpenSteps(
   for (const step of open) {
     await settleStep(db, owner, step, "cancelled", now);
   }
+  await retireClosedSteps(db, owner, now);
+}
+
+const CLOSED: ReadonlyArray<DeviceActionStatus> =
+  DEVICE_ACTION_STATUS.filter(isClosedStatus);
+
+/** Marks the conversation's closed, unused steps used and clears their page text. */
+async function retireClosedSteps(
+  db: DeviceDb,
+  owner: Owner & { conversationId: string },
+  now: Date,
+): Promise<void> {
+  const { error } = await db
+    .from(TABLE)
+    .update({ consumed_at: now.toISOString(), result: null })
+    .eq("tenant_id", owner.tenantId)
+    .eq("user_id", owner.userId)
+    .eq("conversation_id", owner.conversationId)
+    .in("status", CLOSED)
+    .is("consumed_at", null);
+  if (error) {
+    throw new Error(
+      `retiring the closed device steps failed: ${error.message}`,
+    );
+  }
 }
 
 /** The state an open step leaves and the one it takes now, or null when it stays as it is. */
@@ -69,13 +108,16 @@ function closingTransition(
   waitingCard: WaitingCard,
   now: Date,
 ): { from: DeviceActionStatus; to: DeviceActionStatus } | null {
+  const lapsed = Date.parse(step.expires_at) <= now.getTime();
   if (step.status === "claimed") {
-    return { from: "claimed", to: "outcome_unknown" };
+    return waitingCard === "cancelled" || lapsed
+      ? { from: "claimed", to: "outcome_unknown" }
+      : null;
   }
   if (step.status !== "pending") {
     return null;
   }
-  if (Date.parse(step.expires_at) <= now.getTime()) {
+  if (lapsed) {
     return { from: "pending", to: "expired" };
   }
   return waitingCard === "cancelled"
@@ -87,11 +129,9 @@ function closingTransition(
 type Transition = {
   from: DeviceActionStatus;
   to: DeviceActionStatus;
-  /** Only a pending step whose life is over (`expires_at` at or before now). */
+  /** Only a step whose life is over (`expires_at` at or before this time). */
   expiredBy?: Date;
 };
-
-const OPEN: ReadonlyArray<DeviceActionStatus> = ["pending", "claimed"];
 
 /** The conversation's steps still pending or claimed. */
 export async function readOpenSteps(
@@ -104,7 +144,7 @@ export async function readOpenSteps(
     .eq("tenant_id", owner.tenantId)
     .eq("user_id", owner.userId)
     .eq("conversation_id", owner.conversationId)
-    .in("status", OPEN);
+    .in("status", DEVICE_OPEN_STATUSES);
   if (error) {
     throw new Error(`reading the open device steps failed: ${error.message}`);
   }

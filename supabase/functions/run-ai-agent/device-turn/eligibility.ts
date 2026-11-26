@@ -51,9 +51,18 @@ export type DeviceTurnFacts = {
   origins: EnvironmentOrigins;
 };
 
-/** Why this turn may not hold a device step, or null when it may, with the run, conversation and tab it reads. */
+/**
+ * Why this turn may not hold a device step, or null when it may, with its run and
+ * conversation. `tabUrl` is the readable tab beside the panel, or null: without one no step
+ * is offered, yet a continuation still resumes, since the user may have moved on since.
+ */
 export type DeviceTurnVerdict =
-  | { refusal: null; runId: string; conversationId: string; tabUrl: string }
+  | {
+      refusal: null;
+      runId: string;
+      conversationId: string;
+      tabUrl: string | null;
+    }
   | { refusal: string };
 
 /** This environment's own addresses: the app (`APP_URL`) and its Supabase project. */
@@ -64,10 +73,7 @@ export function serverOrigins(): EnvironmentOrigins {
   };
 }
 
-/**
- * Whether this turn may hold a device step. A configuration the contract cannot read (an
- * origin with no host) throws there; it is logged and refuses, so nothing is offered.
- */
+/** Whether this turn may hold a device step, and the readable tab beside the panel. */
 export function deviceTurnVerdict(facts: DeviceTurnFacts): DeviceTurnVerdict {
   const refusal = callerRefusal(facts) ?? engineRefusal(facts);
   if (refusal) {
@@ -77,34 +83,46 @@ export function deviceTurnVerdict(facts: DeviceTurnFacts): DeviceTurnVerdict {
   if (!facts.conversationId || !runId) {
     return { refusal: "no_conversation_or_run" };
   }
-  const context = parseScreenContext(facts.contextMetadata);
-  if (context?.source !== SCREEN_CONTEXT_SOURCE.browserTab) {
-    return { refusal: "no_browser_tab" };
-  }
-
-  try {
-    if (isNeverControllable(context.tab.url, facts.origins)) {
-      return { refusal: "tab_never_controllable" };
-    }
-  } catch (error) {
-    console.error("[device] the never-list cannot be read", error);
-    return { refusal: "configuration" };
-  }
   return {
     refusal: null,
     runId,
     conversationId: facts.conversationId,
-    tabUrl: context.tab.url,
+    tabUrl: readableTab(facts),
   };
 }
 
-/** The tools to offer: those the panel announced and the server offers, while steps remain. */
+/**
+ * The address of the tab beside the panel when Carmen may read it, else null. A
+ * configuration the contract cannot read (an origin with no host) throws there; it is
+ * logged and counts as no readable tab, so nothing is offered.
+ */
+function readableTab(facts: DeviceTurnFacts): string | null {
+  const context = parseScreenContext(facts.contextMetadata);
+  if (context?.source !== SCREEN_CONTEXT_SOURCE.browserTab) {
+    return null;
+  }
+
+  try {
+    return isNeverControllable(context.tab.url, facts.origins)
+      ? null
+      : context.tab.url;
+  } catch (error) {
+    console.error("[device] the never-list cannot be read", error);
+    return null;
+  }
+}
+
+/** The tools to offer: beside a readable tab, those the panel announced and the server offers, while steps remain. */
 export function offeredDeviceTools(
   verdict: DeviceTurnVerdict,
   announced: ReadonlyArray<DeviceToolName>,
   stepsUsed: number,
 ): Array<DeviceToolName> {
-  if (verdict.refusal !== null || stepsUsed >= DEVICE_STEPS_PER_MESSAGE) {
+  if (
+    verdict.refusal !== null ||
+    verdict.tabUrl === null ||
+    stepsUsed >= DEVICE_STEPS_PER_MESSAGE
+  ) {
     return [];
   }
   return OFFERED_DEVICE_TOOLS.filter((tool) => announced.includes(tool));

@@ -147,7 +147,10 @@ async function closeForStop(
   }
 }
 
-/** Whether the run holds page text from more than one origin: recorded in the log and the block. */
+/**
+ * Whether the run holds page text from more than one origin: recorded in the log and the
+ * block. A further step's card rule measures taint against its own tab instead (step.ts).
+ */
 function runTainted(
   named: ContinuedStep,
   steps: Array<{ observed_origin: string | null }>,

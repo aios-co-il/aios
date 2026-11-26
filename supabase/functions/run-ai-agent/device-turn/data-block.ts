@@ -4,11 +4,20 @@
  * tab. It never reaches the system prompt or `command_text`.
  */
 import type { AnyToolResult } from "../../_shared/carmen/device-result-check.ts";
-import type { DeviceActionStatus } from "../../_shared/carmen/device/contract.ts";
-import { pageDataBlock } from "../../_shared/carmen/screen-context.ts";
+import type {
+  DEVICE_OPEN_STATUSES,
+  DeviceActionStatus,
+} from "../../_shared/carmen/device/contract.ts";
+import {
+  pageDataBlock,
+  quotedValue,
+} from "../../_shared/carmen/screen-context.ts";
 
 /** The statuses a step can be resumed from. */
-export type ClosedStatus = Exclude<DeviceActionStatus, "pending" | "claimed">;
+export type ClosedStatus = Exclude<
+  DeviceActionStatus,
+  (typeof DEVICE_OPEN_STATUSES)[number]
+>;
 
 /** One closed step as the model may see it: the result only when it passed every check. */
 export type StepOutcome = {
@@ -51,7 +60,7 @@ export function deviceDataBlock(outcome: StepOutcome): string {
     );
   }
   if (outcome.result) {
-    lines.push(`page: ${JSON.stringify(outcome.result)}`);
+    lines.push(`page: ${quotedValue(outcome.result)}`);
   }
   return pageDataBlock(
     "Browser step",

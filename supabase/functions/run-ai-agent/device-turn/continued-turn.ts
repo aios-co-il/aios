@@ -2,6 +2,7 @@
  * A continuation request (AIO-686): resumed from its step, or answered without the model
  * with the stop line or one generic refusal.
  */
+import { DEVICE_STEP_UNAVAILABLE } from "../../_shared/carmen/device/contract.ts";
 import { corsHeaders } from "../../_shared/cors.ts";
 import { stoppedReply } from "../run-cancel.ts";
 import { resumeFromStep } from "./continuation.ts";
@@ -18,12 +19,12 @@ import type { DeviceRequest } from "./request.ts";
 /** A continuation: resumed from the step, or answered without the model. */
 export async function continuedTurn(
   turn: OpenTurn,
-  emit: Emit,
   actionId: string | null,
   announced: DeviceRequest["announced"],
 ): Promise<DeviceTurn> {
   const { verdict, input } = turn;
-  // A continuation must come from a turn that could have held the step, in the step's own run.
+  // A continuation must come from a caller who could have held the step, in the step's own
+  // run; the tab may have changed since, and only decides whether a further step is offered.
   if (verdict.refusal !== null || !actionId || !input.userId) {
     console.warn(
       `[device] continuation refused: ${verdict.refusal ?? "no action or user"}`,
@@ -50,7 +51,7 @@ export async function continuedTurn(
       return answered(refusedReply());
     }
     if (continuation.kind === "stopped") {
-      return answered(stoppedResponse(emit, verdict.conversationId));
+      return answered(stoppedResponse(turn.emit, verdict.conversationId));
     }
     return deviceTurn(
       turn,
@@ -65,7 +66,7 @@ export async function continuedTurn(
 
 /** One answer to every refused continuation, so a caller learns nothing about a step not theirs. */
 function refusedReply(): Response {
-  return json({ success: false, error: "device_step_unavailable" }, 409);
+  return json({ success: false, error: DEVICE_STEP_UNAVAILABLE }, 409);
 }
 
 /** The run was stopped: the stop line, as a stopped turn says it, and no model call. */
