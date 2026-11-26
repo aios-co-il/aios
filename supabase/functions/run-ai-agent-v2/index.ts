@@ -1,10 +1,12 @@
 // run-ai-agent-v2 — explicit ReAct loop with persisted runs, approval gate, reflection.
 // New runs: { agent_id, goal, context?, tenant_id, max_steps? }
 // Resume: { run_id, tenant_id }  (called by resume-agent-run after approval)
+// Who may start or resume a run: ./run-access.ts (AIO-661).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { resolveModelId } from "../_shared/models.ts";
 import { requireAuth } from "../_shared/security.ts";
 import { internalBrainDenied } from "../_shared/carmen/brain-guard.ts";
+import { authorizeRunRequest, resumableRun } from "./run-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -349,8 +351,14 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const auth = await requireAuth(req);
     const body = await req.json();
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    const gate = await authorizeRunRequest(supabase, auth, body);
+    if (!gate.ok) {
+      return jsonResponse({ error: gate.error }, gate.status);
+    }
 
     let run: RunRow;
     let isResume = false;
@@ -358,12 +366,8 @@ Deno.serve(async (req) => {
     if (body.run_id) {
       // ==== RESUME ====
       isResume = true;
-      const { data, error } = await supabase
-        .from("agent_runs")
-        .select("*")
-        .eq("id", body.run_id)
-        .single();
-      if (error || !data) {
+      const data = await resumableRun(supabase, body);
+      if (!data) {
         throw new Error("run not found");
       }
       run = data as RunRow;
@@ -385,14 +389,10 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: "missing agent_id/goal/tenant_id" }, 400);
       }
       // Per-user Carmen permissions for a signed-in caller starting a run.
-      const denied = await internalBrainDenied(
-        supabase,
-        await requireAuth(req),
-        {
-          tenantId: body.tenant_id,
-          agentId: body.agent_id,
-        },
-      );
+      const denied = await internalBrainDenied(supabase, auth, {
+        tenantId: body.tenant_id,
+        agentId: body.agent_id,
+      });
       if (denied) {
         return denied;
       }
