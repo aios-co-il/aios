@@ -19563,6 +19563,10 @@ export type Database = {
         Args: { p_group_tenant: string; p_link_tenant: string }
         Returns: boolean
       }
+      workshop_archive_project: {
+        Args: { p_item_id: string }
+        Returns: undefined
+      }
       workshop_assign_client: {
         Args: { p_client_id?: string; p_item_id: string }
         Returns: {
@@ -19589,6 +19593,15 @@ export type Database = {
         }
       }
       workshop_budget_short: { Args: { p_run_id: string }; Returns: boolean }
+      workshop_create_project: {
+        Args: {
+          p_client_id?: string
+          p_kind: string
+          p_tenant_id: string
+          p_title: string
+        }
+        Returns: string
+      }
       workshop_creative_stage: {
         Args: { p_client_id?: string; p_tenant_id: string }
         Returns: {
@@ -19700,6 +19713,10 @@ export type Database = {
           p_tenant_id: string
         }
         Returns: string
+      }
+      workshop_rename_project: {
+        Args: { p_item_id: string; p_title: string }
+        Returns: undefined
       }
       workshop_set_mode: {
         Args: { p_item_id: string; p_mode: string }

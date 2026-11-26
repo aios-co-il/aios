@@ -22,6 +22,7 @@ import {
   subscribeWorkshopEvents,
 } from "@/lib/workshopBridge";
 import { WorkshopProjects } from "@/components/workshop/WorkshopProjects";
+import { useWorkshopProjectActions } from "@/components/workshop/useWorkshopProjectActions";
 import { WorkshopClientCard } from "@/components/workshop/WorkshopClientCard";
 import { LandingSettingsPanel } from "@/components/workshop/landing/LandingSettingsPanel";
 import { WorkshopAssignControl } from "@/components/workshop/WorkshopAssignControl";
@@ -376,6 +377,18 @@ export default function CarmenWorkshop() {
     (projects.isLoading || projects.isFetching || following === projectId);
   const showClientCard =
     !blank && !selected && !!viewClientId && !resolvingProject;
+  const projectActions = useWorkshopProjectActions({
+    tenantId,
+    clientId: viewClientId,
+    onCreated: openProject,
+    // The open project left the list: show the client card or the latest board instead.
+    onArchived: (itemId) => {
+      if (itemId === projectId) {
+        updateParams((params) => params.delete("project"));
+      }
+    },
+    askCarmen: () => startNew(),
+  });
 
   return (
     <div
@@ -458,7 +471,7 @@ export default function CarmenWorkshop() {
             selectedId={selected?.id ?? null}
             loading={projects.isLoading}
             error={projects.isError}
-            onCreate={() => startNew()}
+            actions={projectActions}
             onSelect={openProject}
           />
         ) : null}
