@@ -120,7 +120,8 @@ import {
   transcribeAudioBlob,
   type MicCaptureMode,
 } from "@/lib/carmenTranscribeOnly";
-import type { SystemFixContextMetadata } from "@/lib/systemFixContext";
+import type { ScreenContextMetadata } from "@/lib/systemFixContext";
+import { SCREEN_CONTEXT_SOURCE } from "@functions/_shared/carmen/screen-context.ts";
 import { systemFixPromptAddon } from "@/lib/systemFixContext";
 import {
   COMMAND_CENTER_FILE_ACCEPT,
@@ -165,7 +166,7 @@ interface CarmenChatBarProps {
   onHudModeChange?: (mode: HudStage) => void;
   /** sidecar = system-fix panel with screen context (text + attachments + transcribe) */
   mode?: "default" | "sidecar";
-  contextMetadata?: SystemFixContextMetadata | null;
+  contextMetadata?: ScreenContextMetadata | null;
   sidecarPlaceholder?: string;
   /** Extra controls shown inside the composer, above the input row. */
   composerAccessory?: ReactNode;
@@ -508,7 +509,7 @@ export const CarmenChatBar = forwardRef<
       trimmed: string,
       history: Array<{ role: string; content: string }>,
       boundConvId: string,
-      ctxMeta: SystemFixContextMetadata | null,
+      ctxMeta: ScreenContextMetadata | null,
       // A model brain or "נתב חכם" that runs Carmen's loop (server re-checks it).
       runBrain?: string,
     ) => {
@@ -522,7 +523,14 @@ export const CarmenChatBar = forwardRef<
       }
       const workshop = workshopRequestParts(getWorkshopContext());
       const promptAddon =
-        [ctxMeta ? systemFixPromptAddon(ctxMeta) : "", workshop?.promptAddon]
+        [
+          // Only an AIOS screen joins the system prompt. A browser tab is the page's own
+          // words, which the server adds to the user's turn as data.
+          ctxMeta?.source === SCREEN_CONTEXT_SOURCE.commandCenterSidebar
+            ? systemFixPromptAddon(ctxMeta)
+            : "",
+          workshop?.promptAddon,
+        ]
           .filter(Boolean)
           .join("\n\n") || undefined;
       // The server saves the answer under this key too, even if the panel closes.

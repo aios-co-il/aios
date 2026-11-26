@@ -31,6 +31,7 @@ export default defineConfig(({ mode }) => {
         input: {
           popup: resolve(__dirname, "popup.html"),
           recorder: resolve(__dirname, "recorder.html"),
+          sidepanel: resolve(__dirname, "sidepanel.html"),
         },
       },
     },
