@@ -35,7 +35,7 @@ export const CAMPAIGN_GOAL_TOTAL_LABELS: Record<ReportCampaignGoal, string> = {
 export function groupRowsByCampaignGoal<G extends ReportCampaignGoal, T>(
   rows: Array<T>,
   goalOf: (row: T) => G,
-): Array<{ goal: G; rows: T[] }> {
+): Array<{ goal: G; rows: Array<T> }> {
   return REPORT_CAMPAIGN_GOALS.flatMap((goal) => {
     const goalRows = rows.filter((row) => goalOf(row) === goal);
     return goalRows.length > 0

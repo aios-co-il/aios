@@ -51,7 +51,7 @@ type HeartbeatSettingsInput = {
   interval_hours: number;
   active_hours_start: number;
   active_hours_end: number;
-  allowed_actions: string[];
+  allowed_actions: Array<string>;
   campaign_pulse_enabled?: boolean;
   campaign_pulse_deliver_to_campaigners?: boolean;
   campaign_pulse_deliver_to_team_managers?: boolean;
@@ -110,7 +110,9 @@ export function HeartbeatSettingsPanel() {
           ...settings,
           updated_at: new Date().toISOString(),
         } as TablesInsert<"tenant_heartbeat_settings">);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -122,7 +124,8 @@ export function HeartbeatSettingsPanel() {
   });
 
   const allowedActions =
-    (heartbeatSettings?.allowed_actions as string[]) || DEFAULT_ALLOWED_ACTIONS;
+    (heartbeatSettings?.allowed_actions as Array<string>) ||
+    DEFAULT_ALLOWED_ACTIONS;
 
   // Fields sent with every save (same fallbacks as the stored defaults).
   const coreSettings = () => ({
@@ -172,9 +175,9 @@ export function HeartbeatSettingsPanel() {
                 בדיקת דופק שבועית + קישור לדשבורד (ראשון 07:30)
               </Label>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                נתוני הדשבורד מתרעננים פעמיים ביום (07:00, 16:00) **בלי WA**.
-                בראשון 07:30 — דופק (WA) + תקינות (WA); קמפיינרים scoped מכרמן
-                הארגון.
+                נתוני הדשבורד מתרעננים 5 פעמים ביום (כל 3 שעות, 07:00–19:00
+                בחורף, 08:00–20:00 בקיץ) **בלי WA**. בראשון 07:30 — דופק (WA) +
+                תקינות (WA); קמפיינרים scoped מכרמן הארגון.
               </p>
             </div>
             <Switch
@@ -373,9 +376,9 @@ export function HeartbeatSettingsPanel() {
                   {log.summary}
                 </p>
                 {log.actions_taken &&
-                  (log.actions_taken as any[]).length > 0 && (
+                  (log.actions_taken as Array<any>).length > 0 && (
                     <div className="mt-1 pt-1 border-t">
-                      {(log.actions_taken as any[]).map(
+                      {(log.actions_taken as Array<any>).map(
                         (action: any, i: number) => (
                           <div
                             key={i}

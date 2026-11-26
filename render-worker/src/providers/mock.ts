@@ -82,14 +82,18 @@ export function mockProvider(): VideoProvider {
       durationS,
       aspect,
     }: MediaInput): Promise<SubmitResult> {
-      if (!imageBytes) throw new Error("mock provider needs imageBytes");
+      if (!imageBytes) {
+        throw new Error("mock provider needs imageBytes");
+      }
       const jobId = `mock-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       jobs.set(jobId, kenBurnsClip(imageBytes, { durationS, aspect }));
       return { jobId };
     },
     async poll(jobId: string): Promise<PollResult> {
       const job = jobs.get(jobId);
-      if (!job) return { status: "failed", error: "unknown mock job" };
+      if (!job) {
+        return { status: "failed", error: "unknown mock job" };
+      }
       try {
         const bytes = await job;
         jobs.delete(jobId);

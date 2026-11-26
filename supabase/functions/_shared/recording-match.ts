@@ -7,7 +7,7 @@ export interface MatchResult {
   matchType: "client" | "internal" | "unknown";
   clientId: string | null;
   autoAssign: boolean; // true only on high confidence
-  campaignerIds: string[];
+  campaignerIds: Array<string>;
 }
 
 // deno-lint-ignore no-explicit-any
@@ -36,7 +36,9 @@ export async function matchRecordingToClient(
       .eq("tenant_id", opts.tenant_id)
       .eq("active", true),
   ]);
-  if (!clients?.length) return none;
+  if (!clients?.length) {
+    return none;
+  }
 
   const transcriptHead = opts.transcription
     .split(/\s+/)
@@ -118,7 +120,7 @@ ${transcriptHead}`,
     }
 
     if (parsed.match_type === "internal") {
-      const ids: string[] = Array.isArray(parsed.campaigner_ids)
+      const ids: Array<string> = Array.isArray(parsed.campaigner_ids)
         ? parsed.campaigner_ids.filter((id: string) => campaignerIdSet.has(id))
         : [];
       // Deterministic extra signal: the host's email matched to a campaigner.
@@ -128,7 +130,9 @@ ${transcriptHead}`,
           opts.host_email &&
           c.email.toLowerCase() === opts.host_email.toLowerCase(),
       );
-      if (hostMatch && !ids.includes(hostMatch.id)) ids.push(hostMatch.id);
+      if (hostMatch && !ids.includes(hostMatch.id)) {
+        ids.push(hostMatch.id);
+      }
       return {
         matchType: "internal",
         clientId: null,

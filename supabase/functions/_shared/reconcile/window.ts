@@ -10,7 +10,7 @@ export const RECONCILE_WINDOW_DAYS = 7;
 export type ReconcileWindow = {
   start: string;
   end: string;
-  dates: string[];
+  dates: Array<string>;
   today: string;
   timezone: string;
   timezone_fallback: boolean;
@@ -27,7 +27,7 @@ export function completeDaysWindow(
   const today = ymdInTimeZone(now, zone);
   const end = shiftDateString(today, -1);
   const start = shiftDateString(end, -(days - 1));
-  const dates: string[] = [];
+  const dates: Array<string> = [];
   for (let i = 0; i < days; i++) {
     dates.push(shiftDateString(start, i));
   }
@@ -43,22 +43,21 @@ export function completeDaysWindow(
 
 /**
  * Yesterday counts only once a sync ran after it ended in the account's zone.
- * The nightly run starts before the morning sync, so without this every active
- * campaign would show yesterday's partial day as a mismatch. Older days are
+ * The nightly run starts before the first sync of the day, so without this
+ * every active campaign would show yesterday's partial day as a mismatch. Older days are
  * always compared, so a stalled sync still shows up as missing days.
  *
  * Known sync gap, reported on purpose: the scheduled Meta insights sync
  * (cron-sync-facebook-insights) plans its window by Jerusalem date. For an
- * account far behind Jerusalem (America/*) the morning run stores that
- * account's yesterday while it is still running and the afternoon run starts
- * from the next day, so the day stays partial until the 3-day lookback
- * re-fetches it. Those stored rows really are short, so they show up as spend
+ * account far behind Jerusalem (America/*) the first run of the day stores
+ * that account's yesterday while it is still running and the later runs fetch
+ * only the next day, so the day stays partial until the lookback re-fetches it. Those stored rows really are short, so they show up as spend
  * mismatches until the sync plans by the account's own zone.
  */
 export function pendingDates(
   window: ReconcileWindow,
   lastSyncAt: string | null,
-): string[] {
+): Array<string> {
   if (!lastSyncAt) {
     return [];
   }

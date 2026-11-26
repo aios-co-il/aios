@@ -3,7 +3,6 @@ import { skipToken, useQuery } from "@tanstack/react-query";
 import { useViewAs } from "@/contexts/ViewAsContext";
 import {
   FALLBACK_BRAIN_ROUTES,
-  initialSelectedRoute,
   pickDefaultRoute,
   rememberRouteLabels,
   type BrainRoute,
@@ -12,8 +11,9 @@ import { fetchBrainRoutes, fetchChannelHealth } from "./brainChannelApi";
 
 /** Loads the tenant's brain routes and channel health, tracking the selection. */
 export function useBrainRoutes(tenantId: string | null) {
+  // First paint, before the user's real brain list and stored pick are known.
   const [selected, setSelected] = useState<BrainRoute>(() =>
-    initialSelectedRoute(),
+    pickDefaultRoute(FALLBACK_BRAIN_ROUTES),
   );
   const { viewAsUserId } = useViewAs();
   const selectedRef = useRef(selected);
@@ -35,14 +35,15 @@ export function useBrainRoutes(tenantId: string | null) {
   // Keep the selection on a brain the user may still use.
   const { data, isError } = routesQuery;
   useEffect(() => {
-    if (data?.list.length)
+    if (data?.list.length) {
       setSelected(
         (prev) =>
           data.list.find((r) => r.slug === prev.slug) ||
           pickDefaultRoute(data.list),
       );
-    else if (isError)
+    } else if (isError) {
       setSelected((prev) => pickDefaultRoute(FALLBACK_BRAIN_ROUTES, prev.slug));
+    }
   }, [data, isError]);
 
   const list = data?.list ?? FALLBACK_BRAIN_ROUTES;

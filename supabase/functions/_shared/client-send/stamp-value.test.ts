@@ -3,7 +3,7 @@ import { maskSource } from "./source-mask.ts";
 import { argsStamped, initializer } from "./stamp-value.ts";
 
 /** Whether the last call in the source always carries a sendKind. */
-function lastCallStamped(...lines: string[]): boolean {
+function lastCallStamped(...lines: Array<string>): boolean {
   const { code } = maskSource(lines.join("\n"));
   const open = code.lastIndexOf("send(") + "send".length;
   return argsStamped(code, { open, close: code.lastIndexOf(")") + 1 });

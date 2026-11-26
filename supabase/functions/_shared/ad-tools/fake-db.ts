@@ -4,14 +4,14 @@
 
 type Result = { data: unknown; error: unknown };
 
-type Call = { table: string; ops: unknown[][] };
+type Call = { table: string; ops: Array<Array<unknown>> };
 
 /** `auth.getUser` accepts only the token "good" (user "u1"). */
 export function fakeDb(
   tables: Record<string, Result>,
   rpcs: Record<string, Result> = {},
 ) {
-  const calls: Call[] = [];
+  const calls: Array<Call> = [];
   return {
     calls,
     auth: {
@@ -35,7 +35,7 @@ export function fakeDb(
           ),
       };
       for (const m of ["select", "eq", "in", "not", "or"]) {
-        q[m] = (...args: unknown[]) => (call.ops.push([m, ...args]), q);
+        q[m] = (...args: Array<unknown>) => (call.ops.push([m, ...args]), q);
       }
       return q;
     },
@@ -43,4 +43,4 @@ export function fakeDb(
 }
 
 /** A successful answer with these rows. */
-export const rows = (data: unknown[]) => ({ data, error: null });
+export const rows = (data: Array<unknown>) => ({ data, error: null });

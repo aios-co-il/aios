@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Mail, Phone, ExternalLink, Trash2 } from "lucide-react";
+import { Plus, ExternalLink, Trash2 } from "lucide-react";
+import { ContactValue } from "@/components/contact/ContactValue";
 import { AddSalesPersonForm } from "@/components/forms/AddSalesPersonForm";
 import { EditSalesPersonDialog } from "@/components/forms/EditSalesPersonDialog";
 import { useToast } from "@/hooks/use-toast";
@@ -23,7 +24,9 @@ export default function SalesPeople() {
   } = useQuery({
     queryKey: ["sales-people", tenantId, selectedAgency],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       let query = supabase
         .from("sales_people")
         .select("*, agencies (name)")
@@ -35,7 +38,9 @@ export default function SalesPeople() {
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -48,7 +53,9 @@ export default function SalesPeople() {
         .delete()
         .eq("id", id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       toast({
         title: "איש מכירות נמחק בהצלחה",
@@ -94,24 +101,19 @@ export default function SalesPeople() {
             </CardHeader>
             <CardContent className="space-y-4">
               {person.email && (
-                <div className="flex items-center gap-2 text-sm">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
-                  <a
-                    href={`mailto:${person.email}`}
-                    className="hover:underline"
-                  >
-                    {person.email}
-                  </a>
-                </div>
+                <ContactValue
+                  kind="email"
+                  value={person.email}
+                  className="flex text-sm"
+                />
               )}
 
               {person.phone && (
-                <div className="flex items-center gap-2 text-sm">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
-                  <a href={`tel:${person.phone}`} className="hover:underline">
-                    {person.phone}
-                  </a>
-                </div>
+                <ContactValue
+                  kind="phone"
+                  value={person.phone}
+                  className="flex text-sm"
+                />
               )}
 
               {person.folder_link && (

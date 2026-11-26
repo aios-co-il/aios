@@ -20,7 +20,7 @@ type Row = Record<string, unknown>;
 /** One row of resolve_send_recipient. */
 export type ResolverRow = {
   recipient_kind: RecipientKind;
-  client_ids: string[];
+  client_ids: Array<string>;
   lead_id: string | null;
   group_id: string | null;
   ambiguous: boolean;
@@ -38,7 +38,7 @@ const FAKE_URL = "http://guard-db.test";
 /** The resolver's row for a recipient of this kind and these clients. */
 export function resolved(
   kind: RecipientKind,
-  clientIds: string[] = [],
+  clientIds: Array<string> = [],
   extra: Partial<ResolverRow> = {},
 ): ResolverRow {
   return {
@@ -69,15 +69,15 @@ export function guardDb(
   input: {
     recipient?: Row | null;
     recipients?: Record<string, Row>;
-    optIns?: string[];
-    tables?: Record<string, Row[]>;
+    optIns?: Array<string>;
+    tables?: Record<string, Array<Row>>;
     rpcs?: Record<string, (args: Row) => unknown>;
-    failing?: string[];
+    failing?: Array<string>;
     offline?: boolean;
   } = {},
 ) {
-  const writes: FakeWrite[] = [];
-  const rpcCalls: FakeRpcCall[] = [];
+  const writes: Array<FakeWrite> = [];
+  const rpcCalls: Array<FakeRpcCall> = [];
   const rpcs: Record<string, (args: Row) => unknown> = {
     ...input.rpcs,
     resolve_send_recipient: (args) => {
@@ -146,7 +146,7 @@ export function guardDb(
 }
 
 /** The refusal rows a fake database received. */
-export function refusalRows(writes: FakeWrite[]): Row[] {
+export function refusalRows(writes: Array<FakeWrite>): Array<Row> {
   return writes
     .filter((write) => write.table === "client_send_refusals")
     .map((write) => write.values)

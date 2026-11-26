@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactElement } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -68,7 +68,8 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-export function AddClientForm() {
+/** The new-client dialog; `trigger` replaces the default button. */
+export function AddClientForm({ trigger }: { trigger?: ReactElement } = {}) {
   const [open, setOpen] = useState(false);
   const [additionalContacts, setAdditionalContacts] = useState<
     Array<{ contact_name: string; phone: string; email: string; role: string }>
@@ -88,7 +89,9 @@ export function AddClientForm() {
   const { data: agencies } = useQuery({
     queryKey: ["agencies-for-client", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) {
+        return [] as Array<any>;
+      }
 
       // Get owned agencies
       const { data: ownedAgencies, error: ownedError } = await supabase
@@ -97,7 +100,9 @@ export function AddClientForm() {
         .eq("tenant_id", tenantId)
         .order("name");
 
-      if (ownedError) throw ownedError;
+      if (ownedError) {
+        throw ownedError;
+      }
 
       // Get shared agencies via agency_tenant_access
       const { data: sharedAccess, error: sharedError } = await supabase
@@ -113,7 +118,9 @@ export function AddClientForm() {
         )
         .eq("accessing_tenant_id", tenantId);
 
-      if (sharedError) throw sharedError;
+      if (sharedError) {
+        throw sharedError;
+      }
 
       // Extract shared agencies
       const shared = (sharedAccess || [])
@@ -192,7 +199,9 @@ export function AddClientForm() {
           p_google_ads_account_id: values.google_ads_account_id || undefined,
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Save additional contacts
       if (additionalContacts.length > 0 && newClientId) {
@@ -207,8 +216,9 @@ export function AddClientForm() {
         const { error: contactsError } = await supabase
           .from("client_contacts")
           .insert(contactsToInsert);
-        if (contactsError)
+        if (contactsError) {
           console.error("Error saving contacts:", contactsError);
+        }
       }
     },
     onSuccess: () => {
@@ -230,10 +240,12 @@ export function AddClientForm() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus className="ml-2 h-4 w-4" />
-          הוסף לקוח
-        </Button>
+        {trigger ?? (
+          <Button>
+            <Plus className="ml-2 h-4 w-4" />
+            הוסף לקוח
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent
         dir="rtl"
@@ -448,7 +460,7 @@ export function AddClientForm() {
                         { key: "full_social", label: "Full Social" },
                         { key: "social_meta", label: "Social Meta" },
                         { key: "automation", label: "Automation" },
-                      ] as { key: string; label: string }[]
+                      ] as Array<{ key: string; label: string }>
                     ).map((svc) => (
                       <label
                         key={svc.key}

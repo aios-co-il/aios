@@ -34,10 +34,13 @@ function fakeDb(meta: RowMeta = ownPicture) {
     download: async (_bucket: string, path: string) =>
       path.includes("voice") ? MP3 : PNG,
     select: async (table: string, query: string) => {
-      if (!query.includes("tenant_id=eq.t1")) return [];
-      if (table === "marketing_work_items")
+      if (!query.includes("tenant_id=eq.t1")) {
+        return [];
+      }
+      if (table === "marketing_work_items") {
         return [{ id: "i1", tenant_id: "t1", client_id: "c1" }];
-      if (table === "marketing_video_scenes")
+      }
+      if (table === "marketing_video_scenes") {
         return [
           {
             id: "s1",
@@ -49,8 +52,9 @@ function fakeDb(meta: RowMeta = ownPicture) {
             meta,
           },
         ];
+      }
       if (table === "marketing_assets") {
-        if (query.includes("id=eq.voice-1"))
+        if (query.includes("id=eq.voice-1")) {
           return [
             {
               id: "voice-1",
@@ -58,10 +62,13 @@ function fakeDb(meta: RowMeta = ownPicture) {
               meta: { text: LINE },
             },
           ];
-        if (query.includes("id=eq.still-1"))
+        }
+        if (query.includes("id=eq.still-1")) {
           return [{ id: "still-1", url: "t1/c1/i1/s1/still.png", meta: {} }];
-        if (query.includes("id=eq.clip-1"))
+        }
+        if (query.includes("id=eq.clip-1")) {
           return [{ id: "clip-1", url: "t1/c1/i1/s1/clip-v1.mp4", meta: {} }];
+        }
       }
       return [];
     },
@@ -338,8 +345,12 @@ test("the film plays the skin's move after her lip-synced line, captioned on the
   };
   const db = {
     select: async (table: string, query: string) => {
-      if (!query.includes("tenant_id=eq.t1")) return [];
-      if (table === "marketing_video_scenes") return [scene];
+      if (!query.includes("tenant_id=eq.t1")) {
+        return [];
+      }
+      if (table === "marketing_video_scenes") {
+        return [scene];
+      }
       if (table === "marketing_assets") {
         const ids = /id=in\.\(([^)]*)\)/.exec(query)?.[1] ?? "";
         return assets.filter((asset) => ids.includes(asset.id));

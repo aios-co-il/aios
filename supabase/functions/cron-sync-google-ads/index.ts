@@ -8,6 +8,8 @@ import {
   jerusalemToday,
   planScheduledSyncWindows,
 } from "../_shared/report-sync-window.ts";
+import { planHistoryBackfill } from "../_shared/ads-sync/history-backfill.ts";
+import { publicFunctionUrl } from "../_shared/public-api/url.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,7 +25,9 @@ const MAKE_API_REGIONS: Record<string, string> = {
 };
 
 function isGoogleAdsModule(moduleName: string): boolean {
-  if (!moduleName) return false;
+  if (!moduleName) {
+    return false;
+  }
   const n = moduleName.toLowerCase();
   return (
     n.includes("google-ads") || n.includes("googleads") || n.includes("adwords")
@@ -31,7 +35,9 @@ function isGoogleAdsModule(moduleName: string): boolean {
 }
 
 function isHttpModule(moduleName: string): boolean {
-  if (!moduleName) return false;
+  if (!moduleName) {
+    return false;
+  }
   return moduleName.toLowerCase().includes("http");
 }
 
@@ -51,7 +57,9 @@ async function makeAPICall(
       "Content-Type": "application/json",
     },
   };
-  if (body && method !== "GET") options.body = JSON.stringify(body);
+  if (body && method !== "GET") {
+    options.body = JSON.stringify(body);
+  }
   const res = await fetch(url, options);
   if (!res.ok) {
     const text = await res.text();
@@ -80,8 +88,11 @@ async function patchAndRunScenario(
     `/scenarios/${scenarioId}/blueprint`,
   );
   let bp = bpResponse;
-  if (bp.response?.blueprint) bp = bp.response.blueprint;
-  else if (bp.blueprint) bp = bp.blueprint;
+  if (bp.response?.blueprint) {
+    bp = bp.response.blueprint;
+  } else if (bp.blueprint) {
+    bp = bp.blueprint;
+  }
   delete bp.code;
   delete bp.response;
 
@@ -92,8 +103,12 @@ async function patchAndRunScenario(
         if (connectionId) {
           const parsedConnectionId = parseInt(String(connectionId), 10);
           if (!Number.isNaN(parsedConnectionId)) {
-            if (!mod.metadata) mod.metadata = {};
-            if (!mod.parameters) mod.parameters = {};
+            if (!mod.metadata) {
+              mod.metadata = {};
+            }
+            if (!mod.parameters) {
+              mod.parameters = {};
+            }
             mod.metadata.connection = { id: parsedConnectionId };
             mod.parameters.__IMTCONN__ = parsedConnectionId;
           }
@@ -134,7 +149,9 @@ async function patchAndRunScenario(
             ?.id || 3;
         const bodyTemplate = `{"table_id":"${tableId}","campaign_type":"${campaignType}","tenant_id":"${tenantId}","start_date":"${startDate}","end_date":"${endDate}","records":[{"date":"{{${gid}.dimensions.date}}","campaign_id":"{{${gid}.dimensions.campaignId}}","campaign_name":"{{${gid}.dimensions.campaignName}}","impressions":"{{${gid}.metrics.impressions}}","clicks":"{{${gid}.metrics.clicks}}","cost":"{{${gid}.metrics.cost}}","conversions":"{{${gid}.metrics.conversions}}","ctr":"{{${gid}.metrics.ctr}}","average_cpc":"{{${gid}.metrics.averageCpc}}","cost_micros":"{{${gid}.metrics.costMicros}}","conversions_value":"{{${gid}.metrics.conversionsValue}}","all_conversions":"{{${gid}.metrics.allConversions}}"}]}`;
         mod.mapper.jsonStringBodyContent = bodyTemplate;
-        if (mod.mapper.data) delete mod.mapper.data;
+        if (mod.mapper.data) {
+          delete mod.mapper.data;
+        }
       }
     }
   }
@@ -175,7 +192,7 @@ Deno.serve(async (req) => {
     } = body as {
       backfill_from?: string;
       backfill_to?: string;
-      table_ids?: string[];
+      table_ids?: Array<string>;
       batch_offset?: number;
       operational_only?: boolean;
     };
@@ -205,11 +222,14 @@ Deno.serve(async (req) => {
       // A switched-off report (an inactive client's) pulls no data.
       .not("campaign_active", "is", false)
       .order("id");
-    if (table_ids && table_ids.length > 0) query = query.in("id", table_ids);
+    if (table_ids && table_ids.length > 0) {
+      query = query.in("id", table_ids);
+    }
 
     const { data: tables, error: tablesError } = await query;
-    if (tablesError)
+    if (tablesError) {
       throw new Error(`Failed to fetch tables: ${tablesError.message}`);
+    }
     if (!tables || tables.length === 0) {
       return new Response(
         JSON.stringify({ message: "No Google Ads tables found" }),
@@ -219,8 +239,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    const results: any[] = [];
-    const webhookUrl = `${supabaseUrl}/functions/v1/webhook-google-ads-sync`;
+    const results: Array<any> = [];
+    const webhookUrl = publicFunctionUrl("webhook-google-ads-sync");
 
     // ---- Direct API path: self-chaining batches ----
     // The Supabase edge gateway rate-limits ~28 sync-google-ads-data invocations
@@ -234,7 +254,7 @@ Deno.serve(async (req) => {
     const CHUNK_GAP_MS = 1200;
     const NEXT_BATCH_GAP_MS = 6000;
 
-    const allDirect = (tables as any[]).filter((t: any) => {
+    const allDirect = (tables as Array<any>).filter((t: any) => {
       const ds = (t.integration_settings as any)?.data_source;
       return !ds || ds === "direct_api";
     });
@@ -261,7 +281,9 @@ Deno.serve(async (req) => {
           },
         );
         const txt = await res.text();
-        if (res.ok) return { ok: true, rateLimited: false };
+        if (res.ok) {
+          return { ok: true, rateLimited: false };
+        }
         const rateLimited = res.status === 429 || /rate limit/i.test(txt);
         return {
           ok: false,
@@ -277,6 +299,11 @@ Deno.serve(async (req) => {
       }
     };
 
+    // Tables whose history backfill this invocation already posted: the
+    // rate-limit retry pass re-runs syncOne with the settings read at the
+    // start, so it would fetch the backfill window again.
+    const backfillPosted = new Set<string>();
+
     const syncOne = async (
       table: any,
     ): Promise<{ ok: boolean; rateLimited: boolean; reason?: string }> => {
@@ -288,12 +315,34 @@ Deno.serve(async (req) => {
         scheduled_synced_through?: string;
         scheduled_lookback_on?: string;
       };
+      const today = jerusalemToday();
       const plan = planScheduledSyncWindows(
-        jerusalemToday(),
+        today,
         settings.scheduled_history_from,
         settings.scheduled_synced_through,
         settings.scheduled_lookback_on,
       );
+      const backfill = planHistoryBackfill(settings, {
+        catchup: plan.catchup,
+        today,
+      });
+      if (backfill && !backfillPosted.has(table.id)) {
+        backfillPosted.add(table.id);
+        // sync-google-ads-data clears the marker after its write; a failure
+        // keeps it for the next run and does not hold back the refresh.
+        const filled = await postSync({
+          table_id: table.id,
+          start_date: backfill.startDate,
+          end_date: backfill.endDate,
+          history_backfill: true,
+          update_last_sync: false,
+        });
+        if (!filled.ok) {
+          console.error(
+            `[cron-google-ads] ${table.name}: history backfill failed, kept for the next run: ${filled.reason}`,
+          );
+        }
+      }
       if (plan.catchup) {
         const chunk = await postSync({
           table_id: table.id,
@@ -302,7 +351,9 @@ Deno.serve(async (req) => {
           scheduled_history_from: plan.historyFrom,
           update_last_sync: false,
         });
-        if (!chunk.ok) return chunk;
+        if (!chunk.ok) {
+          return chunk;
+        }
       }
       return postSync({
         table_id: table.id,
@@ -314,19 +365,20 @@ Deno.serve(async (req) => {
       });
     };
 
-    const runInChunks = async (batch: any[]): Promise<any[]> => {
-      const retryable: any[] = [];
+    const runInChunks = async (batch: Array<any>): Promise<Array<any>> => {
+      const retryable: Array<any> = [];
       for (let i = 0; i < batch.length; i += DIRECT_CHUNK) {
         const chunk = batch.slice(i, i + DIRECT_CHUNK);
         const outcomes = await Promise.all(
           chunk.map(async (table: any) => {
             const r = await syncOne(table);
-            if (r.ok)
+            if (r.ok) {
               return {
                 table: table.name,
                 status: "synced",
                 source: "direct_api",
               };
+            }
             if (r.rateLimited) {
               retryable.push(table);
               return null;
@@ -339,9 +391,14 @@ Deno.serve(async (req) => {
             };
           }),
         );
-        for (const o of outcomes) if (o) results.push(o);
-        if (i + DIRECT_CHUNK < batch.length)
+        for (const o of outcomes) {
+          if (o) {
+            results.push(o);
+          }
+        }
+        if (i + DIRECT_CHUNK < batch.length) {
           await new Promise((r) => setTimeout(r, CHUNK_GAP_MS));
+        }
       }
       return retryable;
     };
@@ -409,7 +466,9 @@ Deno.serve(async (req) => {
     // Group by tenant
     const byTenant = new Map<string, typeof tables>();
     for (const t of tables) {
-      if (!byTenant.has(t.tenant_id)) byTenant.set(t.tenant_id, []);
+      if (!byTenant.has(t.tenant_id)) {
+        byTenant.set(t.tenant_id, []);
+      }
       byTenant.get(t.tenant_id)!.push(t);
     }
 
@@ -420,7 +479,9 @@ Deno.serve(async (req) => {
       });
 
       // ---- Make.com path (legacy) ----
-      if (makeTables.length === 0) continue;
+      if (makeTables.length === 0) {
+        continue;
+      }
 
       const { data: makeInt } = await supabase
         .from("tenant_integrations")
@@ -430,12 +491,13 @@ Deno.serve(async (req) => {
         .single();
 
       if (!makeInt) {
-        for (const t of makeTables)
+        for (const t of makeTables) {
           results.push({
             table: t.name,
             status: "skipped",
             reason: "No Make integration",
           });
+        }
         continue;
       }
 
@@ -444,12 +506,13 @@ Deno.serve(async (req) => {
       const region = s?.region || "eu2";
 
       if (!apiToken) {
-        for (const t of makeTables)
+        for (const t of makeTables) {
           results.push({
             table: t.name,
             status: "skipped",
             reason: "No API token",
           });
+        }
         continue;
       }
 
@@ -574,7 +637,9 @@ Deno.serve(async (req) => {
             .gte("created_at", new Date(todayMs - 14 * dayMs).toISOString())
             .limit(1000);
 
-          if (!records || records.length === 0) continue;
+          if (!records || records.length === 0) {
+            continue;
+          }
 
           const perCampaign: Record<
             string,
@@ -586,10 +651,15 @@ Deno.serve(async (req) => {
             const cid = String(d?.campaign_id || "");
             const name = String(d?.campaign_name || cid);
             const cost = parseFloat(String(d?.cost || d?.spend || 0)) || 0;
-            if (!cid || !date) continue;
+            if (!cid || !date) {
+              continue;
+            }
             const c = (perCampaign[cid] ||= { name, recent: 0, prior: 0 });
-            if (date >= last2Cutoff) c.recent += cost;
-            else if (date >= prior7Cutoff) c.prior += cost;
+            if (date >= last2Cutoff) {
+              c.recent += cost;
+            } else if (date >= prior7Cutoff) {
+              c.prior += cost;
+            }
           }
 
           for (const [cid, agg] of Object.entries(perCampaign)) {

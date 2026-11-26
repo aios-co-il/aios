@@ -7,12 +7,13 @@
 // the caller's active tenant. Her persona, tone and mood come from the same agent settings
 // as the text chat.
 // Response (OpenAI, the default for clients that send no provider): { client_secret, model }.
-// Response (ElevenLabs, the Android app, AIO-505): ElevenLabsSession, or { voices } with
-// list_voices for the app's voice picker.
+// Response (ElevenLabs, AIO-505): ElevenLabsSession.
+// Response (list_voices, for a voice picker): { voices } from voice-list.ts, and no session.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { getCaller, getUserOpenAIKey } from "../_shared/userKey.ts";
 import { orgVoiceKeyAllowed } from "../_shared/carmen/voice-access.ts";
 import { chooseRealtimeVoice } from "./voice-choice.ts";
+import { voiceListReply } from "./voice-list.ts";
 import { elevenLabsReply } from "./elevenlabs-reply.ts";
 import { SAVE_PRONUNCIATION_TOOL } from "./pronunciations.ts";
 import {
@@ -45,7 +46,9 @@ const TURN_DETECTION = {
 // single-file deployable): env var first, then the active llm integration row.
 async function resolveOpenAIKey(): Promise<string | null> {
   const envKey = Deno.env.get("OPENAI_API_KEY");
-  if (envKey) return envKey;
+  if (envKey) {
+    return envKey;
+  }
   try {
     const url =
       `${Deno.env.get("SUPABASE_URL")}/rest/v1/tenant_integrations` +
@@ -54,11 +57,15 @@ async function resolveOpenAIKey(): Promise<string | null> {
     const r = await fetch(url, {
       headers: { apikey: service, Authorization: `Bearer ${service}` },
     });
-    if (!r.ok) return null;
+    if (!r.ok) {
+      return null;
+    }
     const rows = await r.json();
     for (const row of Array.isArray(rows) ? rows : []) {
       const k = row?.settings?.openai_api_key;
-      if (typeof k === "string" && k.trim()) return k.trim();
+      if (typeof k === "string" && k.trim()) {
+        return k.trim();
+      }
     }
   } catch {
     /* fall through */
@@ -67,8 +74,9 @@ async function resolveOpenAIKey(): Promise<string | null> {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
   const json = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), {
       status,
@@ -90,20 +98,29 @@ Deno.serve(async (req) => {
     const { data: claims } = await supabase.auth.getClaims(
       authHeader.replace("Bearer ", ""),
     );
-    if (!claims?.claims) return json(401, { error: "Unauthorized" });
+    if (!claims?.claims) {
+      return json(401, { error: "Unauthorized" });
+    }
 
     const caller = await getCaller(authHeader);
-    if (!caller) return json(401, { error: "Unauthorized" });
+    if (!caller) {
+      return json(401, { error: "Unauthorized" });
+    }
     const { voice, tenant_id, provider, list_voices } = await req
       .json()
       .catch(() => ({}) as Record<string, unknown>);
+
+    // The voice list is the same for every caller: no tenant, key or provider access.
+    if (list_voices === true) {
+      return json(200, voiceListReply(provider));
+    }
+
     const isOwner = orgVoiceKeyAllowed(caller.email, Deno.env.get("APP_ENV"));
 
     if (provider === "elevenlabs") {
       const reply = await elevenLabsReply(caller.id, isOwner, {
         voice,
         tenant_id,
-        list_voices,
       });
       return json(reply.status, reply.body);
     }
@@ -119,10 +136,11 @@ Deno.serve(async (req) => {
     }
 
     const key = userKey ?? (await resolveOpenAIKey());
-    if (!key)
+    if (!key) {
       return json(500, {
         error: "No OpenAI key available (env or llm integration)",
       });
+    }
 
     const context = await loadSessionContext(caller.id, tenant_id);
     const selectedVoice = chooseRealtimeVoice(
@@ -192,8 +210,9 @@ Deno.serve(async (req) => {
     }
     const data = await r.json();
     const secret = data?.value ?? data?.client_secret?.value;
-    if (!secret)
+    if (!secret) {
       return json(502, { error: "No client secret in OpenAI response" });
+    }
     // The app says this line first, so ElevenLabs and OpenAI greet from the same list.
     return json(200, {
       client_secret: secret,

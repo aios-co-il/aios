@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState } from "react";
 import {
   Card,
@@ -63,7 +64,9 @@ export default function GoogleAnalyticsSettings() {
   const { data: makeIntegration, isLoading: makeLoading } = useQuery({
     queryKey: ["make-integration", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("tenant_integrations")
         .select("*")
@@ -115,7 +118,9 @@ export default function GoogleAnalyticsSettings() {
         },
       );
 
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       if (response.data?.authUrl) {
         window.location.href = response.data.authUrl;
       }
@@ -130,14 +135,18 @@ export default function GoogleAnalyticsSettings() {
   // Disconnect direct API integration
   const disconnectMutation = useMutation({
     mutationFn: async (integrationId: string) => {
-      if (!integrationId) throw new Error("No integration to disconnect");
+      if (!integrationId) {
+        throw new Error("No integration to disconnect");
+      }
 
       const { error } = await supabase
         .from("tenant_integrations")
         .update({ is_active: false })
         .eq("id", integrationId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -151,11 +160,11 @@ export default function GoogleAnalyticsSettings() {
     },
   });
 
-  const handleCopyWebhook = () => {
-    navigator.clipboard.writeText(webhookUrl);
-    setWebhookCopied(true);
-    toast.success("URL הועתק ללוח");
-    setTimeout(() => setWebhookCopied(false), 2000);
+  const handleCopyWebhook = async () => {
+    if (await copyToClipboard(webhookUrl, "URL הועתק ללוח")) {
+      setWebhookCopied(true);
+      setTimeout(() => setWebhookCopied(false), 2000);
+    }
   };
 
   return (
@@ -641,21 +650,6 @@ export default function GoogleAnalyticsSettings() {
                   </p>
                 </div>
               </div>
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-medium">
-                  3
-                </div>
-                <div>
-                  <p className="font-medium">הגדר Redirect URI</p>
-                  <p className="text-sm text-muted-foreground">
-                    ב-OAuth 2.0 Client ID, הוסף:
-                    <code className="block mt-1 text-xs bg-muted p-1 rounded overflow-x-auto">
-                      {import.meta.env.VITE_SUPABASE_URL}
-                      /functions/v1/google-analytics-auth?action=oauth_callback
-                    </code>
-                  </p>
-                </div>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -694,7 +688,9 @@ export default function GoogleAnalyticsSettings() {
       <ManageIntegrationPermissionsDialog
         open={!!sharingIntegrationId}
         onOpenChange={(open) => {
-          if (!open) setSharingIntegrationId(null);
+          if (!open) {
+            setSharingIntegrationId(null);
+          }
         }}
         integrationId={sharingIntegrationId || ""}
         integrationName={`Google Analytics - ${sharingIntegrationName}`}

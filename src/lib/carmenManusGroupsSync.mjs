@@ -25,13 +25,17 @@ export function collectSyncedCatalog(integrations) {
 
   for (const integ of integrations || []) {
     const sync = integ?.settings?.manus_groups_sync || {};
-    if (sync.synced_at) hasSync = true;
+    if (sync.synced_at) {
+      hasSync = true;
+    }
 
     if (Array.isArray(sync.groups)) {
       for (const g of sync.groups) {
         const groupChatId = String(g?.groupChatId || "").trim();
         const groupId = String(g?.groupId || "").trim();
-        if (!groupChatId || !groupId) continue;
+        if (!groupChatId || !groupId) {
+          continue;
+        }
         byChatId.set(groupChatId, {
           groupChatId,
           groupId,
@@ -43,7 +47,9 @@ export function collectSyncedCatalog(integrations) {
     if (Array.isArray(sync.group_chat_ids)) {
       for (const chatId of sync.group_chat_ids) {
         const groupChatId = String(chatId || "").trim();
-        if (!groupChatId || byChatId.has(groupChatId)) continue;
+        if (!groupChatId || byChatId.has(groupChatId)) {
+          continue;
+        }
         byChatId.set(groupChatId, {
           groupChatId,
           groupId: "",
@@ -87,7 +93,9 @@ export function mergeSyncCatalogWithDb(entries, dbByChatId) {
   }
 
   for (const row of dbByChatId.values()) {
-    if (isNotBlocked(row)) byId.set(row.id, row);
+    if (isNotBlocked(row)) {
+      byId.set(row.id, row);
+    }
   }
 
   return [...byId.values()].sort((a, b) =>

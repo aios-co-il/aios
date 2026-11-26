@@ -26,6 +26,7 @@ import {
 import { toast } from "sonner";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { mcpPresetFunctionUrl } from "@/lib/mcpPresetUrl";
+import { isSupabaseFunctionUrl } from "@functions/_shared/public-api/hosts.ts";
 
 export function McpConnectionsTab({ agent }: { agent: any }) {
   const qc = useQueryClient();
@@ -48,8 +49,12 @@ export function McpConnectionsTab({ agent }: { agent: any }) {
           bearer_token: bearer || undefined,
         },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
       return data;
     },
     onSuccess: (d) => {
@@ -75,8 +80,12 @@ export function McpConnectionsTab({ agent }: { agent: any }) {
           connection_id: conn.id,
         },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
       return data;
     },
     onSuccess: (d) => {
@@ -96,7 +105,9 @@ export function McpConnectionsTab({ agent }: { agent: any }) {
         .from("agent_mcp_connections")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () =>
       qc.invalidateQueries({
@@ -250,7 +261,10 @@ export function McpConnectionsTab({ agent }: { agent: any }) {
                 <Wrench className="h-3 w-3 me-1" />
                 {(c.available_tools ?? []).length}
               </Badge>
-              {c.url?.includes(".supabase.co/functions/v1/") && (
+              {isSupabaseFunctionUrl(
+                c.url ?? "",
+                import.meta.env.VITE_SUPABASE_URL,
+              ) && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -273,11 +287,13 @@ export function McpConnectionsTab({ agent }: { agent: any }) {
             </div>
             {c.state === "ready" && (c.available_tools ?? []).length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1 ps-8">
-                {(c.available_tools as any[]).slice(0, 12).map((t: any) => (
-                  <Badge key={t.name} variant="secondary" className="text-xs">
-                    {t.name}
-                  </Badge>
-                ))}
+                {(c.available_tools as Array<any>)
+                  .slice(0, 12)
+                  .map((t: any) => (
+                    <Badge key={t.name} variant="secondary" className="text-xs">
+                      {t.name}
+                    </Badge>
+                  ))}
               </div>
             )}
           </Card>

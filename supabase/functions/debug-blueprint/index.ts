@@ -7,8 +7,9 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   try {
     const { scenario_id, api_token, region } = await req.json();
@@ -23,8 +24,11 @@ Deno.serve(async (req) => {
 
     // Extract modules
     let bp = data;
-    if (bp.response?.blueprint) bp = bp.response.blueprint;
-    else if (bp.blueprint) bp = bp.blueprint;
+    if (bp.response?.blueprint) {
+      bp = bp.response.blueprint;
+    } else if (bp.blueprint) {
+      bp = bp.blueprint;
+    }
 
     const modules = (bp.flow || []).map((m: any) => ({
       id: m.id,

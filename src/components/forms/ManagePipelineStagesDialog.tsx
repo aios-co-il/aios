@@ -137,7 +137,7 @@ export function ManagePipelineStagesDialog({
   const [newLabel, setNewLabel] = useState("");
   const [newColor, setNewColor] = useState("#3b82f6");
   const [searchQuery, setSearchQuery] = useState("");
-  const [localStages, setLocalStages] = useState<LeadPipelineStage[]>([]);
+  const [localStages, setLocalStages] = useState<Array<LeadPipelineStage>>([]);
 
   const { stages, isLoading } = useLeadPipelineStages();
   const { updateStage, createStage, deleteStage, updateSortOrders } =
@@ -160,11 +160,15 @@ export function ManagePipelineStagesDialog({
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
+    if (!over || active.id === over.id) {
+      return;
+    }
 
     const oldIndex = localStages.findIndex((stage) => stage.id === active.id);
     const newIndex = localStages.findIndex((stage) => stage.id === over.id);
-    if (oldIndex < 0 || newIndex < 0) return;
+    if (oldIndex < 0 || newIndex < 0) {
+      return;
+    }
 
     const newOrder = arrayMove(localStages, oldIndex, newIndex);
     setLocalStages(newOrder);
@@ -177,7 +181,9 @@ export function ManagePipelineStagesDialog({
   };
 
   const handleAddStage = () => {
-    if (!newLabel.trim()) return;
+    if (!newLabel.trim()) {
+      return;
+    }
     createStage.mutate({ label: newLabel.trim(), color: newColor });
     setNewLabel("");
     setNewColor("#3b82f6");
@@ -185,7 +191,9 @@ export function ManagePipelineStagesDialog({
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
-    if (isOpen && onDialogOpen) onDialogOpen();
+    if (isOpen && onDialogOpen) {
+      onDialogOpen();
+    }
   };
 
   return (

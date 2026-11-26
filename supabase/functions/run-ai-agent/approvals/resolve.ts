@@ -25,7 +25,7 @@ export const APPROVAL_CONFIRM_WINDOW_MS = 30 * 60 * 1000;
  * Reject mode uses the reject gate, so a requester can withdraw their own approver-only row.
  */
 export function resolveApprovalConfirm(
-  rows: readonly PickRow[] | null | undefined,
+  rows: ReadonlyArray<PickRow> | null | undefined,
   {
     userId,
     roles,
@@ -36,7 +36,7 @@ export function resolveApprovalConfirm(
     windowMs = APPROVAL_CONFIRM_WINDOW_MS,
   }: {
     userId?: string | null;
-    roles?: string | readonly string[] | null;
+    roles?: string | ReadonlyArray<string> | null;
     conversationKey?: string | null;
     code?: string | null;
     mode?: "approve" | "reject";
@@ -97,7 +97,7 @@ export function isDeterministicApprovalPick(
 }
 
 /** "כן <קוד>": the one pickable row with that code, or why there is none. */
-function pickByCode(pickable: PickRow[], code: string): ApprovalPick {
+function pickByCode(pickable: Array<PickRow>, code: string): ApprovalPick {
   const byCode = pickable.filter((r) => approvalCodeMatches(r, code));
   if (byCode.length === 1) {
     return {
@@ -131,9 +131,9 @@ function pickByCode(pickable: PickRow[], code: string): ApprovalPick {
 
 /** A bare "כן": the caller's one recent row from this conversation, if the gate allows it. */
 function pickBound(
-  bound: PickRow[],
+  bound: Array<PickRow>,
   gate: (r: PickRow) => GateResult,
-  pickable: PickRow[],
+  pickable: Array<PickRow>,
 ): ApprovalPick {
   const allowed = bound.filter((r) => gate(r).ok);
   const blocked = bound.length - allowed.length;

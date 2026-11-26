@@ -107,7 +107,7 @@ describe("followUpMismatch", () => {
       "staging",
     );
     const { store, saved } = memoryStore([t], { a: [costDay(100)] });
-    const logs: string[] = [];
+    const logs: Array<string> = [];
     await runReconcileChunk(
       {
         ...deps(store, source),

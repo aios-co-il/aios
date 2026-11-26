@@ -4,7 +4,8 @@
  */
 
 export type CampaignShutdownScope =
-  { mode: "all_client_campaigns" } | { mode: "name_includes"; terms: string[] };
+  | { mode: "all_client_campaigns" }
+  | { mode: "name_includes"; terms: Array<string> };
 
 export type ShutdownCampaignRow = {
   campaign_id: string;
@@ -24,11 +25,11 @@ export type CampaignShutdownRunResult = {
   client_id: string;
   client_name: string;
   scope: CampaignShutdownScope;
-  checked: ShutdownCampaignRow[];
-  skipped_out_of_scope: ShutdownCampaignRow[];
-  already_paused: ShutdownCampaignRow[];
-  newly_paused: ShutdownCampaignRow[];
-  still_active: ShutdownCampaignRow[];
+  checked: Array<ShutdownCampaignRow>;
+  skipped_out_of_scope: Array<ShutdownCampaignRow>;
+  already_paused: Array<ShutdownCampaignRow>;
+  newly_paused: Array<ShutdownCampaignRow>;
+  still_active: Array<ShutdownCampaignRow>;
   pause_errors: Array<{
     campaign_id: string;
     campaign_name: string;
@@ -84,11 +85,11 @@ export function inferShutdownScopeFromText(
 }
 
 export function selectCampaignsForShutdown(
-  campaigns: ShutdownCampaignRow[],
+  campaigns: Array<ShutdownCampaignRow>,
   scope: CampaignShutdownScope,
 ): {
-  checked: ShutdownCampaignRow[];
-  skipped_out_of_scope: ShutdownCampaignRow[];
+  checked: Array<ShutdownCampaignRow>;
+  skipped_out_of_scope: Array<ShutdownCampaignRow>;
   scope_label: string;
 } {
   const live = campaigns.filter(
@@ -137,8 +138,9 @@ export function buildCampaignShutdownReport(
     for (const c of result.skipped_out_of_scope.slice(0, 8)) {
       lines.push(`• ${c.campaign_name} (${c.effective_status})`);
     }
-    if (result.skipped_out_of_scope.length > 8)
+    if (result.skipped_out_of_scope.length > 8) {
       lines.push(`… ועוד ${result.skipped_out_of_scope.length - 8}`);
+    }
   }
   if (result.still_active.length > 0) {
     lines.push("", "⚠️ עדיין פעילים:");
@@ -184,7 +186,9 @@ export function buildCampaignShutdownJobFromBrief(
   description: string | null | undefined,
   overrides: Partial<CampaignShutdownJob> = {},
 ): CampaignShutdownJob | null {
-  if (!looksLikeCampaignShutdownTask(title, description || "")) return null;
+  if (!looksLikeCampaignShutdownTask(title, description || "")) {
+    return null;
+  }
   const text = `${title}\n${description || ""}`;
   return {
     client_name_search: overrides.client_id

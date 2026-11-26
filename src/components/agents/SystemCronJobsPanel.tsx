@@ -98,8 +98,10 @@ export function SystemCronJobsPanel({
     queryKey: ["system-cron-jobs"],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("list_system_cron_jobs");
-      if (error) throw error;
-      return (data as CronJob[]) || [];
+      if (error) {
+        throw error;
+      }
+      return (data as Array<CronJob>) || [];
     },
     refetchInterval: 30000,
   });
@@ -117,7 +119,9 @@ export function SystemCronJobsPanel({
         p_schedule: undefined,
         p_active: active,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("הסטטוס עודכן");
@@ -137,7 +141,9 @@ export function SystemCronJobsPanel({
         p_schedule: payload.schedule,
         p_active: payload.active,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("הג'וב עודכן");
@@ -152,7 +158,9 @@ export function SystemCronJobsPanel({
       const { error } = await supabase.rpc("run_system_cron_job_now", {
         p_jobid: jobid,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("הג'וב הופעל");
@@ -348,7 +356,9 @@ export function SystemCronJobsPanel({
                   value={editPreset}
                   onValueChange={(v) => {
                     setEditPreset(v);
-                    if (v !== "__custom") setEditCustom(v);
+                    if (v !== "__custom") {
+                      setEditCustom(v);
+                    }
                   }}
                 >
                   <SelectTrigger>
@@ -443,21 +453,25 @@ function HistoryList({
         p_jobid: jobid,
         p_limit: 50,
       });
-      if (error) throw error;
-      return data as any[];
+      if (error) {
+        throw error;
+      }
+      return data as Array<any>;
     },
   });
 
-  if (isLoading)
+  if (isLoading) {
     return (
       <div className="text-center py-8 text-muted-foreground">טוען...</div>
     );
-  if (rows.length === 0)
+  }
+  if (rows.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground text-sm">
         אין הרצות
       </div>
     );
+  }
 
   return (
     <ScrollArea

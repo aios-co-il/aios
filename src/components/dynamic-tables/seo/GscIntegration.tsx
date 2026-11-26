@@ -49,10 +49,10 @@ import { useSeoKeywordRelevance } from "@/hooks/useSeoKeywordRelevance";
 export type GscDateRange = "28d" | "3m" | "12m";
 
 export interface GscMultiPeriodData {
-  current: GscKeywordData[];
-  prevMonth: GscKeywordData[];
-  threeMonth: GscKeywordData[];
-  yearly: GscKeywordData[];
+  current: Array<GscKeywordData>;
+  prevMonth: Array<GscKeywordData>;
+  threeMonth: Array<GscKeywordData>;
+  yearly: Array<GscKeywordData>;
 }
 
 interface GscIntegrationProps {
@@ -62,11 +62,11 @@ interface GscIntegrationProps {
    * agencies. When provided, GSC integration lookup spans the full set so
    * connections created in a sibling tenant still resolve. RLS still applies.
    */
-  tenantIds?: string[];
+  tenantIds?: Array<string>;
   clientId: string;
   domain?: string;
-  keywords?: string[];
-  onDataLoaded?: (data: GscKeywordData[]) => void;
+  keywords?: Array<string>;
+  onDataLoaded?: (data: Array<GscKeywordData>) => void;
   /** When set (and hideTable=true), fetches 4 historical periods (current, prevMonth, 3m ago, 1y ago) in parallel. */
   onMultiPeriodLoaded?: (data: GscMultiPeriodData) => void;
   /** Called whenever a GSC site is selected/auto-linked, so callers can persist it on their own entity. */
@@ -103,7 +103,7 @@ interface GscIntegrationProps {
     ownerEmail?: string | null;
   } | null;
   /** Tracked phrases used to decide which ranks belong in Top 20. */
-  trackedKeywords?: string[];
+  trackedKeywords?: Array<string>;
   /** Ahrefs ranks stored on the SEO reports. */
   trackedAhrefsPositions?: Record<string, number>;
   /** Client id for the same manual relevance marks as the Top 20 tab. */
@@ -208,7 +208,9 @@ export function GscIntegration({
   //   4. The first personal integration as a last resort (lets the user pick a site manually).
   const gscIntegration = useMemo(() => {
     const buildFallback = () => {
-      if (!resolvedFallback?.integrationId) return null;
+      if (!resolvedFallback?.integrationId) {
+        return null;
+      }
       return {
         id: resolvedFallback.integrationId,
         settings: {
@@ -235,17 +237,23 @@ export function GscIntegration({
     const explicitlySelected = selectedIntegrationId
       ? usableIntegrations.find((i) => i.id === selectedIntegrationId)
       : null;
-    if (explicitlySelected) return explicitlySelected;
+    if (explicitlySelected) {
+      return explicitlySelected;
+    }
 
     const withGoodMapping = usableIntegrations.find((i: any) => {
       const mapped = (i.settings as any)?.client_sites?.[clientId];
-      if (!mapped) return false;
+      if (!mapped) {
+        return false;
+      }
       const sites = (i.settings as any)?.available_sites || [];
       const site = sites.find((s: any) => s.siteUrl === mapped);
       // Accept if we don't have permission metadata, or if it's not 'siteUnverifiedUser'
       return !site || site.permissionLevel !== "siteUnverifiedUser";
     });
-    if (withGoodMapping) return withGoodMapping;
+    if (withGoodMapping) {
+      return withGoodMapping;
+    }
 
     // Personal integration exists but isn't usable for this client → prefer the
     // org-wide fallback so GSC data still loads automatically (same behavior
@@ -274,7 +282,7 @@ export function GscIntegration({
     queryFn: async () => {
       if (!gscIntegration?.id) {
         return {
-          sites: [] as GscSite[],
+          sites: [] as Array<GscSite>,
           needsReconnect: false,
           ownerEmail: null as string | null,
         };
@@ -283,7 +291,9 @@ export function GscIntegration({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const response = await supabase.functions.invoke(
         "google-search-console-auth?action=get_sites",
@@ -296,14 +306,14 @@ export function GscIntegration({
       if (response.error) {
         // Treat as needs_reconnect so UI can fall back to cached sites.
         return {
-          sites: [] as GscSite[],
+          sites: [] as Array<GscSite>,
           needsReconnect: true,
           ownerEmail: (settings?.google_email as string) || null,
         };
       }
       const data: any = response.data || {};
       return {
-        sites: Array.isArray(data.sites) ? (data.sites as GscSite[]) : [],
+        sites: Array.isArray(data.sites) ? (data.sites as Array<GscSite>) : [],
         needsReconnect: !!data.needs_reconnect,
         ownerEmail:
           data.owner_email || (settings?.google_email as string) || null,
@@ -319,10 +329,18 @@ export function GscIntegration({
   // suppressing the per-client reconnect banner unnecessarily.
   useEffect(() => {
     const id = gscIntegration?.id;
-    if (!id || isFallbackIntegration) return;
-    if (!sitesResult?.needsReconnect) return;
-    if (!resolvedFallback?.integrationId) return; // no fallback → keep banner
-    if (brokenIntegrationIds.has(id)) return;
+    if (!id || isFallbackIntegration) {
+      return;
+    }
+    if (!sitesResult?.needsReconnect) {
+      return;
+    }
+    if (!resolvedFallback?.integrationId) {
+      return;
+    } // no fallback → keep banner
+    if (brokenIntegrationIds.has(id)) {
+      return;
+    }
     setBrokenIntegrationIds((prev) => {
       const next = new Set(prev);
       next.add(id);
@@ -336,10 +354,10 @@ export function GscIntegration({
     brokenIntegrationIds,
   ]);
 
-  const cachedSites: GscSite[] = useMemo(
+  const cachedSites: Array<GscSite> = useMemo(
     () =>
       Array.isArray(settings?.available_sites)
-        ? (settings.available_sites as GscSite[])
+        ? (settings.available_sites as Array<GscSite>)
         : [],
     [settings],
   );
@@ -351,7 +369,7 @@ export function GscIntegration({
 
   // Fall back to cached sites when the live call returned nothing (auth issue
   // or transient failure) so the user can still pick a property.
-  const availableSites: GscSite[] =
+  const availableSites: Array<GscSite> =
     liveSites.length > 0 ? liveSites : cachedSites;
 
   // STRICT per-client isolation: do NOT fall back to global settings.site_url/siteUrl
@@ -368,12 +386,18 @@ export function GscIntegration({
   );
 
   const isUsableSite = (siteUrl?: string) => {
-    if (!siteUrl) return false;
+    if (!siteUrl) {
+      return false;
+    }
     const meta = availableSites.find((s) => s.siteUrl === siteUrl);
-    if (meta) return meta.permissionLevel !== "siteUnverifiedUser";
+    if (meta) {
+      return meta.permissionLevel !== "siteUnverifiedUser";
+    }
     // Once a selected account has returned its property list, a property absent
     // from that list belongs to another account and must not be reused.
-    if (!isFallbackIntegration && availableSites.length > 0) return false;
+    if (!isFallbackIntegration && availableSites.length > 0) {
+      return false;
+    }
     // Before sites load (and for server-resolved fallback), avoid UI flicker.
     return true;
   };
@@ -442,7 +466,9 @@ export function GscIntegration({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const { startDate, endDate } = computeRange(effectiveDateRange);
 
@@ -464,7 +490,7 @@ export function GscIntegration({
         if (hideTable) {
           console.warn("[GSC] silent enrich fetch failed:", response.error);
           onDataLoaded?.([]);
-          return [] as GscKeywordData[];
+          return [] as Array<GscKeywordData>;
         }
         throw response.error;
       }
@@ -477,7 +503,9 @@ export function GscIntegration({
       ) {
         const id = gscIntegration.id;
         setBrokenIntegrationIds((prev) => {
-          if (prev.has(id)) return prev;
+          if (prev.has(id)) {
+            return prev;
+          }
           const next = new Set(prev);
           next.add(id);
           return next;
@@ -485,7 +513,7 @@ export function GscIntegration({
       }
       const rows = Array.isArray(response.data?.rows) ? response.data.rows : [];
       onDataLoaded?.(rows);
-      return rows as GscKeywordData[];
+      return rows as Array<GscKeywordData>;
     },
     enabled: enableSinglePeriod,
   });
@@ -500,7 +528,9 @@ export function GscIntegration({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const dateMinus = (days: number) => {
         const d = new Date();
@@ -553,7 +583,7 @@ export function GscIntegration({
         const rows = Array.isArray(responses[idx].data?.rows)
           ? responses[idx].data.rows
           : [];
-        result[key] = rows as GscKeywordData[];
+        result[key] = rows as Array<GscKeywordData>;
       });
 
       // If any of the parallel calls reported needs_reconnect, mark the
@@ -564,7 +594,9 @@ export function GscIntegration({
       if (anyNeedsReconnect && gscIntegration?.id && !isFallbackIntegration) {
         const id = gscIntegration.id;
         setBrokenIntegrationIds((prev) => {
-          if (prev.has(id)) return prev;
+          if (prev.has(id)) {
+            return prev;
+          }
           const next = new Set(prev);
           next.add(id);
           return next;
@@ -602,7 +634,9 @@ export function GscIntegration({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const response = await supabase.functions.invoke(
         "google-search-console-auth?action=authorize",
@@ -616,7 +650,9 @@ export function GscIntegration({
         },
       );
 
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       return response.data;
     },
     onSuccess: (data) => {
@@ -632,7 +668,9 @@ export function GscIntegration({
 
   const updateSiteMutation = useMutation({
     mutationFn: async (siteUrl: string) => {
-      if (!gscIntegration?.id) return { siteUrl, dbUpdated: false };
+      if (!gscIntegration?.id) {
+        return { siteUrl, dbUpdated: false };
+      }
       // In fallback mode we don't own the integration row — skip the DB write
       // entirely and let the report-level persistence (onSiteSelected) be the
       // source of truth. This avoids RLS errors and unnecessary toasts.
@@ -657,7 +695,9 @@ export function GscIntegration({
             },
           })
           .eq("id", gscIntegration.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return { siteUrl, dbUpdated: true };
       } catch (err) {
         // RLS may block updating an integration shared by another user.
@@ -675,7 +715,9 @@ export function GscIntegration({
       });
       queryClient.invalidateQueries({ queryKey: ["gsc-keyword-data"] });
       onSiteSelected?.(siteUrl);
-      if (dbUpdated) toast.success("הנכס עודכן");
+      if (dbUpdated) {
+        toast.success("הנכס עודכן");
+      }
     },
   });
 
@@ -700,10 +742,14 @@ export function GscIntegration({
     storedClientSiteIsUsable,
   ]);
 
-  if (isLoadingIntegration) return null;
+  if (isLoadingIntegration) {
+    return null;
+  }
 
   // SEO dashboard uses GSC only for silent keyword enrichment — no connect CTA.
-  if (!gscIntegration && hideTable) return null;
+  if (!gscIntegration && hideTable) {
+    return null;
+  }
 
   if (!gscIntegration) {
     return (
@@ -731,7 +777,9 @@ export function GscIntegration({
   }
 
   // hideTable = silent enrichment inside SeoDashboardView — no GSC chrome.
-  if (hideTable) return null;
+  if (hideTable) {
+    return null;
+  }
 
   return (
     <Card className="border-primary/20">
@@ -807,7 +855,7 @@ export function GscIntegration({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {(Object.keys(DATE_RANGE_LABELS) as GscDateRange[]).map(
+                  {(Object.keys(DATE_RANGE_LABELS) as Array<GscDateRange>).map(
                     (k) => (
                       <SelectItem key={k} value={k} className="text-xs">
                         {DATE_RANGE_LABELS[k]}
@@ -883,7 +931,9 @@ export function GscIntegration({
               onClick={async () => {
                 try {
                   forceLiveNextRef.current = true;
-                  if (!isFallbackIntegration) await refetchSites();
+                  if (!isFallbackIntegration) {
+                    await refetchSites();
+                  }
                   if (enableMultiPeriod) {
                     await queryClient.invalidateQueries({
                       queryKey: [
@@ -893,7 +943,9 @@ export function GscIntegration({
                       ],
                     });
                     const result = await refetchMulti();
-                    if (result.error) throw result.error;
+                    if (result.error) {
+                      throw result.error;
+                    }
                     const count = result.data?.current?.length ?? 0;
                     toast.success(
                       `נתוני GSC עודכנו (${count.toLocaleString()} ביטויים)`,
@@ -907,7 +959,9 @@ export function GscIntegration({
                       ],
                     });
                     const result = await refetchData();
-                    if (result.error) throw result.error;
+                    if (result.error) {
+                      throw result.error;
+                    }
                     const count = Array.isArray(result.data)
                       ? result.data.length
                       : 0;
@@ -1028,7 +1082,9 @@ export function GscIntegration({
                   const values = gscData
                     .map((row: GscKeywordData) => gscCtrAsPercent(row.ctr))
                     .filter((v): v is number => v != null);
-                  if (values.length === 0) return "—";
+                  if (values.length === 0) {
+                    return "—";
+                  }
                   return `${(values.reduce((a, b) => a + b, 0) / values.length).toFixed(1)}%`;
                 })()}
               </p>
@@ -1083,10 +1139,10 @@ function GscQueriesTable({
   trackedAhrefsPositions,
   relevancePersistKey,
 }: {
-  data: GscKeywordData[];
+  data: Array<GscKeywordData>;
   initialLangFilter?: LangFilter;
   onLangFilterChange?: (lang: LangFilter) => void;
-  trackedKeywords?: string[];
+  trackedKeywords?: Array<string>;
   trackedAhrefsPositions?: Record<string, number>;
   relevancePersistKey?: string;
 }) {
@@ -1125,9 +1181,13 @@ function GscQueriesTable({
       other = 0;
     for (const row of data) {
       const k = row.keyword || "";
-      if (HEBREW_REGEX.test(k)) he++;
-      else if (ENGLISH_REGEX.test(k)) en++;
-      else other++;
+      if (HEBREW_REGEX.test(k)) {
+        he++;
+      } else if (ENGLISH_REGEX.test(k)) {
+        en++;
+      } else {
+        other++;
+      }
     }
     return { he, en, other, all: data.length };
   }, [data]);
@@ -1137,9 +1197,12 @@ function GscQueriesTable({
     if (langFilter !== "all") {
       filtered = filtered.filter((row) => {
         const k = row.keyword || "";
-        if (langFilter === "he") return HEBREW_REGEX.test(k);
-        if (langFilter === "en")
+        if (langFilter === "he") {
+          return HEBREW_REGEX.test(k);
+        }
+        if (langFilter === "en") {
           return ENGLISH_REGEX.test(k) && !HEBREW_REGEX.test(k);
+        }
         return true;
       });
     }
@@ -1155,9 +1218,15 @@ function GscQueriesTable({
           trackedPhraseRank(a.keyword, a.position, rankOpts)?.position ?? null;
         const bShown =
           trackedPhraseRank(b.keyword, b.position, rankOpts)?.position ?? null;
-        if (aShown == null && bShown == null) return 0;
-        if (aShown == null) return 1;
-        if (bShown == null) return -1;
+        if (aShown == null && bShown == null) {
+          return 0;
+        }
+        if (aShown == null) {
+          return 1;
+        }
+        if (bShown == null) {
+          return -1;
+        }
         return sortOrder === "desc" ? bShown - aShown : aShown - bShown;
       }
       const aVal = a[sortBy] as number;
@@ -1180,8 +1249,9 @@ function GscQueriesTable({
   };
 
   const SortIcon = ({ col }: { col: keyof GscKeywordData }) => {
-    if (sortBy !== col)
+    if (sortBy !== col) {
       return <ArrowUpDown className="h-3 w-3 opacity-30 inline ml-1" />;
+    }
     return (
       <span className="inline ml-1 text-primary">
         {sortOrder === "asc" ? "↑" : "↓"}

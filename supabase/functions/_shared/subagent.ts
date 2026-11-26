@@ -12,6 +12,8 @@
  *    instead of inventing a new queue.
  */
 
+import type { CarmenWaNotify } from "./carmen-session-identity.ts";
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -28,7 +30,7 @@ export interface SpawnSubagentParams {
   title: string;
   prompt: string;
   taskMode?: string;
-  taskSkills?: string[];
+  taskSkills?: Array<string>;
   priority?: number;
   createdBy?: string | null;
   /** Optional dedupe key — a live task with the same (tenant, key) is reused. */
@@ -47,15 +49,7 @@ export interface SpawnSubagentParams {
    * result back into the originating WhatsApp chat on completion — so
    * "אני עובדת על זה ברקע" doesn't become a dead end on the user's phone.
    */
-  notify?: {
-    surface: "whatsapp";
-    tenant_id: string;
-    automation_id: string | null;
-    connection_user_id: string;
-    chat_id: string;
-    phone_number: string | null;
-    is_group: boolean;
-  } | null;
+  notify?: CarmenWaNotify | null;
 }
 
 export interface SpawnSubagentResult {
@@ -228,7 +222,9 @@ export async function advanceDangerLane(
     .eq("tenant_id", tenantId)
     .eq("is_dangerous", true)
     .eq("status", "running");
-  if ((runningDanger ?? 0) > 0) return { fired: false, reason: "busy" };
+  if ((runningDanger ?? 0) > 0) {
+    return { fired: false, reason: "busy" };
+  }
 
   // Next queued dangerous task, FIFO.
   const { data: next } = await supabase
@@ -241,7 +237,9 @@ export async function advanceDangerLane(
     .order("queue_position", { ascending: true, nullsFirst: false })
     .limit(1)
     .maybeSingle();
-  if (!next) return { fired: false, reason: "empty" };
+  if (!next) {
+    return { fired: false, reason: "empty" };
+  }
 
   // Promote to running and fire. Stamp last_run so the one-shot dispatcher
   // (which only claims pending tasks with last_run IS NULL) cannot also fire it
@@ -254,7 +252,9 @@ export async function advanceDangerLane(
     .eq("status", "queued") // only promote if still queued (race guard)
     .select("id")
     .maybeSingle();
-  if (!promoted) return { fired: false, reason: "raced" };
+  if (!promoted) {
+    return { fired: false, reason: "raced" };
+  }
   fireRunAgentTask(next.id);
   return { fired: true, task_id: next.id };
 }
@@ -273,7 +273,7 @@ const MUTATING_SKINS = new Set([
  *  defaulting to dangerous when unknown (conservative — serialize unless proven safe). */
 function itemIsDangerous(it: {
   sideEffects?: boolean;
-  taskSkills?: string[];
+  taskSkills?: Array<string>;
 }): boolean {
   const skins = it.taskSkills || [];
   if (it.sideEffects === false) {
@@ -296,7 +296,7 @@ export async function spawnSubagentBatch(
   items: Array<{
     title: string;
     prompt: string;
-    taskSkills?: string[];
+    taskSkills?: Array<string>;
     sideEffects?: boolean;
   }>,
   batchId: string,
@@ -341,22 +341,25 @@ export async function getBatchResults(
   failed: number;
   running: number;
   all_done: boolean;
-  tasks: SubagentResultPayload[];
+  tasks: Array<SubagentResultPayload>;
 }> {
   const { data, error } = await supabase
     .from("agent_tasks")
     .select("id, title, status, run_count, started_at, completed_at, result")
     .eq("tenant_id", tenantId)
     .eq("batch_id", batchId);
-  if (error) throw new Error(`getBatchResults: ${error.message}`);
+  if (error) {
+    throw new Error(`getBatchResults: ${error.message}`);
+  }
 
-  const rows = (data || []) as any[];
-  const tasks: SubagentResultPayload[] = rows.map((row) => {
+  const rows = (data || []) as Array<any>;
+  const tasks: Array<SubagentResultPayload> = rows.map((row) => {
     const result = (row.result || {}) as any;
     const status = row.status as string;
     let output: string | undefined;
-    if (typeof result.final_output === "string") output = result.final_output;
-    else if (Array.isArray(result.conversation_history)) {
+    if (typeof result.final_output === "string") {
+      output = result.final_output;
+    } else if (Array.isArray(result.conversation_history)) {
       const last = [...result.conversation_history]
         .reverse()
         .find(
@@ -365,7 +368,9 @@ export async function getBatchResults(
             typeof m.content === "string" &&
             m.content.trim().length > 0,
         );
-      if (last) output = last.content;
+      if (last) {
+        output = last.content;
+      }
     }
     return {
       sub_task_id: row.id,
@@ -425,8 +430,12 @@ export async function getSubagentResult(
     .eq("tenant_id", tenantId)
     .maybeSingle();
 
-  if (error) throw new Error(`getSubagentResult: ${error.message}`);
-  if (!data) throw new Error(`subagent task not found: ${subTaskId}`);
+  if (error) {
+    throw new Error(`getSubagentResult: ${error.message}`);
+  }
+  if (!data) {
+    throw new Error(`subagent task not found: ${subTaskId}`);
+  }
 
   const result = (data.result || {}) as any;
   const status = data.status as string;
@@ -446,7 +455,9 @@ export async function getSubagentResult(
           typeof m.content === "string" &&
           m.content.trim().length > 0,
       );
-    if (lastAssistant) output = lastAssistant.content;
+    if (lastAssistant) {
+      output = lastAssistant.content;
+    }
   }
 
   return {

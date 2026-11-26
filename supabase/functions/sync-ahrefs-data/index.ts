@@ -86,7 +86,9 @@ serve(async (req) => {
       config?: AhrefsConfig;
     };
     // Accept snake_case as well
-    if (!tableId && (body as any).table_id) tableId = (body as any).table_id;
+    if (!tableId && (body as any).table_id) {
+      tableId = (body as any).table_id;
+    }
 
     if (!tableId) {
       return new Response(JSON.stringify({ error: "Missing tableId" }), {
@@ -172,7 +174,9 @@ serve(async (req) => {
         .eq("client_id", clientId)
         .order("report_date", { ascending: false });
 
-      if (reportsError) throw reportsError;
+      if (reportsError) {
+        throw reportsError;
+      }
 
       const targetForFilter = String(config.target || "")
         .replace(/^https?:\/\//, "")
@@ -188,9 +192,9 @@ serve(async (req) => {
 
       const reportsToUse =
         matchedReports.length > 0 ? matchedReports : reports || [];
-      const recordsToInsert: any[] = [];
+      const recordsToInsert: Array<any> = [];
 
-      for (const report of reportsToUse as any[]) {
+      for (const report of reportsToUse as Array<any>) {
         const rd = report.report_data || {};
         const snapshot = rd.snapshot || {};
         const reportDate = report.report_date || report.received_at;
@@ -252,7 +256,9 @@ serve(async (req) => {
         const { error: insertError } = await supabase
           .from("crm_records")
           .insert(recordsToInsert.slice(i, i + 500));
-        if (insertError) throw insertError;
+        if (insertError) {
+          throw insertError;
+        }
       }
 
       const syncedAt = new Date().toISOString();
@@ -290,7 +296,7 @@ serve(async (req) => {
     const target = normalizeTarget(config.target);
 
     let apiUrl = "";
-    let selectFields: string[] = [];
+    let selectFields: Array<string> = [];
 
     // Build API request based on data type (Site Explorer endpoints - available on standard plans)
     switch (config.dataType) {
@@ -378,7 +384,7 @@ serve(async (req) => {
     const apiData = await response.json();
 
     // Determine the data array from response
-    let records: any[] = [];
+    let records: Array<any> = [];
     if (apiData.keywords) {
       records = apiData.keywords;
     } else if (apiData.backlinks) {

@@ -10,8 +10,9 @@ const corsHeaders = {
 // Public webhook to receive real-time call events from Maskyoo.
 // Configure URL in Maskyoo as: https://<project>.supabase.co/functions/v1/maskyoo-webhook?tenant_id=<UUID>&secret=<SECRET>
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   try {
     const supabase = createClient(
@@ -28,7 +29,9 @@ Deno.serve(async (req) => {
 
     const logRequest = (stage: string) => {
       const safeParams = { ...params };
-      if (safeParams.secret) safeParams.secret = "[redacted]";
+      if (safeParams.secret) {
+        safeParams.secret = "[redacted]";
+      }
       console.info(
         "maskyoo-webhook trace",
         JSON.stringify({
@@ -51,7 +54,9 @@ Deno.serve(async (req) => {
       if (extra) {
         for (const pair of extra.split("&")) {
           const [k, v] = pair.split("=");
-          if (k && !(k in params)) params[k] = decodeURIComponent(v || "");
+          if (k && !(k in params)) {
+            params[k] = decodeURIComponent(v || "");
+          }
         }
       }
     }
@@ -59,18 +64,20 @@ Deno.serve(async (req) => {
     if (req.method === "POST") {
       const ct = req.headers.get("content-type") || "";
       try {
-        if (ct.includes("application/json"))
+        if (ct.includes("application/json")) {
           Object.assign(params, await req.json());
-        else if (ct.includes("form")) {
+        } else if (ct.includes("form")) {
           const fd = await req.formData();
           fd.forEach((v, k) => {
-            if (typeof v === "string") params[k] = v;
+            if (typeof v === "string") {
+              params[k] = v;
+            }
           });
         } else {
           const text = await req.text();
-          if (text.trim().startsWith("{"))
+          if (text.trim().startsWith("{")) {
             Object.assign(params, JSON.parse(text));
-          else if (text.includes("=")) {
+          } else if (text.includes("=")) {
             const bodyParams = new URLSearchParams(text);
             bodyParams.forEach((v, k) => {
               params[k] = v;
@@ -150,7 +157,9 @@ Deno.serve(async (req) => {
         .eq("tenant_id", tenant_id)
         .ilike("phone", `%${last9}`)
         .maybeSingle();
-      if (lead) lead_id = lead.id;
+      if (lead) {
+        lead_id = lead.id;
+      }
       if (!lead_id) {
         const { data: client } = await supabase
           .from("clients")
@@ -158,7 +167,9 @@ Deno.serve(async (req) => {
           .eq("tenant_id", tenant_id)
           .ilike("phone", `%${last9}`)
           .maybeSingle();
-        if (client) client_id = client.id;
+        if (client) {
+          client_id = client.id;
+        }
       }
     }
 
@@ -256,8 +267,12 @@ Deno.serve(async (req) => {
 
     const recording = params.recording || params.recording_url || null;
     const noteParts = [`Maskyoo [${rawStatus}]`];
-    if (params.event) noteParts.push(`event=${params.event}`);
-    if (recording) noteParts.push(`recording=${recording}`);
+    if (params.event) {
+      noteParts.push(`event=${params.event}`);
+    }
+    if (recording) {
+      noteParts.push(`recording=${recording}`);
+    }
 
     const payload: any = {
       tenant_id,

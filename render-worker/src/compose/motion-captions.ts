@@ -47,7 +47,9 @@ const KEY_WIDTH = 1.3;
  */
 export function phraseSizes(words: Array<string>) {
   const n = words.length;
-  if (n <= MAX_WORDS) return n ? [n] : [];
+  if (n <= MAX_WORDS) {
+    return n ? [n] : [];
+  }
   const leans = words.map(leansOnNext);
   const fewest = Math.ceil(n / MAX_WORDS);
   let best: { total: number; sizes: Array<number> } | null = null;
@@ -61,11 +63,13 @@ export function phraseSizes(words: Array<string>) {
       Array(k + 1).fill(0),
     );
     cost[0][0] = 0;
-    for (let g = 1; g <= k; g++)
-      for (let i = 2; i <= n; i++)
+    for (let g = 1; g <= k; g++) {
+      for (let i = 2; i <= n; i++) {
         for (let size = 2; size <= Math.min(MAX_WORDS, i); size++) {
           const prev = cost[i - size][g - 1];
-          if (prev === Infinity) continue;
+          if (prev === Infinity) {
+            continue;
+          }
           const lean = i < n && leans[i - 1] ? 3 : 0;
           const value = prev + lean + (size - mean) ** 2;
           if (value < cost[i][g]) {
@@ -73,6 +77,8 @@ export function phraseSizes(words: Array<string>) {
             from[i][g] = size;
           }
         }
+      }
+    }
     // One more phrase than needed only when it avoids a leaning end.
     const total = cost[n][k] + (k - fewest);
     if (total < (best?.total ?? Infinity)) {
@@ -91,7 +97,9 @@ export function phraseSizes(words: Array<string>) {
 export function phraseLines(widths: Array<number>, maxLineChars: number) {
   const gaps = widths.length - 1;
   const total = widths.reduce((sum, w) => sum + w, 0) + gaps;
-  if (widths.length < 2 || total <= maxLineChars) return widths.map(() => 0);
+  if (widths.length < 2 || total <= maxLineChars) {
+    return widths.map(() => 0);
+  }
   let best = 1;
   let bestWidth = Infinity;
   for (let cut = 1; cut < widths.length; cut++) {
@@ -122,7 +130,9 @@ function clausesOf(
   for (const word of sorted) {
     const shown = displayWord(word.text);
     if (!shown) {
-      if (current.length) pendingSoft = true;
+      if (current.length) {
+        pendingSoft = true;
+      }
       continue;
     }
     if (previous && current.length) {
@@ -142,18 +152,28 @@ function clausesOf(
     current.push({ ...word, shown });
     previous = word;
   }
-  if (current.length) clauses.push({ words: current, after: "hard" });
+  if (current.length) {
+    clauses.push({ words: current, after: "hard" });
+  }
   for (let i = 0; i < clauses.length; i++) {
     const clause = clauses[i];
-    if (clause.words.length !== 1) continue;
+    if (clause.words.length !== 1) {
+      continue;
+    }
     const before = clauses[i - 1];
     const next = clauses[i + 1];
     if (before?.after === "soft" && before.words.length < MAX_WORDS) {
       before.words.push(...clause.words);
       before.after = clause.after;
-    } else if (next && clause.after === "soft" && next.words.length < MAX_WORDS)
+    } else if (
+      next &&
+      clause.after === "soft" &&
+      next.words.length < MAX_WORDS
+    ) {
       next.words.unshift(...clause.words);
-    else continue;
+    } else {
+      continue;
+    }
     clauses.splice(i, 1);
     i -= 1;
   }

@@ -154,13 +154,14 @@ Deno.test(
       "not_pending",
       "no_identity",
       "unknown_tool",
-    ])
+    ]) {
       assert(
         formatApprovalExecutionReply({ error: code }, broadcast).includes(
           APPROVAL_ERROR_MESSAGES_HE[code],
         ),
         code,
       );
+    }
     // Someone else is running it right now: do not say nothing was done.
     const busy = formatApprovalExecutionReply(
       { error: "in_progress" },

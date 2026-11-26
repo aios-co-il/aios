@@ -28,6 +28,7 @@ import {
   CREATIVE_DIRECT_SKIN_SLUG,
 } from "../_shared/creativeDirectStanding.ts";
 import { getRepoUrl } from "../_shared/github-repo.ts";
+import { publicFunctionUrl } from "../_shared/public-api/url.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -119,7 +120,9 @@ async function getCreativeSticky(
   const id = String(
     (data as { cursor_agent_id?: string } | null)?.cursor_agent_id || "",
   );
-  if (!id.startsWith("bc-")) return null;
+  if (!id.startsWith("bc-")) {
+    return null;
+  }
   const url =
     String((data as { session_url?: string } | null)?.session_url || "") ||
     `https://cursor.com/agents/${id}`;
@@ -182,7 +185,9 @@ async function ensureCreativeDirectSkin(tenantId: string) {
     .eq("tenant_id", tenantId)
     .eq("is_active", true)
     .maybeSingle();
-  if (tenant) return;
+  if (tenant) {
+    return;
+  }
   const { data: global } = await sb()
     .from("ai_skills")
     .select("id")
@@ -190,7 +195,9 @@ async function ensureCreativeDirectSkin(tenantId: string) {
     .eq("scope", "global")
     .eq("is_active", true)
     .maybeSingle();
-  if (global) return;
+  if (global) {
+    return;
+  }
   await sb().from("ai_skills").insert({
     slug: CREATIVE_DIRECT_SKIN.slug,
     scope: "tenant",
@@ -215,7 +222,9 @@ async function rememberCreativeLesson(
   lesson: string,
 ) {
   const text = lesson.trim().slice(0, 500);
-  if (!text) return;
+  if (!text) {
+    return;
+  }
   const id = crypto.randomUUID();
   await upsertPointer(sb(), {
     tenant_id: tenantId,
@@ -324,8 +333,9 @@ async function followUp(apiKey: string, agentId: string, promptText: string) {
       await new Promise((resolve) => setTimeout(resolve, 2500 * attempt));
       continue;
     }
-    if (resp.status === 404 || resp.status === 410 || resp.status === 400)
+    if (resp.status === 404 || resp.status === 410 || resp.status === 400) {
       return null;
+    }
     let detail = raw.slice(0, 240);
     try {
       const parsed = JSON.parse(raw) as {
@@ -378,11 +388,13 @@ async function resolveLiveCreativeModel(apiKey: string) {
     const resp = await cursorFetch(apiKey, "https://api.cursor.com/v1/models", {
       method: "GET",
     });
-    if (!resp.ok) return preferred;
+    if (!resp.ok) {
+      return preferred;
+    }
     const data = (await resp.json()) as {
       items?: Array<{
         id?: string;
-        aliases?: string[];
+        aliases?: Array<string>;
         parameters?: Array<{ id?: string; values?: Array<{ value?: string }> }>;
       }>;
     };
@@ -407,8 +419,9 @@ async function createCreativeAgent(
     name: name.slice(0, 100),
     model,
   };
-  if (envName) body.env = { type: "cloud", name: envName };
-  else {
+  if (envName) {
+    body.env = { type: "cloud", name: envName };
+  } else {
     body.repos = [
       {
         url: getRepoUrl(),
@@ -458,7 +471,9 @@ function decodeImageBytes(imageBase64: string): Uint8Array {
     .replace(/\s/g, "");
   const bin = atob(trimmed);
   const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  for (let i = 0; i < bin.length; i++) {
+    bytes[i] = bin.charCodeAt(i);
+  }
   return bytes;
 }
 
@@ -481,12 +496,15 @@ function resolveVariationRow(
   variationId: string,
 ): { row: Record<string, unknown>; resolvedId: string } | null {
   const exact = list.find((row) => String(row.id) === variationId);
-  if (exact) return { row: exact, resolvedId: String(exact.id) };
+  if (exact) {
+    return { row: exact, resolvedId: String(exact.id) };
+  }
   const prefixMatches = list.filter((row) =>
     String(row.id).startsWith(variationId),
   );
-  if (prefixMatches.length === 1)
+  if (prefixMatches.length === 1) {
     return { row: prefixMatches[0], resolvedId: String(prefixMatches[0].id) };
+  }
   return null;
 }
 
@@ -511,7 +529,9 @@ async function applyVariationImage({
     .eq("id", itemId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
-  if (error || !item) throw new Error("item not found");
+  if (error || !item) {
+    throw new Error("item not found");
+  }
   const payload = {
     ...((item.payload as Record<string, unknown> | null) ?? {}),
   };
@@ -519,7 +539,9 @@ async function applyVariationImage({
     ? (payload.variations as Array<Record<string, unknown>>)
     : [];
   const resolved = resolveVariationRow(list, variationId);
-  if (!resolved) throw new Error("variation not found");
+  if (!resolved) {
+    throw new Error("variation not found");
+  }
   const { row: existing, resolvedId } = resolved;
 
   const bytes = decodeImageBytes(imageBase64);
@@ -530,7 +552,9 @@ async function applyVariationImage({
       contentType: "image/png",
       upsert: true,
     });
-  if (upload.error) throw upload.error;
+  if (upload.error) {
+    throw upload.error;
+  }
   const { data: pub } = sb()
     .storage.from("entity-attachments")
     .getPublicUrl(path);
@@ -566,7 +590,9 @@ async function applyVariationImage({
       ? ([...current.variations] as Array<Record<string, unknown>>)
       : [];
     const index = variations.findIndex((row) => String(row.id) === resolvedId);
-    if (index < 0) throw new Error("variation not found");
+    if (index < 0) {
+      throw new Error("variation not found");
+    }
     variations[index] = {
       ...variations[index],
       imageUrl,
@@ -604,7 +630,9 @@ async function patchPayload(
     .eq("id", itemId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
-  if (error || !data) throw new Error(error?.message || "item not found");
+  if (error || !data) {
+    throw new Error(error?.message || "item not found");
+  }
   const next = mutate({
     ...((data.payload as Record<string, unknown> | null) ?? {}),
   });
@@ -613,13 +641,16 @@ async function patchPayload(
     .update({ payload: next })
     .eq("id", itemId)
     .eq("tenant_id", tenantId);
-  if (updateError) throw updateError;
+  if (updateError) {
+    throw updateError;
+  }
   return next;
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   let body: Record<string, unknown>;
   try {
@@ -631,7 +662,9 @@ Deno.serve(async (req) => {
   const action = String(body.action ?? "dispatch");
   const tenantId = String(body.tenant_id ?? "");
   const itemId = String(body.item_id ?? "");
-  if (!tenantId) return json({ error: "tenant_id is required" }, 400);
+  if (!tenantId) {
+    return json({ error: "tenant_id is required" }, 400);
+  }
   if (
     action !== "status" &&
     action !== "ensure" &&
@@ -645,10 +678,13 @@ Deno.serve(async (req) => {
   try {
     if (action === "status" || action === "ensure") {
       const auth = await requireAuth(req);
-      if (!auth) return json({ error: "unauthorized" }, 401);
+      if (!auth) {
+        return json({ error: "unauthorized" }, 401);
+      }
       const apiKey = Deno.env.get("CURSOR_API_KEY") || "";
-      if (!apiKey)
+      if (!apiKey) {
         return json({ error: "CURSOR_API_KEY is not configured" }, 500);
+      }
       const existing = await getCreativeSticky(tenantId);
       if (action === "status" || (action === "ensure" && existing)) {
         return json({
@@ -687,9 +723,13 @@ Deno.serve(async (req) => {
 
     if (action === "learn") {
       const auth = await requireAuth(req);
-      if (!auth) return json({ error: "unauthorized" }, 401);
+      if (!auth) {
+        return json({ error: "unauthorized" }, 401);
+      }
       const lesson = String(body.lesson ?? "").trim();
-      if (!lesson) return json({ error: "lesson is required" }, 400);
+      if (!lesson) {
+        return json({ error: "lesson is required" }, 400);
+      }
       await rememberCreativeLesson(tenantId, itemId || "none", lesson);
       return json({ ok: true });
     }
@@ -707,8 +747,9 @@ Deno.serve(async (req) => {
         );
       }
       const expected = await replaceNonce(variationId, itemId);
-      if (nonce !== expected)
+      if (nonce !== expected) {
         return json({ error: "invalid replace_nonce" }, 401);
+      }
       const result = await applyVariationImage({
         itemId,
         tenantId,
@@ -727,11 +768,12 @@ Deno.serve(async (req) => {
       const jobId = String(body.job_id ?? "");
       const token = String(body.job_token ?? "");
       const imageBase64 = String(body.image_base64 ?? "");
-      if (!jobId || !token || !imageBase64)
+      if (!jobId || !token || !imageBase64) {
         return json(
           { error: "job_id, job_token, and image_base64 are required" },
           400,
         );
+      }
 
       const { data: item, error } = await sb()
         .from("marketing_work_items")
@@ -739,7 +781,9 @@ Deno.serve(async (req) => {
         .eq("id", itemId)
         .eq("tenant_id", tenantId)
         .maybeSingle();
-      if (error || !item) return json({ error: "item not found" }, 404);
+      if (error || !item) {
+        return json({ error: "item not found" }, 404);
+      }
       const payload = {
         ...((item.payload as Record<string, unknown> | null) ?? {}),
       };
@@ -747,8 +791,9 @@ Deno.serve(async (req) => {
         ? ([...payload.creative_jobs] as Array<Record<string, unknown>>)
         : [];
       const job = jobs.find((row) => String(row.id) === jobId);
-      if (!job || String(job.token) !== token)
+      if (!job || String(job.token) !== token) {
         return json({ error: "invalid job token" }, 401);
+      }
 
       const bytes = decodeImageBytes(imageBase64);
       const path = `${tenantId}/creative/${itemId}/cursor/${jobId}.png`;
@@ -758,7 +803,9 @@ Deno.serve(async (req) => {
           contentType: "image/png",
           upsert: true,
         });
-      if (upload.error) throw upload.error;
+      if (upload.error) {
+        throw upload.error;
+      }
       const { data: pub } = sb()
         .storage.from("entity-attachments")
         .getPublicUrl(path);
@@ -826,9 +873,11 @@ Deno.serve(async (req) => {
           liveTextLayers,
         };
         const index = list.findIndex((row) => String(row.id) === variationId);
-        if (index >= 0)
+        if (index >= 0) {
           list[index] = { ...list[index], ...nextVariation, imageUrl };
-        else list.push(nextVariation);
+        } else {
+          list.push(nextVariation);
+        }
         const nextJobs = (
           Array.isArray(current.creative_jobs)
             ? (current.creative_jobs as Array<Record<string, unknown>>)
@@ -865,11 +914,15 @@ Deno.serve(async (req) => {
     }
 
     const auth = await requireAuth(req);
-    if (!auth) return json({ error: "unauthorized" }, 401);
+    if (!auth) {
+      return json({ error: "unauthorized" }, 401);
+    }
 
     if (action === "cancel") {
       const jobId = String(body.job_id ?? "");
-      if (!jobId) return json({ error: "job_id required" }, 400);
+      if (!jobId) {
+        return json({ error: "job_id required" }, 400);
+      }
       await patchPayload(itemId, tenantId, (current) => ({
         ...current,
         creative_jobs: (Array.isArray(current.creative_jobs)
@@ -883,11 +936,14 @@ Deno.serve(async (req) => {
     }
 
     const apiKey = Deno.env.get("CURSOR_API_KEY") || "";
-    if (!apiKey)
+    if (!apiKey) {
       return json({ error: "CURSOR_API_KEY is not configured" }, 500);
+    }
 
     const prompt = String(body.prompt ?? "").trim();
-    if (!prompt) return json({ error: "prompt is required" }, 400);
+    if (!prompt) {
+      return json({ error: "prompt is required" }, 400);
+    }
     const variation = (
       body.variation && typeof body.variation === "object" ? body.variation : {}
     ) as Record<string, unknown>;
@@ -950,13 +1006,15 @@ Deno.serve(async (req) => {
     }));
 
     const lesson = String(body.lesson ?? "").trim();
-    if (lesson) await rememberCreativeLesson(tenantId, itemId, lesson);
+    if (lesson) {
+      await rememberCreativeLesson(tenantId, itemId, lesson);
+    }
 
     const callback = [
       `${CREATIVE_MARKER} job ${jobId}`,
       "You are already in the Creative Direct chat. This is one job.",
       "When the PNG is ready, POST it back. Do not open a PR. Do not edit the repo.",
-      `POST ${SUPABASE_URL}/functions/v1/cursor-generate-creative`,
+      `POST ${publicFunctionUrl("cursor-generate-creative")}`,
       "Content-Type: application/json",
       `Body JSON: {"action":"complete","tenant_id":"${tenantId}","item_id":"${itemId}","job_id":"${jobId}","job_token":"${jobToken}","image_base64":"<png-base64>","variation":{"id":"${variationId}","name":${JSON.stringify(String(variation.name || "וריאציה"))},"format":${JSON.stringify(String(variation.format || "1:1"))},"copy_key":${JSON.stringify(variation.copy_key ?? null)},"copy_label":${JSON.stringify(variation.copy_label ?? null)},"copy_text":${JSON.stringify(String(variation.copy_text || "").slice(0, 400))},"parent_id":${JSON.stringify(variation.parent_id ?? null)}}}`,
     ].join("\n");
@@ -974,7 +1032,9 @@ Deno.serve(async (req) => {
       .filter(Boolean)
       .join("\n\n");
     let fired = sticky ? await followUp(apiKey, sticky.id, jobPrompt) : null;
-    if (fired) reused = true;
+    if (fired) {
+      reused = true;
+    }
     if (!fired) {
       const first = `${await buildOpenPrompt(tenantId)}\n\nThis message also contains the first job.\n\n${jobPrompt}`;
       fired = await createCreativeAgent(apiKey, first, CREATIVE_DIRECT_NAME);

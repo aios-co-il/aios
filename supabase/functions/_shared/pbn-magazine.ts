@@ -1,5 +1,7 @@
 /** PBN magazine HTML generators — baked into Vercel api/home.js + api/article.js at deploy time. */
 
+import { publicFunctionUrl } from "./public-api/url.ts";
+
 export type MagazineTheme = {
   id: number;
   name: string;
@@ -18,7 +20,7 @@ export type MagazineTheme = {
   radius: string;
 };
 
-export const magazineThemes: MagazineTheme[] = [
+export const magazineThemes: Array<MagazineTheme> = [
   {
     id: 1,
     name: "signal",
@@ -226,7 +228,7 @@ const homeShell = (
 ${sharedHelpers}
 module.exports = async (request, response) => {
   const feedUrl = process.env.PUBLISHING_FEED_URL ||
-    "https://zvoijyneresvkadpprel.supabase.co/functions/v1/publishing-feed";
+    ${JSON.stringify(publicFunctionUrl("publishing-feed"))};
   const feedResponse = await fetch(feedUrl + "?site_id=${siteId}", {
     headers: process.env.PUBLISHING_FEED_TOKEN ? { "x-publishing-token": process.env.PUBLISHING_FEED_TOKEN } : {}
   });
@@ -467,12 +469,15 @@ const classicHomeBodyFixed = (theme: MagazineTheme) => `
 `;
 
 export function homeFunction(siteId: string, theme: MagazineTheme) {
-  if (theme.layout === "signal")
+  if (theme.layout === "signal") {
     return homeShell(siteId, theme, signalHomeCss, signalHomeBody);
-  if (theme.layout === "ledger")
+  }
+  if (theme.layout === "ledger") {
     return homeShell(siteId, theme, ledgerHomeCss, ledgerHomeBody);
-  if (theme.layout === "atelier")
+  }
+  if (theme.layout === "atelier") {
     return homeShell(siteId, theme, atelierHomeCss, atelierHomeBody);
+  }
   return homeShell(siteId, theme, classicHomeCss, classicHomeBodyFixed(theme));
 }
 
@@ -605,7 +610,7 @@ const magazineImg = (src, alt = "", attrs = "") => {
 module.exports = async (request, response) => {
   const slug = String(request.query?.slug ?? "").replace(/^\\/+|\\/+$/g, "");
   const feedUrl = process.env.PUBLISHING_FEED_URL ||
-    "https://zvoijyneresvkadpprel.supabase.co/functions/v1/publishing-feed";
+    ${JSON.stringify(publicFunctionUrl("publishing-feed"))};
   const feedResponse = await fetch(feedUrl + "?site_id=${siteId}", {
     headers: process.env.PUBLISHING_FEED_TOKEN ? { "x-publishing-token": process.env.PUBLISHING_FEED_TOKEN } : {}
   });

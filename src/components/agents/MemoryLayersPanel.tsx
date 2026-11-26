@@ -44,7 +44,7 @@ export function MemoryLayersPanel({ agentId }: { agentId: string }) {
         semantic: 0,
         user_model: 0,
       };
-      for (const layer of Object.keys(out) as Layer[]) {
+      for (const layer of Object.keys(out) as Array<Layer>) {
         const { count } = await supabase
           .from("agent_memory" as any)
           .select("id", { count: "exact", head: true })
@@ -69,14 +69,19 @@ export function MemoryLayersPanel({ agentId }: { agentId: string }) {
         .eq("memory_type", active)
         .order("created_at", { ascending: false })
         .limit(100);
-      if (contact.trim()) q = q.ilike("contact_phone", `%${contact.trim()}%`);
-      if (search.trim())
+      if (contact.trim()) {
+        q = q.ilike("contact_phone", `%${contact.trim()}%`);
+      }
+      if (search.trim()) {
         q = q.textSearch("fts", search.trim(), {
           type: "websearch",
           config: "simple",
         });
+      }
       const { data, error } = await q;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
   });
@@ -87,7 +92,7 @@ export function MemoryLayersPanel({ agentId }: { agentId: string }) {
         <Layers className="h-4 w-4 text-primary" />
         <span className="text-sm font-medium">שכבות זיכרון</span>
         <div className="flex-1" />
-        {(Object.keys(LAYER_META) as Layer[]).map((l) => (
+        {(Object.keys(LAYER_META) as Array<Layer>).map((l) => (
           <button
             key={l}
             onClick={() => setActive(active === l ? null : l)}

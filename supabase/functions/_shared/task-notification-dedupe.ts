@@ -35,8 +35,12 @@ export async function claimTaskNotificationDelivery(
     notification_type: input.notificationType,
     recipient_key: input.recipientKey || "",
   });
-  if (error?.code === "23505") return "duplicate";
-  if (error) throw error;
+  if (error?.code === "23505") {
+    return "duplicate";
+  }
+  if (error) {
+    throw error;
+  }
   return "claimed";
 }
 
@@ -54,5 +58,7 @@ export async function releaseTaskNotificationDelivery(
     .eq("task_id", input.taskId)
     .eq("notification_type", input.notificationType)
     .eq("recipient_key", input.recipientKey || "");
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 }

@@ -12,10 +12,10 @@ const OWNER = {
 };
 
 function db(
-  rows: unknown[],
+  rows: Array<unknown>,
   queued: (args: { p_chat_id?: string }) => boolean = () => true,
 ) {
-  const notifies: unknown[] = [];
+  const notifies: Array<unknown> = [];
   const client = fakeSupabase(
     { carmen_report_recipients: rows },
     {

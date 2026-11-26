@@ -42,17 +42,22 @@ const TOOL = {
 };
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   try {
     const { invoice_id } = await req.json();
-    if (!invoice_id) throw new Error("invoice_id required");
+    if (!invoice_id) {
+      throw new Error("invoice_id required");
+    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!openaiKey) throw new Error("OPENAI_API_KEY not configured");
+    if (!openaiKey) {
+      throw new Error("OPENAI_API_KEY not configured");
+    }
 
     const admin = createClient(supabaseUrl, serviceKey);
 
@@ -61,17 +66,23 @@ Deno.serve(async (req) => {
       .select("id, file_path, mime_type, tenant_id")
       .eq("id", invoice_id)
       .single();
-    if (rowErr || !row) throw new Error("invoice not found");
+    if (rowErr || !row) {
+      throw new Error("invoice not found");
+    }
 
     // Download file
     const { data: file, error: dlErr } = await admin.storage
       .from("invoices")
       .download(row.file_path);
-    if (dlErr || !file) throw new Error("download failed: " + dlErr?.message);
+    if (dlErr || !file) {
+      throw new Error("download failed: " + dlErr?.message);
+    }
 
     const buf = new Uint8Array(await file.arrayBuffer());
     let binary = "";
-    for (let i = 0; i < buf.length; i++) binary += String.fromCharCode(buf[i]);
+    for (let i = 0; i < buf.length; i++) {
+      binary += String.fromCharCode(buf[i]);
+    }
     const b64 = btoa(binary);
     const mime = row.mime_type || file.type || "image/jpeg";
     const dataUrl = `data:${mime};base64,${b64}`;
@@ -163,7 +174,9 @@ Deno.serve(async (req) => {
             (s.name.toLowerCase().includes(lower) ||
               lower.includes(s.name.toLowerCase())),
         );
-        if (hit) update.supplier_id = hit.id;
+        if (hit) {
+          update.supplier_id = hit.id;
+        }
       }
     }
 
@@ -171,7 +184,9 @@ Deno.serve(async (req) => {
       .from("invoice_uploads")
       .update(update)
       .eq("id", invoice_id);
-    if (updErr) throw updErr;
+    if (updErr) {
+      throw updErr;
+    }
 
     return new Response(JSON.stringify({ success: true, extracted }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

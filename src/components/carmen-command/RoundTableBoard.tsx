@@ -64,8 +64,8 @@ function orbitPosition(angleDeg: number): { left: string; top: string } {
 
 interface RoundTableBoardProps {
   route: BrainRoute | null;
-  messages?: ChatLike[];
-  seats?: ParliamentSeatView[];
+  messages?: Array<ChatLike>;
+  seats?: Array<ParliamentSeatView>;
   selectedProvider?: string | null;
   debating?: boolean;
   stage?: HudStage;
@@ -87,14 +87,16 @@ function speakerOf(m: ChatLike): string {
 }
 
 function lastLine(
-  messages: ChatLike[] | undefined,
+  messages: Array<ChatLike> | undefined,
   who: CouncilSeatId,
   activeSlug: string,
 ): { text: string; from: string; to: string } | null {
   const list = messages || [];
   const seatSlug = slugForCouncilSeat(who);
   const own = [...list].reverse().find((m) => {
-    if (m.role === "tool_call" || !m.content) return false;
+    if (m.role === "tool_call" || !m.content) {
+      return false;
+    }
     const speaker = speakerOf(m);
     if (who === "carmen") {
       return (
@@ -137,15 +139,17 @@ function lastLine(
 }
 
 function seatState(
-  seats: ParliamentSeatView[] | undefined,
+  seats: Array<ParliamentSeatView> | undefined,
   id: string,
 ): string {
-  if (id === "carmen") return "chair";
+  if (id === "carmen") {
+    return "chair";
+  }
   return seats?.find((s) => s.provider === id)?.state || "idle";
 }
 
 function recentTalk(
-  messages: ChatLike[] | undefined,
+  messages: Array<ChatLike> | undefined,
 ): Array<{ from: string; to: string; text: string }> {
   return (messages || [])
     .filter((m) => m.role !== "tool_call" && m.content)

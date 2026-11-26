@@ -29,9 +29,9 @@ export type ChatLink = (clientId: string) => string | null;
  * receipt, say) never describes it.
  */
 export function withVerdicts(
-  reviews: ThreadReview[],
+  reviews: Array<ThreadReview>,
   verdicts: Verdicts,
-): ThreadReview[] {
+): Array<ThreadReview> {
   return reviews.map((review) => {
     const cached = verdicts.get(review.thread.key);
     if (
@@ -54,9 +54,9 @@ export function withVerdicts(
 
 /** The unanswered_request findings the reviewed waits raise. */
 export function requestCandidates(
-  reviews: ThreadReview[],
+  reviews: Array<ThreadReview>,
   chatLink: ChatLink,
-): FindingCandidate[] {
+): Array<FindingCandidate> {
   return reviews.flatMap((review) => {
     if (clearsWait(review)) {
       return [];

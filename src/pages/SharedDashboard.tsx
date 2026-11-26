@@ -1,8 +1,9 @@
 import { DashboardContinentsView } from "@/components/dynamic-tables/CampaignContinents/DashboardContinentsView";
 import { continentPlatforms } from "@/components/dynamic-tables/CampaignContinents/combinedContinents";
+import { continentsFallbackFilter } from "@/components/dynamic-tables/CampaignContinents/continentsFallback";
 import type { DashboardPlatformFilter } from "@/lib/dashboardPlatformFilter";
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
-import { DashboardTrackedEvents } from "@/components/dynamic-tables/TrackedEvents/DashboardTrackedEvents";
+import { DashboardAnalyticsTab } from "@/components/report-ui/dashboard/DashboardAnalyticsTab";
 import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleAdsCampaignSection/summarizeGoogleAdsCampaigns";
 import { CombinedRoasCard } from "@/components/dynamic-tables/CombinedRoasCard";
 import { DashboardPlatformBreakdown } from "@/components/dynamic-tables/DashboardPlatformBreakdown/DashboardPlatformBreakdown";
@@ -13,8 +14,11 @@ import { useDashboardGoalTotals } from "@/hooks/useDashboardGoalTotals";
 import { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import type { DashboardDateRange } from "@/components/reports/ReportHeader/DashboardDateControls";
 import { attachTableSettings } from "@/components/SharedDashboard/attachTableSettings";
 import { SharedDashboardHeader } from "@/components/SharedDashboard/SharedDashboardHeader";
+import { RangeRefusedNotice } from "@/components/reports/ReportHeader/RangeRefusedNotice";
+import { useSharedDashboardData } from "@/components/SharedDashboard/useSharedDashboardData";
 import { useSharedPreviousPeriod } from "@/components/SharedDashboard/useSharedPreviousPeriod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReportKpiCard } from "@/components/report-ui/ReportKpiCard";
@@ -136,17 +140,28 @@ const matchesPlatformFilter = (
   integrationType: string,
   filter: DashboardPlatformFilter,
 ): boolean => {
-  if (filter === "all") return true;
-  if (filter === "facebook") return isFacebookPlatform(integrationType);
-  if (filter === "google_ads") return integrationType === "google_ads";
-  if (filter === "google_analytics")
+  if (filter === "all") {
+    return true;
+  }
+  if (filter === "facebook") {
+    return isFacebookPlatform(integrationType);
+  }
+  if (filter === "google_ads") {
+    return integrationType === "google_ads";
+  }
+  if (filter === "google_analytics") {
     return isAnalyticsPlatform(integrationType);
+  }
   return true;
 };
 
 const formatNumber = (num: number) => {
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
-  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + "M";
+  }
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1) + "K";
+  }
   return Math.round(num).toString();
 };
 
@@ -197,6 +212,9 @@ interface SharedDashboardProps {
   /** The window, when the host holds it: the client card's live view and its send capture. */
   dateFilter?: string;
   onDateFilterChange?: (filter: string) => void;
+  /** The custom range, when the host holds the window. */
+  customDateRange?: DashboardDateRange;
+  onCustomDateRangeChange?: (range: DashboardDateRange) => void;
 }
 
 export default function SharedDashboard({
@@ -205,6 +223,8 @@ export default function SharedDashboard({
   snapshotMode = false,
   dateFilter: hostDateFilter,
   onDateFilterChange,
+  customDateRange: hostCustomDateRange,
+  onCustomDateRangeChange,
 }: SharedDashboardProps = {}) {
   const params = useParams();
   const shareToken = shareTokenOverride ?? params.shareToken;
@@ -212,46 +232,25 @@ export default function SharedDashboard({
   // The client card holds the window so its send capture shows the same one.
   const dateFilter = hostDateFilter ?? ownDateFilter;
   const setDateFilter = onDateFilterChange ?? setOwnDateFilter;
+  const [ownCustomDateRange, setOwnCustomDateRange] =
+    useState<DashboardDateRange>({});
+  const customDateRange = hostCustomDateRange ?? ownCustomDateRange;
+  const setCustomDateRange = onCustomDateRangeChange ?? setOwnCustomDateRange;
+  const dates = { dateFilter, customDateRange };
   const [platformFilter, setPlatformFilter] =
     useState<DashboardPlatformFilter>("all");
   const [seoActiveTab, setSeoActiveTab] = useState("seo");
   // Off by default, like the signed-in dashboard's "השוואה לתקופה קודמת".
   const [comparePrevious, setComparePrevious] = useState(false);
 
-  const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: ["shared-dashboard", shareToken, dateFilter],
-    queryFn: async () => {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-      if (!supabaseUrl || !apiKey) {
-        throw new Error(
-          "חסרה הגדרת Supabase בסביבת הפיתוח (VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY)",
-        );
-      }
-      const params = new URLSearchParams({
-        token: shareToken!,
-        date_filter: dateFilter,
-      });
-      const baseUrl = `${supabaseUrl}/functions/v1/public-dashboard`;
-      const res = await fetch(`${baseUrl}?${params.toString()}`, {
-        method: "GET",
-        headers: {
-          apikey: apiKey,
-          Authorization: `Bearer ${apiKey}`,
-        },
-      });
-      if (!res.ok) {
-        const body = await res.text();
-        throw new Error(body || `public-dashboard failed (${res.status})`);
-      }
-      return attachTableSettings(await res.json());
-    },
-    enabled: !!shareToken,
-    retry: false,
-    // Keep a warm cache so reopening / date flips don't flash a blank screen.
-    staleTime: 60_000,
-    gcTime: 5 * 60_000,
-  });
+  const {
+    data,
+    isLoading,
+    isFetching,
+    isPlaceholderData,
+    error,
+    rangeRefused,
+  } = useSharedDashboardData(shareToken, dates);
 
   const tables = data?.tables || [];
   const rawRecords = data?.records || [];
@@ -271,7 +270,9 @@ export default function SharedDashboard({
           headers: { apikey: apiKey, Authorization: `Bearer ${apiKey}` },
         },
       );
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
       return attachTableSettings(await res.json());
     },
     enabled: !!shareToken && platformFilter === "weekly",
@@ -353,14 +354,15 @@ export default function SharedDashboard({
 
   // Aggregate GSC records per keyword (sum clicks/impressions, weighted-avg position)
   const seoGscAggregated = useMemo(() => {
-    if (seoGscRecords.length === 0)
-      return [] as {
+    if (seoGscRecords.length === 0) {
+      return [] as Array<{
         keyword: string;
         clicks: number;
         impressions: number;
         ctr: number;
         position: number;
-      }[];
+      }>;
+    }
     const acc = new Map<
       string,
       { clicks: number; impressions: number; positionWeighted: number }
@@ -368,7 +370,9 @@ export default function SharedDashboard({
     for (const rec of seoGscRecords) {
       const d = (rec as any).data || rec;
       const kw = String(d.query || d.keyword || "").trim();
-      if (!kw) continue;
+      if (!kw) {
+        continue;
+      }
       const clicks = Number(d.clicks) || 0;
       const impressions = Number(d.impressions) || 0;
       const position = Number(d.position) || 0;
@@ -399,8 +403,9 @@ export default function SharedDashboard({
 
   // Compute GA monthly non-paid sessions for the SEO traffic chart (mirrors SeoDashboardView).
   const seoGaOrganicByMonth = useMemo(() => {
-    if (seoGaRecords.length === 0)
-      return [] as { month: string; sessions: number }[];
+    if (seoGaRecords.length === 0) {
+      return [] as Array<{ month: string; sessions: number }>;
+    }
     const isPaidChannel = (cg: string) => {
       const v = cg.toLowerCase();
       return (
@@ -423,9 +428,13 @@ export default function SharedDashboard({
       const monthMap = new Map<string, number>();
       for (const r of monthlyChannelRows) {
         const cg = String(r.data?.channel_group || "");
-        if (isPaidChannel(cg)) continue;
+        if (isPaidChannel(cg)) {
+          continue;
+        }
         const month = r.data?.month as string;
-        if (!month) continue;
+        if (!month) {
+          continue;
+        }
         monthMap.set(
           month,
           (monthMap.get(month) || 0) + (Number(r.data?.sessions) || 0),
@@ -446,9 +455,13 @@ export default function SharedDashboard({
       const monthMap = new Map<string, number>();
       for (const r of dailySourceRows) {
         const sm = String(r.data?.source_medium || "");
-        if (isPaidMedium(sm)) continue;
+        if (isPaidMedium(sm)) {
+          continue;
+        }
         const date = r.data?.date;
-        if (!date) continue;
+        if (!date) {
+          continue;
+        }
         const monthKey = String(date).substring(0, 7);
         monthMap.set(
           monthKey,
@@ -488,16 +501,26 @@ export default function SharedDashboard({
   const availablePlatforms = useMemo(() => {
     const set = new Set<string>();
     tables.forEach((t: any) => {
-      if (t?.integration_type) set.add(t.integration_type);
+      if (t?.integration_type) {
+        set.add(t.integration_type);
+      }
     });
-    const platforms: DashboardPlatformFilter[] = [];
-    if (set.has("facebook_insights") || set.has("facebook_ecommerce"))
+    const platforms: Array<DashboardPlatformFilter> = [];
+    if (set.has("facebook_insights") || set.has("facebook_ecommerce")) {
       platforms.push("facebook");
-    if (set.has("google_ads")) platforms.push("google_ads");
-    if (set.has("google_analytics") && hasVisibleAnalyticsData)
+    }
+    if (set.has("google_ads")) {
+      platforms.push("google_ads");
+    }
+    if (set.has("google_analytics") && hasVisibleAnalyticsData) {
       platforms.push("google_analytics");
-    if (hasWooCommerce) platforms.push("woocommerce");
-    if (hasSeo) platforms.push("seo");
+    }
+    if (hasWooCommerce) {
+      platforms.push("woocommerce");
+    }
+    if (hasSeo) {
+      platforms.push("seo");
+    }
     return platforms;
   }, [tables, hasWooCommerce, hasSeo, hasVisibleAnalyticsData]);
 
@@ -509,12 +532,12 @@ export default function SharedDashboard({
   // A period whose campaigns stop naming destinations drops the tab; leave it too.
   useEffect(() => {
     if (platformFilter === "continents" && !hasContinentsTab) {
-      setPlatformFilter("google_ads");
+      setPlatformFilter(continentsFallbackFilter(availablePlatforms));
     }
-  }, [platformFilter, hasContinentsTab]);
+  }, [platformFilter, hasContinentsTab, availablePlatforms]);
 
-  const platformTabItems = useMemo((): ResponsiveTabItem[] => {
-    const items: ResponsiveTabItem[] = [{ value: "all", label: "📊 הכל" }];
+  const platformTabItems = useMemo((): Array<ResponsiveTabItem> => {
+    const items: Array<ResponsiveTabItem> = [{ value: "all", label: "📊 הכל" }];
     if (
       availablePlatforms.includes("facebook") ||
       availablePlatforms.includes("google_ads")
@@ -570,8 +593,8 @@ export default function SharedDashboard({
     return items;
   }, [availablePlatforms, hasContinentsTab]);
 
-  const seoTabItems = useMemo((): ResponsiveTabItem[] => {
-    const items: ResponsiveTabItem[] = [
+  const seoTabItems = useMemo((): Array<ResponsiveTabItem> => {
+    const items: Array<ResponsiveTabItem> = [
       { value: "seo", label: "SEO", icon: TrendingUp },
     ];
     if (hasSeoGsc) {
@@ -598,24 +621,33 @@ export default function SharedDashboard({
   const filteredRecords = useMemo(() => {
     return records.filter((record: any) => {
       const source = record._source || "unknown";
-      if (!matchesPlatformFilter(source, platformFilter)) return false;
+      if (!matchesPlatformFilter(source, platformFilter)) {
+        return false;
+      }
       if (isAnalyticsPlatform(source)) {
-        if (!hasVisibleAnalyticsData) return false;
+        if (!hasVisibleAnalyticsData) {
+          return false;
+        }
         const data = record.data || {};
-        if (data.report_type !== "daily") return false;
+        if (data.report_type !== "daily") {
+          return false;
+        }
       }
       if (
         isAdsPlatform(source) &&
         !shouldIncludeInAdsDashboardAggregate(record.data, source)
-      )
+      ) {
         return false;
+      }
       return true;
     });
   }, [records, platformFilter, hasVisibleAnalyticsData]);
 
   // All analytics records (unfiltered by report_type) for GoogleAnalyticsDashboard
   const allAnalyticsRecords = useMemo(() => {
-    if (!hasVisibleAnalyticsData) return [];
+    if (!hasVisibleAnalyticsData) {
+      return [];
+    }
     return records
       .filter((r: any) => isAnalyticsPlatform(r._source || ""))
       .map((r: any) => ({ id: r.id, data: r.data }));
@@ -670,8 +702,12 @@ export default function SharedDashboard({
       const source = record._source || "unknown";
       if (isAdsPlatform(source)) {
         const data = record.data || {};
-        if (data.report_type && data.report_type !== "daily") return;
-        if (!shouldIncludeInAdsDashboardAggregate(data, source)) return;
+        if (data.report_type && data.report_type !== "daily") {
+          return;
+        }
+        if (!shouldIncludeInAdsDashboardAggregate(data, source)) {
+          return;
+        }
         spend += getSpendFromData(data);
         impressions += Number(data.impressions) || 0;
       }
@@ -750,7 +786,7 @@ export default function SharedDashboard({
   );
   const previous = useSharedPreviousPeriod({
     shareToken,
-    dateFilter,
+    dates,
     tables,
     tab: platformFilter,
     hasWooCommerce,
@@ -759,23 +795,30 @@ export default function SharedDashboard({
 
   // Analytics source breakdown
   const analyticsSourceBreakdown = useMemo(() => {
-    if (!hasVisibleAnalyticsData) return [];
+    if (!hasVisibleAnalyticsData) {
+      return [];
+    }
     const categorize = (sourceMedium: string): string => {
       const sm = sourceMedium.toLowerCase();
       if (sm.includes("facebook") || sm.includes("fb")) {
-        if (sm.includes("paid") || sm.includes("cpc") || sm.includes("cpm"))
+        if (sm.includes("paid") || sm.includes("cpc") || sm.includes("cpm")) {
           return "Facebook ממומן";
+        }
         return "Facebook אורגני";
       }
       if (sm.includes("instagram") || sm.includes("ig")) {
-        if (sm.includes("paid") || sm.includes("cpc") || sm.includes("cpm"))
+        if (sm.includes("paid") || sm.includes("cpc") || sm.includes("cpm")) {
           return "Instagram ממומן";
+        }
         return "Instagram אורגני";
       }
       if (sm.includes("google") || sm.includes("googleads")) {
-        if (sm.includes("organic")) return "Google אורגני";
-        if (sm.includes("cpc") || sm.includes("paid") || sm.includes("ads"))
+        if (sm.includes("organic")) {
+          return "Google אורגני";
+        }
+        if (sm.includes("cpc") || sm.includes("paid") || sm.includes("ads")) {
           return "Google ממומן";
+        }
         return "Google";
       }
       if (
@@ -784,18 +827,26 @@ export default function SharedDashboard({
         sm.includes("mailchimp") ||
         sm.includes("klaviyo") ||
         sm.includes("activetrail")
-      )
+      ) {
         return "דיוור";
-      if (sm.includes("whatsapp") || sm.includes("wa.me")) return "WhatsApp";
-      if (sm.includes("organic") || sm.includes("seo")) return "אורגני";
+      }
+      if (sm.includes("whatsapp") || sm.includes("wa.me")) {
+        return "WhatsApp";
+      }
+      if (sm.includes("organic") || sm.includes("seo")) {
+        return "אורגני";
+      }
       if (
         sm === "(direct) / (none)" ||
         sm === "direct" ||
         sm.includes("(direct)") ||
         sm.includes("(none)")
-      )
+      ) {
         return "ישיר (Direct)";
-      if (sm.includes("referral")) return "הפניות (Referral)";
+      }
+      if (sm.includes("referral")) {
+        return "הפניות (Referral)";
+      }
       return "אחר";
     };
 
@@ -811,12 +862,16 @@ export default function SharedDashboard({
     > = {};
     records.forEach((record: any) => {
       const source = record._source || "unknown";
-      if (!isAnalyticsPlatform(source)) return;
+      if (!isAnalyticsPlatform(source)) {
+        return;
+      }
       const data = record.data || {};
-      if (data.report_type !== "daily_source") return;
+      if (data.report_type !== "daily_source") {
+        return;
+      }
       const sm = data.source_medium || "Unknown";
       const category = categorize(sm);
-      if (!sources[category])
+      if (!sources[category]) {
         sources[category] = {
           sessions: 0,
           users: 0,
@@ -824,6 +879,7 @@ export default function SharedDashboard({
           revenue: 0,
           addToCart: 0,
         };
+      }
       sources[category].sessions += Number(data.sessions) || 0;
       sources[category].users += Number(data.users) || 0;
       sources[category].purchases += getPurchasesFromData(data);
@@ -837,7 +893,9 @@ export default function SharedDashboard({
 
   // Traffic Acquisition by Channel Group
   const channelGroupBreakdown = useMemo(() => {
-    if (!hasVisibleAnalyticsData) return [];
+    if (!hasVisibleAnalyticsData) {
+      return [];
+    }
     const channels: Record<
       string,
       {
@@ -854,11 +912,15 @@ export default function SharedDashboard({
     > = {};
     records.forEach((record: any) => {
       const source = record._source || "unknown";
-      if (!isAnalyticsPlatform(source)) return;
+      if (!isAnalyticsPlatform(source)) {
+        return;
+      }
       const data = record.data || {};
-      if (data.report_type !== "channel_group") return;
+      if (data.report_type !== "channel_group") {
+        return;
+      }
       const ch = data.channel_group || "Unknown";
-      if (!channels[ch])
+      if (!channels[ch]) {
         channels[ch] = {
           sessions: 0,
           engagedSessions: 0,
@@ -870,6 +932,7 @@ export default function SharedDashboard({
           eventsSum: 0,
           count: 0,
         };
+      }
       channels[ch].sessions += Number(data.sessions) || 0;
       channels[ch].engagedSessions += Number(data.engaged_sessions) || 0;
       channels[ch].users += Number(data.users) || 0;
@@ -900,7 +963,9 @@ export default function SharedDashboard({
     const byDate: Record<string, any> = {};
     filteredRecords.forEach((record: any) => {
       const date = record.data?.date;
-      if (!date) return;
+      if (!date) {
+        return;
+      }
       const source = record._source || "unknown";
       const data = record.data || {};
       if (!byDate[date]) {
@@ -1043,7 +1108,8 @@ export default function SharedDashboard({
     );
   }
 
-  if (error || !data?.dashboard) {
+  // A refused window keeps the last served dashboard's header and dates.
+  if ((error && !rangeRefused) || !data?.dashboard) {
     const detail = error instanceof Error ? error.message : "";
     return (
       <div
@@ -1081,8 +1147,13 @@ export default function SharedDashboard({
 
   // A cached answer that is being refetched (stale, or invalidated by a sync)
   // is not ready: the send capture would photograph the old figures.
+  // Neither is the last window's answer kept while a custom range is picked.
   const isSnapshotReady =
-    !isFetching && !!data?.dashboard && Array.isArray(tables);
+    !isFetching &&
+    !isPlaceholderData &&
+    !rangeRefused &&
+    !!data?.dashboard &&
+    Array.isArray(tables);
 
   return (
     <div
@@ -1094,18 +1165,23 @@ export default function SharedDashboard({
       <SharedDashboardHeader
         shareToken={shareToken}
         dashboard={dashboard}
+        adAccountLinks={data.ad_account_links}
         tabItems={platformTabItems}
         tab={platformFilter}
         onTabChange={(v) => setPlatformFilter(v as DashboardPlatformFilter)}
         dateFilter={dateFilter}
         onDateFilterChange={setDateFilter}
+        customDateRange={customDateRange}
+        onCustomDateRangeChange={setCustomDateRange}
         comparePrevious={comparePrevious}
         onComparePreviousChange={setComparePrevious}
         previous={previous}
         snapshotMode={snapshotMode}
       />
 
-      {platformFilter === "continents" ? (
+      {rangeRefused ? (
+        <RangeRefusedNotice />
+      ) : platformFilter === "continents" ? (
         <DashboardContinentsView
           platforms={continentsBy}
           facebook={{
@@ -1133,25 +1209,20 @@ export default function SharedDashboard({
           sourceModes={weeklySourceModesForTables(tables)}
         />
       ) : platformFilter === "google_analytics" ? (
-        <div className="space-y-4">
-          <DashboardTrackedEvents
-            records={records}
-            settings={data?.dashboard?.settings}
-            // Spend in several currencies has no single cost per event.
-            adsSpend={currencies.mixed ? 0 : globalAdsMetrics.spend}
-            formatCurrency={formatCurrency}
-            formatNumber={formatNumber}
-            source={shareToken ? { shareToken } : null}
-            dateFilter={dateFilter}
-          />
-          <GoogleAnalyticsDashboard
-            records={allAnalyticsRecords}
-            externalDateFilter={dateFilter}
-            tableId={analyticsTableIds[0]}
-            relatedTableIds={analyticsTableIds.slice(1)}
-            defaultReportMode={analyticsReportMode}
-          />
-        </div>
+        <DashboardAnalyticsTab
+          records={records}
+          analyticsRecords={allAnalyticsRecords}
+          settings={data?.dashboard?.settings}
+          // Spend in several currencies has no single cost per event.
+          adsSpend={currencies.mixed ? 0 : globalAdsMetrics.spend}
+          formatCurrency={formatCurrency}
+          formatNumber={formatNumber}
+          source={shareToken ? { shareToken } : null}
+          dateFilter={dateFilter}
+          customDateRange={customDateRange}
+          analyticsTableIds={analyticsTableIds}
+          reportMode={analyticsReportMode}
+        />
       ) : platformFilter === "woocommerce" ? (
         <PublicWooCommerceView sites={wooSites} orders={wooOrders} />
       ) : platformFilter === "seo" ? (

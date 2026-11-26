@@ -108,7 +108,7 @@ export function CampaignLauncher({
         .eq("is_active", true)
         .in("integration_type", ["facebook_ads", "google_ads", "meta_ads"]);
 
-      const accounts: AdAccount[] = [];
+      const accounts: Array<AdAccount> = [];
       (data ?? []).forEach((row: any) => {
         const isMeta =
           row.integration_type === "facebook_ads" ||
@@ -149,7 +149,9 @@ export function CampaignLauncher({
         const account =
           filteredAccounts.find((a) => a.id === selectedAccountId) ??
           filteredAccounts[0];
-        if (!account) throw new Error("לא נמצא חשבון Meta Ads מחובר");
+        if (!account) {
+          throw new Error("לא נמצא חשבון Meta Ads מחובר");
+        }
 
         const { data, error } = await supabase.functions.invoke(
           "fb-campaign-control",
@@ -199,7 +201,9 @@ export function CampaignLauncher({
         const account =
           filteredAccounts.find((a) => a.id === selectedAccountId) ??
           filteredAccounts[0];
-        if (!account) throw new Error("לא נמצא חשבון Google Ads מחובר");
+        if (!account) {
+          throw new Error("לא נמצא חשבון Google Ads מחובר");
+        }
 
         const { data, error } = await supabase.functions.invoke(
           "google-ads-auth",
@@ -320,7 +324,7 @@ export function CampaignLauncher({
 
       {/* Platform toggle */}
       <div className="flex gap-2">
-        {(["meta", "google"] as Platform[]).map((p) => (
+        {(["meta", "google"] as Array<Platform>).map((p) => (
           <button
             key={p}
             onClick={() => {

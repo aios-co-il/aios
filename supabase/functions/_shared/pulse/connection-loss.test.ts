@@ -9,7 +9,7 @@ Deno.test("evaluatePulseInstantAlerts", async (t) => {
   await t.step(
     "connection_lost marks only real connection loss as Shabbat-critical",
     () => {
-      const evaluate = (flags: string[], issues: Issue[] = []) =>
+      const evaluate = (flags: Array<string>, issues: Array<Issue> = []) =>
         evaluatePulseInstantAlerts([healthy(flags)], issues, NO_CONTACT_OFF)[0]
           ?.shabbat_critical;
       assertStrictEquals(evaluate(["סנכרון ישן: Meta"]), true);

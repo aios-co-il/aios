@@ -26,7 +26,9 @@ const respond = (body: unknown, status = 200) =>
   });
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: cors });
+  }
   const admin = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -52,9 +54,12 @@ serve(async (req) => {
     const auth = isCron ? null : await requireAuth(req);
     const lookups = publishAccessLookups(admin);
     if (!isCron) {
-      if (!auth) return respond({ error: "Unauthorized" }, 401);
-      if (!entry_id && !work_item_id)
+      if (!auth) {
+        return respond({ error: "Unauthorized" }, 401);
+      }
+      if (!entry_id && !work_item_id) {
         return respond({ error: "entry_id or work_item_id required" }, 400);
+      }
       if (auth.kind === "user") {
         const target = await authorizeUserPublishTarget(
           admin,
@@ -72,13 +77,18 @@ serve(async (req) => {
     const today = new Date().toISOString().slice(0, 10);
 
     let query = admin.from("seo_geo_calendar_entries").select("*");
-    if (scopeTenantId) query = query.eq("tenant_id", scopeTenantId);
-    if (entry_id) query = query.eq("id", entry_id);
-    else if (work_item_id)
+    if (scopeTenantId) {
+      query = query.eq("tenant_id", scopeTenantId);
+    }
+    if (entry_id) {
+      query = query.eq("id", entry_id);
+    } else if (work_item_id) {
       query = query
         .eq("work_item_id", work_item_id)
         .lte("scheduled_date", today);
-    else query = query.lte("scheduled_date", today);
+    } else {
+      query = query.lte("scheduled_date", today);
+    }
 
     const { data: entries } = await query
       .in("approval_status", ["approved", "auto_approved"])
@@ -88,7 +98,7 @@ serve(async (req) => {
     const { publishable, refused } = auth
       ? await splitByClientAccess(auth, entries ?? [], lookups)
       : { publishable: entries ?? [], refused: [] };
-    const results: EntryResult[] = [...refused];
+    const results: Array<EntryResult> = [...refused];
 
     for (const entry of publishable) {
       if (!entry.content_html?.trim()) {
@@ -118,7 +128,9 @@ serve(async (req) => {
           tenantId: entry.tenant_id,
           clientId: entry.client_id,
         });
-        if (!site) throw new Error("WordPress site not found");
+        if (!site) {
+          throw new Error("WordPress site not found");
+        }
         const post = await publishToWordPress(site, {
           title: entry.title_draft || entry.title,
           contentHtml: entry.content_html,

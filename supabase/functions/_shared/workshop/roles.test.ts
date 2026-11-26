@@ -109,8 +109,9 @@ Deno.test(
       "ערכי הסרטון שלי",
       "ערכי הקטעים לסרטון אחד",
       "קחי את הקטעים וערכי לסרטון אחד",
-    ])
+    ]) {
       assertStrictEquals(workshopRole(text, null, null), "editor", text);
+    }
     assertNotStrictEquals(
       workshopRole("סרטון על ערכי המותג שלנו", null, null),
       "editor",
@@ -126,10 +127,12 @@ Deno.test(
       "פוסט לפסטיבל הסרטים",
       "באנר לקולנוע עם סרטי השבוע",
       "פוסט על הסרט",
-    ])
+    ]) {
       assertStrictEquals(workshopRole(text, null, null), "designer", text);
-    for (const text of ["תעשי לי סרט", "אפשר סרט?", "הסרט צריך להיות קצר"])
+    }
+    for (const text of ["תעשי לי סרט", "אפשר סרט?", "הסרט צריך להיות קצר"]) {
       assertStrictEquals(workshopRole(text, null, null), "producer", text);
+    }
   },
 );
 
@@ -140,10 +143,12 @@ Deno.test(
       "תעשי לי סרט לסטורי",
       "סרט קצר לסטורי באינסטגרם",
       "סרט פרסומת למודעה בפייסבוק",
-    ])
+    ]) {
       assertStrictEquals(workshopRole(text, null, null), "producer", text);
-    for (const text of ["פוסט על הסרט", "סטורי שמכריז על הסרט החדש"])
+    }
+    for (const text of ["פוסט על הסרט", "סטורי שמכריז על הסרט החדש"]) {
       assertStrictEquals(workshopRole(text, null, null), "designer", text);
+    }
   },
 );
 
@@ -167,8 +172,9 @@ Deno.test("questions about Carmen herself are recognised", () => {
     "איך את נראית?",
     "what can you do?",
     "do you have access to your skins images?",
-  ])
+  ]) {
     assertStrictEquals(aboutCarmen(text), true, text);
+  }
 });
 
 Deno.test("work requests are not questions about Carmen", () => {
@@ -182,8 +188,9 @@ Deno.test("work requests are not questions about Carmen", () => {
     "מי אתם בתור מותג? תכתבי על זה פוסט",
     "סרטון על הערכים של המותג",
     "כן, מאשרת",
-  ])
+  ]) {
     assertStrictEquals(aboutCarmen(text), false, text);
+  }
 });
 
 Deno.test(
@@ -261,8 +268,9 @@ Deno.test(
 Deno.test(
   "a bare yes with no project or role stays with the workshop's own persona",
   () => {
-    for (const text of ["כן", "כן, לשלוח", "כן, לשלוח ל-Cursor", "לא"])
+    for (const text of ["כן", "כן, לשלוח", "כן, לשלוח ל-Cursor", "לא"]) {
       assertStrictEquals(workshopRole(text, null), null, text);
+    }
     // Inside a project or with a specialist, the yes is hers.
     assertStrictEquals(workshopRole("כן", "creative_direct"), "designer");
     assertStrictEquals(

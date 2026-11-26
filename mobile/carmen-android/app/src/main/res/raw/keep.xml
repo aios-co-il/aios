@@ -1,3 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The working clip is looked up by name (ChatActivity), so resource shrinking must keep it. -->
-<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@raw/carmen_working" />
+<!-- Looked up by name, so resource shrinking must keep them: the working clip (ChatActivity)
+     and each voice's activation line (ActivationCue). -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@raw/carmen_working,@raw/carmen_with_you_*" />

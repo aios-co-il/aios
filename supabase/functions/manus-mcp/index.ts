@@ -29,6 +29,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { getRepoSlug } from "../_shared/github-repo.ts";
+import { publicFunctionUrl } from "../_shared/public-api/url.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -149,13 +150,17 @@ function rpcError(
 function bearerFrom(req: Request): string | undefined {
   const h =
     req.headers.get("authorization") || req.headers.get("Authorization");
-  if (!h) return undefined;
+  if (!h) {
+    return undefined;
+  }
   const m = h.match(/^Bearer\s+(.+)$/i);
   return m ? m[1].trim() : undefined;
 }
 
 function sbClient() {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return null;
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    return null;
+  }
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
   });
@@ -169,7 +174,9 @@ async function resolveContext(
     tenantId: Deno.env.get("MANUS_DEFAULT_TENANT_ID") || null,
     agentId: null as string | null,
   };
-  if (!bearer || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return fallback;
+  if (!bearer || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    return fallback;
+  }
   try {
     const sb = sbClient()!;
     const { data } = await sb
@@ -207,8 +214,9 @@ async function resolveContext(
 async function getManusApiKey(tenantId: string | null): Promise<string> {
   const globalKey = Deno.env.get("MANUS_API_KEY") || "";
   if (!tenantId || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    if (!globalKey)
+    if (!globalKey) {
       throw new Error("Manus API key לא מוגדר — הגדר אותו בהגדרות אינטגרציות");
+    }
     return globalKey;
   }
   try {
@@ -222,11 +230,15 @@ async function getManusApiKey(tenantId: string | null): Promise<string> {
       .limit(1)
       .maybeSingle();
     const key = (data?.settings as any)?.api_key;
-    if (typeof key === "string" && key.length > 0) return key;
+    if (typeof key === "string" && key.length > 0) {
+      return key;
+    }
   } catch {
     /* fall through */
   }
-  if (globalKey) return globalKey;
+  if (globalKey) {
+    return globalKey;
+  }
   throw new Error("Manus API key לא מוגדר — הגדר אותו בהגדרות אינטגרציות");
 }
 
@@ -243,7 +255,9 @@ async function createManusTask(
     agent_profile: agentProfile,
     share_visibility: "team",
   };
-  if (title) body.title = title.slice(0, 200);
+  if (title) {
+    body.title = title.slice(0, 200);
+  }
   const res = await fetch(`${MANUS_API_BASE}/v2/task.create`, {
     method: "POST",
     headers: {
@@ -321,7 +335,9 @@ async function findActiveTask(
   tenantId: string,
 ): Promise<{ taskId: string; taskUrl: string } | null> {
   const sb = sbClient();
-  if (!sb) return null;
+  if (!sb) {
+    return null;
+  }
   try {
     const cutoff = new Date(Date.now() - SESSION_REUSE_WINDOW_MS).toISOString();
     const { data } = await sb
@@ -333,11 +349,12 @@ async function findActiveTask(
       .order("created_at", { ascending: false })
       .limit(1);
     const row = (data || [])[0] as any;
-    if (row?.task_id)
+    if (row?.task_id) {
       return {
         taskId: row.task_id,
         taskUrl: row.task_url || `https://manus.im/t/${row.task_id}`,
       };
+    }
   } catch (e) {
     console.error(
       "[manus-mcp] findActiveTask failed:",
@@ -359,7 +376,9 @@ async function logDispatch(args: {
   continued?: boolean;
 }): Promise<void> {
   const sb = sbClient();
-  if (!sb) return;
+  if (!sb) {
+    return;
+  }
   try {
     if (args.continued) {
       // Just update updated_at so we know the task is still active
@@ -386,9 +405,13 @@ async function logDispatch(args: {
 
 // Get recent dispatches for context (avoid duplicating work)
 async function recentDispatchContext(tenantId: string | null): Promise<string> {
-  if (!tenantId) return "";
+  if (!tenantId) {
+    return "";
+  }
   const sb = sbClient();
-  if (!sb) return "";
+  if (!sb) {
+    return "";
+  }
   try {
     const { data } = await sb
       .from("manus_tasks")
@@ -397,7 +420,9 @@ async function recentDispatchContext(tenantId: string | null): Promise<string> {
       .order("created_at", { ascending: false })
       .limit(5);
     const rows = (data || []) as Array<any>;
-    if (!rows.length) return "";
+    if (!rows.length) {
+      return "";
+    }
     const lines = rows.map((r) => {
       const when = String(r.created_at || "")
         .slice(0, 16)
@@ -441,13 +466,15 @@ async function handleToolCall(
   const BEARER = Deno.env.get("MANUS_MCP_BEARER") || "<MANUS_MCP_BEARER>";
   const notifyInstruction =
     `\n\nWhen you finish, please notify David on WhatsApp by calling:\n` +
-    `POST ${SUPABASE_URL}/functions/v1/manus-notify\n` +
+    `POST ${publicFunctionUrl("manus-notify")}\n` +
     `Headers: { "Authorization": "Bearer ${BEARER}", "Content-Type": "application/json" }\n` +
     `Body: { "tenant_id": "${ctx.tenantId}", "message": "<your concise result summary with task link>" }`;
 
   if (name === "ask_manus") {
     const request = String(args?.request ?? "").trim();
-    if (!request) throw new Error("ask_manus requires a non-empty 'request'.");
+    if (!request) {
+      throw new Error("ask_manus requires a non-empty 'request'.");
+    }
     const context = String(args?.context ?? "").trim();
     const agentProfile = String(args?.agent_profile ?? "manus-1.6").trim();
 
@@ -515,7 +542,9 @@ async function handleToolCall(
 
   if (name === "request_dev_task") {
     const task = String(args?.task ?? "").trim();
-    if (!task) throw new Error("request_dev_task requires a non-empty 'task'.");
+    if (!task) {
+      throw new Error("request_dev_task requires a non-empty 'task'.");
+    }
     const branch = String(args?.branch ?? "main").trim();
     const context = String(args?.context ?? "").trim();
 
@@ -559,8 +588,9 @@ async function handleToolCall(
 // ─── Main handler ─────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   if (req.method === "GET") {
     return new Response(

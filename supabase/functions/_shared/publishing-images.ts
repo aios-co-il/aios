@@ -28,7 +28,9 @@ export function publishingImageProxyUrl(
 }
 
 export function isAbsoluteHttpUrl(value: string | null | undefined): boolean {
-  if (!value) return false;
+  if (!value) {
+    return false;
+  }
   try {
     const url = new URL(value);
     return url.protocol === "http:" || url.protocol === "https:";
@@ -41,21 +43,29 @@ export function isAbsoluteHttpUrl(value: string | null | undefined): boolean {
 export function extractEntityAttachmentPath(
   value: string | null | undefined,
 ): string | null {
-  if (!value) return null;
+  if (!value) {
+    return null;
+  }
   const trimmed = value.trim();
-  if (!trimmed) return null;
+  if (!trimmed) {
+    return null;
+  }
 
   const bare = trimmed.match(
     /^(?:entity-attachments\/)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/publishing\/.+)$/i,
   );
-  if (bare) return bare[1];
+  if (bare) {
+    return bare[1];
+  }
 
   try {
     const url = new URL(trimmed);
     const match = url.pathname.match(
       /\/storage\/v1\/object\/(?:public|sign|authenticated)\/entity-attachments\/(.+)$/,
     );
-    if (!match?.[1]) return null;
+    if (!match?.[1]) {
+      return null;
+    }
     return decodeURIComponent(match[1]);
   } catch {
     return null;
@@ -73,10 +83,16 @@ export function resolveMagazineImageUrl(
   proxyUrlFor: (kind: MagazineImageKind) => string,
 ): string | null {
   const value = typeof raw === "string" ? raw.trim() : "";
-  if (!value) return null;
+  if (!value) {
+    return null;
+  }
 
-  if (extractEntityAttachmentPath(value)) return proxyUrlFor(kind);
-  if (!isAbsoluteHttpUrl(value)) return null;
+  if (extractEntityAttachmentPath(value)) {
+    return proxyUrlFor(kind);
+  }
+  if (!isAbsoluteHttpUrl(value)) {
+    return null;
+  }
   return value;
 }
 
@@ -98,5 +114,41 @@ export function resolveArticleImageFields<
       "inline",
       proxyUrlFor,
     ),
+  };
+}
+
+/** The supabase.co origin of a stored publishing-image proxy URL (any project ref). */
+const STORED_PROXY_ORIGIN =
+  /^https:\/\/[a-z0-9]{20}\.supabase\.co(?=\/functions\/v1\/publishing-image(?:[?#]|$))/;
+
+/**
+ * Serves a stored proxy URL from the public API address (AIO-647).
+ * Articles saved before PUBLIC_API_URL kept the supabase.co address, which
+ * changes when the project moves region. Other URLs, and any URL when
+ * `publicBase` is empty, come back unchanged.
+ */
+export function proxyUrlOnPublicApi(
+  value: string | null,
+  publicBase: string,
+): string | null {
+  const base = publicBase.replace(/\/+$/, "");
+  if (!value || !base) {
+    return value;
+  }
+
+  return value.replace(STORED_PROXY_ORIGIN, base);
+}
+
+/** Applies proxyUrlOnPublicApi to an article's hero and inline image URLs. */
+export function articleImagesOnPublicApi<
+  T extends {
+    hero_image_url: string | null;
+    inline_image_url: string | null;
+  },
+>(article: T, publicBase: string): T {
+  return {
+    ...article,
+    hero_image_url: proxyUrlOnPublicApi(article.hero_image_url, publicBase),
+    inline_image_url: proxyUrlOnPublicApi(article.inline_image_url, publicBase),
   };
 }

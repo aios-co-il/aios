@@ -169,7 +169,9 @@ async function fetchClientById(
     .select("id, name, agency_id")
     .eq("id", clientId)
     .maybeSingle();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return data;
 }
 
@@ -303,8 +305,12 @@ export default function AddTaskForm({
   // Filter campaigners - campaigners only see themselves, team_manager+ sees all
   const canSelectAnyCampaigner = isOwner || isTeamManager || isSuperAdmin;
   const visibleCampaigners = useMemo(() => {
-    if (!campaigners) return [];
-    if (canSelectAnyCampaigner) return campaigners;
+    if (!campaigners) {
+      return [];
+    }
+    if (canSelectAnyCampaigner) {
+      return campaigners;
+    }
     // Campaigners only see themselves
     if (isCampaigner && userCampaignerId) {
       return campaigners.filter((c) => c.id === userCampaignerId);
@@ -316,12 +322,16 @@ export default function AddTaskForm({
   const { data: crossTenantAgencyIds } = useQuery({
     queryKey: ["cross-tenant-agency-ids", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return [];
+      if (!currentTenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("agency_tenant_access")
         .select("agency_id")
         .eq("accessing_tenant_id", currentTenantId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data?.map((r) => r.agency_id) || [];
     },
     enabled: !!currentTenantId,
@@ -330,12 +340,16 @@ export default function AddTaskForm({
   const { data: assignedClientIds = [] } = useQuery({
     queryKey: ["task-client-ids-for-campaigner", selectedCampaignerId],
     queryFn: async () => {
-      if (!selectedCampaignerId) return [];
+      if (!selectedCampaignerId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("client_team")
         .select("client_id")
         .eq("campaigner_id", selectedCampaignerId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return Array.from(new Set((data || []).map((row) => row.client_id)));
     },
     enabled: !!selectedCampaignerId,
@@ -346,7 +360,9 @@ export default function AddTaskForm({
     // differently-filtered client list under that key.
     queryKey: ["task-form-clients", currentTenantId, crossTenantAgencyIds],
     queryFn: async () => {
-      if (!currentTenantId) return [];
+      if (!currentTenantId) {
+        return [];
+      }
       let query = supabase
         .from("clients")
         .select("*")
@@ -362,7 +378,9 @@ export default function AddTaskForm({
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!currentTenantId,
@@ -377,8 +395,12 @@ export default function AddTaskForm({
   });
 
   const assignableClients = useMemo(() => {
-    if (!clients) return [];
-    if (!selectedCampaignerId) return clients;
+    if (!clients) {
+      return [];
+    }
+    if (!selectedCampaignerId) {
+      return clients;
+    }
     const allowedIds = new Set(assignedClientIds);
     return clients.filter((client) => allowedIds.has(client.id));
   }, [clients, selectedCampaignerId, assignedClientIds]);
@@ -398,7 +420,9 @@ export default function AddTaskForm({
   }, [assignableClients, forcedClient]);
 
   useEffect(() => {
-    if (clientId || !selectedCampaignerId) return;
+    if (clientId || !selectedCampaignerId) {
+      return;
+    }
     const selectedClientId = form.getValues("client_id");
     if (
       selectedClientId &&
@@ -417,7 +441,9 @@ export default function AddTaskForm({
         .from("leads")
         .select("*")
         .order("company_name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
   });
@@ -453,7 +479,9 @@ export default function AddTaskForm({
           .eq("id", values.lead_id)
           .maybeSingle();
 
-        if (leadError) throw leadError;
+        if (leadError) {
+          throw leadError;
+        }
         if (!leadRow?.id) {
           throw new Error(
             "הליד לא נמצא (כנראה נמחק/הומר ללקוח). רענן את הדף ונסה שוב.",
@@ -507,7 +535,9 @@ export default function AddTaskForm({
       );
 
       // ALWAYS use current tenant - tasks should appear where user is working
-      if (!currentTenantId) throw new Error("לא נמצא טנט פעיל");
+      if (!currentTenantId) {
+        throw new Error("לא נמצא טנט פעיל");
+      }
       const tenantId = currentTenantId;
 
       // Get current user ID for created_by field
@@ -593,14 +623,18 @@ export default function AddTaskForm({
           sales_person_id: null,
         }));
         const { error } = await supabase.from("tasks").insert(payloads as any);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       } else {
         const { data: created, error } = await supabase
           .from("tasks")
           .insert([taskPayload as any])
           .select("id")
           .single();
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
 
         const uniqueCollaborators = Array.from(
           new Set(
@@ -620,7 +654,9 @@ export default function AddTaskForm({
                 added_by: effectiveCreatorId,
               })),
             );
-          if (collabError) throw collabError;
+          if (collabError) {
+            throw collabError;
+          }
         }
       }
 
@@ -763,8 +799,12 @@ export default function AddTaskForm({
                         priorityBarColor(priority);
 
                       const getPriorityText = (priority: number) => {
-                        if (priority >= 8) return "דחיפות גבוהה";
-                        if (priority >= 5) return "דחיפות בינונית";
+                        if (priority >= 8) {
+                          return "דחיפות גבוהה";
+                        }
+                        if (priority >= 5) {
+                          return "דחיפות בינונית";
+                        }
                         return "דחיפות נמוכה";
                       };
 
@@ -897,8 +937,12 @@ export default function AddTaskForm({
                         priorityBarColor(priority);
 
                       const getPriorityText = (priority: number) => {
-                        if (priority >= 8) return "דחיפות גבוהה";
-                        if (priority >= 5) return "דחיפות בינונית";
+                        if (priority >= 8) {
+                          return "דחיפות גבוהה";
+                        }
+                        if (priority >= 5) {
+                          return "דחיפות בינונית";
+                        }
                         return "דחיפות נמוכה";
                       };
 

@@ -24,21 +24,21 @@ STAGING_DOMAIN=<configured-in-vercel>
 PRODUCTION_DOMAIN=<configured-in-vercel>
 ```
 
-When a task finishes, **always send David the development environment link**: the Vercel Preview URL for the feature branch. For work on `develop`, send the stable alias `https://after-lead-git-develop-aios-crm.vercel.app`; include `https://staging.aios.co.il` only after verifying its branch assignment and availability.
+When a task finishes, **always send David the development environment link**: the Vercel Preview URL for the feature branch. For work on `develop`, send `https://staging.aios.co.il`.
 
 ## Canonical URLs
 
 Work branches follow [Git conventions](git-conventions.md#branch-naming); each receives its own Vercel Preview.
 
-| Environment                  | Git         | Frontend URL                                                                                                            | When it updates          |
-| ---------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| **Production**               | `main`      | `https://aios.co.il`                                                                                                    | merge to `main`          |
-| **Staging (persistent dev)** | `develop`   | `https://after-lead-git-develop-aios-crm.vercel.app` (custom domain `https://staging.aios.co.il` requires verification) | merge to `develop`       |
-| **Feature Preview**          | Work branch | `https://after-lead-git-{branch}-aios-crm.vercel.app`                                                                   | push to that branch only |
+| Environment                  | Git         | Frontend URL                                                                             | When it updates          |
+| ---------------------------- | ----------- | ---------------------------------------------------------------------------------------- | ------------------------ |
+| **Production**               | `main`      | `https://aios.co.il`                                                                     | merge to `main`          |
+| **Staging (persistent dev)** | `develop`   | `https://staging.aios.co.il` (also `https://after-lead-git-develop-aios-crm.vercel.app`) | merge to `develop`       |
+| **Feature Preview**          | Work branch | `https://after-lead-git-{branch}-aios-crm.vercel.app`                                    | push to that branch only |
 
 ### Staging domain
 
-Use `https://after-lead-git-develop-aios-crm.vercel.app` as the stable Staging deployment alias. The intended custom domain is `https://staging.aios.co.il`; verify its Vercel branch assignment and Cloudflare DNS before declaring it available. A configured URL in documentation is not a DNS/HTTP health check.
+Staging is served at `https://staging.aios.co.il`, the Staging Auth `site_url` (`[remotes.develop.auth]` in `supabase/config.toml`). The Vercel branch alias `https://after-lead-git-develop-aios-crm.vercel.app` serves the same deployment.
 
 **Important:** A feature-branch Preview does **not** update when you merge elsewhere. After merge to `develop`, use **Staging** — not an old branch URL.
 
@@ -58,7 +58,7 @@ The in-app amber frame (subtle yellow border glow) marks Staging/Preview — no 
 Work branch (named per docs/git-conventions.md)
     → Vercel Preview (optional — quick check on this branch)
     → merge to develop
-    → Staging (after-lead-git-develop / staging.aios.co.il) — verify full picture
+    → Staging (staging.aios.co.il) — verify full picture
     → merge develop → main
     → Production (aios.co.il)
 ```
@@ -111,10 +111,19 @@ The following setup is documented for these environments; Vercel variables, Supa
 - An invalid row no longer rolls back every valid row in its batch. The bulk transaction falls back to row-level subtransactions only for data constraint errors. Rejected source projections are retained privately in `environment_sync.rejected_rows`, with schema-only error metadata; their checkpoints are not advanced. They retry automatically, and a run with any rejection remains red. Gate, permission, timeout and bookkeeping errors still abort the transaction.
 - `environment_sync.table_state` contains the last successful sync per table. A red workflow is an incomplete sync and must not be described as up to date. Previously cloned rows that were already deleted from Production before the first managed sync need explicit baseline reconciliation; they are not silently deleted as presumed test data.
 
+## Public API address
+
+Each Supabase project's API can be reached on its `https://<ref>.supabase.co` address and, where configured, a custom domain: `https://api.aios.co.il` for Production, `https://api-staging.aios.co.il` for Staging. Code takes the address from configuration, so a region move changes only DNS and these values:
+
+- **Frontend:** `VITE_SUPABASE_URL` (Vercel). Production uses the custom domain.
+- **Edge functions:** `PUBLIC_API_URL` (Supabase edge secret) is the address handed to anyone outside the project: webhook and MCP URLs, magazine feeds, agent callbacks (`_shared/public-api/url.ts`). Unset, it falls back to `SUPABASE_URL`, which Supabase sets to the supabase.co address. A function calling its own project keeps using `SUPABASE_URL`, the only origin the Staging outbound guard allows.
+- **Database:** cron jobs and SQL functions read the Vault secret `project_url`; a database without it, such as a fresh Preview branch, makes no call.
+- **Render worker:** `PUBLIC_API_URL` in the Droplet env adds the custom domain to the project's media hosts (`render-worker/README.md`).
+
 ## Staging outbound containment
 
 - The Staging deployer installs a guard **before** each function entrypoint loads. Copied `APP_ENV` values cannot turn it off. Production code executes without this wrapper.
-- The guard blocks external messages, publishing, arbitrary webhooks and calls into another Supabase project. Explicit read-only analytics endpoints and the approved AI/agent endpoints stay available.
+- The guard blocks external messages, publishing, arbitrary webhooks and calls into another Supabase project, by supabase.co address or `api*.aios.co.il` custom domain (`_shared/public-api/hosts.ts`). Explicit read-only analytics endpoints and the approved AI/agent endpoints stay available.
 - **WhatsApp test exception:** direct sends (Green API `sendMessage`/`sendFileByUrl`/`sendFileByUpload`, including the per-instance `{id4}.media.greenapi.com` upload host, Manus `send/text|image|file`, Meta Cloud `/messages`) pass only when the single recipient exactly matches a number in the Staging Supabase secret `STAGING_ALLOWED_PHONE_NUMBERS` (David: `972507677613`). Unset means every send stays blocked; groups, other numbers and unparseable bodies are always blocked. The logic lives in `staging-whatsapp-test.ts`, and the same secret drives `checkWhatsAppSend` in `integration-guard.ts`. Never add it to the credential sync allowlist.
 - Database HTTP requests are blocked at `net.http_request_queue`. Once all live Edge bundles are downloaded and verified, requests to this Staging project's guarded functions are permitted so internal processing can work.
 - `verify-staging-containment.py` checks every live entrypoint and its reviewed source before setting `environment_sync.safety.outbound_blocked=true`. Each sync compares the current function versions with the verified versions; a changed deployment closes the gate. Deployments also close the gate before changing code, and import transactions recheck it before writing.
@@ -151,7 +160,7 @@ Neither GitHub drain claims Production runs. Both resolve their service key with
 1. Branch from `develop`. Hotfixes David asked for on Production may branch from `main`.
 2. Implement on the feature branch. Never commit to `main` directly.
 3. Open a PR **to `develop`**, following `AGENTS.md` and `docs/agents/releases.md`. Send the Vercel Preview URL and in-app path.
-4. After merge to `develop`, verify on Staging (`after-lead-git-develop` or `staging.aios.co.il`).
+4. After merge to `develop`, verify on Staging (`staging.aios.co.il`).
 5. Release PR **`develop` → `main`**, merged by a human (the Supabase GitHub integration applies migrations and deploys declared functions to Production).
 6. `Check develop has main` runs on `main` and `develop` pushes; `Branch contains latest main` accepts a `develop` → `main` PR when every `main` commit has a patch-equivalent in `develop` (`scripts/main-missing-from.sh`), since rebase-merges give equal patches different SHAs. A release PR is rebase-merged (or fast-forwarded by a bypass actor) and must contain the current main revision and the exact Staging changes approved for release; review its file diff before merge.
 7. Database fixes, including schema, are applied on Staging first. Do not run Production SQL before Staging verification.
@@ -177,7 +186,7 @@ How we keep them working:
 
 ## Carmen Android app
 
-- `mobile/carmen-android` has two variants that install side by side. **Staging** (`co.il.aios.carmen.staging`, "Carmen Staging", debug-signed) reads the repository variables `CARMEN_ANDROID_SUPABASE_URL` / `CARMEN_ANDROID_SUPABASE_KEY` (Staging URL and publishable key; the **Carmen Android** workflow fails without them) and opens the Staging alias as its Command Center. **Production** (`co.il.aios.carmen`, "Carmen") takes the Production URL and publishable key from the tracked `.env` and opens `https://aios.co.il`.
+- `mobile/carmen-android` has two variants that install side by side. **Staging** (`co.il.aios.carmen.staging`, "Carmen Staging", debug-signed) reads the repository variables `CARMEN_ANDROID_SUPABASE_URL` / `CARMEN_ANDROID_SUPABASE_KEY` (Staging URL and publishable key; the **Carmen Android** workflow fails without them, and the **Extension** workflow reads the same two for the Chrome extension's Staging build) and opens the Staging alias as its Command Center. **Production** (`co.il.aios.carmen`, "Carmen") takes the Production URL and publishable key from the tracked `.env` and opens `https://aios.co.il`.
 - Google sign-in returns through `carmen-aios-staging://auth/**` (base `[auth]` redirect list in `supabase/config.toml`, used by `develop`) and `carmen-aios://auth/**` (`[remotes.production.auth]`, applied on merge to `main`).
 - The Production APK is built only from `main`, signed with the release key from the secrets `CARMEN_RELEASE_KEYSTORE_BASE64`, `CARMEN_RELEASE_STORE_PASSWORD`, `CARMEN_RELEASE_KEY_ALIAS` and `CARMEN_RELEASE_KEY_PASSWORD`; without them the build fails instead of shipping a debug-signed app. Keep a copy of the keystore outside GitHub: a new key cannot update an installed app.
 

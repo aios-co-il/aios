@@ -1,3 +1,5 @@
+// First: frees localStorage before the Supabase client (imported below) saves a session.
+import "./clearStaleScreenshots.ts";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import { preserveLegalPrerender } from "./pages/legal/preserveLegalPrerender";
@@ -6,13 +8,16 @@ import { ErrorBoundary } from "./components/ErrorBoundary.tsx";
 import { isChunkLoadError, markChunkReloadPending } from "./lib/chunkErrors.ts";
 import { supabase } from "./integrations/supabase/client.ts";
 import { AIOS_BRAND, applyBrandTheme } from "./theme/index.ts";
+import { stashFragmentConnect } from "./lib/googleConnectFragment.ts";
 
 /** One-shot guard — unguarded reload() here caused infinite "jumping" after deploys. */
 const MAIN_CHUNK_RELOAD_KEY = "aios-main-chunk-reload";
 
 function reloadOnceForStaleChunk(): boolean {
   try {
-    if (sessionStorage.getItem(MAIN_CHUNK_RELOAD_KEY) === "1") return false;
+    if (sessionStorage.getItem(MAIN_CHUNK_RELOAD_KEY) === "1") {
+      return false;
+    }
     sessionStorage.setItem(MAIN_CHUNK_RELOAD_KEY, "1");
   } catch {
     // If storage is blocked, still attempt a single reload best-effort.
@@ -63,7 +68,9 @@ window.addEventListener("vite:preloadError", (event) => {
   // Swallow the error only while a reload is on its way. Otherwise the lazy
   // route gets `undefined` and crashes with "reading 'default'", hiding the
   // file that failed to load.
-  if (reloadOnceForStaleChunk()) event.preventDefault();
+  if (reloadOnceForStaleChunk()) {
+    event.preventDefault();
+  }
 });
 
 window.addEventListener("unhandledrejection", (event) => {
@@ -78,6 +85,9 @@ window.addEventListener("unhandledrejection", (event) => {
 // Paint with the default brand before React mounts; ThemeContext swaps in the
 // tenant's brand once its settings load.
 applyBrandTheme(AIOS_BRAND);
+
+// Before routing: a sign-in redirect would drop a Google connect left in the URL fragment.
+stashFragmentConnect();
 
 const root = document.getElementById("root");
 if (!root) {

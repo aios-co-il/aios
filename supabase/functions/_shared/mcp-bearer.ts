@@ -2,6 +2,9 @@
 // Preview/Staging: resync also repoints cloned prod MCP URLs to this project's host.
 // Keeps agent_mcp_connections.oauth_tokens.bearer aligned with Edge secrets when they drift.
 
+import { isSupabaseFunctionUrl } from "./public-api/hosts.ts";
+import { publicApiUrl } from "./public-api/url.ts";
+
 export const PRESET_SECRETS: Record<string, string> = {
   cursor: "CURSOR_MCP_BEARER",
   grok: "GROK_MCP_BEARER",
@@ -10,27 +13,22 @@ export const PRESET_SECRETS: Record<string, string> = {
 };
 
 export interface McpProbeResult {
-  tools: any[];
+  tools: Array<any>;
   state: "ready" | "failed";
   lastError: string | null;
 }
 
 export function secretForConnectionName(name: string): string | undefined {
   const key = PRESET_SECRETS[name.trim().toLowerCase()];
-  if (!key) return undefined;
+  if (!key) {
+    return undefined;
+  }
   return Deno.env.get(key) || undefined;
 }
 
+/** An edge function of an AIOS project: a supabase.co host, an api*.aios.co.il custom domain or this project's PUBLIC_API_URL. */
 export function isInternalMcpUrl(url: string): boolean {
-  try {
-    const u = new URL(url);
-    return (
-      u.hostname.endsWith(".supabase.co") &&
-      u.pathname.includes("/functions/v1/")
-    );
-  } catch {
-    return false;
-  }
+  return isSupabaseFunctionUrl(url, publicApiUrl());
 }
 
 const PRESET_FUNCTION_SLUGS: Record<string, string> = {
@@ -46,7 +44,9 @@ export function canonicalInternalMcpUrl(
   supabaseUrl = Deno.env.get("SUPABASE_URL") || "",
 ): string | null {
   const slug = PRESET_FUNCTION_SLUGS[connectionName.trim().toLowerCase()];
-  if (!slug || !supabaseUrl.startsWith("https://")) return null;
+  if (!slug || !supabaseUrl.startsWith("https://")) {
+    return null;
+  }
   return `${supabaseUrl.replace(/\/$/, "")}/functions/v1/${slug}`;
 }
 
@@ -56,12 +56,15 @@ export function repointInternalMcpUrlIfNeeded(
   supabaseUrl = Deno.env.get("SUPABASE_URL") || "",
 ): string {
   const canonical = canonicalInternalMcpUrl(connectionName, supabaseUrl);
-  if (!canonical || !isInternalMcpUrl(currentUrl)) return currentUrl;
+  if (!canonical || !isInternalMcpUrl(currentUrl)) {
+    return currentUrl;
+  }
   try {
     const cur = new URL(currentUrl);
     const next = new URL(canonical);
-    if (cur.hostname === next.hostname && cur.pathname === next.pathname)
+    if (cur.hostname === next.hostname && cur.pathname === next.pathname) {
       return currentUrl;
+    }
     return canonical;
   } catch {
     return currentUrl;
@@ -78,7 +81,9 @@ export const MCP_RPC_TIMEOUT_DEFAULT_MS = 12_000;
 export const MCP_RPC_TIMEOUT_TOOLS_CALL_MS = 90_000;
 
 export function mcpRpcTimeoutMs(method: string, overrideMs?: number): number {
-  if (typeof overrideMs === "number" && overrideMs > 0) return overrideMs;
+  if (typeof overrideMs === "number" && overrideMs > 0) {
+    return overrideMs;
+  }
   return method === "tools/call"
     ? MCP_RPC_TIMEOUT_TOOLS_CALL_MS
     : MCP_RPC_TIMEOUT_DEFAULT_MS;
@@ -108,7 +113,9 @@ export async function mcpJsonRpc(
     "Content-Type": "application/json",
     Accept: "application/json, text/event-stream",
   };
-  if (bearer) headers.Authorization = `Bearer ${bearer}`;
+  if (bearer) {
+    headers.Authorization = `Bearer ${bearer}`;
+  }
   const ms = mcpRpcTimeoutMs(method, timeoutMs);
   const resp = await fetch(url, {
     method: "POST",
@@ -127,7 +134,9 @@ export async function mcpJsonRpc(
   const ct = resp.headers.get("content-type") ?? "";
   if (ct.includes("text/event-stream")) {
     const m = text.match(/data:\s*(\{[\s\S]+?\})\s*$/m);
-    if (m) return JSON.parse(m[1]);
+    if (m) {
+      return JSON.parse(m[1]);
+    }
   }
   return JSON.parse(text);
 }
@@ -136,7 +145,7 @@ export async function probeMcp(
   url: string,
   bearer: string | undefined,
 ): Promise<McpProbeResult> {
-  let tools: any[] = [];
+  let tools: Array<any> = [];
   let state: McpProbeResult["state"] = "ready";
   let lastError: string | null = null;
   try {
@@ -169,15 +178,18 @@ export async function resyncInternalMcpBearer(
   conn: { id: string; name: string; url: string; tenant_id?: string | null },
 ): Promise<{
   bearer: string;
-  tools: any[];
+  tools: Array<any>;
   state: McpProbeResult["state"];
   lastError: string | null;
   url?: string;
 } | null> {
-  if (!isInternalMcpUrl(conn.url) && !canonicalInternalMcpUrl(conn.name))
+  if (!isInternalMcpUrl(conn.url) && !canonicalInternalMcpUrl(conn.name)) {
     return null;
+  }
   const bearer = secretForConnectionName(conn.name);
-  if (!bearer) return null;
+  if (!bearer) {
+    return null;
+  }
 
   const url = repointInternalMcpUrlIfNeeded(conn.name, conn.url);
   const { tools, state, lastError } = await probeMcp(url, bearer);
@@ -193,9 +205,13 @@ export async function resyncInternalMcpBearer(
     .from("agent_mcp_connections")
     .update(update)
     .eq("id", conn.id);
-  if (conn.tenant_id) q = q.eq("tenant_id", conn.tenant_id);
+  if (conn.tenant_id) {
+    q = q.eq("tenant_id", conn.tenant_id);
+  }
   const { error } = await q;
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   conn.url = url;
   return { bearer, tools, state, lastError, url };
 }

@@ -15,7 +15,7 @@ export function ListMembersTable({
   members,
   onRemove,
 }: {
-  members: ListMember[];
+  members: Array<ListMember>;
   onRemove: (memberId: string) => void;
 }) {
   return (

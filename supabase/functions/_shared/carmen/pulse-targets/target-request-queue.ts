@@ -11,7 +11,7 @@ export type TargetRequestInput = {
   value: number;
   campaign_id: string | null;
   campaign_name: string | null;
-  table_ids: string[];
+  table_ids: Array<string>;
   note: string | null;
 };
 

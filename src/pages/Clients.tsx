@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { CarmenLoadingScreen } from "@/components/shared/CarmenLoadingScreen";
 import { isQueryResolving } from "@/lib/queryUi";
 import {
+  FileSpreadsheet,
   Users,
   CheckCircle2,
   XCircle,
@@ -55,7 +56,11 @@ import {
   type ClientFilters,
 } from "@/components/ClientsPage/clientFilters";
 import { ClientsTitle } from "@/components/ClientsPage/ClientsTitle";
-import { ClientsKpiChips } from "@/components/ClientsPage/ClientsKpiChips";
+import { ClientsKpiList } from "@/components/ClientsPage/ClientsKpiList";
+import { ClientsSearchInput } from "@/components/ClientsPage/ClientsSearchInput";
+import { HeaderSearch } from "@/components/layout/HeaderSearch/HeaderSearch";
+import { ClientsSidePanel } from "@/components/ClientsPage/ClientsSidePanel";
+import { ModuleSidePanelItem } from "@/components/shared/ModuleSidePanel/ModuleSidePanelItem";
 import { ClientsToolbar } from "@/components/ClientsPage/ClientsToolbar";
 import { ClientsFiltersDialog } from "@/components/ClientsPage/ClientsFiltersDialog";
 import {
@@ -125,7 +130,7 @@ export default function Clients() {
   const [showFiltersDialog, setShowFiltersDialog] = useState(false);
   const [showImportCSV, setShowImportCSV] = useState(false);
   const [showImportSheet, setShowImportSheet] = useState(false);
-  const [selectedClientIds, setSelectedClientIds] = useState<string[]>([]);
+  const [selectedClientIds, setSelectedClientIds] = useState<Array<string>>([]);
 
   // Bulk Meta page sync
   const [showBulkMetaSync, setShowBulkMetaSync] = useState(false);
@@ -140,7 +145,9 @@ export default function Clients() {
   >([]);
 
   const runBulkMetaSync = async () => {
-    if (!tenantId || !clients) return;
+    if (!tenantId || !clients) {
+      return;
+    }
     const withMeta = clients.filter((c: any) => c.meta_ads_account_id?.trim());
     if (withMeta.length === 0) {
       toast.info("אין לקוחות עם Meta Ads Account ID");
@@ -198,7 +205,9 @@ export default function Clients() {
   const { data: agencies } = useQuery({
     queryKey: ["agencies", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) {
+        return [] as Array<any>;
+      }
 
       // Get owned agencies
       const { data: ownedAgencies, error: ownedError } = await supabase
@@ -207,7 +216,9 @@ export default function Clients() {
         .eq("tenant_id", tenantId)
         .order("name");
 
-      if (ownedError) throw ownedError;
+      if (ownedError) {
+        throw ownedError;
+      }
 
       // Get shared agencies via agency_tenant_access
       const { data: sharedAccess, error: sharedError } = await supabase
@@ -215,7 +226,9 @@ export default function Clients() {
         .select("agency_id, agencies(id, name)")
         .eq("accessing_tenant_id", tenantId);
 
-      if (sharedError) throw sharedError;
+      if (sharedError) {
+        throw sharedError;
+      }
 
       // Combine owned and shared agencies
       const shared = sharedAccess?.map((s) => s.agencies).filter(Boolean) || [];
@@ -240,12 +253,16 @@ export default function Clients() {
   const { data: ownedAgencies } = useQuery({
     queryKey: ["owned-agencies", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) {
+        return [] as Array<any>;
+      }
       const { data, error } = await supabase
         .from("agencies")
         .select("id")
         .eq("tenant_id", tenantId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -257,12 +274,16 @@ export default function Clients() {
   const { data: clientFinancialData } = useQuery({
     queryKey: ["client-tenant-financial-data", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("client_tenant_financial_data")
         .select("*")
         .eq("tenant_id", tenantId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId,
@@ -281,14 +302,18 @@ export default function Clients() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session?.user?.id) return [];
+      if (!session?.user?.id) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("user_roles")
         .select("tenant_id")
         .eq("user_id", session.user.id)
         .eq("role", "owner")
         .not("tenant_id", "is", null);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data?.map((r) => r.tenant_id).filter(Boolean) || [];
     },
     enabled: isSuperAdmin,
@@ -313,7 +338,9 @@ export default function Clients() {
       agencies?.length || 0,
     ],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) {
+        return [] as Array<any>;
+      }
       const selectStr = CLIENT_LIST_SELECT;
 
       let query = supabase
@@ -336,7 +363,9 @@ export default function Clients() {
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     // Don't gate on !!agencies — start fetching immediately with tenantId,
@@ -348,15 +377,21 @@ export default function Clients() {
 
   // 🔒 SECURITY GUARD: Filter clients by current tenant and accessible agencies
   const secureFilteredClients = useMemo(() => {
-    if (!clients || !tenantId) return [];
+    if (!clients || !tenantId) {
+      return [];
+    }
 
     // 🔒 Strict tenant isolation: current tenant OR shared agency only
     return clients.filter((client) => {
       const isTenantMatch = client.tenant_id === tenantId;
-      if (isTenantMatch) return true;
+      if (isTenantMatch) {
+        return true;
+      }
       // Allow cross-tenant only if agency is explicitly shared with this tenant
       const agencyIds = (agencies || []).map((a: any) => a.id);
-      if (client.agency_id && agencyIds.includes(client.agency_id)) return true;
+      if (client.agency_id && agencyIds.includes(client.agency_id)) {
+        return true;
+      }
       return false;
     });
   }, [clients, tenantId, userAgencyIds, isOwner, isSuperAdmin]);
@@ -371,11 +406,15 @@ export default function Clients() {
   const { data: clientTeam } = useQuery({
     queryKey: ["client-team", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) {
+        return [] as Array<any>;
+      }
       const { data, error } = await supabase
         .from("client_team")
         .select("client_id, campaigner_id");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -385,7 +424,9 @@ export default function Clients() {
   const { data: campaignerClientIds } = useQuery({
     queryKey: ["campaigner-client-ids", campaignerId],
     queryFn: async () => {
-      if (!campaignerId) return null;
+      if (!campaignerId) {
+        return null;
+      }
       const { data } = await supabase
         .from("client_team")
         .select("client_id")
@@ -401,7 +442,9 @@ export default function Clients() {
         .from("clients")
         .delete()
         .eq("id", clientId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("הלקוח נמחק בהצלחה");
@@ -494,241 +537,290 @@ export default function Clients() {
     onDelete: setDeletingClient,
   };
 
-  return (
-    <div className="flex h-full min-h-0 max-h-full flex-col gap-4 overflow-hidden p-4">
-      <ClientsToolbar
-        filters={filters}
-        onFilterChange={setFilter}
-        campaigners={canFilterByCampaigner ? (campaigners ?? []) : null}
-        showSearch={viewMode !== "chat"}
-        activeFilterCount={activeFilterCount}
-        onOpenFilters={() => setShowFiltersDialog(true)}
-        leading={
-          <>
-            <ClientsTitle
-              shownCount={clientsResolving ? undefined : visibleClients?.length}
-            />
-            {showKpis && <ClientsKpiChips clients={filteredClients ?? []} />}
-          </>
-        }
-      >
-        <ClientsViewToggle value={viewMode} onChange={setViewMode} />
-        <ClientsImportExportMenu
-          onExport={handleExportToExcel}
-          onImportCsv={() => setShowImportCSV(true)}
-          onImportSheet={() => setShowImportSheet(true)}
-          onBulkMetaSync={
-            isOwner || isSuperAdmin || isTeamManager
-              ? () => {
-                  setBulkMetaSyncResults([]);
-                  setShowBulkMetaSync(true);
-                }
-              : null
+  // Null hides the campaigner filter: only managers and owners get it.
+  const campaignerOptions = canFilterByCampaigner ? (campaigners ?? []) : null;
+  const importExportProps = {
+    onExport: handleExportToExcel,
+    onImportCsv: () => setShowImportCSV(true),
+    onImportSheet: () => setShowImportSheet(true),
+    onBulkMetaSync:
+      isOwner || isSuperAdmin || isTeamManager
+        ? () => {
+            setBulkMetaSyncResults([]);
+            setShowBulkMetaSync(true);
           }
-        />
-        <AddClientForm />
-      </ClientsToolbar>
+        : null,
+  };
 
-      {/* Import dialogs opened from the import / export menu */}
-      {showImportCSV && (
-        <ImportClientsCSV
-          externalOpen={showImportCSV}
-          onExternalOpenChange={setShowImportCSV}
-        />
-      )}
-      {showImportSheet && (
-        <ImportClientsSheet
-          externalOpen={showImportSheet}
-          onExternalOpenChange={setShowImportSheet}
-        />
-      )}
+  return (
+    // Desktop: the list fills the module and the side panel sits at its left.
+    <div className="flex h-full min-h-0 max-h-full gap-4 overflow-hidden p-4">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
+        <div className="md:hidden">
+          <ClientsToolbar
+            filters={filters}
+            onFilterChange={setFilter}
+            campaigners={campaignerOptions}
+            showSearch={viewMode !== "chat"}
+            activeFilterCount={activeFilterCount}
+            onOpenFilters={() => setShowFiltersDialog(true)}
+            leading={
+              <ClientsTitle
+                shownCount={
+                  clientsResolving ? undefined : visibleClients?.length
+                }
+              />
+            }
+          >
+            <ClientsViewToggle value={viewMode} onChange={setViewMode} />
+            <ClientsImportExportMenu {...importExportProps} />
+            <AddClientForm />
+          </ClientsToolbar>
+        </div>
+        {viewMode !== "chat" && (
+          <HeaderSearch>
+            <ClientsSearchInput
+              value={filters.search}
+              onChange={(value) => setFilter("search", value)}
+            />
+          </HeaderSearch>
+        )}
 
-      <ClientsFiltersDialog
-        open={showFiltersDialog}
-        onOpenChange={setShowFiltersDialog}
-        filters={filters}
-        onFilterChange={setFilter}
-        campaigners={canFilterByCampaigner ? (campaigners ?? []) : null}
-        activeFilterCount={activeFilterCount}
-        onClearAll={() => setFilters(CLEARED_CLIENT_FILTERS)}
-      />
-
-      <div
-        className={
-          viewMode === "chat"
-            ? "flex-1 min-h-0 overflow-hidden"
-            : "flex-1 min-h-0 overflow-y-auto"
-        }
-      >
-        {clientsResolving ? (
-          <CarmenLoadingScreen
-            variant="card"
-            messages={["כרמן אוספת את רשימת הלקוחות…", "מסדרת לפי סוכנות…"]}
-          />
-        ) : viewMode === "chat" ? (
-          <ClientsChatView
-            key={pendingChatClientId ?? deepLinkClientId ?? "chat"}
-            clients={visibleClients || []}
-            agencies={agencies}
-            canViewFinance={canViewFinance()}
-            financeAccessReady={financeAccessReady}
-            getClientFinancialData={getClientFinancialData}
-            initialClientId={pendingChatClientId ?? deepLinkClientId}
-            initialTab={deepLinkTab}
-          />
-        ) : viewMode === "grid" ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {visibleClients?.map((client) => (
-              <ClientGridCard key={client.id} client={client} {...rowActions} />
-            ))}
-          </div>
-        ) : (
-          <ClientsTable
-            clients={visibleClients ?? []}
-            selectedIds={selectedClientIds}
-            onSelectedIdsChange={setSelectedClientIds}
-            getFieldLabel={getFieldLabel}
-            tenantId={tenantId}
-            finance={{
-              ready: financeAccessReady,
-              canView: canViewFinance(),
-              tenantFiguresOf: getClientFinancialData,
-              ownedAgencyIds,
-            }}
-            {...rowActions}
+        {/* Import dialogs opened from the import / export menu */}
+        {showImportCSV && (
+          <ImportClientsCSV
+            externalOpen={showImportCSV}
+            onExternalOpenChange={setShowImportCSV}
           />
         )}
-      </div>
+        {showImportSheet && (
+          <ImportClientsSheet
+            externalOpen={showImportSheet}
+            onExternalOpenChange={setShowImportSheet}
+          />
+        )}
 
-      {!clientsResolving && visibleClients?.length === 0 && (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed bg-card py-16 text-center shadow-elevation-1">
-          <span className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-inset">
-            <Users className="h-8 w-8 text-muted-foreground" />
-          </span>
-          <p className="mb-1 text-lg font-bold">לא נמצאו לקוחות</p>
-          <p className="text-sm text-muted-foreground">התחל בהוספת לקוח חדש</p>
-        </div>
-      )}
+        <ClientsFiltersDialog
+          open={showFiltersDialog}
+          onOpenChange={setShowFiltersDialog}
+          filters={filters}
+          onFilterChange={setFilter}
+          campaigners={campaignerOptions}
+          activeFilterCount={activeFilterCount}
+          onClearAll={() => setFilters(CLEARED_CLIENT_FILTERS)}
+        />
 
-      <DuplicateClientDialog
-        open={!!duplicatingClient}
-        onOpenChange={(open) => !open && setDuplicatingClient(null)}
-        client={duplicatingClient}
-      />
-
-      {/* Bulk Meta Page Sync Dialog */}
-      <Dialog
-        open={showBulkMetaSync}
-        onOpenChange={(open) => {
-          if (!bulkMetaSyncRunning) setShowBulkMetaSync(open);
-        }}
-      >
-        <DialogContent dir="rtl" className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Wand2 className="h-5 w-5" />
-              שיוך עמודי Meta לכל הלקוחות
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              הפעולה תעבור על כל הלקוחות שיש להם Meta Ads Account ID ותשייך
-              אוטומטית את עמוד הפייסבוק/אינסטגרם המתאים.
-            </p>
-            {bulkMetaSyncResults.length === 0 && !bulkMetaSyncRunning && (
-              <div className="text-sm text-muted-foreground">
-                לקוחות עם Meta Ads Account ID:{" "}
-                <strong>
-                  {
-                    (clients || []).filter((c: any) =>
-                      c.meta_ads_account_id?.trim(),
-                    ).length
-                  }
-                </strong>
-              </div>
-            )}
-            {(bulkMetaSyncRunning || bulkMetaSyncResults.length > 0) && (
-              <div className="max-h-72 overflow-y-auto space-y-1 rounded-md border p-2">
-                {bulkMetaSyncResults.map((r) => (
-                  <div
-                    key={r.clientId}
-                    className="flex items-start gap-2 text-sm py-1"
-                  >
-                    {r.status === "success" ? (
-                      <CheckCircle2 className="h-4 w-4 text-status-active mt-0.5 shrink-0" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-                    )}
-                    <div>
-                      <span className="font-medium">{r.clientName}</span>
-                      <span className="text-muted-foreground mr-2 text-xs">
-                        {r.message}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                {bulkMetaSyncRunning && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground py-1">
-                    <Loader2Icon className="h-4 w-4 animate-spin" />
-                    מעבד...
-                  </div>
-                )}
-              </div>
-            )}
-            <div className="flex gap-2 justify-end">
-              <Button
-                variant="outline"
-                onClick={() => setShowBulkMetaSync(false)}
-                disabled={bulkMetaSyncRunning}
-              >
-                סגור
-              </Button>
-              <Button
-                onClick={runBulkMetaSync}
-                disabled={bulkMetaSyncRunning}
-                className="gap-2"
-              >
-                {bulkMetaSyncRunning ? (
-                  <>
-                    <Loader2Icon className="h-4 w-4 animate-spin" /> מעבד...
-                  </>
-                ) : (
-                  <>
-                    <Wand2 className="h-4 w-4" /> הפעל שיוך
-                  </>
-                )}
-              </Button>
+        <div
+          className={
+            viewMode === "chat"
+              ? "flex-1 min-h-0 overflow-hidden"
+              : "flex-1 min-h-0 overflow-y-auto"
+          }
+        >
+          {clientsResolving ? (
+            <CarmenLoadingScreen
+              variant="card"
+              messages={[
+                "{name} {אוספת|אוסף} את רשימת הלקוחות…",
+                "{מסדרת|מסדר} לפי סוכנות…",
+              ]}
+            />
+          ) : viewMode === "chat" ? (
+            <ClientsChatView
+              key={pendingChatClientId ?? deepLinkClientId ?? "chat"}
+              clients={visibleClients || []}
+              agencies={agencies}
+              canViewFinance={canViewFinance()}
+              financeAccessReady={financeAccessReady}
+              getClientFinancialData={getClientFinancialData}
+              initialClientId={pendingChatClientId ?? deepLinkClientId}
+              initialTab={deepLinkTab}
+            />
+          ) : viewMode === "grid" ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {visibleClients?.map((client) => (
+                <ClientGridCard
+                  key={client.id}
+                  client={client}
+                  {...rowActions}
+                />
+              ))}
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          ) : (
+            <ClientsTable
+              clients={visibleClients ?? []}
+              selectedIds={selectedClientIds}
+              onSelectedIdsChange={setSelectedClientIds}
+              getFieldLabel={getFieldLabel}
+              tenantId={tenantId}
+              finance={{
+                ready: financeAccessReady,
+                canView: canViewFinance(),
+                tenantFiguresOf: getClientFinancialData,
+                ownedAgencyIds,
+              }}
+              {...rowActions}
+            />
+          )}
+        </div>
 
-      <AlertDialog
-        open={!!deletingClient}
-        onOpenChange={(open) => !open && setDeletingClient(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>אישור מחיקת לקוח</AlertDialogTitle>
-            <AlertDialogDescription>
-              האם אתה בטוח שברצונך למחוק את הלקוח{" "}
-              <strong>{deletingClient?.name}</strong>? פעולה זו תמחק גם את כל
-              המשימות והנתונים הקשורים ללקוח זה ולא ניתן לבטל אותה.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>ביטול</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() =>
-                deletingClient && deleteClientMutation.mutate(deletingClient.id)
-              }
-              className="bg-destructive hover:bg-destructive/90"
-            >
-              מחק לקוח
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        {!clientsResolving && visibleClients?.length === 0 && (
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed bg-card py-16 text-center shadow-elevation-1">
+            <span className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-inset">
+              <Users className="h-8 w-8 text-muted-foreground" />
+            </span>
+            <p className="mb-1 text-lg font-bold">לא נמצאו לקוחות</p>
+            <p className="text-sm text-muted-foreground">
+              התחל בהוספת לקוח חדש
+            </p>
+          </div>
+        )}
+
+        <DuplicateClientDialog
+          open={!!duplicatingClient}
+          onOpenChange={(open) => !open && setDuplicatingClient(null)}
+          client={duplicatingClient}
+        />
+
+        {/* Bulk Meta Page Sync Dialog */}
+        <Dialog
+          open={showBulkMetaSync}
+          onOpenChange={(open) => {
+            if (!bulkMetaSyncRunning) {
+              setShowBulkMetaSync(open);
+            }
+          }}
+        >
+          <DialogContent dir="rtl" className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Wand2 className="h-5 w-5" />
+                שיוך עמודי Meta לכל הלקוחות
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                הפעולה תעבור על כל הלקוחות שיש להם Meta Ads Account ID ותשייך
+                אוטומטית את עמוד הפייסבוק/אינסטגרם המתאים.
+              </p>
+              {bulkMetaSyncResults.length === 0 && !bulkMetaSyncRunning && (
+                <div className="text-sm text-muted-foreground">
+                  לקוחות עם Meta Ads Account ID:{" "}
+                  <strong>
+                    {
+                      (clients || []).filter((c: any) =>
+                        c.meta_ads_account_id?.trim(),
+                      ).length
+                    }
+                  </strong>
+                </div>
+              )}
+              {(bulkMetaSyncRunning || bulkMetaSyncResults.length > 0) && (
+                <div className="max-h-72 overflow-y-auto space-y-1 rounded-md border p-2">
+                  {bulkMetaSyncResults.map((r) => (
+                    <div
+                      key={r.clientId}
+                      className="flex items-start gap-2 text-sm py-1"
+                    >
+                      {r.status === "success" ? (
+                        <CheckCircle2 className="h-4 w-4 text-status-active mt-0.5 shrink-0" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                      )}
+                      <div>
+                        <span className="font-medium">{r.clientName}</span>
+                        <span className="text-muted-foreground mr-2 text-xs">
+                          {r.message}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {bulkMetaSyncRunning && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-1">
+                      <Loader2Icon className="h-4 w-4 animate-spin" />
+                      מעבד...
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowBulkMetaSync(false)}
+                  disabled={bulkMetaSyncRunning}
+                >
+                  סגור
+                </Button>
+                <Button
+                  onClick={runBulkMetaSync}
+                  disabled={bulkMetaSyncRunning}
+                  className="gap-2"
+                >
+                  {bulkMetaSyncRunning ? (
+                    <>
+                      <Loader2Icon className="h-4 w-4 animate-spin" /> מעבד...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="h-4 w-4" /> הפעל שיוך
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <AlertDialog
+          open={!!deletingClient}
+          onOpenChange={(open) => !open && setDeletingClient(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>אישור מחיקת לקוח</AlertDialogTitle>
+              <AlertDialogDescription>
+                האם אתה בטוח שברצונך למחוק את הלקוח{" "}
+                <strong>{deletingClient?.name}</strong>? פעולה זו תמחק גם את כל
+                המשימות והנתונים הקשורים ללקוח זה ולא ניתן לבטל אותה.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>ביטול</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() =>
+                  deletingClient &&
+                  deleteClientMutation.mutate(deletingClient.id)
+                }
+                className="bg-destructive hover:bg-destructive/90"
+              >
+                מחק לקוח
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+      <ClientsSidePanel
+        shownCount={clientsResolving ? undefined : visibleClients?.length}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        filters={filters}
+        onFilterChange={setFilter}
+        campaigners={campaignerOptions}
+        activeFilterCount={activeFilterCount}
+        onOpenFilters={() => setShowFiltersDialog(true)}
+        kpis={showKpis && <ClientsKpiList clients={filteredClients ?? []} />}
+        footer={
+          <ClientsImportExportMenu
+            {...importExportProps}
+            trigger={
+              <ModuleSidePanelItem
+                icon={FileSpreadsheet}
+                label="ייבוא / ייצוא"
+              />
+            }
+          />
+        }
+      />
     </div>
   );
 }

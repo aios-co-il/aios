@@ -7,7 +7,7 @@ export type CursorModelSelection = {
 
 type CatalogItem = {
   id?: string;
-  aliases?: string[];
+  aliases?: Array<string>;
   parameters?: Array<{ id?: string; values?: Array<{ value?: string }> }>;
 };
 
@@ -35,7 +35,7 @@ export function resolveCreativeCursorModel(
 }
 
 export function pickCreativeModelFromCatalog(
-  items: CatalogItem[] | undefined,
+  items: Array<CatalogItem> | undefined,
   preferred: CursorModelSelection,
 ): CursorModelSelection {
   const list = Array.isArray(items) ? items : [];
@@ -47,7 +47,9 @@ export function pickCreativeModelFromCatalog(
         : [];
       return id === preferred.id || aliases.includes(preferred.id);
     }) ?? list.find((item) => String(item.id ?? "").startsWith("composer-"));
-  if (!match?.id) return preferred;
+  if (!match?.id) {
+    return preferred;
+  }
   const hasFast = (match.parameters ?? []).some(
     (parameter) =>
       parameter.id === "fast" &&

@@ -75,11 +75,15 @@ const flagAt = (value: unknown, index: number): boolean | null =>
  */
 function skinSwitchAt(
   value: unknown,
-  materials: AssetView[],
+  materials: Array<AssetView>,
   index: number,
 ): boolean | null {
-  if (Array.isArray(value)) return flagAt(value, index);
-  if (typeof value !== "boolean" || index === 0) return null;
+  if (Array.isArray(value)) {
+    return flagAt(value, index);
+  }
+  if (typeof value !== "boolean" || index === 0) {
+    return null;
+  }
   return value ? materials[index - 1].id !== materials[index].id : false;
 }
 
@@ -94,10 +98,15 @@ const usable = (asset: AssetView) =>
   Boolean(asset.storage_path || asset.url);
 
 /** Picks the materials (all usable ones by default, or the ids asked for in that order). */
-export function pickMaterials(assets: AssetView[], ids: unknown): AssetView[] {
+export function pickMaterials(
+  assets: Array<AssetView>,
+  ids: unknown,
+): Array<AssetView> {
   const wanted = Array.isArray(ids) ? ids.map(text).filter(Boolean) : [];
   const pool = assets.filter(usable);
-  if (wanted.length === 0) return pool.slice(0, MAX_SCENES);
+  if (wanted.length === 0) {
+    return pool.slice(0, MAX_SCENES);
+  }
   const byId = new Map(pool.map((asset) => [asset.id, asset]));
   return wanted
     .map((id) => byId.get(id))
@@ -113,10 +122,10 @@ export function pickMaterials(assets: AssetView[], ids: unknown): AssetView[] {
  * user's video never does (it has no still to lip-sync).
  */
 export function planEditScenes(
-  materials: AssetView[],
+  materials: Array<AssetView>,
   args: Record<string, unknown>,
   newId: () => string = () => crypto.randomUUID(),
-): EditScene[] {
+): Array<EditScene> {
   return materials.map((asset, index) => {
     const isVideo = asset.asset_type === "video";
     const meta = asset.meta ?? {};

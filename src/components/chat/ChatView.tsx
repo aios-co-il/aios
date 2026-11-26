@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -122,7 +123,9 @@ export default function ChatView({
           )
           .eq("id", contactId)
           .single();
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return data;
       } else if (contactType === "lead") {
         const { data, error } = await supabase
@@ -132,7 +135,9 @@ export default function ChatView({
           )
           .eq("id", contactId)
           .single();
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return { ...data, name: data.company_name };
       } else if (contactType === "group") {
         const { data, error } = await supabase
@@ -142,7 +147,9 @@ export default function ChatView({
           )
           .eq("id", contactId)
           .single();
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return {
           ...data,
           name: data.group_name,
@@ -163,7 +170,9 @@ export default function ChatView({
   const { data: chatIntegrations } = useQuery({
     queryKey: ["chat-integrations", tenantIdForProvider, userId],
     queryFn: async () => {
-      if (!tenantIdForProvider || !userId) return [];
+      if (!tenantIdForProvider || !userId) {
+        return [];
+      }
       // Fetch all WA/manychat integrations for the tenant
       const { data, error } = await supabase
         .from("tenant_integrations")
@@ -178,7 +187,9 @@ export default function ChatView({
           "manus_wa",
           "meta_whatsapp",
         ]);
-      if (error) return [];
+      if (error) {
+        return [];
+      }
 
       const { data: grants } = await supabase
         .from("integration_tenant_access")
@@ -219,11 +230,21 @@ export default function ChatView({
       const grantedIdSet = new Set(grantedIds);
       return [...(data || []), ...(grantedIntegrations || [])].filter(
         (i: any) => {
-          if (grantedIdSet.has(i.id)) return true; // explicitly shared with tenant
-          if (i.integration_type === "manychat") return true;
-          if (i.user_id === userId) return true; // own connection
-          if (i.connection_visibility === "org") return true; // org-wide shared
-          if (permittedIds.has(i.id)) return true; // explicitly shared
+          if (grantedIdSet.has(i.id)) {
+            return true;
+          } // explicitly shared with tenant
+          if (i.integration_type === "manychat") {
+            return true;
+          }
+          if (i.user_id === userId) {
+            return true;
+          } // own connection
+          if (i.connection_visibility === "org") {
+            return true;
+          } // org-wide shared
+          if (permittedIds.has(i.id)) {
+            return true;
+          } // explicitly shared
           return false;
         },
       );
@@ -290,17 +311,23 @@ export default function ChatView({
     p: "manychat" | "green_api" | "manus_wa" | "meta_whatsapp",
   ) => {
     setSelectedProvider(p);
-    if (providerStorageKey) localStorage.setItem(providerStorageKey, p);
+    if (providerStorageKey) {
+      localStorage.setItem(providerStorageKey, p);
+    }
   };
 
   // Mark messages as read mutation + remove "unread" tag
   const markAsReadMutation = useMutation({
     mutationFn: async () => {
       const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) return;
+      if (!userData.user) {
+        return;
+      }
 
       // Mark messages as read
-      if (!effectiveTenantId || !threadFilter) return;
+      if (!effectiveTenantId || !threadFilter) {
+        return;
+      }
       const { error } = await supabase
         .from("chat_messages")
         .update({ read_at: new Date().toISOString() })
@@ -308,7 +335,9 @@ export default function ChatView({
         .or(threadFilter)
         .eq("direction", "inbound")
         .is("read_at", null);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Remove "unread" tag (by name matching)
       if (tenantId) {
@@ -354,7 +383,9 @@ export default function ChatView({
 
       // Optimistically update active-chats
       queryClient.setQueryData(["active-chats"], (old: any) => {
-        if (!old) return old;
+        if (!old) {
+          return old;
+        }
         return old.map((contact: any) =>
           contact.id === contactId && contact.contact_type === contactType
             ? { ...contact, unread_count: 0 }
@@ -364,7 +395,9 @@ export default function ChatView({
 
       // Optimistically update unknown-contacts
       queryClient.setQueryData(["unknown-contacts"], (old: any) => {
-        if (!old) return old;
+        if (!old) {
+          return old;
+        }
         return old.map((contact: any) =>
           contact.id === contactId || contact.sender_phone === senderPhone
             ? { ...contact, unread_count: 0 }
@@ -400,11 +433,15 @@ export default function ChatView({
   const blockMutation = useMutation({
     mutationFn: async () => {
       const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) throw new Error("Missing user");
+      if (!userData.user) {
+        throw new Error("Missing user");
+      }
 
       const effectiveTenantId =
         contactType === "unknown" ? tenantId : contact?.tenant_id;
-      if (!effectiveTenantId) throw new Error("Missing tenant");
+      if (!effectiveTenantId) {
+        throw new Error("Missing tenant");
+      }
 
       // 1. Save to blocked_contacts table for permanent blocking
       const blockedContactData: any = {
@@ -461,7 +498,9 @@ export default function ChatView({
       }
 
       const { error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("השיחה נחסמה בהצלחה - ההודעות לא יישמרו יותר");
@@ -532,7 +571,9 @@ export default function ChatView({
         const { data, error } = await query
           .order("created_at", { ascending: false })
           .limit(2000);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
 
         // Transform telegram messages to match chat_messages format
         return (data || []).reverse().map((msg: any) => ({
@@ -545,7 +586,9 @@ export default function ChatView({
         }));
       }
 
-      if (!effectiveTenantId || !threadFilter) return [];
+      if (!effectiveTenantId || !threadFilter) {
+        return [];
+      }
       let query = supabase
         .from("chat_messages")
         .select("*")
@@ -570,7 +613,9 @@ export default function ChatView({
         .order("created_at", { ascending: false })
         .limit(2000);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       markAsReadMutation.mutate();
 
@@ -584,7 +629,7 @@ export default function ChatView({
   });
 
   // Transform messages
-  const messages: Message[] =
+  const messages: Array<Message> =
     messagesData?.map((msg: any) => ({
       id: msg.id,
       direction: msg.direction as "inbound" | "outbound",
@@ -609,7 +654,9 @@ export default function ChatView({
     message: string,
     quotedMessageId?: string,
   ) => {
-    if (!contact) return;
+    if (!contact) {
+      return;
+    }
 
     try {
       const {
@@ -629,7 +676,9 @@ export default function ChatView({
             tenant_id: tenantId,
           },
         });
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         queryClient.invalidateQueries({
           queryKey: ["chat-messages", contactId],
         });
@@ -661,7 +710,9 @@ export default function ChatView({
             provider: "manychat",
           },
         });
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       } else if (activeProvider === "green_api") {
         if (
           !contact.phone &&
@@ -677,16 +728,23 @@ export default function ChatView({
           provider: "green_api",
           quotedMessageId,
         };
-        if (contactType === "client") body.clientId = contactId;
-        else if (contactType === "lead") body.leadId = contactId;
-        else if (contactType === "group") body.groupId = contactId;
-        else if (contactType === "unknown") body.tenantId = tenantId;
+        if (contactType === "client") {
+          body.clientId = contactId;
+        } else if (contactType === "lead") {
+          body.leadId = contactId;
+        } else if (contactType === "group") {
+          body.groupId = contactId;
+        } else if (contactType === "unknown") {
+          body.tenantId = tenantId;
+        }
 
         const { error } = await supabase.functions.invoke(
           "send-green-api-message",
           { body },
         );
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       } else if (activeProvider === "manus_wa") {
         if (
           !contact.phone &&
@@ -701,16 +759,23 @@ export default function ChatView({
           phoneNumber: senderPhone || contact.phone,
           integrationId: chatIntegration?.id,
         };
-        if (contactType === "client") body.clientId = contactId;
-        else if (contactType === "lead") body.leadId = contactId;
-        else if (contactType === "group") body.groupId = contactId;
-        else if (contactType === "unknown") body.tenantId = tenantId;
+        if (contactType === "client") {
+          body.clientId = contactId;
+        } else if (contactType === "lead") {
+          body.leadId = contactId;
+        } else if (contactType === "group") {
+          body.groupId = contactId;
+        } else if (contactType === "unknown") {
+          body.tenantId = tenantId;
+        }
 
         const { error } = await supabase.functions.invoke(
           "send-manus-wa-message",
           { body },
         );
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       } else if (activeProvider === "meta_whatsapp") {
         if (contactType === "group") {
           toast.error("Meta WhatsApp הרשמי אינו תומך בקבוצות");
@@ -725,14 +790,20 @@ export default function ChatView({
           phoneNumber: senderPhone || contact.phone,
           integrationId: chatIntegration?.id,
         };
-        if (contactType === "client") body.clientId = contactId;
-        else if (contactType === "lead") body.leadId = contactId;
-        else if (contactType === "unknown") body.tenantId = tenantId;
+        if (contactType === "client") {
+          body.clientId = contactId;
+        } else if (contactType === "lead") {
+          body.leadId = contactId;
+        } else if (contactType === "unknown") {
+          body.tenantId = tenantId;
+        }
         const { error } = await supabase.functions.invoke(
           "send-meta-whatsapp-message",
           { body },
         );
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
 
       queryClient.invalidateQueries({ queryKey: ["chat-messages", contactId] });
@@ -766,8 +837,12 @@ export default function ChatView({
 
       const formData = new FormData();
       formData.append("file", file, file.name);
-      if (caption) formData.append("caption", caption);
-      if (tenantId) formData.append("tenantId", tenantId);
+      if (caption) {
+        formData.append("caption", caption);
+      }
+      if (tenantId) {
+        formData.append("tenantId", tenantId);
+      }
       formData.append("phoneNumber", senderPhone || contact.phone || "");
 
       if (contactType === "client") {
@@ -793,7 +868,9 @@ export default function ChatView({
         body: formData,
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       queryClient.invalidateQueries({ queryKey: ["chat-messages", contactId] });
       toast.success("הקובץ נשלח בהצלחה");
@@ -841,8 +918,10 @@ export default function ChatView({
                   variant="secondary"
                   className="h-5 text-xs gap-1 cursor-pointer hover:bg-secondary/80"
                   onClick={() => {
-                    navigator.clipboard.writeText(telegramChatId);
-                    toast.success(`Chat ID הועתק: ${telegramChatId}`);
+                    void copyToClipboard(
+                      telegramChatId,
+                      `Chat ID הועתק: ${telegramChatId}`,
+                    );
                   }}
                   title="לחץ להעתקת ה-Chat ID"
                 >
@@ -1010,10 +1089,10 @@ export default function ChatView({
                           <code
                             className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded cursor-pointer hover:bg-muted/80"
                             onClick={() => {
-                              navigator.clipboard.writeText(
+                              void copyToClipboard(
                                 (contact as any).group_chat_id,
+                                "מזהה הקבוצה הועתק",
                               );
-                              toast.success("מזהה הקבוצה הועתק");
                             }}
                             title="לחץ להעתקה"
                           >
@@ -1218,7 +1297,9 @@ export default function ChatView({
               queryClient.invalidateQueries({
                 queryKey: ["unknown-contacts", tenantId],
               });
-              if (onBack) onBack();
+              if (onBack) {
+                onBack();
+              }
             }}
           />
           <LinkContactDialog
@@ -1234,7 +1315,9 @@ export default function ChatView({
               queryClient.invalidateQueries({
                 queryKey: ["unknown-contacts", tenantId],
               });
-              if (onBack) onBack();
+              if (onBack) {
+                onBack();
+              }
             }}
           />
           <LinkPhoneDialog
@@ -1266,7 +1349,9 @@ export default function ChatView({
               queryClient.invalidateQueries({
                 queryKey: ["unknown-contacts", tenantId],
               });
-              if (onBack) onBack();
+              if (onBack) {
+                onBack();
+              }
             }}
           />
         </>

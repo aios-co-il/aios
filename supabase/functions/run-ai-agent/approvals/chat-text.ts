@@ -71,9 +71,9 @@ export function buildApprovalPickPromptRule(
 
 /** "• 4821 · שינוי תקציב FB … (לפני 5 דק׳)" lines, at most `limit`. */
 function formatApprovalCandidateLines(
-  candidates: readonly PickRow[] | null | undefined,
+  candidates: ReadonlyArray<PickRow> | null | undefined,
   { nowMs = Date.now(), limit = 5 }: { nowMs?: number; limit?: number } = {},
-): string[] {
+): Array<string> {
   const list = Array.isArray(candidates) ? candidates : [];
   const lines = list.slice(0, limit).map((r) => {
     const title = r.title || r.tool_name || "פעולה";

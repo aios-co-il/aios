@@ -28,8 +28,8 @@ export type StaffMember = {
   name: string;
   /** Raw phone: the login profile's, else its linked campaigner record's. */
   phone: string | null;
-  roles: string[];
-  managed_agency_ids: string[];
+  roles: Array<string>;
+  managed_agency_ids: Array<string>;
 };
 
 export type PeopleDirectory = {
@@ -39,13 +39,16 @@ export type PeopleDirectory = {
   campaigners(
     tenantId: string,
     clientId: string,
-  ): Promise<CampaignerAssignment[]>;
+  ): Promise<Array<CampaignerAssignment>>;
   /** Owners, agency owners and team managers of the tenant. */
-  staff(tenantId: string): Promise<StaffMember[]>;
+  staff(tenantId: string): Promise<Array<StaffMember>>;
   /** Display names of people the tenant's findings are assigned to. */
-  names(userIds: string[]): Promise<Map<string, string>>;
+  names(userIds: Array<string>): Promise<Map<string, string>>;
   /** Campaigners by recipient key, as the router reaches them now (contacts.ts). */
-  contacts(tenantId: string, keys: string[]): Promise<Map<string, Contact>>;
+  contacts(
+    tenantId: string,
+    keys: Array<string>,
+  ): Promise<Map<string, Contact>>;
 };
 
 const STAFF_ROLES = ["owner", "agency_owner", "team_manager"] as const;
@@ -56,7 +59,7 @@ const STAFF_ROLES = ["owner", "agency_owner", "team_manager"] as const;
  * once per client the router resolves.
  */
 export function createPeopleDirectory(db: DbClient): PeopleDirectory {
-  const sharedAgencies = new Map<string, string[]>();
+  const sharedAgencies = new Map<string, Array<string>>();
   const agenciesOf = async (tenantId: string) => {
     const known = sharedAgencies.get(tenantId);
     if (known) {
@@ -162,7 +165,7 @@ export function createPeopleDirectory(db: DbClient): PeopleDirectory {
 async function loadSharedAgencies(
   db: DbClient,
   tenantId: string,
-): Promise<string[]> {
+): Promise<Array<string>> {
   const { data, error } = await db
     .from("agency_tenant_access")
     .select("agency_id")

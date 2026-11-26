@@ -31,13 +31,13 @@ const COLUMNS = "id, table_id, data";
 export async function fetchCampaignLevelRecords(
   client: DbClient,
   input: {
-    tableIds: readonly string[];
+    tableIds: ReadonlyArray<string>;
     sinceYmd: string;
     untilYmd?: string;
-    tenantIds?: readonly string[];
+    tenantIds?: ReadonlyArray<string>;
     pageSize?: number;
   },
-): Promise<CrmRecordRow[]> {
+): Promise<Array<CrmRecordRow>> {
   if (!input.tableIds.length) {
     return [];
   }
@@ -61,7 +61,7 @@ export async function fetchTableRecords(
   client: DbClient,
   tableId: string,
   pageSize?: number,
-): Promise<CrmRecordRow[]> {
+): Promise<Array<CrmRecordRow>> {
   return await fetchAllPages(
     () => recordsQuery(client).eq("table_id", tableId),
     pageSize,
@@ -72,9 +72,9 @@ export async function fetchTableRecords(
 async function fetchAllPages(
   query: () => ReturnType<typeof recordsQuery>,
   pageSize?: number,
-): Promise<CrmRecordRow[]> {
+): Promise<Array<CrmRecordRow>> {
   const size = pageSize || CRM_RECORDS_PAGE_SIZE;
-  const rows: CrmRecordRow[] = [];
+  const rows: Array<CrmRecordRow> = [];
   for (let from = 0; ; from += size) {
     const { data, error } = await query()
       .order("id", { ascending: true })

@@ -1,10 +1,16 @@
 // run-ai-agent-v2 — explicit ReAct loop with persisted runs, approval gate, reflection.
 // New runs: { agent_id, goal, context?, tenant_id, max_steps? }
 // Resume: { run_id, tenant_id }  (called by resume-agent-run after approval)
+// Who may start or resume a run: ./run-access.ts (AIO-661).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { resolveModelId } from "../_shared/models.ts";
 import { requireAuth } from "../_shared/security.ts";
 import { internalBrainDenied } from "../_shared/carmen/brain-guard.ts";
+import {
+  authorizeRunRequest,
+  foreignAgentRefusal,
+  resumableRun,
+} from "./run-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -100,7 +106,10 @@ async function logStep(
   });
 }
 
-async function loadTools(supabase: any, tenantId: string): Promise<ToolRow[]> {
+async function loadTools(
+  supabase: any,
+  tenantId: string,
+): Promise<Array<ToolRow>> {
   const { data } = await supabase
     .from("agent_tools")
     .select("*")
@@ -109,7 +118,7 @@ async function loadTools(supabase: any, tenantId: string): Promise<ToolRow[]> {
   return data ?? [];
 }
 
-function buildOpenAITools(tools: ToolRow[]) {
+function buildOpenAITools(tools: Array<ToolRow>) {
   return tools.map((t) => ({
     type: "function",
     function: {
@@ -126,7 +135,7 @@ async function reconstructMessages(
   run: RunRow,
   systemPrompt: string,
 ) {
-  const messages: any[] = [
+  const messages: Array<any> = [
     { role: "system", content: systemPrompt },
     { role: "user", content: run.goal },
   ];
@@ -166,7 +175,11 @@ async function reconstructMessages(
   return messages;
 }
 
-async function callLLM(model: string, messages: any[], openaiTools: any[]) {
+async function callLLM(
+  model: string,
+  messages: Array<any>,
+  openaiTools: Array<any>,
+) {
   const t0 = Date.now();
   const resp = await fetch(AI_GATEWAY_URL, {
     method: "POST",
@@ -209,7 +222,9 @@ async function executeTool(
         _agent_id: run.agent_id,
       },
     });
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return data ?? { ok: true };
   }
   if (tool.handler_kind === "mcp" && tool.handler_ref) {
@@ -219,13 +234,17 @@ async function executeTool(
       .select("*")
       .eq("id", connId)
       .single();
-    if (!conn) return { ok: false, error: "mcp connection missing" };
+    if (!conn) {
+      return { ok: false, error: "mcp connection missing" };
+    }
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       Accept: "application/json, text/event-stream",
     };
     const bearer = conn.oauth_tokens?.bearer;
-    if (bearer) headers["Authorization"] = `Bearer ${bearer}`;
+    if (bearer) {
+      headers["Authorization"] = `Bearer ${bearer}`;
+    }
     const resp = await fetch(conn.url, {
       method: "POST",
       headers,
@@ -237,15 +256,18 @@ async function executeTool(
       }),
     });
     const text = await resp.text();
-    if (!resp.ok)
+    if (!resp.ok) {
       return { ok: false, error: `MCP ${resp.status}: ${text.slice(0, 300)}` };
+    }
     try {
       const ct = resp.headers.get("content-type") ?? "";
       let parsed: any;
       if (ct.includes("text/event-stream")) {
         const m = text.match(/data:\s*(\{[^\n]+\})/);
         parsed = m ? JSON.parse(m[1]) : { result: text };
-      } else parsed = JSON.parse(text);
+      } else {
+        parsed = JSON.parse(text);
+      }
       return parsed.result ?? parsed;
     } catch {
       return { ok: true, raw: text.slice(0, 500) };
@@ -328,12 +350,20 @@ async function finalizeRun(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
-    const body = await req.json();
+    const auth = await requireAuth(req);
+    // No caller: the gate below answers 401 with the request unread.
+    const body = auth ? await req.json() : {};
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    const gate = await authorizeRunRequest(supabase, auth, body);
+    if (!gate.ok) {
+      return jsonResponse({ error: gate.error }, gate.status);
+    }
 
     let run: RunRow;
     let isResume = false;
@@ -341,12 +371,10 @@ Deno.serve(async (req) => {
     if (body.run_id) {
       // ==== RESUME ====
       isResume = true;
-      const { data, error } = await supabase
-        .from("agent_runs")
-        .select("*")
-        .eq("id", body.run_id)
-        .single();
-      if (error || !data) throw new Error("run not found");
+      const data = await resumableRun(supabase, body);
+      if (!data) {
+        throw new Error("run not found");
+      }
       run = data as RunRow;
       if (
         run.status === "completed" ||
@@ -366,15 +394,13 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: "missing agent_id/goal/tenant_id" }, 400);
       }
       // Per-user Carmen permissions for a signed-in caller starting a run.
-      const denied = await internalBrainDenied(
-        supabase,
-        await requireAuth(req),
-        {
-          tenantId: body.tenant_id,
-          agentId: body.agent_id,
-        },
-      );
-      if (denied) return denied;
+      const denied = await internalBrainDenied(supabase, auth, {
+        tenantId: body.tenant_id,
+        agentId: body.agent_id,
+      });
+      if (denied) {
+        return denied;
+      }
       const { data, error } = await supabase
         .from("agent_runs")
         .insert({
@@ -392,7 +418,9 @@ Deno.serve(async (req) => {
         })
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       run = data as RunRow;
     }
 
@@ -402,7 +430,13 @@ Deno.serve(async (req) => {
       .select("*")
       .eq("id", run.agent_id)
       .single();
-    if (!agent) throw new Error("agent not found");
+    if (!agent) {
+      throw new Error("agent not found");
+    }
+    const foreignAgent = await foreignAgentRefusal(supabase, { agent, run });
+    if (foreignAgent) {
+      return jsonResponse({ error: foreignAgent }, 403);
+    }
 
     const model = resolveModelId(agent.engine ?? "gemini-3-flash");
     if (!run.model) {
@@ -419,7 +453,7 @@ Deno.serve(async (req) => {
       .eq("tenant_id", run.tenant_id)
       .eq("state", "ready")
       .or(`agent_id.eq.${run.agent_id},agent_id.is.null`);
-    const mcpTools: ToolRow[] = [];
+    const mcpTools: Array<ToolRow> = [];
     for (const c of mcpConns ?? []) {
       const list = Array.isArray(c.available_tools) ? c.available_tools : [];
       for (const t of list) {

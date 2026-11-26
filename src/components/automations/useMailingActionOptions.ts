@@ -16,7 +16,9 @@ export function useMailingActionOptions(
         .select("id, name, kind, source, member_count")
         .eq("tenant_id", tenantId)
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
   });
@@ -31,7 +33,9 @@ export function useMailingActionOptions(
         .eq("tenant_id", tenantId)
         .is("archived_at", null)
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
   });
@@ -46,7 +50,9 @@ export function useMailingActionOptions(
         .eq("tenant_id", tenantId)
         .eq("is_active", true)
         .in("integration_type", ["green_api", "manus_wa"]);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
   });

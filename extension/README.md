@@ -21,8 +21,10 @@
 
 ```bash
 cd extension
-bun install        # או: npm install
-bun run build      # או: npm run build  →  extension/dist/
+bun install              # לפי extension/bun.lock
+bun run typecheck        # בדיקת טיפוסים: קוד התוסף וקובצי הבנייה
+bun run build            # Production  →  extension/dist/
+bun run build:staging    # Staging     →  extension/dist-staging/
 ```
 
 1. פתח `chrome://extensions`
@@ -30,11 +32,50 @@ bun run build      # או: npm run build  →  extension/dist/
 3. **Load unpacked** → בחר את התיקייה `extension/dist`
 4. הצמד את התוסף לסרגל והתחבר עם חשבון ה-AIOS שלך
 
-לאחר שינוי קוד: `bun run build` ואז ↻ (reload) בעמוד `chrome://extensions`.
+לאחר שינוי קוד: `bun run build` ואז ↻ (reload) בעמוד `chrome://extensions`. `bun run dev` ו-`bun run dev:staging` בונים מחדש בכל שמירה.
+
+## כרמן בחלונית הצד
+
+כפתור **"כרמן"** ב-popup פותח חלונית צד שמציגה את מסך ה-Command Center של האתר עצמו (`/t/<ארגון>/command-center`) בתוך מסגרת: אותן שיחות, אותה התחברות ואותן בחירות מוח וקול כמו באתר. שום דבר מהצ'אט לא נבנה מחדש בתוסף, וההקלטה ממשיכה לעבוד מה-popup כרגיל.
+
+- **התחברות:** נדרשות שתיים. ההתחברות ב-popup אומרת לחלונית איזה ארגון להציג (נבחר כמו ב-popup, `src/tenants.ts`); בלי התחברות ב-popup או בלי ארגון החלונית לא מציגה את האתר ומבקשת להתחבר ב-popup. בתוך המסגרת החלונית משתמשת בהתחברות של האתר: מי שמחובר ל-AIOS בלשונית אמור להיות מחובר גם בחלונית (לא נבדק עדיין עם משתמש מחובר).
+- **גרסת Chrome:** 120 ומעלה (`minimum_chrome_version` ב-manifest).
+- **"כרמן רואה את הלשונית":** מתג בחלונית. בהפעלה Chrome מבקש את ההרשאה `tabs` ומנסח אותה "Read your browsing history". אחרי אישור, כל הודעה שנשלחת מהצ'אט בחלונית נושאת את כתובת הלשונית הפעילה (בלי מחרוזת השאילתה, העוגן ופרטי התחברות) ואת הכותרת שלה, כשהלשונית היא דף אינטרנט. שאלה בשיחה קולית חיה לא נושאת את הלשונית (AIO-656), והתווית בראש החלונית מראה מה כרמן רואה. בלי ההרשאה התווית מציינת שהלשונית לא משותפת והצ'אט עובד כרגיל. כיבוי המתג מסיר את ההרשאה.
+- **מיקרופון:** Chrome לא מציג בקשת מיקרופון בתוך חלונית צד. שיחה קולית בחלונית אמורה לעבוד אחרי שהמיקרופון אושר לתוסף פעם אחת, למשל בחלון ההקלטה (לא נבדק עדיין).
+- **כשהמסגרת לא נטענת:** בראש החלונית יש קישור "פתיחה בלשונית". אם האתר שבמסגרת לא עונה תוך כמה שניות מופיעה הודעה: מי שכבר מחובר לאתר סוגר ופותח את החלונית מחדש, ומי שלא, מתחבר לאתר בלשונית ואז פותח אותה מחדש.
+- **מזהה קבוע לבנייה לא ארוזה:** `build/extensionKey.ts` מחזיק את המפתח הציבורי של כל סביבה, וה-manifest מקבל אותו כ-`key`. כך לתוסף שנטען ב-`Load unpacked` יש אותו מזהה בכל מחשב. האתר מרשה מסגור רק לעצמו ולשני המזהים האלה (`frame-ancestors` ב-`vercel.json`), ו-`pnpm test:guards` נכשל אם הם לא תואמים למפתחות. המפתחות הפרטיים לא נמצאים בריפו, והבנייה לא צריכה אותם.
+- **פרסום ב-Chrome Web Store:** לפריט בחנות יש מפתח ומזהה משלו. בפרסום מעתיקים ל-`build/extensionKey.ts` את המפתח הציבורי שה-Developer Dashboard מציג לפריט (לשונית Package, "View public key") ומעדכנים את המזהה ב-`vercel.json`; זו הדרך ש-Chrome מתעד לשמירת מזהה אחד לבנייה הלא ארוזה ולבנייה מהחנות ([manifest `key`](https://developer.chrome.com/docs/extensions/reference/manifest/key)).
+- **הפרוטוקול מול האתר:** הודעות `carmen:` עם מספר גרסה, מוגדרות ב-`supabase/functions/_shared/carmen/device/panel-envelope.ts`. כל צד מקבל הודעות רק מהכתובת המדויקת של הצד השני.
+
+### בדיקה ידנית ב-Staging
+
+Staging יושב מאחורי ההתחברות של Vercel, שמסרבת למסגור למי שלא עבר אותה, ולכן בלי ההכנה הזו החלונית תציג את הודעת הנפילה:
+
+1. התחברו ל-Vercel בלשונית ופתחו את `https://staging.aios.co.il` עד שהאתר נטען, והתחברו ל-AIOS.
+2. טענו את `extension/dist-staging` (`Load unpacked`), התחברו ב-popup ולחצו "כרמן".
+3. הצפוי: ה-Command Center נטען בחלונית כשהמשתמש מחובר. אם מופיע "refused to connect", בדקו ב-DevTools את הכותרת `x-frame-options` בתשובה למסגרת ואת ערך ה-SameSite של העוגייה של Vercel.
+4. הפעילו את המתג, עברו בין לשוניות וודאו שהתווית מתעדכנת ושכרמן עונה על "מה אני רואה?".
+5. התחילו הקלטה, פתחו את החלונית באמצע, עצרו, וודאו שההקלטה עלתה.
+
+## סביבות
+
+כל בנייה מחוברת לסביבה אחת. הכתובות והמפתח נקראים בזמן הבנייה מהמקום שבו הם כבר שמורים (`build/environment.ts`), וערך חסר או שגוי מפיל את הבנייה. גם `manifest.json` נוצר בבנייה (`build/manifest.ts`), כך ש-`host_permissions` תמיד תואמים לכתובת שהקוד פונה אליה.
+
+- **Production** (`bun run build`): נבנה רק מקבצים שב-git, ולכן משתני סביבה במסוף או קבצים מקומיים לא משנים אותו.
+  - כתובת הפרויקט והמפתח הציבורי: `.env` שבשורש הריפו (אותו מקור של האתר ושל אפליקציית האנדרואיד).
+  - הדומיין שהתוסף פונה אליו: `extension/.env.production`.
+  - כתובת האתר: `site_url` תחת `[remotes.production.auth]` ב-`supabase/config.toml`.
+- **Staging** (`bun run build:staging`): הערכים של AIOS Staging לא שמורים ב-git.
+  - `VITE_SUPABASE_URL` ו-`VITE_SUPABASE_PUBLISHABLE_KEY` מגיעים ממשתני הסביבה (למשל `.envrc` לפי `.envrc.example` שבשורש) או מקובץ מקומי `extension/.env.staging.local`.
+  - כתובת האתר: `site_url` תחת `[remotes.develop.auth]` ב-`supabase/config.toml`.
+  - בלי הערכים הבנייה נכשלת, ואם התקבלו ערכי Production היא מסרבת. אין נפילה שקטה ל-Production.
+  - התוסף נקרא "AIOS Rec (Staging)" ונבנה לתיקייה נפרדת, כך שאפשר לטעון אותו ב-Chrome לצד גרסת ה-Production (`Load unpacked` → `extension/dist-staging`).
+
+ב-GitHub, ה-workflow `Extension` (`.github/workflows/extension.yml`) בודק טיפוסים ובונה לשתי הסביבות בכל PR שנוגע בתוסף, ומעלה את בניית ה-Staging כ-artifact בשם `extension-staging`.
 
 ## הערות
 
-- ה-anon key של Supabase מוטמע בקוד (`src/config.ts`) — זהו מפתח ציבורי; כל הגישה נאכפת ע"י RLS עם ה-JWT של המשתמש המחובר.
+- ה-anon key של Supabase מוטמע בתוסף בזמן הבנייה (`src/config.ts`) — זהו מפתח ציבורי; כל הגישה נאכפת ע"י RLS עם ה-JWT של המשתמש המחובר.
 - בחירת ארגון בתוסף מעדכנת את `user_active_tenant` (כמו באפליקציה) — זה נדרש כדי ש-RLS יזהה את הטננט הפעיל.
 - ההקלטה נעצרת גם בלחיצה על "Stop sharing" של Chrome.
 - קבצים ישנים/ידניים גדולים מ-25MB: השרת מפצל אוטומטית MP3 ו-WAV; פורמטים אחרים (m4a/webm) גדולים מדי יקבלו שגיאה ברורה עם הנחיה.

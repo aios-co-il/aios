@@ -63,7 +63,9 @@ export function FollowUpDatePicker({
         .update({ follow_up_date: dateString })
         .eq("id", leadId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: (_data, dateArg) => {
       let dateString: string | null = null;
@@ -77,7 +79,9 @@ export function FollowUpDatePicker({
       if (onOptimisticUpdate) {
         onOptimisticUpdate(leadId, dateString);
         const updateLeadInCache = (old: any) => {
-          if (!old) return old;
+          if (!old) {
+            return old;
+          }
           if (Array.isArray(old)) {
             return old.map((l: any) =>
               l.id === leadId ? { ...l, follow_up_date: dateString } : l,

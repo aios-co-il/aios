@@ -103,8 +103,12 @@ export function resolvePruneStart(
   let startDate = window.startDate;
   for (const raw of syncedDates) {
     const date = typeof raw === "string" ? raw.slice(0, 10) : "";
-    if (!ISO_DATE.test(date)) continue;
-    if (date < startDate) startDate = date;
+    if (!ISO_DATE.test(date)) {
+      continue;
+    }
+    if (date < startDate) {
+      startDate = date;
+    }
   }
   return startDate;
 }
@@ -130,17 +134,17 @@ function markerDate(value: string | null | undefined): string | null {
  *
  * `syncedThrough` is the last day a scheduled run finished writing. That day was
  * still in progress at the time, so it is fetched again together with every day
- * after it: the morning run covers yesterday and today, the afternoon run covers
- * today only. A failed run leaves the marker in place and the next run fills the
- * gap (never more than 120 days). Without a marker the run covers yesterday and today.
+ * after it: the first run of the day covers yesterday and today, every later run
+ * covers today only. A failed run leaves the marker in place and the next run fills
+ * the gap (never more than 120 days). Without a marker the run covers yesterday and today.
  *
  * Every {@link SCHEDULED_LOOKBACK_EVERY_DAYS} days (tracked by `lookbackOn`) the
- * first run of the day — the morning run — also re-fetches the last
- * {@link SCHEDULED_LOOKBACK_DAYS} days, so conversions the platforms attribute
- * to earlier days are picked up.
+ * first run of the day also re-fetches the last {@link SCHEDULED_LOOKBACK_DAYS}
+ * days, so conversions the platforms attribute to earlier days are picked up.
  *
- * Until `historyFrom` reaches the 120-day floor, a run also pulls one older slice.
- * Rows outside those slices are not deleted.
+ * Until `historyFrom` reaches the 120-day floor, a run also pulls one older slice,
+ * so more runs a day finish the catch-up sooner. Rows outside those slices are
+ * not deleted.
  */
 export function planScheduledSyncWindows(
   today: string,
@@ -152,7 +156,9 @@ export function planScheduledSyncWindows(
 ): ScheduledSyncPlan {
   const target = shiftDateString(today, -minHistoryDays);
   let refreshStart = markerDate(syncedThrough) ?? shiftDateString(today, -1);
-  if (refreshStart > today) refreshStart = today;
+  if (refreshStart > today) {
+    refreshStart = today;
+  }
 
   const lastLookback = markerDate(lookbackOn);
   const lookbackDue =
@@ -160,8 +166,12 @@ export function planScheduledSyncWindows(
     lastLookback <= shiftDateString(today, -SCHEDULED_LOOKBACK_EVERY_DAYS) ||
     (weekday(today) === SCHEDULED_LOOKBACK_WEEKDAY && lastLookback < today);
   const lookbackStart = shiftDateString(today, -SCHEDULED_LOOKBACK_DAYS);
-  if (lookbackDue && lookbackStart < refreshStart) refreshStart = lookbackStart;
-  if (refreshStart < target) refreshStart = target;
+  if (lookbackDue && lookbackStart < refreshStart) {
+    refreshStart = lookbackStart;
+  }
+  if (refreshStart < target) {
+    refreshStart = target;
+  }
 
   const refresh: SyncWindow = { startDate: refreshStart, endDate: today };
   const markers = {
@@ -176,7 +186,9 @@ export function planScheduledSyncWindows(
   const frontier =
     covered && covered < refresh.startDate ? covered : refresh.startDate;
   let chunkStart = shiftDateString(frontier, -catchupDays);
-  if (chunkStart < target) chunkStart = target;
+  if (chunkStart < target) {
+    chunkStart = target;
+  }
   const chunkEnd = shiftDateString(frontier, -1);
   if (chunkEnd < chunkStart) {
     return {

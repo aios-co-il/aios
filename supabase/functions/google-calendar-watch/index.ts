@@ -7,6 +7,7 @@
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { publicFunctionUrl } from "../_shared/public-api/url.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,8 +25,9 @@ async function refreshAccessTokenIfNeeded(
   }
   const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
   const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
-  if (!clientId || !clientSecret)
+  if (!clientId || !clientSecret) {
     throw new Error("Missing Google OAuth credentials");
+  }
 
   const r = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -84,20 +86,22 @@ async function stopExistingChannel(
 }
 
 async function startWatch(serviceClient: any, userId: string) {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-
   const { data: token, error } = await serviceClient
     .from("calendar_tokens")
     .select("*")
     .eq("user_id", userId)
     .maybeSingle();
-  if (error || !token) return { ok: false, reason: "no_token" };
+  if (error || !token) {
+    return { ok: false, reason: "no_token" };
+  }
 
   const { accessToken, needsReconnect } = await refreshAccessTokenIfNeeded(
     serviceClient,
     token,
   );
-  if (needsReconnect) return { ok: false, reason: "needs_reconnect" };
+  if (needsReconnect) {
+    return { ok: false, reason: "needs_reconnect" };
+  }
 
   // Stop any prior channel so we don't accumulate them on Google's side.
   if (token.watch_channel_id && token.watch_resource_id) {
@@ -109,7 +113,7 @@ async function startWatch(serviceClient: any, userId: string) {
   }
 
   const channelId = crypto.randomUUID();
-  const webhookUrl = `${supabaseUrl}/functions/v1/google-calendar-webhook`;
+  const webhookUrl = publicFunctionUrl("google-calendar-webhook");
 
   const r = await fetch(
     "https://www.googleapis.com/calendar/v3/calendars/primary/events/watch",

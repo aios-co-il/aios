@@ -49,7 +49,7 @@ Deno.test("approvalPorts", async (t) => {
   await t.step(
     "asks the database's rule for the person's role in the run's tenant",
     async () => {
-      const asked: unknown[] = [];
+      const asked: Array<unknown> = [];
       const { ports: store } = ports({
         supabaseUrl: URL_BASE,
         rpc: {

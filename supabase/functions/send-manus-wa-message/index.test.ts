@@ -43,7 +43,7 @@ const send = (senderUserId: string) => ({
 
 /** Runs the deployed handler on Staging; returns each reply, the gateway posts and what it logged as errors. */
 async function run(
-  bodies: Record<string, unknown>[],
+  bodies: Array<Record<string, unknown>>,
   failing: Record<string, string> = {},
 ) {
   const http = fakeSupabaseHttp({

@@ -3,13 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { reportSender } from "../../../supabase/functions/_shared/report-sender/fixture.ts";
+import { stubRadixPointer } from "@/test/stubRadixPointer";
 import { createTestQueryHarness } from "@/test/withTestQuery";
 import type { ReportSender } from "../../../supabase/functions/_shared/report-sender/types.ts";
 import { ReportSenderDefaultCard } from "./ReportSenderDefaultCard";
 import { REPORT_SENDER_MESSAGES } from "./reportSenderMessages";
 
 type Backend = {
-  senders: ReportSender[];
+  senders: Array<ReportSender>;
   tenantDefault: string | null;
   setDefault: ReturnType<typeof vi.fn>;
   setError: { message: string } | null;
@@ -64,14 +65,7 @@ function renderCard() {
   return render(<ReportSenderDefaultCard tenantId="t1" />, { wrapper });
 }
 
-beforeAll(() => {
-  // Radix Select needs these pointer and scroll APIs, which happy-dom lacks.
-  Object.assign(HTMLElement.prototype, {
-    hasPointerCapture: () => false,
-    releasePointerCapture: () => {},
-    scrollIntoView: () => {},
-  });
-});
+beforeAll(stubRadixPointer);
 
 beforeEach(() => {
   backend.senders = [];

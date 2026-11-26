@@ -156,9 +156,9 @@ export function ChatTagsManager({
   const [internalOpen, setInternalOpen] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState("#3b82f6");
-  const [localTags, setLocalTags] = useState<ChatTag[] | null>(null);
+  const [localTags, setLocalTags] = useState<Array<ChatTag> | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Array<string>>([]);
 
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
@@ -174,15 +174,19 @@ export function ChatTagsManager({
   const { data: tags = [], isLoading } = useQuery({
     queryKey: ["chat-tags", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("chat_tags")
         .select("*")
         .eq("tenant_id", tenantId)
         .order("sort_order", { ascending: true });
 
-      if (error) throw error;
-      return data as ChatTag[];
+      if (error) {
+        throw error;
+      }
+      return data as Array<ChatTag>;
     },
     enabled: !!tenantId && open,
   });
@@ -194,7 +198,9 @@ export function ChatTagsManager({
 
   const createTagMutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId || !newTagName.trim()) throw new Error("Missing data");
+      if (!tenantId || !newTagName.trim()) {
+        throw new Error("Missing data");
+      }
 
       const maxSortOrder = Math.max(0, ...displayTags.map((t) => t.sort_order));
       const { error } = await supabase.from("chat_tags").insert({
@@ -204,7 +210,9 @@ export function ChatTagsManager({
         sort_order: maxSortOrder + 1,
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["chat-tags", tenantId] });
@@ -238,7 +246,9 @@ export function ChatTagsManager({
         .update({ name, color })
         .eq("id", id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["chat-tags", tenantId] });
@@ -252,7 +262,9 @@ export function ChatTagsManager({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("chat_tags").delete().eq("id", id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ["chat-tags", tenantId] });
@@ -265,9 +277,11 @@ export function ChatTagsManager({
   });
 
   const bulkDeleteTagsMutation = useMutation({
-    mutationFn: async (ids: string[]) => {
+    mutationFn: async (ids: Array<string>) => {
       const { error } = await supabase.from("chat_tags").delete().in("id", ids);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return ids.length;
     },
     onSuccess: (count) => {
@@ -281,13 +295,15 @@ export function ChatTagsManager({
   });
 
   const updateSortOrdersMutation = useMutation({
-    mutationFn: async (orderedTags: ChatTag[]) => {
+    mutationFn: async (orderedTags: Array<ChatTag>) => {
       for (let i = 0; i < orderedTags.length; i++) {
         const { error } = await supabase
           .from("chat_tags")
           .update({ sort_order: i })
           .eq("id", orderedTags[i].id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
     },
     onSuccess: () => {
@@ -339,10 +355,14 @@ export function ChatTagsManager({
   };
 
   const handleBulkDelete = () => {
-    if (selectedIds.length === 0) return;
+    if (selectedIds.length === 0) {
+      return;
+    }
     const label =
       selectedIds.length === 1 ? "תגית אחת" : `${selectedIds.length} תגיות`;
-    if (!confirm(`למחוק ${label}?`)) return;
+    if (!confirm(`למחוק ${label}?`)) {
+      return;
+    }
     bulkDeleteTagsMutation.mutate(selectedIds);
   };
 

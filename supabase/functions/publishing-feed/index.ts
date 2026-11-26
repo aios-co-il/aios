@@ -1,9 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import {
+  articleImagesOnPublicApi,
   type MagazineImageKind,
   publishingImageProxyUrl,
   resolveArticleImageFields,
 } from "../_shared/publishing-images.ts";
+import { publicApiUrl } from "../_shared/public-api/url.ts";
 
 const jsonHeaders = {
   "Content-Type": "application/json",
@@ -12,26 +14,29 @@ const jsonHeaders = {
 };
 
 Deno.serve(async (request) => {
-  if (request.method !== "GET")
+  if (request.method !== "GET") {
     return new Response(JSON.stringify({ error: "method_not_allowed" }), {
       status: 405,
       headers: jsonHeaders,
     });
+  }
 
   const siteId = new URL(request.url).searchParams.get("site_id");
-  if (!siteId)
+  if (!siteId) {
     return new Response(JSON.stringify({ error: "site_id_required" }), {
       status: 400,
       headers: jsonHeaders,
     });
+  }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!supabaseUrl || !serviceKey)
+  if (!supabaseUrl || !serviceKey) {
     return new Response(JSON.stringify({ error: "server_not_configured" }), {
       status: 500,
       headers: jsonHeaders,
     });
+  }
 
   const admin = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -42,16 +47,18 @@ Deno.serve(async (request) => {
     .eq("id", siteId)
     .eq("status", "active")
     .maybeSingle();
-  if (siteError)
+  if (siteError) {
     return new Response(JSON.stringify({ error: "site_lookup_failed" }), {
       status: 500,
       headers: jsonHeaders,
     });
-  if (!site)
+  }
+  if (!site) {
     return new Response(JSON.stringify({ error: "site_not_found" }), {
       status: 404,
       headers: jsonHeaders,
     });
+  }
   // tenant_id scopes the article query and is not part of the public feed.
   const { tenant_id: siteTenantId, ...publicSite } = site;
 
@@ -68,20 +75,23 @@ Deno.serve(async (request) => {
     .not("slug", "is", null)
     .not("title", "is", null)
     .order("source_month", { ascending: false, nullsFirst: false });
-  if (error)
+  if (error) {
     return new Response(JSON.stringify({ error: "article_lookup_failed" }), {
       status: 500,
       headers: jsonHeaders,
     });
+  }
 
+  // Stored proxy URLs on a supabase.co address move to the public API (AIO-647).
+  const publicBase = publicApiUrl();
   const datedArticles = (articles ?? []).map((article) => {
     const withSafeImages = resolveArticleImageFields(
       article,
       (kind: MagazineImageKind) =>
-        publishingImageProxyUrl(supabaseUrl, article.id, kind),
+        publishingImageProxyUrl(publicApiUrl(), article.id, kind),
     );
     return {
-      ...withSafeImages,
+      ...articleImagesOnPublicApi(withSafeImages, publicBase),
       article_date: article.source_month ?? article.published_at,
       actual_published_at: article.published_at,
       published_at: article.source_month ?? article.published_at,

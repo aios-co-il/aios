@@ -16,7 +16,7 @@ import { CARMEN_PROVIDER, MONITORED_PROVIDER } from "./activity.ts";
 
 export type MonitoredLines = {
   /** chat_messages.connection_user_id of each monitored line. */
-  ids: string[];
+  ids: Array<string>;
   /** chat_messages.connection_user_id of the tenant's Carmen (Manus) lines, read for groups only. */
   carmenIds: Array<string>;
   /** Active Green lines left unread: no user, or a private line of someone who is not a member. */
@@ -66,18 +66,4 @@ export async function monitoredLines(
     carmenIds: [...new Set(carmenIds)],
     skipped: all.length - ids.length,
   };
-}
-
-/** The tenant's URL slug, for links into its Chat page. */
-export async function tenantSlug(
-  db: DbClient,
-  tenantId: string,
-): Promise<string | null> {
-  const { data, error } = await db
-    .from("tenants")
-    .select("slug")
-    .eq("id", tenantId)
-    .maybeSingle();
-  throwIf(error, "tenants");
-  return data?.slug ?? null;
 }

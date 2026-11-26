@@ -10,8 +10,9 @@ const corsHeaders = {
 const BASE_URL = "https://whatsappgw-pzpyrrww.manus.space";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   try {
     const authHeader = req.headers.get("Authorization") || "";
@@ -47,7 +48,9 @@ Deno.serve(async (req) => {
         .select("tenant_id")
         .eq("tenant_id", body.tenantId)
         .limit(1);
-      if (memberErr) throw memberErr;
+      if (memberErr) {
+        throw memberErr;
+      }
       if (!membership?.length) {
         return new Response(JSON.stringify({ error: "אין הרשאה לטננט זה" }), {
           status: 403,
@@ -65,10 +68,14 @@ Deno.serve(async (req) => {
         .eq("tenant_id", body.tenantId)
         .eq("integration_type", "manus_wa")
         .eq("is_active", true);
-      if (body.integrationId) query = query.eq("id", body.integrationId);
+      if (body.integrationId) {
+        query = query.eq("id", body.integrationId);
+      }
 
       const { data: integrations, error: integErr } = await query;
-      if (integErr) throw integErr;
+      if (integErr) {
+        throw integErr;
+      }
       if (!integrations?.length) {
         return new Response(
           JSON.stringify({ error: "לא נמצא חיבור Manus פעיל לטננט" }),

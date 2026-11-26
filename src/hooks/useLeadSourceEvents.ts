@@ -11,7 +11,9 @@ export function useLeadSourceEvents(leadId: string) {
         .select("id, source, campaign_name, received_at")
         .eq("lead_id", leadId)
         .order("received_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
   });

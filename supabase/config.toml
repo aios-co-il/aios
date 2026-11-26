@@ -12,6 +12,7 @@ sql_paths = [
 
 [auth]
 site_url = "http://localhost:8080"
+# [remotes.develop.auth] repeats this list (a remote's list replaces it): change both.
 additional_redirect_urls = [
   "http://localhost:*/**",
   "http://127.0.0.1:*/**",
@@ -72,13 +73,28 @@ redirect_uri = "https://zvoijyneresvkadpprel.supabase.co/auth/v1/callback"
 [remotes.develop]
 project_id = "efwzhyfpkocghdhhhaza"
 
+# Staging is served at staging.aios.co.il (and still at its Vercel branch address).
+# Without it in this list, sign-in with Google falls back to site_url. The list
+# replaces the base one, so it repeats the base entries.
 [remotes.develop.auth]
-site_url = "https://after-lead-git-develop-aios-crm.vercel.app"
+site_url = "https://staging.aios.co.il"
+additional_redirect_urls = [
+  "https://staging.aios.co.il/**",
+  # The base [auth] list:
+  "http://localhost:*/**",
+  "http://127.0.0.1:*/**",
+  "https://*.vercel.app/**",
+  "carmen-aios-staging://auth/**",
+]
 
 [remotes.develop.auth.sms.twilio]
 enabled = false
 
 [functions.public-table]
+verify_jwt = false
+
+# Share links call it without a session; the JWT or share token is checked in code.
+[functions.ad-preview]
 verify_jwt = false
 
 [functions.public-dashboard]
@@ -492,6 +508,11 @@ verify_jwt = true
 # An owner runs one manager-round check now from the settings screen (AIO-597);
 # checks the signed-in user owns the tenant, then calls carmen-manager-round.
 [functions.carmen-manager-round-run]
+verify_jwt = true
+
+# A signed-in person approves client-card drafts from the card-drafts page;
+# the findings are read as the caller (RLS), then written with the service key.
+[functions.carmen-card-drafts-approve]
 verify_jwt = true
 
 [functions.run-ai-agent-v2]

@@ -38,7 +38,9 @@ const DATE_FILTER_LABELS: Record<GscDateFilter, string> = {
 };
 
 function getCutoffDate(filter: GscDateFilter): string | null {
-  if (filter === "all") return null;
+  if (filter === "all") {
+    return null;
+  }
   const days =
     filter === "last_7_days"
       ? 7
@@ -65,7 +67,9 @@ export function PublicGscView({ records }: PublicGscViewProps) {
     for (const r of records) {
       const d = r.data || {};
       const date = d.date || d.day || d.report_date;
-      if (cutoff && date && date < cutoff) continue;
+      if (cutoff && date && date < cutoff) {
+        continue;
+      }
       samples.push({
         query: String(d.query || d.keyword || "").trim(),
         clicks: d.clicks,
@@ -100,9 +104,15 @@ export function PublicGscView({ records }: PublicGscViewProps) {
       if (sortBy === "position") {
         const aShown = visibleGscPosition(a.query, a.position);
         const bShown = visibleGscPosition(b.query, b.position);
-        if (aShown == null && bShown == null) return 0;
-        if (aShown == null) return 1;
-        if (bShown == null) return -1;
+        if (aShown == null && bShown == null) {
+          return 0;
+        }
+        if (aShown == null) {
+          return 1;
+        }
+        if (bShown == null) {
+          return -1;
+        }
         return sortOrder === "desc" ? bShown - aShown : aShown - bShown;
       }
       const aVal = a[sortBy as keyof typeof a] as number;
@@ -113,8 +123,9 @@ export function PublicGscView({ records }: PublicGscViewProps) {
   }, [aggregated, sortBy, sortOrder, searchFilter]);
 
   const handleSortColumn = (col: string) => {
-    if (sortBy === col) setSortOrder((o) => (o === "asc" ? "desc" : "asc"));
-    else {
+    if (sortBy === col) {
+      setSortOrder((o) => (o === "asc" ? "desc" : "asc"));
+    } else {
       setSortBy(col);
       setSortOrder(col === "position" ? "asc" : "desc");
     }
@@ -124,8 +135,9 @@ export function PublicGscView({ records }: PublicGscViewProps) {
     new Intl.NumberFormat("he-IL").format(Math.round(n));
 
   const SortIcon = ({ col }: { col: string }) => {
-    if (sortBy !== col)
+    if (sortBy !== col) {
       return <ArrowUpDown className="h-3 w-3 opacity-30 inline mx-1" />;
+    }
     return sortOrder === "asc" ? (
       <ArrowUp className="h-3 w-3 text-primary inline mx-1" />
     ) : (
@@ -214,7 +226,7 @@ export function PublicGscView({ records }: PublicGscViewProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(Object.keys(DATE_FILTER_LABELS) as GscDateFilter[]).map(
+                {(Object.keys(DATE_FILTER_LABELS) as Array<GscDateFilter>).map(
                   (k) => (
                     <SelectItem key={k} value={k}>
                       {DATE_FILTER_LABELS[k]}

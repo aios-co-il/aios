@@ -67,17 +67,17 @@ export type BuiltinBrainState = {
   /** The tenant that shares its keys, when source is "shared". */
   shared_from: TenantRef | null;
   /** Tenants this tenant shares the brain with. */
-  shared_to: TenantRef[];
+  shared_to: Array<TenantRef>;
   /** This tenant holds the keys itself, so it may share them. */
   can_share: boolean;
 };
 
 export type BrainConnectionsState = {
-  connections: BrainConnection[];
-  routes: BrainRouteSummary[];
-  builtins: BuiltinBrainState[];
+  connections: Array<BrainConnection>;
+  routes: Array<BrainRouteSummary>;
+  builtins: Array<BuiltinBrainState>;
   /** Tenants the caller may share built-in brains with: every other tenant
    * for a super admin acting in a home tenant, else the other tenants they
    * belong to (AIO-354). */
-  share_targets: TenantRef[];
+  share_targets: Array<TenantRef>;
 };

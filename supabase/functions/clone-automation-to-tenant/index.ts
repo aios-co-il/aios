@@ -45,7 +45,9 @@ serve(async (req: Request) => {
 
     const body = await req.json().catch(() => ({}));
     const automationId: string = body?.automation_id;
-    const targetTenantIds: string[] = Array.isArray(body?.target_tenant_ids)
+    const targetTenantIds: Array<string> = Array.isArray(
+      body?.target_tenant_ids,
+    )
       ? body.target_tenant_ids
       : [];
 

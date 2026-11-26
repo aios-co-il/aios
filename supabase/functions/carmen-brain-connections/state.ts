@@ -50,7 +50,9 @@ export async function loadConnection(
 ): Promise<BrainConnection> {
   const id =
     typeof ctx.body.connection_id === "string" ? ctx.body.connection_id : "";
-  if (!id) throw new HttpError(400, "connection_id is required");
+  if (!id) {
+    throw new HttpError(400, "connection_id is required");
+  }
   const { data, error } = await ctx.sb
     .from("carmen_brain_connections")
     .select(SAFE_COLUMNS)
@@ -59,7 +61,9 @@ export async function loadConnection(
     .eq("kind", kind)
     .maybeSingle();
   check(error, "Loading the connection");
-  if (!data) throw new HttpError(404, "Connection not found");
+  if (!data) {
+    throw new HttpError(404, "Connection not found");
+  }
   return toConnection(data);
 }
 
@@ -102,7 +106,7 @@ function toConnection(row: ConnectionRow): BrainConnection {
   };
 }
 
-const ROUTE_TYPES: BrainRouteType[] = [
+const ROUTE_TYPES: Array<BrainRouteType> = [
   "internal",
   "direct_channel",
   "parliament",

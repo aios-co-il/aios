@@ -81,7 +81,7 @@ const tables = {
   ],
 };
 // The RPC owns matching and returns ids in created_at order.
-const matching: Record<string, string[]> = {
+const matching: Record<string, Array<string>> = {
   lead: ["L2", "L1"],
   client: ["C1"],
 };

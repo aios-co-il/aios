@@ -9,7 +9,7 @@
 // or task.
 
 /** Request fields only service-to-service callers may set. */
-export const SERVICE_ONLY_RUN_FIELDS: readonly string[] = Object.freeze([
+export const SERVICE_ONLY_RUN_FIELDS: ReadonlyArray<string> = Object.freeze([
   // Per-task engine override (agent_tasks.engine_model).
   "model_override",
   // Admin-authored per-automation Carmen instructions.
@@ -20,6 +20,8 @@ export const SERVICE_ONLY_RUN_FIELDS: readonly string[] = Object.freeze([
   "wa_notify",
   // The personal WhatsApp line's owner, whose agent character Carmen speaks as (AIO-576).
   "persona_user_id",
+  // The automation a run logs to and counts as (AIO-661): trigger-automation names its own.
+  "automation_id",
 ]);
 
 /**

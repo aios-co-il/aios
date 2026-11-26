@@ -41,23 +41,22 @@ import {
   CalendarIcon,
   ShoppingCart,
   UserCheck,
-  Leaf,
-  Megaphone,
 } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import {
-  format,
-  subDays,
-  startOfWeek,
-  endOfWeek,
-  startOfMonth,
-  endOfMonth,
-  subMonths,
-  isWithinInterval,
-  parseISO,
-} from "date-fns";
+import { format, isWithinInterval, parseISO } from "date-fns";
 import { he } from "date-fns/locale";
 import { GaKpiStrip } from "./GaReport/GaKpiStrip";
+import {
+  gaPresetRange,
+  mapExternalGaPreset,
+  type GaDateRange,
+  type GaDatePreset,
+} from "./GaReport/gaDatePreset";
+import { GaChannelBreakdown } from "./GaReport/GaChannelBreakdown";
+import {
+  breakdownFromChannels,
+  breakdownFromSources,
+} from "./GaReport/channelBreakdown";
 import { ReportSection } from "@/components/report-ui/ReportSection";
 import {
   REPORT_AXIS_TICK,
@@ -75,12 +74,12 @@ interface CrmRecord {
 }
 
 interface GoogleAnalyticsDashboardProps {
-  records: CrmRecord[];
+  records: Array<CrmRecord>;
   externalDateFilter?: string;
   externalCustomDateRange?: { from: Date | undefined; to: Date | undefined };
   tableId?: string;
   /** Extra GA table ids to keep in sync when the mode toggle is changed. */
-  relatedTableIds?: string[];
+  relatedTableIds?: Array<string>;
   dashboardId?: string;
   defaultReportMode?: AnalyticsReportMode;
 }
@@ -99,25 +98,6 @@ const COLORS = [
   "#6366F1", // indigo
 ];
 
-type DateRangePreset =
-  | "all"
-  | "today"
-  | "yesterday"
-  | "this_week"
-  | "last_week"
-  | "last_7_days"
-  | "last_14_days"
-  | "last_30_days"
-  | "last_60_days"
-  | "last_70_days"
-  | "last_120_days"
-  | "this_month"
-  | "last_month"
-  | "last_90_days"
-  | "last_180_days"
-  | "last_365_days"
-  | "custom";
-
 interface DateRange {
   from: Date | undefined;
   to: Date | undefined;
@@ -132,34 +112,10 @@ export function GoogleAnalyticsDashboard({
   dashboardId,
   defaultReportMode,
 }: GoogleAnalyticsDashboardProps) {
-  const mapExternalPreset = (ext?: string): DateRangePreset => {
-    if (!ext) return "last_7_days";
-    const map: Record<string, DateRangePreset> = {
-      all: "all",
-      today: "today",
-      yesterday: "yesterday",
-      this_week: "this_week",
-      last_week: "last_week",
-      last_7_days: "last_7_days",
-      last_14_days: "last_14_days",
-      last_30_days: "last_30_days",
-      last_60_days: "last_60_days",
-      last_70_days: "last_70_days",
-      last_120_days: "last_120_days",
-      this_month: "this_month",
-      last_month: "last_month",
-      last_90_days: "last_90_days",
-      last_180_days: "last_180_days",
-      last_365_days: "last_365_days",
-      custom: "custom",
-    };
-    return map[ext] || "last_7_days";
-  };
-
   const usesExternalFilter = typeof externalDateFilter === "string";
   const isMobile = useIsMobile();
-  const [datePreset, setDatePreset] = useState<DateRangePreset>(
-    mapExternalPreset(externalDateFilter),
+  const [datePreset, setDatePreset] = useState<GaDatePreset>(
+    mapExternalGaPreset(externalDateFilter),
   );
   const [customDateRange, setCustomDateRange] = useState<DateRange>({
     from: undefined,
@@ -169,7 +125,7 @@ export function GoogleAnalyticsDashboard({
   // Sync with external date filter when it changes
   useEffect(() => {
     if (externalDateFilter) {
-      setDatePreset(mapExternalPreset(externalDateFilter));
+      setDatePreset(mapExternalGaPreset(externalDateFilter));
     }
   }, [externalDateFilter]);
   const [showComparison, setShowComparison] = useState(false);
@@ -181,14 +137,16 @@ export function GoogleAnalyticsDashboard({
   // Keep local mode in sync when the persisted default arrives (async parent load)
   // or when switching between dashboards/tables with different defaults.
   useEffect(() => {
-    if (!defaultReportMode) return;
+    if (!defaultReportMode) {
+      return;
+    }
     setReportMode(defaultReportMode);
   }, [defaultReportMode, dashboardId, tableId]);
 
   const persistReportMode = (newMode: AnalyticsReportMode) => {
     const tableIds = Array.from(
       new Set(
-        [tableId, ...(relatedTableIds || [])].filter(Boolean) as string[],
+        [tableId, ...(relatedTableIds || [])].filter(Boolean) as Array<string>,
       ),
     );
     for (const id of tableIds) {
@@ -221,102 +179,48 @@ export function GoogleAnalyticsDashboard({
               settings: { ...currentSettings, default_report_mode: newMode },
             })
             .eq("id", dashboardId);
-          if (updateError) console.error(updateError);
+          if (updateError) {
+            console.error(updateError);
+          }
         });
     }
   };
   const [calendarOpen, setCalendarOpen] = useState(false);
 
   const toNumber = (value: unknown): number => {
-    if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-    if (value === null || value === undefined) return 0;
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value : 0;
+    }
+    if (value === null || value === undefined) {
+      return 0;
+    }
     const cleaned = String(value).replace(/[^0-9.-]/g, "");
     const parsed = Number(cleaned);
     return Number.isFinite(parsed) ? parsed : 0;
   };
 
-  // Calculate date range based on preset.
-  // STANDARD (mem://ui/date-range-calculation-standard):
-  // Relative ranges (last_N_days) END YESTERDAY (today excluded — partial data),
-  // matching Google Ads, GA's own "Last N days", crm-records, WooCommerceDashboard,
-  // and DashboardView.wooDateRange. Absolute presets (today, this_week, this_month)
-  // include today as appropriate.
-  const getDateRange = (
-    preset: DateRangePreset,
-  ): { start: Date; end: Date } => {
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-    const yesterday = subDays(today, 1);
-    yesterday.setHours(23, 59, 59, 999);
-
-    switch (preset) {
-      case "all": {
-        const allStart = new Date("2020-01-01");
-        allStart.setHours(0, 0, 0, 0);
-        return { start: allStart, end: today };
-      }
-      case "today": {
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
-        return { start: todayStart, end: today };
-      }
-      case "yesterday": {
-        const yesterdayStart = subDays(today, 1);
-        yesterdayStart.setHours(0, 0, 0, 0);
-        return { start: yesterdayStart, end: yesterday };
-      }
-      case "this_week":
-        return { start: startOfWeek(today, { weekStartsOn: 0 }), end: today };
-      case "last_week": {
-        const prevWeekRef = subDays(today, 7);
+  /**
+   * A custom range comes from the dashboard when it drives the filter, else
+   * from this report's own picker; every other preset is gaPresetRange.
+   */
+  function getDateRange(preset: GaDatePreset): GaDateRange {
+    if (preset === "custom") {
+      if (
+        usesExternalFilter &&
+        externalCustomDateRange?.from &&
+        externalCustomDateRange?.to
+      ) {
         return {
-          start: startOfWeek(prevWeekRef, { weekStartsOn: 0 }),
-          end: endOfWeek(prevWeekRef, { weekStartsOn: 0 }),
+          start: externalCustomDateRange.from,
+          end: externalCustomDateRange.to,
         };
       }
-      case "last_7_days":
-        return { start: subDays(today, 7), end: yesterday };
-      case "last_14_days":
-        return { start: subDays(today, 14), end: yesterday };
-      case "last_30_days":
-        return { start: subDays(today, 30), end: yesterday };
-      case "last_60_days":
-        return { start: subDays(today, 60), end: yesterday };
-      case "last_70_days":
-        return { start: subDays(today, 70), end: yesterday };
-      case "last_120_days":
-        return { start: subDays(today, 120), end: yesterday };
-      case "this_month":
-        return { start: startOfMonth(today), end: today };
-      case "last_month": {
-        const lastMonth = subMonths(today, 1);
-        return { start: startOfMonth(lastMonth), end: endOfMonth(lastMonth) };
+      if (customDateRange.from && customDateRange.to) {
+        return { start: customDateRange.from, end: customDateRange.to };
       }
-      case "last_90_days":
-        return { start: subDays(today, 90), end: yesterday };
-      case "last_180_days":
-        return { start: subDays(today, 180), end: yesterday };
-      case "last_365_days":
-        return { start: subDays(today, 365), end: yesterday };
-      case "custom":
-        if (
-          usesExternalFilter &&
-          externalCustomDateRange?.from &&
-          externalCustomDateRange?.to
-        ) {
-          return {
-            start: externalCustomDateRange.from,
-            end: externalCustomDateRange.to,
-          };
-        }
-        if (customDateRange.from && customDateRange.to) {
-          return { start: customDateRange.from, end: customDateRange.to };
-        }
-        return { start: subDays(today, 30), end: yesterday };
-      default:
-        return { start: subDays(today, 30), end: yesterday };
     }
-  };
+    return gaPresetRange(preset);
+  }
 
   const currentRange = getDateRange(datePreset);
 
@@ -335,13 +239,15 @@ export function GoogleAnalyticsDashboard({
 
   // Filter records by date range - only filter records that have a date field
   const filterRecordsByDate = (
-    records: CrmRecord[],
+    records: Array<CrmRecord>,
     startDate: Date,
     endDate: Date,
   ) => {
     return records.filter((r) => {
       // If record has no date field, include it (aggregated data)
-      if (!r.data.date) return true;
+      if (!r.data.date) {
+        return true;
+      }
 
       // Try to parse the date
       try {
@@ -361,7 +267,9 @@ export function GoogleAnalyticsDashboard({
 
   // Normalize source names - provide meaningful Hebrew labels
   const normalizeSourceName = (name: string): string => {
-    if (!name) return "מקור לא ידוע";
+    if (!name) {
+      return "מקור לא ידוע";
+    }
 
     const lowerName = name.toLowerCase();
 
@@ -396,7 +304,7 @@ export function GoogleAnalyticsDashboard({
     trafficBreakdown,
     phoneCallEvents,
   } = useMemo(() => {
-    const aggregateTrafficSources = (sourceRecords: CrmRecord[]) => {
+    const aggregateTrafficSources = (sourceRecords: Array<CrmRecord>) => {
       const sourceMap = new Map<
         string,
         {
@@ -478,8 +386,12 @@ export function GoogleAnalyticsDashboard({
 
     // Filter daily records by selected date range
     const currentDailyRecords = records.filter((r) => {
-      if (r.data.report_type !== "daily") return false;
-      if (!r.data.date) return false;
+      if (r.data.report_type !== "daily") {
+        return false;
+      }
+      if (!r.data.date) {
+        return false;
+      }
 
       try {
         const recordDate = parseISO(r.data.date);
@@ -495,8 +407,12 @@ export function GoogleAnalyticsDashboard({
 
     const previousDailyRecords = showComparison
       ? records.filter((r) => {
-          if (r.data.report_type !== "daily") return false;
-          if (!r.data.date) return false;
+          if (r.data.report_type !== "daily") {
+            return false;
+          }
+          if (!r.data.date) {
+            return false;
+          }
 
           try {
             const recordDate = parseISO(r.data.date);
@@ -513,8 +429,12 @@ export function GoogleAnalyticsDashboard({
 
     // Date-synced source rows (new schema)
     const currentDailySourceRecords = records.filter((r) => {
-      if (r.data.report_type !== "daily_source") return false;
-      if (!r.data.date) return false;
+      if (r.data.report_type !== "daily_source") {
+        return false;
+      }
+      if (!r.data.date) {
+        return false;
+      }
 
       try {
         const recordDate = parseISO(r.data.date);
@@ -533,7 +453,7 @@ export function GoogleAnalyticsDashboard({
       (r) => r.data.source_medium || r.data.source || r.data.medium,
     );
 
-    let trafficSources: {
+    let trafficSources: Array<{
       name: string;
       sessions: number;
       users: number;
@@ -545,7 +465,7 @@ export function GoogleAnalyticsDashboard({
       addToCart: number;
       purchases: number;
       purchaseValue: number;
-    }[];
+    }>;
 
     if (currentDailySourceRecords.length > 0) {
       trafficSources = aggregateTrafficSources(currentDailySourceRecords);
@@ -657,36 +577,15 @@ export function GoogleAnalyticsDashboard({
         ? calculateTotalsFromDaily(prevDailyData as any)
         : null;
 
-    // Classify traffic into organic vs paid
-    const classifyTraffic = (
-      sourceName: string,
-    ): "organic" | "paid" | "other" => {
-      const lower = sourceName.toLowerCase();
-      if (lower.includes("organic") || lower.includes("אורגני"))
-        return "organic";
-      if (
-        lower.includes("cpc") ||
-        lower.includes("paid") ||
-        lower.includes("ppc") ||
-        lower.includes("ממומן") ||
-        lower.includes("cpm") ||
-        lower.includes("cpv") ||
-        lower.includes("display") ||
-        lower.includes("retargeting") ||
-        lower.includes("remarketing")
-      )
-        return "paid";
-      if (lower.includes("google") && !lower.includes("organic")) {
-        if (lower.includes("cpc") || lower.includes("paid")) return "paid";
-      }
-      return "other";
-    };
-
     // Prefer channel_group records — they match GA Traffic Acquisition exactly
     // Filter by date range so the organic/paid breakdown respects the selected period
     const channelGroupRecords = records.filter((r) => {
-      if (r.data.report_type !== "channel_group") return false;
-      if (!r.data.date) return false; // skip legacy records without date
+      if (r.data.report_type !== "channel_group") {
+        return false;
+      }
+      if (!r.data.date) {
+        return false;
+      } // skip legacy records without date
       try {
         const recordDate = parseISO(r.data.date);
         const start = new Date(currentRange.start);
@@ -698,123 +597,20 @@ export function GoogleAnalyticsDashboard({
         return false;
       }
     });
-    let organicSessions: number;
-    let paidSessions: number;
-    let otherSessions: number;
-    let organicUsers: number;
-    let paidUsers: number;
-    let organicConversions: number;
-    let paidConversions: number;
-    let otherConversions: number;
-
-    if (channelGroupRecords.length > 0) {
-      const cgSum = (keyword: string, field: string) =>
-        channelGroupRecords
-          .filter((r) =>
-            String(r.data.channel_group || "")
-              .toLowerCase()
-              .includes(keyword),
-          )
-          .reduce((sum, r) => sum + (Number(r.data[field]) || 0), 0);
-      organicSessions = cgSum("organic search", "sessions");
-      paidSessions =
-        cgSum("paid search", "sessions") +
-        cgSum("paid social", "sessions") +
-        cgSum("display", "sessions");
-      otherSessions = channelGroupRecords
-        .filter((r) => {
-          const cg = String(r.data.channel_group || "").toLowerCase();
-          return (
-            !cg.includes("organic search") &&
-            !cg.includes("paid search") &&
-            !cg.includes("paid social") &&
-            !cg.includes("display")
-          );
-        })
-        .reduce((sum, r) => sum + (Number(r.data.sessions) || 0), 0);
-      organicUsers = cgSum("organic search", "users");
-      paidUsers =
-        cgSum("paid search", "users") +
-        cgSum("paid social", "users") +
-        cgSum("display", "users");
-      // Conversions: prefer key_events (matches GA "Key events" column), fallback to conversions, then purchases
-      const cgConvSum = (keyword: string) =>
-        channelGroupRecords
-          .filter((r) =>
-            String(r.data.channel_group || "")
-              .toLowerCase()
-              .includes(keyword),
-          )
-          .reduce((sum, r) => {
-            const ke = Number(r.data.key_events) || 0;
-            const cv = Number(r.data.conversions) || 0;
-            const pu = Number(r.data.purchases) || 0;
-            return sum + (ke || cv || pu);
-          }, 0);
-      organicConversions = cgConvSum("organic search");
-      paidConversions =
-        cgConvSum("paid search") +
-        cgConvSum("paid social") +
-        cgConvSum("display");
-      // Other conversions (Unassigned, Direct, Referral, Email, SMS, Cross-network, etc.)
-      otherConversions = channelGroupRecords
-        .filter((r) => {
-          const cg = String(r.data.channel_group || "").toLowerCase();
-          return (
-            !cg.includes("organic search") &&
-            !cg.includes("paid search") &&
-            !cg.includes("paid social") &&
-            !cg.includes("display")
-          );
-        })
-        .reduce((sum, r) => {
-          const ke = Number(r.data.key_events) || 0;
-          const cv = Number(r.data.conversions) || 0;
-          const pu = Number(r.data.purchases) || 0;
-          return sum + (ke || cv || pu);
-        }, 0);
-    } else {
-      otherConversions = 0;
-      // Fallback: classify from trafficSources (daily_source based)
-      organicSessions = trafficSources
-        .filter((s) => classifyTraffic(s.name) === "organic")
-        .reduce((sum, s) => sum + s.sessions, 0);
-      paidSessions = trafficSources
-        .filter((s) => classifyTraffic(s.name) === "paid")
-        .reduce((sum, s) => sum + s.sessions, 0);
-      otherSessions = trafficSources
-        .filter((s) => classifyTraffic(s.name) === "other")
-        .reduce((sum, s) => sum + s.sessions, 0);
-      organicUsers = trafficSources
-        .filter((s) => classifyTraffic(s.name) === "organic")
-        .reduce((sum, s) => sum + s.users, 0);
-      paidUsers = trafficSources
-        .filter((s) => classifyTraffic(s.name) === "paid")
-        .reduce((sum, s) => sum + s.users, 0);
-      organicConversions = trafficSources
-        .filter((s) => classifyTraffic(s.name) === "organic")
-        .reduce((sum, s) => sum + s.conversions, 0);
-      paidConversions = trafficSources
-        .filter((s) => classifyTraffic(s.name) === "paid")
-        .reduce((sum, s) => sum + s.conversions, 0);
-    }
-
-    const trafficBreakdown = {
-      organicSessions,
-      paidSessions,
-      otherSessions,
-      organicUsers,
-      paidUsers,
-      organicConversions,
-      paidConversions,
-      otherConversions,
-    };
+    const trafficBreakdown =
+      channelGroupRecords.length > 0
+        ? breakdownFromChannels(channelGroupRecords)
+        : breakdownFromSources(trafficSources);
 
     // Phone call events - always use date-filtered event_total records for accurate per-period counts
     const dateFilteredEventRecords = records.filter((r) => {
       const reportType = r.data.report_type;
-      if (reportType !== "event_total") return false;
-      if (!r.data.date) return true;
+      if (reportType !== "event_total") {
+        return false;
+      }
+      if (!r.data.date) {
+        return true;
+      }
       try {
         const recordDate = parseISO(r.data.date);
         const start = new Date(currentRange.start);
@@ -829,7 +625,7 @@ export function GoogleAnalyticsDashboard({
 
     const eventSourceRecords = dateFilteredEventRecords;
 
-    const phoneCallEvents: { eventName: string; total: number }[] = [];
+    const phoneCallEvents: Array<{ eventName: string; total: number }> = [];
     const phoneEventMap = new Map<string, number>();
     for (const r of eventSourceRecords) {
       const eventName = (r.data.event_name || "").toLowerCase();
@@ -907,6 +703,7 @@ export function GoogleAnalyticsDashboard({
     { value: "this_week", label: "השבוע" },
     { value: "last_week", label: "שבוע שעבר" },
     { value: "last_7_days", label: "7 ימים אחרונים" },
+    { value: "last_9_days", label: "9 ימים אחרונים" },
     { value: "last_14_days", label: "14 יום אחרונים" },
     { value: "last_30_days", label: "30 יום אחרונים" },
     { value: "last_60_days", label: "60 יום אחרונים" },
@@ -945,7 +742,7 @@ export function GoogleAnalyticsDashboard({
           ) : (
             <Select
               value={datePreset}
-              onValueChange={(v) => setDatePreset(v as DateRangePreset)}
+              onValueChange={(v) => setDatePreset(v as GaDatePreset)}
             >
               <SelectTrigger className="w-full min-w-0 sm:w-[180px]">
                 <SelectValue />
@@ -1059,82 +856,10 @@ export function GoogleAnalyticsDashboard({
         formatCurrency={formatCurrency}
       />
 
-      {/* Organic vs Paid Breakdown */}
-      {(trafficBreakdown.organicUsers > 0 ||
-        trafficBreakdown.paidUsers > 0) && (
-        <ReportSection title="אורגני מול ממומן">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-3 rounded-lg bg-surface-status-green border">
-              <div className="flex items-center justify-center gap-1.5 mb-1">
-                <Leaf className="h-4 w-4 text-brand-accent-700 dark:text-brand-accent-400" />
-                <span className="text-sm text-muted-foreground">
-                  משתמשים אורגני
-                </span>
-              </div>
-              <p className="text-xl font-bold text-brand-accent-700 dark:text-brand-accent-400">
-                {formatNumber(trafficBreakdown.organicUsers)}
-              </p>
-              {totals.users > 0 && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  {(
-                    (trafficBreakdown.organicUsers / totals.users) *
-                    100
-                  ).toFixed(1)}
-                  %
-                </p>
-              )}
-            </div>
-            <div className="text-center p-3 rounded-lg bg-muted border">
-              <div className="flex items-center justify-center gap-1.5 mb-1">
-                <Megaphone className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  משתמשים ממומן
-                </span>
-              </div>
-              <p className="text-xl font-bold text-foreground">
-                {formatNumber(trafficBreakdown.paidUsers)}
-              </p>
-              {totals.users > 0 && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  {((trafficBreakdown.paidUsers / totals.users) * 100).toFixed(
-                    1,
-                  )}
-                  %
-                </p>
-              )}
-            </div>
-            <div className="text-center p-3 rounded-lg bg-surface-status-green border">
-              <div className="flex items-center justify-center gap-1.5 mb-1">
-                <Leaf className="h-4 w-4 text-brand-accent-700 dark:text-brand-accent-400" />
-                <span className="text-sm text-muted-foreground">
-                  המרות אורגני
-                </span>
-              </div>
-              <p className="text-xl font-bold text-brand-accent-700 dark:text-brand-accent-400">
-                {formatNumber(trafficBreakdown.organicConversions)}
-              </p>
-            </div>
-            <div className="text-center p-3 rounded-lg bg-muted border">
-              <div className="flex items-center justify-center gap-1.5 mb-1">
-                <Megaphone className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  המרות ממומן
-                </span>
-              </div>
-              <p className="text-xl font-bold text-foreground">
-                {formatNumber(trafficBreakdown.paidConversions)}
-              </p>
-            </div>
-          </div>
-          {trafficBreakdown.otherConversions > 0 && (
-            <p className="text-xs text-muted-foreground mt-3 text-right">
-              ℹ️ {formatNumber(trafficBreakdown.otherConversions)} המרות נוספות
-              מסווגות תחת ערוצים אחרים (Direct, Referral, Email, Unassigned
-              וכו') ואינן נכללות באורגני/ממומן.
-            </p>
-          )}
-        </ReportSection>
-      )}
+      <GaChannelBreakdown
+        breakdown={trafficBreakdown}
+        formatNumber={formatNumber}
+      />
 
       {/* Total Phone Calls */}
       {phoneCallEvents.length > 0 && (

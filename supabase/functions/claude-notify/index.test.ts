@@ -19,7 +19,10 @@ const ping = (token?: string) =>
   });
 
 /** Statuses the deployed handler answers to these bearers, with CLAUDE_MCP_BEARER set or unset. */
-async function statuses(bearer: string | null, tokens: (string | undefined)[]) {
+async function statuses(
+  bearer: string | null,
+  tokens: Array<string | undefined>,
+) {
   const http = fakeSupabaseHttp({ supabaseUrl: SUPABASE_URL });
   const env = {
     SUPABASE_URL,

@@ -58,8 +58,10 @@ export function CostTab({
         .gte("created_at", fromDate)
         .order("created_at", { ascending: true })
         .limit(5000);
-      if (error) throw error;
-      return (data || []) as unknown as LogRow[];
+      if (error) {
+        throw error;
+      }
+      return (data || []) as unknown as Array<LogRow>;
     },
   });
 
@@ -93,16 +95,22 @@ export function CostTab({
       tokensOut += to;
       costUsd += c;
       durationMs += r.duration_ms || 0;
-      if (r.status === "error") errors++;
+      if (r.status === "error") {
+        errors++;
+      }
 
       const day = format(new Date(r.created_at), "yyyy-MM-dd");
-      if (!byDay[day]) byDay[day] = { date: day, cost: 0, tokens: 0, calls: 0 };
+      if (!byDay[day]) {
+        byDay[day] = { date: day, cost: 0, tokens: 0, calls: 0 };
+      }
       byDay[day].cost += c;
       byDay[day].tokens += ti + to;
       byDay[day].calls += 1;
 
       const m = r.model || "—";
-      if (!byModel[m]) byModel[m] = { model: m, cost: 0, tokens: 0, calls: 0 };
+      if (!byModel[m]) {
+        byModel[m] = { model: m, cost: 0, tokens: 0, calls: 0 };
+      }
       byModel[m].cost += c;
       byModel[m].tokens += ti + to;
       byModel[m].calls += 1;

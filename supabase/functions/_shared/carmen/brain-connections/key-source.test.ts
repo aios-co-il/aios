@@ -21,11 +21,11 @@ function fakeClient(tables: Tables, secrets: Record<string, string>) {
           filters.push((r) => r[col] === value);
           return query;
         },
-        in: (col: string, values: unknown[]) => {
+        in: (col: string, values: Array<unknown>) => {
           filters.push((r) => values.includes(r[col]));
           return query;
         },
-        then: (resolve: (r: { data: unknown[]; error: null }) => void) =>
+        then: (resolve: (r: { data: Array<unknown>; error: null }) => void) =>
           resolve({
             data: (tables[table] ?? []).filter((r) =>
               filters.every((f) => f(r)),
@@ -70,9 +70,11 @@ function builtinRow(
   };
 }
 
-function bySlug(keys: BuiltinKeys[], slug: string): BuiltinKeys {
+function bySlug(keys: Array<BuiltinKeys>, slug: string): BuiltinKeys {
   const found = keys.find((k) => k.slug === slug);
-  if (!found) throw new Error(`no ${slug}`);
+  if (!found) {
+    throw new Error(`no ${slug}`);
+  }
   return found;
 }
 

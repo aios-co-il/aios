@@ -28,7 +28,7 @@ function SceneMedia({ scene }: { scene: StoryboardScene }) {
   const [broken, setBroken] = useState<string | null>(null);
   const still =
     scene.stillUrl && broken !== scene.stillUrl ? scene.stillUrl : null;
-  if (scene.clipUrl)
+  if (scene.clipUrl) {
     return (
       <video
         src={scene.clipUrl}
@@ -45,7 +45,8 @@ function SceneMedia({ scene }: { scene: StoryboardScene }) {
         onMouseLeave={(event) => event.currentTarget.pause()}
       />
     );
-  if (still)
+  }
+  if (still) {
     return (
       <img
         src={still}
@@ -55,6 +56,7 @@ function SceneMedia({ scene }: { scene: StoryboardScene }) {
         onError={() => setBroken(still)}
       />
     );
+  }
   return (
     <span className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-gradient-to-b from-muted to-muted/40 pb-10 text-muted-foreground">
       <ImageOff className="h-6 w-6" />

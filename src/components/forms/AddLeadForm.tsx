@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, type ReactElement } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -109,11 +109,12 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-export function AddLeadForm() {
+/** The new-lead dialog; `trigger` replaces the default button. */
+export function AddLeadForm({ trigger }: { trigger?: ReactElement } = {}) {
   const [open, setOpen] = useState(false);
   const [responseSelectOpen, setResponseSelectOpen] = useState(false);
   const [stageSelectOpen, setStageSelectOpen] = useState(false);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<Array<string>>([]);
   const [isTagsPopoverOpen, setIsTagsPopoverOpen] = useState(false);
   const [isTagsManagerOpen, setIsTagsManagerOpen] = useState(false);
   const [agencyPopoverOpen, setAgencyPopoverOpen] = useState(false);
@@ -139,14 +140,18 @@ export function AddLeadForm() {
   const { data: allTags = [] } = useQuery({
     queryKey: ["chat-tags", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("chat_tags")
         .select("*")
         .eq("tenant_id", tenantId)
         .order("sort_order", { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as Array<{ id: string; name: string; color: string }>;
     },
     enabled: !!tenantId && open,
@@ -180,16 +185,22 @@ export function AddLeadForm() {
   const { data: agencies } = useAgencies();
 
   useEffect(() => {
-    if (form.getValues("agency_id")) return;
+    if (form.getValues("agency_id")) {
+      return;
+    }
     const fromHeader =
       selectedAgency && selectedAgency !== "all" ? selectedAgency : "";
     const homeAgencyId =
       fromHeader || pickTenantHomeAgencyId(tenantId, agencies);
-    if (homeAgencyId) form.setValue("agency_id", homeAgencyId);
+    if (homeAgencyId) {
+      form.setValue("agency_id", homeAgencyId);
+    }
   }, [agencies, form, selectedAgency, tenantId]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     setCustomFieldValues((current) => ({
       ...getLeadCustomFieldInitialValues(customFields, {}),
       ...current,
@@ -201,14 +212,18 @@ export function AddLeadForm() {
   const { data: products } = useQuery({
     queryKey: ["products", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("products")
         .select("*")
         .eq("active", true)
         .eq("tenant_id", tenantId)
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -216,7 +231,9 @@ export function AddLeadForm() {
 
   const createMutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      if (!tenantId) throw new Error("לא נמצא tenant_id");
+      if (!tenantId) {
+        throw new Error("לא נמצא tenant_id");
+      }
 
       // Use contact_name as company_name if company_name is empty
       const companyName =
@@ -272,7 +289,9 @@ export function AddLeadForm() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: async (data) => {
@@ -375,10 +394,12 @@ export function AddLeadForm() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus className="ml-2 h-4 w-4" />
-          הוסף ליד
-        </Button>
+        {trigger ?? (
+          <Button>
+            <Plus className="ml-2 h-4 w-4" />
+            הוסף ליד
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -790,7 +811,9 @@ export function AddLeadForm() {
                   open={isTagsPopoverOpen}
                   onOpenChange={(open) => {
                     setIsTagsPopoverOpen(open);
-                    if (!open) setTagSearchQuery("");
+                    if (!open) {
+                      setTagSearchQuery("");
+                    }
                   }}
                 >
                   <PopoverTrigger asChild>

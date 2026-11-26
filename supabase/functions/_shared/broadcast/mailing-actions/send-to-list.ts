@@ -15,7 +15,9 @@ export async function executeSendTemplateToList(
   ctx: MailingActionContext,
 ) {
   // A test run must not reserve the interval or send to the whole list.
-  if (isTestRun(data)) return { success: true, skipped: "test_run" };
+  if (isTestRun(data)) {
+    return { success: true, skipped: "test_run" };
+  }
   const template = await loadTemplate(db, tenantId, config.template_id);
   const list = await loadList(db, tenantId, config.list_id);
   const stepKey = `list:${template.id}:${list.id}`;
@@ -42,13 +44,16 @@ export async function executeSendTemplateToList(
       p_provider: fields.provider,
     })
     .single();
-  if (reserveError) throw reserveError;
-  if (!reservation.reserved)
+  if (reserveError) {
+    throw reserveError;
+  }
+  if (!reservation.reserved) {
     return {
       success: true,
       skipped: "sent_recently",
       broadcast_id: reservation.broadcast_id,
     };
+  }
 
   const created = { id: reservation.broadcast_id };
   const { error } = await db
@@ -60,7 +65,9 @@ export async function executeSendTemplateToList(
       status: "draft",
     })
     .eq("id", created.id);
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
   let total: number;
   try {

@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -102,8 +103,12 @@ function needsCloudRegistration(phone: {
   is_on_biz_app: boolean;
 }) {
   const platform = String(phone.platform_type ?? "").toUpperCase();
-  if (platform === "ON_PREMISE") return true;
-  if (phone.is_on_biz_app) return false;
+  if (platform === "ON_PREMISE") {
+    return true;
+  }
+  if (phone.is_on_biz_app) {
+    return false;
+  }
   return platform !== "CLOUD_API";
 }
 
@@ -198,9 +203,9 @@ export default function MetaWhatsAppSettings({
   const [manualPin, setManualPin] = useState("");
   const [manualWabaId, setManualWabaId] = useState("");
   const [manualBusinessId, setManualBusinessId] = useState("");
-  const [assets, setAssets] = useState<MetaAsset[] | null>(null);
+  const [assets, setAssets] = useState<Array<MetaAsset> | null>(null);
   const [metaAppId, setMetaAppId] = useState("");
-  const [selectedPhones, setSelectedPhones] = useState<string[]>([]);
+  const [selectedPhones, setSelectedPhones] = useState<Array<string>>([]);
   const [discovery, setDiscovery] = useState<unknown>(null);
   const [discoveryLimited, setDiscoveryLimited] = useState(false);
   const [sharingIntegration, setSharingIntegration] =
@@ -238,14 +243,20 @@ export default function MetaWhatsAppSettings({
         .eq("tenant_id", tenantId!)
         .eq("integration_type", "meta_whatsapp")
         .order("created_at");
-      if (error) throw error;
-      return (data ?? []) as unknown as Integration[];
+      if (error) {
+        throw error;
+      }
+      return (data ?? []) as unknown as Array<Integration>;
     },
   });
 
   const finishSignup = async () => {
-    if (!tenantId || completingRef.current) return;
-    if (!codeRef.current && !tokenRef.current) return;
+    if (!tenantId || completingRef.current) {
+      return;
+    }
+    if (!codeRef.current && !tokenRef.current) {
+      return;
+    }
     if (sessionTimerRef.current) {
       window.clearTimeout(sessionTimerRef.current);
       sessionTimerRef.current = null;
@@ -266,8 +277,9 @@ export default function MetaWhatsAppSettings({
         ],
         pin,
       });
-      if (!data?.success)
+      if (!data?.success) {
         throw new MetaAuthError(data?.error || "החיבור לא הושלם", data?.code);
+      }
       const count = data.connections?.length ?? 1;
       toast.success(
         `${count === 1 ? "מספר WhatsApp חובר" : `${count} מספרי WhatsApp חוברו`} בהצלחה`,
@@ -282,8 +294,9 @@ export default function MetaWhatsAppSettings({
       });
     } catch (error) {
       const code = error instanceof MetaAuthError ? error.code : undefined;
-      if (code === "code_exchange_failed" || code === "waba_not_granted")
+      if (code === "code_exchange_failed" || code === "waba_not_granted") {
         setShowManual(true);
+      }
       toast.error(
         error instanceof Error ? error.message : "שגיאה בחיבור WhatsApp",
         {
@@ -301,7 +314,9 @@ export default function MetaWhatsAppSettings({
 
   useEffect(() => {
     const listener = (event: MessageEvent) => {
-      if (!event.origin.endsWith("facebook.com")) return;
+      if (!event.origin.endsWith("facebook.com")) {
+        return;
+      }
       let parsed: unknown;
       try {
         parsed =
@@ -309,15 +324,21 @@ export default function MetaWhatsAppSettings({
       } catch {
         return;
       }
-      if (!parsed || typeof parsed !== "object") return;
+      if (!parsed || typeof parsed !== "object") {
+        return;
+      }
       const payload = parsed as {
         type?: string;
         event?: string;
         data?: Record<string, unknown>;
       };
-      if (payload?.type !== "WA_EMBEDDED_SIGNUP") return;
+      if (payload?.type !== "WA_EMBEDDED_SIGNUP") {
+        return;
+      }
       if (payload.event === "CANCEL") {
-        if (completingRef.current) return;
+        if (completingRef.current) {
+          return;
+        }
         if (sessionTimerRef.current) {
           window.clearTimeout(sessionTimerRef.current);
           sessionTimerRef.current = null;
@@ -345,7 +366,9 @@ export default function MetaWhatsAppSettings({
       }
       if (String(payload.event ?? "").startsWith("FINISH")) {
         sessionRef.current = { data: payload.data ?? {}, event: payload.event };
-        if (codeRef.current || tokenRef.current) void finishSignup();
+        if (codeRef.current || tokenRef.current) {
+          void finishSignup();
+        }
       }
     };
     window.addEventListener("message", listener);
@@ -354,13 +377,17 @@ export default function MetaWhatsAppSettings({
 
   useEffect(
     () => () => {
-      if (sessionTimerRef.current) window.clearTimeout(sessionTimerRef.current);
+      if (sessionTimerRef.current) {
+        window.clearTimeout(sessionTimerRef.current);
+      }
     },
     [],
   );
 
   const launchSignup = async () => {
-    if (!config) return;
+    if (!config) {
+      return;
+    }
     if (mode === "new_number" && !/^\d{6}$/.test(pin)) {
       toast.error("יש לבחור קוד PIN בן 6 ספרות עבור המספר");
       return;
@@ -384,7 +411,9 @@ export default function MetaWhatsAppSettings({
         sessionInfoVersion: "3",
       };
       const sdk = (window as FacebookWindow).FB;
-      if (!sdk) throw new Error("Meta SDK לא נטען");
+      if (!sdk) {
+        throw new Error("Meta SDK לא נטען");
+      }
       sdk.login(
         (response: FacebookLoginResponse) => {
           const auth = response?.authResponse;
@@ -448,7 +477,7 @@ export default function MetaWhatsAppSettings({
       }
       setMetaAppId(String(data.app_id ?? ""));
       setDiscoveryLimited(Boolean(data.discovery_limited));
-      return (data.accounts ?? []) as MetaAsset[];
+      return (data.accounts ?? []) as Array<MetaAsset>;
     },
     onSuccess: (accounts) => {
       setDiscovery(null);
@@ -458,8 +487,11 @@ export default function MetaWhatsAppSettings({
         (sum, account) => sum + account.phone_numbers.length,
         0,
       );
-      if (!total) toast.warning("לא נמצאו מספרי WhatsApp תחת האסימון הזה");
-      else toast.success(`נמצאו ${total} מספרים`);
+      if (!total) {
+        toast.warning("לא נמצאו מספרי WhatsApp תחת האסימון הזה");
+      } else {
+        toast.success(`נמצאו ${total} מספרים`);
+      }
     },
     onError: (error: Error) => {
       setAssets(null);
@@ -490,7 +522,9 @@ export default function MetaWhatsAppSettings({
           return { wabaId, phoneNumberId };
         })
         .filter((selection) => selection.wabaId && selection.phoneNumberId);
-      if (!selections.length) throw new Error("יש לבחור לפחות מספר אחד");
+      if (!selections.length) {
+        throw new Error("יש לבחור לפחות מספר אחד");
+      }
       if (selectedPhonesNeedPin && !/^\d{6}$/.test(manualPin)) {
         document.getElementById("meta-wa-manual-pin-top")?.focus();
         throw new Error(
@@ -511,8 +545,9 @@ export default function MetaWhatsAppSettings({
         ),
         pin: manualPin,
       });
-      if (!data?.success)
+      if (!data?.success) {
         throw new MetaAuthError(data?.error || "החיבור לא הושלם", data?.code);
+      }
       return data;
     },
     onSuccess: async (data) => {
@@ -520,8 +555,9 @@ export default function MetaWhatsAppSettings({
       toast.success(
         `${count === 1 ? "מספר WhatsApp חובר" : `${count} מספרי WhatsApp חוברו`} בהצלחה`,
       );
-      if (data.warnings?.length)
+      if (data.warnings?.length) {
         toast.warning("החיבור הושלם, אך סנכרון היסטוריה חלקי.");
+      }
       setManualPin("");
       setSelectedPhones([]);
       await queryClient.invalidateQueries({
@@ -561,8 +597,9 @@ export default function MetaWhatsAppSettings({
         tenant_id: tenantId,
         integration_id: integrationId,
       });
-      if (!data?.success)
+      if (!data?.success) {
         throw new MetaAuthError(data?.error || "הניתוק נכשל", data?.code);
+      }
     },
     onSuccess: () => {
       toast.success("החיבור הוסר מ-AIOS");
@@ -615,10 +652,8 @@ export default function MetaWhatsAppSettings({
     },
   });
 
-  const copyWebhook = async () => {
-    await navigator.clipboard.writeText(webhookUrl);
-    toast.success("כתובת ה-Webhook הועתקה");
-  };
+  const copyWebhook = () =>
+    void copyToClipboard(webhookUrl, "כתובת ה-Webhook הועתקה");
 
   return (
     <div
@@ -1033,7 +1068,9 @@ export default function MetaWhatsAppSettings({
                       .filter((phone) => !connectedIds.has(phone.id))
                       .map((phone) => `${account.waba_id}::${phone.id}`),
                   );
-                  if (!available.length) return null;
+                  if (!available.length) {
+                    return null;
+                  }
                   const allSelected = available.every((value) =>
                     selectedPhones.includes(value),
                   );
@@ -1084,7 +1121,9 @@ export default function MetaWhatsAppSettings({
                       const others = (account.subscribed_apps ?? []).filter(
                         (app) => app.id && app.id !== metaAppId,
                       );
-                      if (!others.length) return null;
+                      if (!others.length) {
+                        return null;
+                      }
                       return (
                         <Alert className="mb-3 border-amber-500/40">
                           <ShieldCheck className="h-4 w-4" />
@@ -1496,7 +1535,9 @@ export default function MetaWhatsAppSettings({
         <ShareIntegrationTenantsDialog
           open={Boolean(sharingIntegration)}
           onOpenChange={(open) => {
-            if (!open) setSharingIntegration(null);
+            if (!open) {
+              setSharingIntegration(null);
+            }
           }}
           integrationId={sharingIntegration.id}
           integrationName={

@@ -22,13 +22,16 @@ import { setSecret } from "./state.ts";
  */
 export async function setBuiltin(ctx: ActionContext) {
   const spec = builtinKeyFor(text(ctx.body, "builtin_slug"));
-  if (!spec) throw new HttpError(400, "Unknown built-in brain");
+  if (!spec) {
+    throw new HttpError(400, "Unknown built-in brain");
+  }
   const apiKey = optionalApiKey(ctx.body);
   const externalId = has(ctx.body, "external_id")
     ? externalIdFor(spec.idEnv, text(ctx.body, "external_id"))
     : null;
-  if (!apiKey && externalId === null)
+  if (!apiKey && externalId === null) {
     throw new HttpError(400, "Nothing to save");
+  }
   await requireWholeRow(ctx, spec, apiKey, externalId);
 
   // settings is sent only with a new id, so a key-only save keeps the old id.
@@ -50,8 +53,12 @@ export async function setBuiltin(ctx: ActionContext) {
     .select("id")
     .single();
   check(error, "Saving the built-in brain");
-  if (!data) throw new HttpError(500, "Saving the built-in brain failed");
-  if (apiKey) await setSecret(ctx.sb, data.id, apiKey);
+  if (!data) {
+    throw new HttpError(500, "Saving the built-in brain failed");
+  }
+  if (apiKey) {
+    await setSecret(ctx.sb, data.id, apiKey);
+  }
 }
 
 /** Refuses a save that would leave the row without its key or its id. */
@@ -71,18 +78,23 @@ async function requireWholeRow(
   check(error, "Loading the built-in brain");
   const hasKey = !!apiKey || !!data?.secret_id;
   const id = externalId ?? settingString(data?.settings, "external_id");
-  if (!hasKey) throw new HttpError(400, "Save a key with this brain's id");
-  if (spec.idEnv && !id)
+  if (!hasKey) {
+    throw new HttpError(400, "Save a key with this brain's id");
+  }
+  if (spec.idEnv && !id) {
     throw new HttpError(
       400,
       `${spec.idLabel ?? "Id"} is required with the key`,
     );
+  }
 }
 
 /** Drops this tenant's own key and id (the row's trigger drops the key). */
 export async function resetBuiltin(ctx: ActionContext) {
   const spec = builtinKeyFor(text(ctx.body, "builtin_slug"));
-  if (!spec) throw new HttpError(400, "Unknown built-in brain");
+  if (!spec) {
+    throw new HttpError(400, "Unknown built-in brain");
+  }
   const { error } = await ctx.sb
     .from("carmen_brain_connections")
     .delete()
@@ -94,7 +106,9 @@ export async function resetBuiltin(ctx: ActionContext) {
 
 /** The id as given; a webhook URL must be a public https URL. */
 function externalIdFor(idEnv: string | undefined, raw: string): string {
-  if (!idEnv) throw new HttpError(400, "This brain takes no id");
+  if (!idEnv) {
+    throw new HttpError(400, "This brain takes no id");
+  }
   const value = raw.slice(0, 500);
   return value && idEnv === "GROK_BOT_WEBHOOK_URL"
     ? requireBaseUrl(value)

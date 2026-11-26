@@ -71,10 +71,15 @@ export function channelActionDenied(
   action: string,
   row: BrainAccessRow,
 ): Response | null {
-  if (OPEN_ACTIONS.has(action)) return null;
-  if (!carmenEnabledFor(row)) return brainDenied("carmen");
-  if (PARLIAMENT_ACTIONS.has(action) && !brainLevel(row, BRAIN.parliament))
+  if (OPEN_ACTIONS.has(action)) {
+    return null;
+  }
+  if (!carmenEnabledFor(row)) {
+    return brainDenied("carmen");
+  }
+  if (PARLIAMENT_ACTIONS.has(action) && !brainLevel(row, BRAIN.parliament)) {
     return brainDenied("parliament");
+  }
   return null;
 }
 
@@ -102,9 +107,13 @@ export async function internalBrainAllowed(
     }
     tenantId = agent.tenant_id;
   }
-  if (!tenantId) return true; // run-ai-agent rejects a request with neither.
+  if (!tenantId) {
+    return true;
+  } // run-ai-agent rejects a request with neither.
   const carmenId = (await resolveCarmenAgent(sb, tenantId))?.id;
-  if (!carmenId) return true; // no active Carmen to protect.
+  if (!carmenId) {
+    return true;
+  } // no active Carmen to protect.
   const row = await loadCarmenAccessRow(sb, tenantId, carmenId, args.userId);
   return brainLevel(row, BRAIN.internal) !== null;
 }

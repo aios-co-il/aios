@@ -73,16 +73,61 @@ describe("GoogleAdsGoalTable previous period", () => {
     );
     expect(screen.getAllByText("תקופה קודמת")).toHaveLength(3);
     // Leads 10 vs 6, cost ₪300 vs ₪300, cost per lead ₪30 vs ₪50.
-    expect(cells(screen.getByText("Search").closest("tr"))).toStrictEqual([
+    // The arrow and colour mark the current value; the previous one is plain.
+    const row = screen.getByText("Search").closest("tr");
+    expect(cells(row)).toStrictEqual([
       "Search",
       "1,000",
       "40",
-      "10",
-      "▲ 6",
+      "▲ 10",
+      "6",
       "₪300",
       "₪300",
-      "₪30",
-      "▼ ₪50",
+      "▼ ₪30",
+      "₪50",
     ]);
+    const [, , , leads, leadsBefore, , , costPerLead, costPerLeadBefore] = [
+      ...(row?.children ?? []),
+    ];
+    expect(leads).toHaveClass("text-green-600");
+    expect(costPerLead).toHaveClass("text-green-600");
+    expect(costPerLead).not.toHaveClass("text-blue-600");
+    for (const before of [leadsBefore, costPerLeadBefore]) {
+      expect(before).toHaveClass("text-muted-foreground");
+      expect(before).not.toHaveClass("text-green-600");
+    }
+  });
+
+  it("leaves a cost per lead without current leads unmarked", () => {
+    const metrics = { impressions: 1000, clicks: 40, conversions_value: 0 };
+    const before = { ...metrics, cost: 300, conversions: 6 };
+    render(
+      <GoogleAdsGoalTable
+        goal="leads"
+        rows={[
+          {
+            key: "search",
+            name: "Search",
+            ...metrics,
+            cost: 300,
+            conversions: 0,
+          },
+        ]}
+        entityColumnLabel="קמפיין"
+        currency="₪"
+        previous={{ byKey: new Map([["search", before]]), total: before }}
+      />,
+    );
+
+    const row = screen.getByText("Search").closest("tr");
+    const [, , , leads, , , , costPerLead, costPerLeadBefore] = [
+      ...(row?.children ?? []),
+    ];
+    expect(leads).toHaveTextContent("▼");
+    expect(leads).toHaveClass("text-red-600");
+    expect(costPerLead).not.toHaveTextContent(/[▲▼]/);
+    expect(costPerLead).not.toHaveClass("text-green-600");
+    expect(costPerLead).not.toHaveClass("text-red-600");
+    expect(costPerLeadBefore).toHaveTextContent("₪50");
   });
 });

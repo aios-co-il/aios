@@ -63,7 +63,7 @@ export function TasksChatSearchInput({
 }
 
 interface TasksChatViewProps {
-  tasks: ChatTask[];
+  tasks: Array<ChatTask>;
   selectedTaskId: string | null;
   onSelectTask: (task: ChatTask | null) => void;
   onToggleComplete: (taskId: string, completed: boolean) => void;
@@ -71,8 +71,8 @@ interface TasksChatViewProps {
   onMoveToBacklog?: (taskId: string) => void;
   onAddTask?: (payload: QuickTaskPayload) => void;
   isLoading?: boolean;
-  clientsList?: { id: string; name: string }[];
-  campaignersList?: { id: string; full_name: string }[];
+  clientsList?: Array<{ id: string; name: string }>;
+  campaignersList?: Array<{ id: string; full_name: string }>;
   defaultCampaignerId?: string | null;
   openClosedFilter?: OpenClosedFilter;
   onOpenClosedFilterChange?: (value: OpenClosedFilter) => void;
@@ -146,7 +146,9 @@ export function TasksChatView({
   );
 
   useEffect(() => {
-    if (isMobile) return;
+    if (isMobile) {
+      return;
+    }
     const stillPresent = Boolean(
       selectedTaskId && tasks.some((task) => task.id === selectedTaskId),
     );
@@ -285,7 +287,9 @@ export function TasksChatView({
             open={Boolean(selectedTask)}
             variant="panel"
             onOpenChange={(open) => {
-              if (!open) onSelectTask(null);
+              if (!open) {
+                onSelectTask(null);
+              }
             }}
             onDelete={(taskId) => {
               const idx = filteredTasks.findIndex((task) => task.id === taskId);
@@ -306,7 +310,9 @@ export function TasksChatView({
           open={Boolean(selectedTask)}
           variant="dialog"
           onOpenChange={(open) => {
-            if (!open) onSelectTask(null);
+            if (!open) {
+              onSelectTask(null);
+            }
           }}
           onDelete={(taskId) => {
             onDelete(taskId, selectedTask?.google_calendar_event_id);

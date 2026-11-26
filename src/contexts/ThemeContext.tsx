@@ -35,7 +35,9 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const { data: brandingSettings } = useQuery({
     queryKey: ["tenant-branding", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
 
       const { data, error } = await supabase
         .from("tenant_settings")
@@ -44,7 +46,9 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
         .eq("setting_key", "branding")
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // IMPORTANT: React Query does not allow `undefined` as resolved data.
       return (data?.setting_value ?? null) as any;
@@ -69,7 +73,9 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   }, [brandingSettings]);
 
   const setPalette = async (newPalette: ColorPalette) => {
-    if (!currentTenantId) return;
+    if (!currentTenantId) {
+      return;
+    }
 
     setPaletteState(newPalette);
     applyPalette(newPalette);
@@ -94,7 +100,9 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const setLogoUrl = async (url: string | null) => {
-    if (!currentTenantId) return;
+    if (!currentTenantId) {
+      return;
+    }
 
     setLogoUrlState(url);
 

@@ -83,21 +83,27 @@ export function SeoUpdateModal({
   const { data: seoHistory = [] } = useQuery({
     queryKey: ["seo-monthly-history", clientId],
     queryFn: async () => {
-      if (!clientId) return [];
+      if (!clientId) {
+        return [];
+      }
       const { data, error } = await (supabase as any)
         .from("seo_monthly_updates")
         .select("id, month, status, notes, work, created_at, tenant_id")
         .eq("client_id", clientId)
         .order("month", { ascending: false })
         .limit(6);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
     enabled: !!clientId && open,
   });
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     const existing = (
       seoHistory as Array<{
         month?: string;
@@ -122,7 +128,9 @@ export function SeoUpdateModal({
 
   const mutation = useMutation({
     mutationFn: async () => {
-      if (!user?.id) throw new Error("Missing user");
+      if (!user?.id) {
+        throw new Error("Missing user");
+      }
 
       // Keep the row on the client's home / existing tenant so shared-agency
       // viewers don't fork a second empty history under their session tenant.
@@ -142,7 +150,9 @@ export function SeoUpdateModal({
           .maybeSingle();
         saveTenantId = clientRow?.tenant_id || saveTenantId;
       }
-      if (!saveTenantId) throw new Error("Missing tenant");
+      if (!saveTenantId) {
+        throw new Error("Missing tenant");
+      }
       const existingWork = parseSeoMonthlyWork(existing?.work);
       const nextWork = sanitizeSeoMonthlyWork({
         ...existingWork,
@@ -163,7 +173,9 @@ export function SeoUpdateModal({
           },
           { onConflict: "client_id,month" },
         );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("עדכון SEO נשמר בהצלחה");

@@ -26,9 +26,9 @@ export async function runReconcileChunk(
   });
   const off = await deps.store.tenantsOff(tables.map((t) => t.tenant_id));
   logAutomationOff("carmen-reconcile-worker", "reconcile_nightly", off);
-  const processed: ProcessedTable[] = [];
+  const processed: Array<ProcessedTable> = [];
   const rateLimited = new Set<ReconcilePlatform>();
-  const rateLimitedTables: string[] = [];
+  const rateLimitedTables: Array<string> = [];
   let cursor = opts.cursor;
   let stopped: ChunkResult["stopped"] = null;
   let considered = 0;

@@ -33,8 +33,12 @@ function stateFromRun(run: { context?: unknown }): ParliamentState | null {
     run.context && typeof run.context === "object" ? run.context : {}
   ) as Record<string, unknown>;
   const raw = ctx.parliament as ParliamentState | undefined;
-  if (!raw || typeof raw !== "object") return null;
-  if (!raw.seats || !raw.status) return null;
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+  if (!raw.seats || !raw.status) {
+    return null;
+  }
   return raw;
 }
 
@@ -71,10 +75,11 @@ export async function startParliament(ctx: SendContext): Promise<SendResult> {
     })
     .select("id, context")
     .single();
-  if (error || !parent)
+  if (error || !parent) {
     throw new Error(
       `Failed to create parliament run: ${error?.message || "unknown"}`,
     );
+  }
 
   await setConversationStatus(sb, ctx.conversationId, "debating");
   await insertMessage(sb, {
@@ -215,16 +220,22 @@ export async function onParliamentCallback(args: {
       .maybeSingle();
     runId = data?.id || "";
   }
-  if (!runId) return;
+  if (!runId) {
+    return;
+  }
 
   const { data: run } = await sb
     .from("agent_runs")
     .select("*")
     .eq("id", runId)
     .maybeSingle();
-  if (!run) return;
+  if (!run) {
+    return;
+  }
   let state = stateFromRun(run);
-  if (!state) return;
+  if (!state) {
+    return;
+  }
 
   const round = args.round || state.round;
   state = recordParliamentAnswer(state, args.origin, args.content, round);
@@ -381,7 +392,9 @@ async function synthesizeParliament(
     .select("id")
     .eq("parliament_run_id", runId)
     .in("status", ["running", "waiting"]);
-  for (const s of sessions || []) await completeSession(sb, s.id, "completed");
+  for (const s of sessions || []) {
+    await completeSession(sb, s.id, "completed");
+  }
 
   await logChannelAction(sb, {
     tenantId,
@@ -432,7 +445,9 @@ export async function cancelParliament(conversationId: string): Promise<void> {
     .select("id")
     .eq("parliament_run_id", run.id)
     .in("status", ["running", "waiting"]);
-  for (const s of sessions || []) await completeSession(sb, s.id, "cancelled");
+  for (const s of sessions || []) {
+    await completeSession(sb, s.id, "cancelled");
+  }
   await setConversationStatus(sb, conversationId, "idle");
   await insertMessage(sb, {
     tenant_id: run.tenant_id,
@@ -485,7 +500,9 @@ export async function forceContinueParliament(
   conversationId: string,
 ): Promise<{ ok: true; status: string }> {
   const loaded = await loadRunningParliament(conversationId);
-  if (!loaded.run || !loaded.state) throw new Error("no running parliament");
+  if (!loaded.run || !loaded.state) {
+    throw new Error("no running parliament");
+  }
   const { sb, run } = loaded;
   let state = skipSilentSeats(loaded.state);
   await sb
@@ -547,7 +564,9 @@ export async function forceSynthesizeParliament(
   conversationId: string,
 ): Promise<{ ok: true; status: string }> {
   const loaded = await loadRunningParliament(conversationId);
-  if (!loaded.run || !loaded.state) throw new Error("no running parliament");
+  if (!loaded.run || !loaded.state) {
+    throw new Error("no running parliament");
+  }
   const { run, state } = loaded;
   const skipped = skipSilentSeats(state);
   await synthesizeParliament(
@@ -566,7 +585,9 @@ export async function clarifyParliamentSeat(
   question: string,
 ): Promise<{ ok: true; status: string }> {
   const loaded = await loadRunningParliament(conversationId);
-  if (!loaded.run || !loaded.state) throw new Error("no running parliament");
+  if (!loaded.run || !loaded.state) {
+    throw new Error("no running parliament");
+  }
   const { run, state } = loaded;
   const ctx = await rebuildCtx(run, conversationId, state);
   const prompt =

@@ -33,7 +33,7 @@ export type BrainEngine =
   | {
       kind: "connections";
       slug: string;
-      targets: BrainEngineTarget[];
+      targets: Array<BrainEngineTarget>;
       fallbackInternal: boolean;
     }
   | { kind: "denied" }
@@ -50,7 +50,9 @@ export async function resolveBrainEngine(
   body: { brain_slug?: unknown; tenant_id?: unknown; agent_id?: unknown },
 ): Promise<BrainEngine> {
   const slug = typeof body.brain_slug === "string" ? body.brain_slug : "";
-  if (!slug || slug === BRAIN.internal) return { kind: "internal" };
+  if (!slug || slug === BRAIN.internal) {
+    return { kind: "internal" };
+  }
 
   let tenantId = typeof body.tenant_id === "string" ? body.tenant_id : "";
   if (typeof body.agent_id === "string" && body.agent_id) {
@@ -64,7 +66,9 @@ export async function resolveBrainEngine(
     }
     tenantId = agent.tenant_id;
   }
-  if (!tenantId) return { kind: "internal" };
+  if (!tenantId) {
+    return { kind: "internal" };
+  }
 
   const { data: route, error: routeError } = await sb
     .from("agent_brain_routes")
@@ -74,13 +78,18 @@ export async function resolveBrainEngine(
     .maybeSingle();
   // A named brain that cannot be read never silently becomes Carmen's own
   // (possibly paid) engine.
-  if (routeError || !route)
+  if (routeError || !route) {
     return {
       kind: "refused",
       message: "המוח שנבחר לא נמצא. בחרו מוח אחר בבורר ונסו שוב.",
     };
-  if (route.route_type !== "model") return { kind: "internal" };
-  if (route.active !== true) return { kind: "denied" };
+  }
+  if (route.route_type !== "model") {
+    return { kind: "internal" };
+  }
+  if (route.active !== true) {
+    return { kind: "denied" };
+  }
 
   let allowed = (_slug: string) => true;
   if (auth?.kind === "user" && auth.userId) {
@@ -95,7 +104,9 @@ export async function resolveBrainEngine(
       allowed = (s) => brainLevel(row, s) !== null;
     }
   }
-  if (!allowed(route.slug)) return { kind: "denied" };
+  if (!allowed(route.slug)) {
+    return { kind: "denied" };
+  }
 
   const [conns, routes] = await Promise.all([
     sb
@@ -110,10 +121,12 @@ export async function resolveBrainEngine(
       .eq("tenant_id", tenantId)
       .eq("route_type", "model"),
   ]);
-  if (conns.error)
+  if (conns.error) {
     throw new Error(`Brain connections read failed: ${conns.error.message}`);
-  if (routes.error)
+  }
+  if (routes.error) {
     throw new Error(`Brain routes read failed: ${routes.error.message}`);
+  }
 
   const plan: BrainEnginePlan = planBrainEngine(
     route,
@@ -124,15 +137,19 @@ export async function resolveBrainEngine(
     routes.data ?? [],
     allowed,
   );
-  if (plan.kind !== "connections") return plan;
+  if (plan.kind !== "connections") {
+    return plan;
+  }
 
-  const targets: BrainEngineTarget[] = [];
+  const targets: Array<BrainEngineTarget> = [];
   for (const c of plan.connections) {
     const url = chatCompletionsUrl(c.base_url ?? "");
     try {
       await assertPublicTarget(url);
       const key = await connectionSecret(sb, c.id);
-      if (!key) continue;
+      if (!key) {
+        continue;
+      }
       targets.push({
         url,
         key,
@@ -149,14 +166,17 @@ export async function resolveBrainEngine(
       );
     }
   }
-  if (targets.length > 0)
+  if (targets.length > 0) {
     return {
       kind: "connections",
       slug: plan.slug,
       targets,
       fallbackInternal: plan.fallbackInternal,
     };
-  if (plan.fallbackInternal) return { kind: "internal" };
+  }
+  if (plan.fallbackInternal) {
+    return { kind: "internal" };
+  }
   return {
     kind: "refused",
     message: `${route.label}: לא הצלחתי להתחבר למוח (כתובת או מפתח).`,

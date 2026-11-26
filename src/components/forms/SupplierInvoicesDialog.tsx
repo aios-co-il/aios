@@ -62,14 +62,18 @@ export function SupplierInvoicesDialog({
   const { data: invoices, isLoading } = useQuery({
     queryKey: ["supplier-invoices", supplier?.id, tenantId],
     queryFn: async () => {
-      if (!tenantId || !supplier?.id) return [];
+      if (!tenantId || !supplier?.id) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("supplier_invoices")
         .select("*")
         .eq("tenant_id", tenantId)
         .eq("supplier_id", supplier.id)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: open && !!tenantId && !!supplier?.id,
@@ -81,7 +85,9 @@ export function SupplierInvoicesDialog({
         .from("supplier_invoices")
         .delete()
         .eq("id", invoiceId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -116,9 +122,15 @@ export function SupplierInvoicesDialog({
         },
       );
 
-      if (error) throw error;
-      if (data?.invoice_name) setInvoiceName(data.invoice_name);
-      if (data?.invoice_amount) setInvoiceAmount(String(data.invoice_amount));
+      if (error) {
+        throw error;
+      }
+      if (data?.invoice_name) {
+        setInvoiceName(data.invoice_name);
+      }
+      if (data?.invoice_amount) {
+        setInvoiceAmount(String(data.invoice_amount));
+      }
       toast.success("הנתונים חולצו בהצלחה!");
     } catch (e: any) {
       console.error(e);
@@ -144,12 +156,15 @@ export function SupplierInvoicesDialog({
         const { error: uploadError } = await supabase.storage
           .from("supplier-invoices")
           .upload(path, file);
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          throw uploadError;
+        }
         const { data: urlData, error: urlError } = await supabase.storage
           .from("supplier-invoices")
           .createSignedUrl(path, 60 * 60 * 24 * 365 * 10);
-        if (urlError || !urlData)
+        if (urlError || !urlData) {
           throw urlError ?? new Error("Failed to sign URL");
+        }
         fileUrl = urlData.signedUrl;
         fileName = file.name;
       }
@@ -166,7 +181,9 @@ export function SupplierInvoicesDialog({
         ai_extracted: isExtracting ? false : !!file,
         notes: notes || null,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       toast.success("החשבונית נשמרה בהצלחה!");
       queryClient.invalidateQueries({
@@ -363,8 +380,9 @@ export function SupplierInvoicesDialog({
                           variant="ghost"
                           size="icon"
                           onClick={() => {
-                            if (confirm("למחוק חשבונית זו?"))
+                            if (confirm("למחוק חשבונית זו?")) {
                               deleteMutation.mutate(inv.id);
+                            }
                           }}
                         >
                           <Trash2 className="h-4 w-4 text-destructive" />

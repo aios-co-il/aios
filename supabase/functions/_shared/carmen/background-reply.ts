@@ -26,7 +26,9 @@ export async function saveCarmenReply(
     .select("tenant_id")
     .eq("id", args.conversationId)
     .maybeSingle();
-  if (!conv?.tenant_id) return;
+  if (!conv?.tenant_id) {
+    return;
+  }
   if (args.content.trim()) {
     await insertMessage(sb, {
       tenant_id: conv.tenant_id,

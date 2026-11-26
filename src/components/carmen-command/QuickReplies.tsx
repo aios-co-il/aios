@@ -20,7 +20,7 @@ export function QuickReplies({
   groups,
   onAnswer,
 }: {
-  groups: QuickReplyGroup[];
+  groups: Array<QuickReplyGroup>;
   /** Absent once the conversation has moved on: the buttons stay visible but inert. */
   onAnswer?: (text: string) => void;
 }) {
@@ -32,7 +32,9 @@ export function QuickReplies({
 
   const send = (choices: Record<string, string>) => {
     const answer = quickReplyAnswer(groups, choices);
-    if (!answer || !onAnswer) return;
+    if (!answer || !onAnswer) {
+      return;
+    }
     setSent(true);
     onAnswer(answer);
   };

@@ -1,6 +1,15 @@
+import {
+  type BrowserTabContextMetadata,
+  SCREEN_CONTEXT_SOURCE,
+} from "@functions/_shared/carmen/screen-context.ts";
+
+/** What a sidecar message says the user is looking at: an AIOS screen, or the browser tab beside the extension's panel. */
+export type ScreenContextMetadata =
+  SystemFixContextMetadata | BrowserTabContextMetadata;
+
 /** Context payload for Carmen system-fix chat from the Command Center sidecar. */
 export interface SystemFixContextMetadata {
-  source: "command_center_sidebar";
+  source: typeof SCREEN_CONTEXT_SOURCE.commandCenterSidebar;
   context_type: "system_fix_context";
   path: string;
   search?: string;
@@ -27,16 +36,15 @@ export function buildSystemFixContext(args: {
   pageTitle?: string;
 }): SystemFixContextMetadata {
   const routeParams = Object.fromEntries(
-    Object.entries(args.params).filter(([, v]) => v != null && v !== "") as [
-      string,
-      string,
-    ][],
+    Object.entries(args.params).filter(
+      ([, v]) => v != null && v !== "",
+    ) as Array<[string, string]>,
   );
   const client_id = routeParams.clientId || routeParams.client_id || undefined;
   const task_id = routeParams.taskId || routeParams.task_id || undefined;
 
   return {
-    source: "command_center_sidebar",
+    source: SCREEN_CONTEXT_SOURCE.commandCenterSidebar,
     context_type: "system_fix_context",
     path: args.pathname,
     search: args.search || undefined,
@@ -63,13 +71,24 @@ export function systemFixPromptAddon(meta: SystemFixContextMetadata): string {
     `context: ${meta.context_type}`,
     `path: ${meta.path}${meta.search ?? ""}${meta.hash ?? ""}`,
   ];
-  if (meta.tenant_slug) lines.push(`tenant: ${meta.tenant_slug}`);
-  if (meta.agency_id) lines.push(`agency_id: ${meta.agency_id}`);
-  if (meta.client_id) lines.push(`client_id: ${meta.client_id}`);
-  if (meta.task_id) lines.push(`task_id: ${meta.task_id}`);
-  if (meta.page_title) lines.push(`page_title: ${meta.page_title}`);
-  if (meta.viewport)
+  if (meta.tenant_slug) {
+    lines.push(`tenant: ${meta.tenant_slug}`);
+  }
+  if (meta.agency_id) {
+    lines.push(`agency_id: ${meta.agency_id}`);
+  }
+  if (meta.client_id) {
+    lines.push(`client_id: ${meta.client_id}`);
+  }
+  if (meta.task_id) {
+    lines.push(`task_id: ${meta.task_id}`);
+  }
+  if (meta.page_title) {
+    lines.push(`page_title: ${meta.page_title}`);
+  }
+  if (meta.viewport) {
     lines.push(`viewport: ${meta.viewport.width}×${meta.viewport.height}`);
+  }
   if (meta.route_params && Object.keys(meta.route_params).length) {
     lines.push(`route_params: ${JSON.stringify(meta.route_params)}`);
   }

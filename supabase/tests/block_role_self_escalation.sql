@@ -38,8 +38,8 @@ BEGIN
   VALUES (owner_a, 'campaigner', t_b) RETURNING id INTO own_role_b;
   INSERT INTO public.user_roles (user_id, role, tenant_id)
   VALUES (target_b, 'campaigner', t_b) RETURNING id INTO target_b_role;
-  INSERT INTO public.user_permissions (user_id, module, can_access)
-  VALUES (target_b, 'finance', false);
+  INSERT INTO public.user_permissions (user_id, tenant_id, module, can_access)
+  VALUES (target_b, t_b, 'finance', false);
   INSERT INTO public.invitation_tokens (token, tenant_id, created_by, email, metadata)
   VALUES (gen_random_uuid()::text, t_a, owner_a, 'qa-invite@example.invalid', '{"role": "campaigner"}')
   RETURNING id INTO token_a;
@@ -109,12 +109,17 @@ BEGIN
   IF affected <> 1 THEN RAISE EXCEPTION 'An owner cannot remove a role in its own tenant'; END IF;
 
   BEGIN
-    INSERT INTO public.user_permissions (user_id, module, can_access) VALUES (target_b, 'clients', true);
+    INSERT INTO public.user_permissions (user_id, tenant_id, module, can_access) VALUES (target_b, t_b, 'clients', true);
     RAISE EXCEPTION 'An owner can grant permissions to another tenant''s member';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
   BEGIN
-    INSERT INTO public.user_permissions (user_id, module, can_access) VALUES (outsider, 'finance', true);
+    INSERT INTO public.user_permissions (user_id, tenant_id, module, can_access) VALUES (target_b, t_a, 'clients', true);
+    RAISE EXCEPTION 'An owner can grant permissions in its tenant to a user who is not a member';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    INSERT INTO public.user_permissions (user_id, tenant_id, module, can_access) VALUES (outsider, t_a, 'finance', true);
     RAISE EXCEPTION 'An owner can grant permissions to a user in no tenant of theirs';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
@@ -124,14 +129,14 @@ BEGIN
   DELETE FROM public.user_permissions WHERE user_id = target_b;
   GET DIAGNOSTICS affected = ROW_COUNT;
   IF affected <> 0 THEN RAISE EXCEPTION 'An owner can remove another tenant member''s permissions'; END IF;
-  INSERT INTO public.user_permissions (user_id, module, can_access) VALUES (target_a, 'finance', true);
+  INSERT INTO public.user_permissions (user_id, tenant_id, module, can_access) VALUES (target_a, t_a, 'finance', true);
   UPDATE public.user_permissions SET can_access = false WHERE user_id = target_a AND module = 'finance';
   GET DIAGNOSTICS affected = ROW_COUNT;
   IF affected <> 1 THEN RAISE EXCEPTION 'An owner cannot change its member''s permissions'; END IF;
   DELETE FROM public.user_permissions WHERE user_id = target_a;
   GET DIAGNOSTICS affected = ROW_COUNT;
   IF affected <> 1 THEN RAISE EXCEPTION 'An owner cannot remove its member''s permissions'; END IF;
-  INSERT INTO public.user_permissions (user_id, module, can_access) VALUES (target_a, 'clients', true);
+  INSERT INTO public.user_permissions (user_id, tenant_id, module, can_access) VALUES (target_a, t_a, 'clients', true);
 
   BEGIN
     INSERT INTO public.invitation_tokens (token, tenant_id, created_by, email, metadata)
@@ -156,7 +161,7 @@ BEGIN
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
   BEGIN
-    INSERT INTO public.user_permissions (user_id, module, can_access) VALUES (member_a, 'finance', true);
+    INSERT INTO public.user_permissions (user_id, tenant_id, module, can_access) VALUES (member_a, t_a, 'finance', true);
     RAISE EXCEPTION 'A member can grant itself permissions';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
@@ -179,7 +184,7 @@ BEGIN
   PERFORM set_config('request.jwt.claim.sub', admin::text, true);
   INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES (target_a, 'super_admin', NULL);
   INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES (target_b, 'owner', t_b);
-  INSERT INTO public.user_permissions (user_id, module, can_access) VALUES (outsider, 'clients', true);
+  INSERT INTO public.user_permissions (user_id, tenant_id, module, can_access) VALUES (outsider, t_b, 'clients', true);
   BEGIN
     INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES (target_b, 'super_admin', t_b);
     RAISE EXCEPTION 'A tenant-scoped super_admin row can be written';

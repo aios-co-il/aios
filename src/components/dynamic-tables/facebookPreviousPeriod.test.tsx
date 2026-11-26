@@ -58,7 +58,7 @@ describe("previous period columns in the Facebook tables", () => {
     expect(screen.queryByText("תקופה קודמת")).toBeNull();
   });
 
-  it("show each lead metric's previous value with its arrow and colour", () => {
+  it("mark each lead metric's change on its current value, not the previous one", () => {
     render(
       <FacebookLeadsTable
         rows={current}
@@ -74,22 +74,63 @@ describe("previous period columns in the Facebook tables", () => {
       "Form",
       "1,000",
       "50",
-      "12",
-      "▲ 8",
+      "▲ 12",
+      "8",
       "₪240",
       "₪240",
-      "₪20",
-      "▼ ₪30",
+      "▼ ₪20",
+      "₪30",
     ]);
-    const [, , , , leadsPrev, , , , cplPrev] = [...(row?.children ?? [])];
-    expect(leadsPrev.className).toContain("text-green-600");
-    expect(cplPrev.className).toContain("text-green-600");
+    const [, , , leads, leadsPrev, , , cpl, cplPrev] = [
+      ...(row?.children ?? []),
+    ];
+    expect(leads.className).toContain("text-green-600");
+    // The change colour replaces the cost cell's own blue tone.
+    expect(cpl.className).toContain("text-green-600");
+    expect(cpl.className).not.toContain("text-blue-600");
+    for (const prevCell of [leadsPrev, cplPrev]) {
+      expect(prevCell.className).toContain("text-muted-foreground");
+      expect(prevCell.className).not.toMatch(/text-(green|red)-600/);
+    }
     // A campaign that did not run in the previous period has nothing to compare.
     const fresh = screen.getByText("New").closest("tr");
-    expect(cells(fresh)[4]).toBe("—");
+    expect(cells(fresh).slice(3, 5)).toStrictEqual(["3", "—"]);
     // The total compares the whole table: 15 leads now against 8.
     const total = screen.getByText("סה״כ").closest("tr");
-    expect(cells(total)[4]).toBe("▲ 8");
+    expect(cells(total).slice(3, 5)).toStrictEqual(["▲ 15", "8"]);
+  });
+
+  it("leave a cost per lead unmarked when a period has no leads", () => {
+    render(
+      <FacebookLeadsTable
+        rows={[
+          ["a", campaign("Form", { leads: 0, spend: 50 })],
+          ["z", campaign("Idle", { leads: 0, spend: 0 })],
+        ]}
+        entityHeader="קמפיין"
+        currency="₪"
+        previous={
+          facebookPreviousPeriod({
+            ecommerce: [],
+            leads: [
+              ["a", campaign("Form", { leads: 5, spend: 100 })],
+              ["z", campaign("Idle", { leads: 0, spend: 20 })],
+            ],
+            traffic: [],
+          }).leads
+        }
+      />,
+    );
+
+    const form = screen.getByText("Form").closest("tr");
+    const idle = screen.getByText("Idle").closest("tr");
+
+    // No leads now: the cost keeps its ₪0 text with no arrow or colour,
+    // against last period's ₪20.
+    expect(cells(form).slice(7)).toStrictEqual(["₪0", "₪20"]);
+    expect(form?.children[7].className).not.toMatch(/text-(green|red)-600/);
+    // No leads in either period: nothing to compare, so the previous is a dash.
+    expect(cells(idle).slice(7)).toStrictEqual(["₪0", "—"]);
   });
 
   it("compare purchases and cost per purchase in a sales table without value", () => {
@@ -111,17 +152,23 @@ describe("previous period columns in the Facebook tables", () => {
     );
     const row = screen.getByText("Course").closest("tr");
     const texts = cells(row);
-    // Spend ₪90 vs ₪100, purchases 3 vs 5 (worse), cost per purchase ₪30
-    // vs ₪20 (worse).
-    expect(texts.slice(4)).toStrictEqual([
-      "▼ ₪100",
-      "3",
-      "▼ 5",
-      "₪30",
-      "▲ ₪20",
+    // Spend ₪90 vs ₪100 (neutral), purchases 3 vs 5 (worse), cost per
+    // purchase ₪30 vs ₪20 (worse).
+    expect(texts.slice(3)).toStrictEqual([
+      "▼ ₪90",
+      "₪100",
+      "▼ 3",
+      "5",
+      "▲ ₪30",
+      "₪20",
     ]);
-    const purchasesPrev = row?.children[6];
-    expect(purchasesPrev?.className).toContain("text-red-600");
+    const [spend, , purchases, purchasesPrev, cpp] = [
+      ...(row?.children ?? []),
+    ].slice(3);
+    expect(spend.className).not.toMatch(/text-(green|red)-600/);
+    expect(purchases.className).toContain("text-red-600");
+    expect(cpp.className).toContain("text-red-600");
+    expect(purchasesPrev.className).not.toContain("text-red-600");
   });
 
   it("shows a dash for followers the previous period did not measure", () => {
@@ -148,7 +195,31 @@ describe("previous period columns in the Facebook tables", () => {
       />,
     );
     const texts = cells(screen.getByText("Profile").closest("tr"));
-    // New followers 40, then its previous value: unknown, not 0.
+    // New followers 40, then its previous value: unknown, not 0, and so
+    // the current count carries no arrow.
     expect(texts[texts.indexOf("40") + 1]).toBe("—");
+  });
+
+  it("mark a rise in traffic clicks on the current clicks", () => {
+    render(
+      <FacebookTrafficTable
+        rows={[["t", campaign("Blog", { clicks: 80, spend: 40 })]]}
+        entityHeader="קמפיין"
+        currency="₪"
+        previous={
+          facebookPreviousPeriod({
+            ecommerce: [],
+            leads: [],
+            traffic: [["t", campaign("Blog", { clicks: 50, spend: 40 })]],
+          }).traffic
+        }
+      />,
+    );
+    const row = screen.getByText("Blog").closest("tr");
+    // Clicks 80 vs 50, then spend ₪40 vs ₪40.
+    expect(cells(row).slice(2, 6)).toStrictEqual(["▲ 80", "50", "₪40", "₪40"]);
+    const [clicks, clicksPrev] = [...(row?.children ?? [])].slice(2, 4);
+    expect(clicks.className).toContain("text-green-600");
+    expect(clicksPrev.className).not.toContain("text-green-600");
   });
 });

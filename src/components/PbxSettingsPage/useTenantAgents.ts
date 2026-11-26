@@ -11,7 +11,9 @@ export function useTenantAgents(tenantId: string | null | undefined) {
         .select("user_id")
         .eq("tenant_id", tenantId!);
       const ids = (tu || []).map((r) => r.user_id);
-      if (!ids.length) return [];
+      if (!ids.length) {
+        return [];
+      }
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, full_name, email")

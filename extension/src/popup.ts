@@ -1,10 +1,5 @@
 import { supabase } from "./supabase";
-
-interface TenantOption {
-  id: string;
-  name: string;
-  slug: string | null;
-}
+import { loadTenants, preferredTenant, type TenantOption } from "./tenants";
 
 interface ClientOption {
   id: string;
@@ -33,8 +28,8 @@ modeSelect.addEventListener("change", () => {
   cameraRow.classList.toggle("hidden", modeSelect.value !== "screen");
 });
 
-let tenants: TenantOption[] = [];
-let clients: ClientOption[] = [];
+let tenants: Array<TenantOption> = [];
+let clients: Array<ClientOption> = [];
 let selectedTenantId: string | null = null;
 
 function show(state: "loading" | "login" | "main") {
@@ -48,7 +43,7 @@ function showError(target: HTMLElement, message: string | null) {
   target.textContent = message ?? "";
 }
 
-function fillDatalist(list: HTMLDataListElement, names: string[]) {
+function fillDatalist(list: HTMLDataListElement, names: Array<string>) {
   list.innerHTML = "";
   for (const name of names) {
     const opt = document.createElement("option");
@@ -58,36 +53,19 @@ function fillDatalist(list: HTMLDataListElement, names: string[]) {
 }
 
 const findByName = <T extends { name: string }>(
-  items: T[],
+  items: Array<T>,
   typed: string,
 ): T | null => {
   const q = typed.trim();
-  if (!q) return null;
+  if (!q) {
+    return null;
+  }
   return (
     items.find((i) => i.name === q) ??
     items.find((i) => i.name.toLowerCase() === q.toLowerCase()) ??
     null
   );
 };
-
-async function loadTenants(): Promise<TenantOption[]> {
-  const { data, error } = await supabase
-    .from("tenant_users")
-    .select("tenant_id, tenants(id, name, slug)");
-  if (error) throw error;
-  const seen = new Set<string>();
-  const result: TenantOption[] = [];
-  for (const row of data ?? []) {
-    const t = row.tenants as unknown as TenantOption | null;
-    if (t && !seen.has(t.id)) {
-      seen.add(t.id);
-      result.push(t);
-    }
-  }
-  return result.sort((a, b) =>
-    (a.name || "").localeCompare(b.name || "", "he"),
-  );
-}
 
 async function loadClients(tenantId: string) {
   clients = [];
@@ -121,7 +99,9 @@ async function persistActiveTenant(tenantId: string) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return;
+  if (!user) {
+    return;
+  }
   const { error } = await supabase.from("user_active_tenant").upsert(
     {
       user_id: user.id,
@@ -130,7 +110,9 @@ async function persistActiveTenant(tenantId: string) {
     },
     { onConflict: "user_id" },
   );
-  if (error) console.error("persistActiveTenant:", error);
+  if (error) {
+    console.error("persistActiveTenant:", error);
+  }
 }
 
 async function selectTenant(tenant: TenantOption) {
@@ -187,20 +169,12 @@ async function initMain() {
     tenants.map((t) => t.name),
   );
 
-  // Preselect the org the user is ACTIVE on in the web app (user_active_tenant)
-  // — with multiple orgs, an arbitrary default causes RLS clashes with the SPA.
-  const { data: activeRow } = await supabase
-    .from("user_active_tenant")
-    .select("tenant_id")
-    .maybeSingle();
-  const { lastTenantId } = await chrome.storage.local.get("lastTenantId");
-  const preferred =
-    tenants.find((t) => t.id === activeRow?.tenant_id) ??
-    tenants.find((t) => t.id === lastTenantId) ??
-    (tenants.length === 1 ? tenants[0] : null);
+  const preferred = await preferredTenant(tenants);
 
   show("main");
-  if (preferred) await selectTenant(preferred);
+  if (preferred) {
+    await selectTenant(preferred);
+  }
 }
 
 loginEl.addEventListener("submit", async (e) => {
@@ -235,7 +209,9 @@ el<HTMLButtonElement>("start-btn").addEventListener("click", async () => {
     showError(mainError, "נא לבחור ארגון מהרשימה (הקלד ובחר מההשלמות)");
     return;
   }
-  if (tenant.id !== selectedTenantId) await selectTenant(tenant);
+  if (tenant.id !== selectedTenantId) {
+    await selectTenant(tenant);
+  }
 
   const typedClient = clientInput.value.trim();
   const client = findByName(clients, typedClient);
@@ -266,6 +242,27 @@ el<HTMLButtonElement>("start-btn").addEventListener("click", async () => {
     height: 360,
   });
   window.close();
+});
+
+// Opens Carmen's side panel beside the current tab. Chrome allows this only from the
+// click itself, so nothing slow runs before it.
+el<HTMLButtonElement>("carmen-btn").addEventListener("click", async () => {
+  showError(mainError, null);
+  try {
+    const { id: windowId } = await chrome.windows.getCurrent();
+    if (windowId === undefined) {
+      throw new Error("no browser window");
+    }
+    await chrome.sidePanel.open({ windowId });
+    window.close();
+  } catch (err) {
+    console.error("open Carmen panel:", err);
+    showError(
+      mainError,
+      "לא הצלחתי לפתוח את כרמן: " +
+        (err instanceof Error ? err.message : String(err)),
+    );
+  }
 });
 
 show("loading");

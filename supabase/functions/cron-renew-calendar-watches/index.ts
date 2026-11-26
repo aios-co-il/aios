@@ -27,7 +27,9 @@ serve(async (_req) => {
       .select("user_id, watch_channel_id, watch_expires_at, needs_reconnect")
       .eq("needs_reconnect", false);
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
 
     const due = (tokens || []).filter(
       (t: any) =>
@@ -36,7 +38,7 @@ serve(async (_req) => {
         t.watch_expires_at < renewBefore,
     );
 
-    const results: any[] = [];
+    const results: Array<any> = [];
     for (const t of due) {
       try {
         const r = await fetch(

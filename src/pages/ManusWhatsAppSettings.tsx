@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
@@ -78,7 +79,9 @@ export default function ManusWhatsAppSettings({
   const { data: integrations = [], isLoading } = useQuery({
     queryKey: ["manus-wa-integrations", tenantId, userId],
     queryFn: async () => {
-      if (!tenantId || !userId) return [] as Integration[];
+      if (!tenantId || !userId) {
+        return [] as Array<Integration>;
+      }
       const { data, error } = await supabase
         .from("tenant_integrations")
         .select("*")
@@ -86,8 +89,10 @@ export default function ManusWhatsAppSettings({
         .eq("user_id", userId)
         .eq("integration_type", "manus_wa")
         .order("created_at", { ascending: true });
-      if (error) throw error;
-      return (data || []) as Integration[];
+      if (error) {
+        throw error;
+      }
+      return (data || []) as Array<Integration>;
     },
     enabled: !!tenantId && !!userId,
   });
@@ -162,10 +167,15 @@ export default function ManusWhatsAppSettings({
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId || !userId) throw new Error("משתמש לא מחובר");
-      if (!form.displayName.trim()) throw new Error("נא לתת שם לחיבור");
-      if (!form.instanceId || !form.apiKey)
+      if (!tenantId || !userId) {
+        throw new Error("משתמש לא מחובר");
+      }
+      if (!form.displayName.trim()) {
+        throw new Error("נא לתת שם לחיבור");
+      }
+      if (!form.instanceId || !form.apiKey) {
         throw new Error("נא למלא Instance ID ו-API Key");
+      }
       const secret = manusWebhookSecretToSave(form.webhookSecret);
       const existing = editingId
         ? integrations.find((i) => i.id === editingId)
@@ -192,7 +202,9 @@ export default function ManusWhatsAppSettings({
           .from("tenant_integrations")
           .update(payload)
           .eq("id", editingId);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return editingId;
       } else {
         const { data, error } = await supabase
@@ -200,7 +212,9 @@ export default function ManusWhatsAppSettings({
           .insert([payload])
           .select("id")
           .single();
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return data.id as string;
       }
     },
@@ -231,7 +245,9 @@ export default function ManusWhatsAppSettings({
         .from("tenant_integrations")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast({ title: "החיבור נמחק" });
@@ -249,8 +265,12 @@ export default function ManusWhatsAppSettings({
         "manus-wa-status",
         { body: { integrationId: id } },
       );
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || "שגיאה בבדיקת סטטוס");
+      if (error) {
+        throw error;
+      }
+      if (!data?.success) {
+        throw new Error(data?.error || "שגיאה בבדיקת סטטוס");
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -274,7 +294,9 @@ export default function ManusWhatsAppSettings({
         .from("tenant_integrations")
         .update({ settings: merged })
         .eq("id", i.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast({
@@ -290,10 +312,8 @@ export default function ManusWhatsAppSettings({
       toast({ variant: "destructive", title: "שגיאה", description: e.message }),
   });
 
-  const copy = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast({ title: "הועתק ללוח", description: label });
-  };
+  const copy = (text: string, label: string) =>
+    void copyToClipboard(text, "הועתק ללוח", label);
 
   return (
     <div
@@ -521,8 +541,9 @@ export default function ManusWhatsAppSettings({
                         variant="ghost"
                         size="icon"
                         onClick={() => {
-                          if (confirm(`למחוק את החיבור "${i.display_name}"?`))
+                          if (confirm(`למחוק את החיבור "${i.display_name}"?`)) {
                             deleteMutation.mutate(i.id);
+                          }
                         }}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />

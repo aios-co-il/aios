@@ -19,7 +19,7 @@ Deno.test(
   async () => {
     const form = new FormData();
     form.append("chatId", `${david}@c.us`);
-    const allowed: [string | Request, RequestInit | undefined][] = [
+    const allowed: Array<[string | Request, RequestInit | undefined]> = [
       [green, chat(`${david}@c.us`)],
       [manus, post(JSON.stringify({ to: david, body: "hi" }))],
       [
@@ -44,7 +44,7 @@ Deno.test(
         true,
       );
     }
-    const blocked: [string, RequestInit][] = [
+    const blocked: Array<[string, RequestInit]> = [
       [green, chat("972501234567@c.us")],
       [green, chat(`${david}-1600000000@g.us`)],
       [green, chat(`0${david.slice(3)}@c.us`)],
@@ -97,9 +97,9 @@ Deno.test(
 );
 
 Deno.test("installed guard lets only the test number through", async () => {
-  const calls: unknown[] = [];
+  const calls: Array<unknown> = [];
   const runtime = {
-    fetch: (async (...args: unknown[]) => {
+    fetch: (async (...args: Array<unknown>) => {
       calls.push(args);
       return new Response("{}");
     }) as typeof fetch,

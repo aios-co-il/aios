@@ -18,6 +18,7 @@ import {
   fetchAdsets,
 } from "../_shared/fb-insights/adsets.ts";
 import { kickNextBatch } from "../_shared/kick-next-batch.ts";
+import { startBatchBudget } from "../_shared/ads-sync/batch-budget.ts";
 import {
   jerusalemToday,
   planScheduledSyncWindows,
@@ -32,7 +33,7 @@ import {
   saveSyncRun,
 } from "../_shared/ads-sync/save-run.ts";
 import { syncAdsWindow } from "../_shared/ads-sync/write-window.ts";
-import { runCatchup } from "./catchup.ts";
+import { runCatchup, runHistoryBackfill } from "./catchup.ts";
 
 const SOURCE = "cron-sync-facebook-insights";
 
@@ -41,8 +42,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
-
-const BATCH_SIZE = 4;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -63,7 +62,8 @@ Deno.serve(async (req) => {
       // Missing or invalid batch parameters use the default full sync below.
     }
     const batchOffset = body.batch_offset || 0;
-    const tableIds: string[] | null = body.table_ids || null;
+    const tableIds: Array<string> | null = body.table_ids || null;
+    const budget = startBatchBudget(batchOffset);
 
     // Get Facebook Insights tables
     let query = supabase
@@ -85,24 +85,20 @@ Deno.serve(async (req) => {
       throw tablesError;
     }
 
-    // Slice for current batch
-    const tables = (allTables || []).slice(
-      batchOffset,
-      batchOffset + BATCH_SIZE,
-    );
-    const hasMore = (allTables || []).length > batchOffset + BATCH_SIZE;
-
     const results = {
       total: (allTables || []).length,
       batch_offset: batchOffset,
-      batch_size: tables.length,
-      has_more: hasMore,
+      batch_size: 0,
+      has_more: false,
       synced: 0,
       failed: 0,
-      errors: [] as string[],
+      errors: [] as Array<string>,
     };
 
-    for (const table of tables || []) {
+    for (const table of (allTables || []).slice(batchOffset)) {
+      if (!budget.take()) {
+        break;
+      }
       const run = { tableId: table.id, tenantId: table.tenant_id };
       // True once this table's run was recorded, so the catch below does not overwrite it.
       let runRecorded = false;
@@ -182,8 +178,9 @@ Deno.serve(async (req) => {
 
         const accessToken = integration.api_key;
 
+        const today = jerusalemToday();
         const plan = planScheduledSyncWindows(
-          jerusalemToday(),
+          today,
           typeof settings.scheduled_history_from === "string"
             ? settings.scheduled_history_from
             : null,
@@ -225,8 +222,9 @@ Deno.serve(async (req) => {
         );
         const campaignObjectives: Record<string, string | null | undefined> =
           {};
-        for (const c of Object.values(campaignStatuses))
+        for (const c of Object.values(campaignStatuses)) {
           campaignObjectives[c.id] = c.objective;
+        }
         const resultLeadTypes = buildResultLeadTypeMap(
           adsets,
           campaignObjectives,
@@ -334,6 +332,18 @@ Deno.serve(async (req) => {
             catchupError,
           );
         }
+        // A one-off past window pinned by a migration; it writes rows only, so
+        // the alerts below still read the refresh alone.
+        const backfilled = await runHistoryBackfill(writeWindow, settings, {
+          catchup: plan.catchup,
+          today,
+        });
+        if (backfilled && backfilled.status !== "ok") {
+          console.error(
+            `[cron-sync-facebook-insights] ${table.name}: history backfill ${backfilled.status}, kept for the next run:`,
+            backfilled.error,
+          );
+        }
         const { insights, outcome } = await writeWindow(plan.refresh);
         const campaignInsights = insights.filter(
           (row) => (row.entity_level || "campaign") === "campaign",
@@ -358,6 +368,7 @@ Deno.serve(async (req) => {
               scheduled_synced_through: plan.syncedThrough,
               scheduled_lookback_on: plan.lookbackOn,
             }),
+            ...backfilled?.settingsPatch,
             ...(isWriteSuccess(outcome.status)
               ? { last_insights_until: untilStr }
               : {}),
@@ -469,11 +480,11 @@ Deno.serve(async (req) => {
             status: string;
             emoji: string;
             label: string;
-            campaigns: CampaignStatus[];
+            campaigns: Array<CampaignStatus>;
           }> = [];
           const buckets: Record<
             string,
-            { emoji: string; label: string; campaigns: CampaignStatus[] }
+            { emoji: string; label: string; campaigns: Array<CampaignStatus> }
           > = {
             DISAPPROVED: {
               emoji: "❌",
@@ -491,14 +502,22 @@ Deno.serve(async (req) => {
           for (const campaign of Object.values(campaignStatuses)) {
             // Only alert if the user actually wants this campaign running.
             // Skip campaigns the user paused/archived themselves.
-            if (campaign.configured_status !== "ACTIVE") continue;
+            if (campaign.configured_status !== "ACTIVE") {
+              continue;
+            }
             const status = campaign.effective_status;
-            if (ignoredStatuses.has(status)) continue;
-            if (buckets[status]) buckets[status].campaigns.push(campaign);
+            if (ignoredStatuses.has(status)) {
+              continue;
+            }
+            if (buckets[status]) {
+              buckets[status].campaigns.push(campaign);
+            }
           }
 
           for (const [status, bucket] of Object.entries(buckets)) {
-            if (bucket.campaigns.length === 0) continue;
+            if (bucket.campaigns.length === 0) {
+              continue;
+            }
             statusAlerts.push({ status, ...bucket });
           }
 
@@ -522,7 +541,9 @@ Deno.serve(async (req) => {
                 .eq("title", taskTitle)
                 .gte("created_at", sevenDaysAgo)
                 .limit(1);
-              if (existing && existing.length > 0) continue;
+              if (existing && existing.length > 0) {
+                continue;
+              }
 
               let extraInfo = "";
               if (alert.status === "WITH_ISSUES") {
@@ -597,16 +618,19 @@ Deno.serve(async (req) => {
             { name: string; recent: number; prior: number }
           > = {};
           for (const ins of campaignInsights) {
-            if (!activeCampaignIds.has(ins.campaign_id)) continue;
+            if (!activeCampaignIds.has(ins.campaign_id)) {
+              continue;
+            }
             const c = (perCampaign[ins.campaign_id] ||= {
               name: ins.campaign_name,
               recent: 0,
               prior: 0,
             });
-            if (ins.date >= recentStart && ins.date <= recentEnd)
+            if (ins.date >= recentStart && ins.date <= recentEnd) {
               c.recent += ins.spend;
-            else if (ins.date >= priorStart && ins.date <= priorEnd)
+            } else if (ins.date >= priorStart && ins.date <= priorEnd) {
               c.prior += ins.spend;
+            }
           }
 
           const stoppedCampaigns = Object.entries(perCampaign)
@@ -731,22 +755,30 @@ Deno.serve(async (req) => {
                     "CAMPAIGN_PAUSED",
                     "ADSET_PAUSED",
                   ];
-                  if (!problemStatuses.includes(agg.effective_status)) continue;
+                  if (!problemStatuses.includes(agg.effective_status)) {
+                    continue;
+                  }
                   currentValue = agg.effective_status;
                 } else {
                   currentValue = (agg as any)[metric] || 0;
                   const threshold = alert.threshold;
                   const op = alert.operator; // '>', '<', '>=', '<='
                   let triggered = false;
-                  if (op === ">" && (currentValue as number) > threshold)
+                  if (op === ">" && (currentValue as number) > threshold) {
                     triggered = true;
-                  if (op === "<" && (currentValue as number) < threshold)
+                  }
+                  if (op === "<" && (currentValue as number) < threshold) {
                     triggered = true;
-                  if (op === ">=" && (currentValue as number) >= threshold)
+                  }
+                  if (op === ">=" && (currentValue as number) >= threshold) {
                     triggered = true;
-                  if (op === "<=" && (currentValue as number) <= threshold)
+                  }
+                  if (op === "<=" && (currentValue as number) <= threshold) {
                     triggered = true;
-                  if (!triggered) continue;
+                  }
+                  if (!triggered) {
+                    continue;
+                  }
                 }
 
                 // Get table name for context
@@ -838,15 +870,24 @@ Deno.serve(async (req) => {
       }
     }
 
+    const nextOffset = budget.nextOffset(results.total);
+    results.batch_size = budget.taken;
+    results.has_more = nextOffset !== null;
+    if (nextOffset !== null && tableIds) {
+      // A table_ids call never chains, so say which tables this run skipped.
+      console.error(
+        `[${SOURCE}] time budget spent; table_ids from offset ${nextOffset} not synced`,
+      );
+    }
+
     // Auto-invoke next batch if there are more tables
-    if (hasMore && !tableIds) {
-      const nextOffset = batchOffset + BATCH_SIZE;
+    if (nextOffset !== null && !tableIds) {
       console.log(`🔄 Triggering next batch at offset ${nextOffset}...`);
       await kickNextBatch(supabase, "cron-sync-facebook-insights", {
         batch_offset: nextOffset,
       });
     } else if (!tableIds) {
-      // The twice-daily sync has finished. Calculate and optionally deliver the
+      // The scheduled sync has finished. Calculate and optionally deliver the
       // pulse from the CRM rows we just stored. This performs no extra Meta API
       // call and does not invoke run-ai-agent/Carmen.
       const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";

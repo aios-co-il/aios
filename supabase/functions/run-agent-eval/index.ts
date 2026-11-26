@@ -1,7 +1,10 @@
 // run-agent-eval — runs an eval dataset against an agent and scores results via LLM judge.
 // Body: { eval_id, tenant_id, user_id? }
+// Who may run an eval, and in which tenant: ../_shared/agent-runs/run-request.ts (AIO-661).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { openRunRequest } from "../_shared/agent-runs/run-request.ts";
 import { resolveModelId } from "../_shared/models.ts";
+import { requireAuth } from "../_shared/security.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,7 +51,9 @@ async function judge(
       response_format: { type: "json_object" },
     }),
   });
-  if (!resp.ok) return { score: 0, reasoning: `judge failed: ${resp.status}` };
+  if (!resp.ok) {
+    return { score: 0, reasoning: `judge failed: ${resp.status}` };
+  }
   const data = await resp.json();
   try {
     const parsed = JSON.parse(data.choices?.[0]?.message?.content ?? "{}");
@@ -62,22 +67,33 @@ async function judge(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
   try {
-    const { eval_id, tenant_id, user_id } = await req.json();
-    if (!eval_id || !tenant_id)
-      return jsonResponse({ error: "missing eval_id/tenant_id" }, 400);
-
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { data: evalRow } = await supabase
+    const opened = await openRunRequest(req, supabase, requireAuth, {
+      field: "eval_id",
+    });
+    if (!opened.ok) {
+      return jsonResponse({ error: opened.error }, opened.status);
+    }
+    const { tenantId: tenant_id, sourceId: eval_id, userId } = opened;
+
+    const { data: evalRow, error: evalError } = await supabase
       .from("agent_evals")
       .select("*")
       .eq("id", eval_id)
-      .single();
-    if (!evalRow) return jsonResponse({ error: "eval not found" }, 404);
+      .eq("tenant_id", tenant_id)
+      .maybeSingle();
+    if (evalError) {
+      throw new Error(`agent_evals lookup failed: ${evalError.message}`);
+    }
+    if (!evalRow) {
+      return jsonResponse({ error: "eval not found" }, 404);
+    }
 
-    const dataset: any[] = Array.isArray(evalRow.dataset)
+    const dataset: Array<any> = Array.isArray(evalRow.dataset)
       ? evalRow.dataset
       : [];
     const threshold = evalRow.pass_threshold ?? 70;
@@ -94,7 +110,7 @@ Deno.serve(async (req) => {
       .select()
       .single();
 
-    const results: any[] = [];
+    const results: Array<any> = [];
     let totalScore = 0;
     let passed = 0;
 
@@ -109,7 +125,7 @@ Deno.serve(async (req) => {
               agent_id: evalRow.agent_id,
               goal: input,
               tenant_id,
-              user_id: user_id ?? null,
+              user_id: userId,
               trigger_source: "eval",
               max_steps: 6,
             },
@@ -118,7 +134,9 @@ Deno.serve(async (req) => {
         const actual = invokeData?.final_answer ?? "";
         const { score, reasoning } = await judge(input, expected, actual);
         const pass = score >= threshold;
-        if (pass) passed++;
+        if (pass) {
+          passed++;
+        }
         totalScore += score;
         results.push({
           input,

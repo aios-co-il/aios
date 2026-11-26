@@ -103,7 +103,7 @@ Deno.test("buildThreads", async (t) => {
   await t.step(
     "a group is open to the team only when a team phone wrote in it",
     () => {
-      const open = (rows: ActivityRow[]) =>
+      const open = (rows: Array<ActivityRow>) =>
         buildThreads(rows, roster, [])[0].openToTeam;
       const ask = row({ message_id: "ask" });
       assertEquals(open([ask]), false);

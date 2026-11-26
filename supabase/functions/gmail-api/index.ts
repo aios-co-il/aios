@@ -29,7 +29,9 @@ async function refreshTokenIfNeeded(supabaseService: any, tokenData: any) {
   });
 
   const tokens = await res.json();
-  if (!tokens.access_token) throw new Error("Token refresh failed");
+  if (!tokens.access_token) {
+    throw new Error("Token refresh failed");
+  }
 
   const newExpires = new Date(Date.now() + tokens.expires_in * 1000);
   await supabaseService
@@ -79,7 +81,9 @@ function getEmailBody(payload: any): string {
     for (const p of payload.parts) {
       if (p.parts) {
         const body = getEmailBody(p);
-        if (body) return body;
+        if (body) {
+          return body;
+        }
       }
     }
   }
@@ -94,7 +98,9 @@ serve(async (req) => {
   try {
     const authHeader =
       req.headers.get("Authorization") || req.headers.get("authorization");
-    if (!authHeader) throw new Error("No authorization header");
+    if (!authHeader) {
+      throw new Error("No authorization header");
+    }
 
     const anonClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -106,7 +112,9 @@ serve(async (req) => {
       data: { user },
       error: userError,
     } = await anonClient.auth.getUser();
-    if (userError || !user) throw new Error("Unauthorized");
+    if (userError || !user) {
+      throw new Error("Unauthorized");
+    }
 
     const serviceClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -120,7 +128,9 @@ serve(async (req) => {
       .eq("user_id", user.id)
       .single();
 
-    if (tokenError || !tokenData) throw new Error("Gmail not connected");
+    if (tokenError || !tokenData) {
+      throw new Error("Gmail not connected");
+    }
 
     const accessToken = await refreshTokenIfNeeded(serviceClient, tokenData);
     const body = await req.json();
@@ -130,9 +140,13 @@ serve(async (req) => {
     if (action === "list") {
       const { query, maxResults = 20, pageToken, labelIds } = body;
       const params = new URLSearchParams();
-      if (query) params.set("q", query);
+      if (query) {
+        params.set("q", query);
+      }
       params.set("maxResults", String(maxResults));
-      if (pageToken) params.set("pageToken", pageToken);
+      if (pageToken) {
+        params.set("pageToken", pageToken);
+      }
       if (Array.isArray(labelIds)) {
         labelIds.forEach((item: unknown) => {
           // Defensive: handle both string IDs and object rows (e.g. { label_id: "..." })
@@ -142,8 +156,9 @@ serve(async (req) => {
               : item && typeof item === "object"
                 ? (item as any).label_id || (item as any).id || ""
                 : "";
-          if (typeof id === "string" && id.trim())
+          if (typeof id === "string" && id.trim()) {
             params.append("labelIds", id.trim());
+          }
         });
       } else if (typeof labelIds === "string" && labelIds.trim()) {
         params.append("labelIds", labelIds);
@@ -156,7 +171,9 @@ serve(async (req) => {
         },
       );
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || "Gmail API error");
+      if (!res.ok) {
+        throw new Error(data.error?.message || "Gmail API error");
+      }
 
       // Fetch metadata for each message
       const messages = data.messages || [];
@@ -196,14 +213,18 @@ serve(async (req) => {
     // GET single message
     if (action === "get") {
       const { messageId } = body;
-      if (!messageId) throw new Error("Missing messageId");
+      if (!messageId) {
+        throw new Error("Missing messageId");
+      }
 
       const res = await fetch(
         `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}?format=full`,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
       const msgData = await res.json();
-      if (!res.ok) throw new Error(msgData.error?.message || "Gmail API error");
+      if (!res.ok) {
+        throw new Error(msgData.error?.message || "Gmail API error");
+      }
 
       return new Response(
         JSON.stringify({
@@ -234,13 +255,16 @@ serve(async (req) => {
         threadId,
         attachments,
       } = body;
-      if (!to || !subject) throw new Error("Missing to or subject");
+      if (!to || !subject) {
+        throw new Error("Missing to or subject");
+      }
 
       // Encode subject as RFC 2047 (UTF-8 base64) so Hebrew/non-ASCII renders correctly
       const subjectBytes = new TextEncoder().encode(subject);
       let subjectBinary = "";
-      for (let i = 0; i < subjectBytes.length; i++)
+      for (let i = 0; i < subjectBytes.length; i++) {
         subjectBinary += String.fromCharCode(subjectBytes[i]);
+      }
       const encodedSubject = `=?UTF-8?B?${btoa(subjectBinary)}?=`;
       const hasAttachments =
         Array.isArray(attachments) && attachments.length > 0;
@@ -289,15 +313,18 @@ serve(async (req) => {
       // Use TextEncoder to handle UTF-8 properly in body content
       const bytes = new TextEncoder().encode(rawMessage);
       let binary = "";
-      for (let i = 0; i < bytes.length; i++)
+      for (let i = 0; i < bytes.length; i++) {
         binary += String.fromCharCode(bytes[i]);
+      }
       const encoded = btoa(binary)
         .replace(/\+/g, "-")
         .replace(/\//g, "_")
         .replace(/=+$/, "");
 
       const sendBody: any = { raw: encoded };
-      if (threadId) sendBody.threadId = threadId;
+      if (threadId) {
+        sendBody.threadId = threadId;
+      }
 
       const res = await fetch(
         "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
@@ -311,7 +338,9 @@ serve(async (req) => {
         },
       );
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || "Send failed");
+      if (!res.ok) {
+        throw new Error(data.error?.message || "Send failed");
+      }
 
       return new Response(JSON.stringify({ success: true, id: data.id }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -321,7 +350,9 @@ serve(async (req) => {
     // MARK as read/unread
     if (action === "markRead" || action === "markUnread") {
       const { messageId } = body;
-      if (!messageId) throw new Error("Missing messageId");
+      if (!messageId) {
+        throw new Error("Missing messageId");
+      }
 
       const modifications =
         action === "markRead"
@@ -352,7 +383,9 @@ serve(async (req) => {
     // TRASH message
     if (action === "trash") {
       const { messageId } = body;
-      if (!messageId) throw new Error("Missing messageId");
+      if (!messageId) {
+        throw new Error("Missing messageId");
+      }
 
       const res = await fetch(
         `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/trash`,
@@ -380,7 +413,9 @@ serve(async (req) => {
         },
       );
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || "Gmail API error");
+      if (!res.ok) {
+        throw new Error(data.error?.message || "Gmail API error");
+      }
 
       const labels = (data.labels || []).map((l: any) => ({
         id: l.id,

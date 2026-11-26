@@ -34,7 +34,7 @@ const pendingRow = (groupId: string | null) => ({
 
 /** forwardStoredSend's context for one echo, recording each mirror it asks for. */
 function echoContext(db: ReturnType<typeof fakeChatMessages>) {
-  const mirrors: unknown[][] = [];
+  const mirrors: Array<Array<unknown>> = [];
   const ctx: StoredSendForward = {
     supabaseClient: db,
     ...ECHO_KEY,

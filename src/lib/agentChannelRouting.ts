@@ -27,31 +27,16 @@ export type BrainRoute = {
   session_status?: string | null;
 };
 
-/** Command Center opens on Carmen Direct (Cursor open chat), not the knights table. */
+/**
+ * Carmen Direct (Cursor open chat), not the knights table: the Command
+ * Center's first paint, before the user's brain list and their stored pick
+ * (carmen_user_choices) are known, and the brain of a chat that names none.
+ */
 export const DEFAULT_BRAIN_SLUG = "cursor";
-
-export function readSavedRouteSlug(
-  tenantId: string | null | undefined,
-): string | null {
-  if (!tenantId) return null;
-  try {
-    return localStorage.getItem(storageKeyForRoute(tenantId));
-  } catch {
-    return null;
-  }
-}
-
-/** First paint is Carmen Direct (כרמן ישיר). Saved slug is not applied until a chat is restored. */
-export function initialSelectedRoute(
-  _tenantId?: string | null,
-  routes: BrainRoute[] = FALLBACK_BRAIN_ROUTES,
-): BrainRoute {
-  return pickDefaultRoute(routes);
-}
 
 /** Last chat's brain wins. Empty session stays on Carmen Direct. */
 export function routeForRestoredChat(
-  routes: BrainRoute[],
+  routes: Array<BrainRoute>,
   lastChat?: {
     brain_route_id?: string | null;
     routing_mode?: string | null;
@@ -65,12 +50,14 @@ export function routeForRestoredChat(
             r.route_type === lastChat.routing_mode ||
             r.slug === lastChat.routing_mode,
         );
-    if (hit) return hit;
+    if (hit) {
+      return hit;
+    }
   }
   return pickDefaultRoute(routes);
 }
 
-export const FALLBACK_BRAIN_ROUTES: BrainRoute[] = [
+export const FALLBACK_BRAIN_ROUTES: Array<BrainRoute> = [
   {
     id: "fallback-cursor",
     slug: "cursor",
@@ -123,17 +110,15 @@ export const FALLBACK_BRAIN_ROUTES: BrainRoute[] = [
   },
 ];
 
-export function storageKeyForRoute(tenantId: string): string {
-  return `aios:brain-route:${tenantId}`;
-}
-
 export function pickDefaultRoute(
-  list: BrainRoute[],
+  list: Array<BrainRoute>,
   saved?: string | null,
 ): BrainRoute {
   if (saved) {
     const hit = list.find((r) => r.id === saved || r.slug === saved);
-    if (hit) return hit;
+    if (hit) {
+      return hit;
+    }
   }
   return list.find((r) => r.slug === DEFAULT_BRAIN_SLUG) || list[0];
 }
@@ -149,18 +134,27 @@ export function isInputLocked(
 }
 
 export function groupLabel(type: BrainRouteType): string {
-  if (type === "internal") return "מוח פנימי";
-  if (type === "direct_channel") return "ערוץ ישיר";
-  if (type === "model") return "מודלים מחוברים";
+  if (type === "internal") {
+    return "מוח פנימי";
+  }
+  if (type === "direct_channel") {
+    return "ערוץ ישיר";
+  }
+  if (type === "model") {
+    return "מודלים מחוברים";
+  }
   return "פרלמנט";
 }
 
 /** Labels of the tenant's brains, so a model brain's replies show its name. */
 const routeLabels = new Map<string, string>();
 
-export function rememberRouteLabels(routes: BrainRoute[]): void {
-  for (const r of routes)
-    if (r.slug && r.label) routeLabels.set(r.slug, r.label);
+export function rememberRouteLabels(routes: Array<BrainRoute>): void {
+  for (const r of routes) {
+    if (r.slug && r.label) {
+      routeLabels.set(r.slug, r.label);
+    }
+  }
 }
 
 export function speakerLabel(
@@ -194,8 +188,9 @@ export function speakerLabel(
 export function sendPathForRoute(
   route: BrainRoute | null | undefined,
 ): "internal_stream" | "channel_gateway" {
-  if (!route || route.route_type === "internal" || route.slug === "internal")
+  if (!route || route.route_type === "internal" || route.slug === "internal") {
     return "internal_stream";
+  }
   return "channel_gateway";
 }
 
@@ -214,7 +209,9 @@ export type ChannelHealth = {
 export function channelHealthBanner(
   health: ChannelHealth | null | undefined,
 ): string | null {
-  if (!health) return null;
+  if (!health) {
+    return null;
+  }
   if (health.cursor && health.cursor.ok === false) {
     return "מושבי Cursor / Grok לא מחוברים בסביבת הפיתוח. הפריוויו מדבר עם Staging — צריך מפתח User תקף ב-CURSOR_API_KEY שם. כרמן הפנימית עובדת.";
   }
@@ -257,7 +254,9 @@ export function hudStage(args: {
   routeType?: string | null;
   debating?: boolean;
 }): HudStage {
-  if (args.debating || args.routeType === "parliament") return "table";
+  if (args.debating || args.routeType === "parliament") {
+    return "table";
+  }
   return "direct";
 }
 
@@ -267,13 +266,14 @@ export function slugForCouncilSeat(id: CouncilSeatId): string {
 
 /** Table stays up. A tapped seat is who we address; no seat = the whole council. */
 export function routeForTableAddress(
-  routes: BrainRoute[],
+  routes: Array<BrainRoute>,
   addressed: CouncilSeatId | null,
 ): BrainRoute | undefined {
-  if (!addressed)
+  if (!addressed) {
     return routes.find(
       (r) => r.slug === "parliament" || r.route_type === "parliament",
     );
+  }
   const slug = slugForCouncilSeat(addressed);
   return routes.find((r) => r.slug === slug);
 }
@@ -282,16 +282,22 @@ export function councilSeatFromSlug(
   slug?: string | null,
 ): CouncilSeatId | null {
   const key = (slug || "").toLowerCase();
-  if (key === "internal" || key === "carmen") return "carmen";
-  if (key === "cursor" || key === "grok" || key === "codex") return key;
+  if (key === "internal" || key === "carmen") {
+    return "carmen";
+  }
+  if (key === "cursor" || key === "grok" || key === "codex") {
+    return key;
+  }
   return null;
 }
 
 export function parliamentSeats(
   route: BrainRoute | null | undefined,
-): string[] {
+): Array<string> {
   const raw = route?.config?.seats;
-  if (Array.isArray(raw) && raw.length) return raw.map(String);
+  if (Array.isArray(raw) && raw.length) {
+    return raw.map(String);
+  }
   return ["cursor", "grok", "codex"];
 }
 
@@ -324,13 +330,13 @@ const SEAT_LABEL: Record<string, string> = {
 };
 
 export function deriveParliamentView(
-  messages: ChatLike[],
+  messages: Array<ChatLike>,
   route: BrainRoute | null,
 ): {
   round: number;
   maxRounds: number;
   topic: string;
-  seats: ParliamentSeatView[];
+  seats: Array<ParliamentSeatView>;
   carmenSummary: string | null;
 } {
   const names = parliamentSeats(route);
@@ -363,7 +369,7 @@ export function deriveParliamentView(
       )?.content ||
     null;
 
-  const seats: ParliamentSeatView[] = names.map((provider) => {
+  const seats: Array<ParliamentSeatView> = names.map((provider) => {
     const replies = messages.filter(
       (m) =>
         (m.role === "assistant" || m.role === "tool_call") &&
@@ -377,15 +383,18 @@ export function deriveParliamentView(
     );
     const last = replies.filter((m) => m.role === "assistant").at(-1);
     let state: ParliamentSeatStateUi = "waiting";
-    if (failed && !last) state = "failed";
-    else if (round >= 2 && last)
+    if (failed && !last) {
+      state = "failed";
+    } else if (round >= 2 && last) {
       state =
         replies.filter((m) => m.role === "assistant").length >= 2
           ? "replied"
           : "reviewing";
-    else if (last) state = "replied";
-    else if (replies.length || /נשלח ל-|parliament|חושב/i.test(joined))
+    } else if (last) {
+      state = "replied";
+    } else if (replies.length || /נשלח ל-|parliament|חושב/i.test(joined)) {
       state = round >= 2 ? "reviewing" : "thinking";
+    }
     return {
       provider,
       label: SEAT_LABEL[provider] || provider,

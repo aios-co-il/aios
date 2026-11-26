@@ -58,7 +58,9 @@ export default function CarmenAccess() {
   });
 
   useEffect(() => {
-    if (!agent) return;
+    if (!agent) {
+      return;
+    }
     setOffTools(new Set(agent.disabled_tools || []));
     setOffSkins(new Set(agent.disabled_skins || []));
     setOffIntegrations(new Set(agent.disabled_integrations || []));
@@ -81,10 +83,13 @@ export default function CarmenAccess() {
         NonNullable<typeof data>[number] & { slug: string }
       >();
       for (const r of data || []) {
-        if (!r.slug) continue;
+        if (!r.slug) {
+          continue;
+        }
         const ex = bySlug.get(r.slug);
-        if (!ex || r.scope === "tenant")
+        if (!ex || r.scope === "tenant") {
           bySlug.set(r.slug, { ...r, slug: r.slug });
+        }
       }
       return Array.from(bySlug.values()).sort((a, b) =>
         a.name.localeCompare(b.name, "he"),
@@ -108,13 +113,17 @@ export default function CarmenAccess() {
 
   const toolGroups = useMemo(() => {
     const g: Record<string, typeof AGENT_TOOLS_CATALOG> = {};
-    for (const t of AGENT_TOOLS_CATALOG) (g[t.group] ||= []).push(t);
+    for (const t of AGENT_TOOLS_CATALOG) {
+      (g[t.group] ||= []).push(t);
+    }
     return g;
   }, []);
 
   const save = useMutation({
     mutationFn: async () => {
-      if (!agent?.id) throw new Error("לא נמצא סוכן (כרמן).");
+      if (!agent?.id) {
+        throw new Error("לא נמצא סוכן (כרמן).");
+      }
       const { error } = await supabase
         .from("ai_agents")
         .update({
@@ -123,7 +132,9 @@ export default function CarmenAccess() {
           disabled_integrations: Array.from(offIntegrations),
         })
         .eq("id", agent.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("הגישות נשמרו");

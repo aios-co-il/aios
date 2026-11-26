@@ -8,6 +8,7 @@ import {
   publishingImageProxyUrl,
   publishingImageStoragePath,
 } from "../_shared/publishing-images.ts";
+import { publicApiUrl } from "../_shared/public-api/url.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,14 +46,17 @@ const normalizeText = (value: string) =>
 const countPhrase = (text: string, phrase: string) => {
   const normalizedText = normalizeText(text);
   const normalizedPhrase = normalizeText(phrase);
-  if (!normalizedPhrase) return 0;
+  if (!normalizedPhrase) {
+    return 0;
+  }
   return normalizedText.split(normalizedPhrase).length - 1;
 };
 
 const parseGeneratedArticle = (value: string): GeneratedArticle => {
   const parsed = JSON.parse(value || "{}") as GeneratedArticle;
-  if (!parsed || typeof parsed !== "object")
+  if (!parsed || typeof parsed !== "object") {
     throw new Error("OpenAI returned invalid article JSON");
+  }
   return parsed;
 };
 
@@ -80,8 +84,9 @@ async function requestArticleJson(
         ],
       }),
     });
-    if (!response.ok)
+    if (!response.ok) {
       throw new Error(`OpenAI ${response.status}: ${await response.text()}`);
+    }
     const payload = await response.json();
     return parseGeneratedArticle(
       payload.choices?.[0]?.message?.content ?? "{}",
@@ -91,13 +96,15 @@ async function requestArticleJson(
     return await invoke();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (!/Unterminated string|Unexpected end|JSON/i.test(message)) throw error;
+    if (!/Unterminated string|Unexpected end|JSON/i.test(message)) {
+      throw error;
+    }
     // One retry for truncated model JSON.
     return await invoke();
   }
 }
 
-function wordCountOf(parts: string[]) {
+function wordCountOf(parts: Array<string>) {
   return parts.join(" ").split(/\s+/).filter(Boolean).length;
 }
 
@@ -217,13 +224,17 @@ function hardenArticle(
   if (keyword) {
     const normalizedKeyword = normalizeText(keyword);
     const stripKeyword = (part: string) => {
-      if (!normalizedKeyword) return part;
+      if (!normalizedKeyword) {
+        return part;
+      }
       // Rebuild the part without keyword occurrences using normalized matching windows.
       let output = part;
       while (countPhrase(output, keyword) > 0) {
         const normalized = normalizeText(output);
         const at = normalized.indexOf(normalizedKeyword);
-        if (at < 0) break;
+        if (at < 0) {
+          break;
+        }
         // Approximate raw splice by regex fallback first.
         const pattern = new RegExp(
           keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
@@ -279,7 +290,9 @@ async function generateArticleImage(
   kind: MagazineImageKind,
   prompt: string,
 ): Promise<ArticleImage | null> {
-  if (!prompt) return null;
+  if (!prompt) {
+    return null;
+  }
   const response = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",
     headers: {
@@ -307,7 +320,9 @@ async function generateArticleImage(
   }
   const payload = await response.json();
   const encoded = payload?.data?.[0]?.b64_json;
-  if (!encoded) return null;
+  if (!encoded) {
+    return null;
+  }
   const bytes = Uint8Array.from(atob(encoded), (character) =>
     character.charCodeAt(0),
   );
@@ -324,11 +339,7 @@ async function generateArticleImage(
     return null;
   }
   return {
-    url: publishingImageProxyUrl(
-      Deno.env.get("SUPABASE_URL")!,
-      articleId,
-      kind,
-    ),
+    url: publishingImageProxyUrl(publicApiUrl(), articleId, kind),
     prompt,
   };
 }
@@ -366,8 +377,9 @@ ${JSON.stringify({ title: article.title, excerpt: article.excerpt, category: art
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   const admin = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -376,7 +388,9 @@ serve(async (req) => {
 
   try {
     const auth = await requireAuth(req);
-    if (!auth) return respond({ error: "Unauthorized" }, 401);
+    if (!auth) {
+      return respond({ error: "Unauthorized" }, 401);
+    }
 
     const body = await req.json();
     const articleIds = Array.isArray(body.article_ids)
@@ -386,8 +400,9 @@ serve(async (req) => {
           ),
         ].slice(0, 10)
       : [];
-    if (!articleIds.length)
+    if (!articleIds.length) {
       return respond({ error: "article_ids required" }, 400);
+    }
     const imagesOnly = body.mode === "images";
 
     const { data: articles, error: articlesError } = await admin
@@ -396,8 +411,12 @@ serve(async (req) => {
         "id,tenant_id,client_id,customer_name,primary_keyword,proposed_topic,target_url,category,site_id,status,title,excerpt,content",
       )
       .in("id", articleIds);
-    if (articlesError) throw articlesError;
-    if (!articles?.length) return respond({ error: "Articles not found" }, 404);
+    if (articlesError) {
+      throw articlesError;
+    }
+    if (!articles?.length) {
+      return respond({ error: "Articles not found" }, 404);
+    }
     if (new Set(articles.map((article) => article.tenant_id)).size !== 1) {
       return respond({ error: "Articles must belong to one tenant" }, 400);
     }
@@ -410,7 +429,9 @@ serve(async (req) => {
         .eq("tenant_id", tenantId)
         .eq("user_id", auth.userId)
         .maybeSingle();
-      if (!membership) return respond({ error: "Forbidden" }, 403);
+      if (!membership) {
+        return respond({ error: "Forbidden" }, 403);
+      }
     }
 
     const [{ data: integration }, skinBlock] = await Promise.all([
@@ -471,8 +492,9 @@ serve(async (req) => {
               inlinePrompt,
             ),
           ]);
-          if (!heroImage && !inlineImage)
+          if (!heroImage && !inlineImage) {
             throw new Error("יצירת התמונות נכשלה");
+          }
           const { error: imageUpdateError } = await admin
             .from("publishing_articles")
             .update({
@@ -483,7 +505,9 @@ serve(async (req) => {
             })
             .eq("id", article.id)
             .eq("tenant_id", tenantId);
-          if (imageUpdateError) throw imageUpdateError;
+          if (imageUpdateError) {
+            throw imageUpdateError;
+          }
           imageResults.push({ id: article.id, ok: true });
         } catch (error) {
           const message =
@@ -777,7 +801,9 @@ ${JSON.stringify(generated)}`,
           })
           .eq("id", article.id)
           .eq("tenant_id", tenantId);
-        if (contentUpdateError) throw contentUpdateError;
+        if (contentUpdateError) {
+          throw contentUpdateError;
+        }
 
         let heroImage: ArticleImage | null = null;
         let inlineImage: ArticleImage | null = null;

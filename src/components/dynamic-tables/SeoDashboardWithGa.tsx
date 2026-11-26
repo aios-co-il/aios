@@ -35,7 +35,9 @@ export function SeoDashboardWithGa({
         .eq("tenant_id", tenantId)
         .eq("integration_type", "ahrefs")
         .limit(100);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (
         data?.find(
           (t) =>
@@ -60,7 +62,9 @@ export function SeoDashboardWithGa({
         .eq("client_id", clientId)
         .limit(1)
         .maybeSingle();
-      if (error) return null;
+      if (error) {
+        return null;
+      }
       return data;
     },
     enabled: !!tenantId && !!clientId,
@@ -75,7 +79,9 @@ export function SeoDashboardWithGa({
         .select("gsc_site_url")
         .eq("id", clientId)
         .maybeSingle();
-      if (error) return null;
+      if (error) {
+        return null;
+      }
       return data?.gsc_site_url || null;
     },
     enabled: !!clientId,
@@ -99,13 +105,17 @@ export function SeoDashboardWithGa({
   const { data: gaRecords = [] } = useQuery({
     queryKey: ["seo-ga-records", linkedGaTableId],
     queryFn: async () => {
-      if (!linkedGaTableId) return [];
+      if (!linkedGaTableId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("crm_records")
         .select("id, data")
         .eq("table_id", linkedGaTableId)
         .limit(5000);
-      if (error) return [];
+      if (error) {
+        return [];
+      }
       return data || [];
     },
     enabled: !!linkedGaTableId,
@@ -123,7 +133,9 @@ export function SeoDashboardWithGa({
     ?.linkedGscLangFilter || "all") as "all" | "he" | "en";
 
   const persistGscSiteUrl = async (siteUrl: string) => {
-    if (!seoTable?.id || !siteUrl || siteUrl === savedGscSiteUrl) return;
+    if (!seoTable?.id || !siteUrl || siteUrl === savedGscSiteUrl) {
+      return;
+    }
     try {
       const newSettings = {
         ...((seoTable.integration_settings as any) || {}),
@@ -142,7 +154,9 @@ export function SeoDashboardWithGa({
   };
 
   const persistLangFilter = async (lang: "all" | "he" | "en") => {
-    if (!seoTable?.id || lang === savedLangFilter) return;
+    if (!seoTable?.id || lang === savedLangFilter) {
+      return;
+    }
     try {
       const newSettings = {
         ...((seoTable.integration_settings as any) || {}),

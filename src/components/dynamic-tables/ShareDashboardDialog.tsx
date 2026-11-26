@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -73,7 +74,9 @@ export function ShareDashboardDialog({
         .select("*")
         .eq("dashboard_id", dashboardId)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: open,
@@ -84,7 +87,9 @@ export function ShareDashboardDialog({
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      if (!user) {
+        throw new Error("Not authenticated");
+      }
 
       const readableToken = buildDefaultShareToken({
         website: clientWebsite,
@@ -103,7 +108,9 @@ export function ShareDashboardDialog({
         } as any)
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {
@@ -130,7 +137,9 @@ export function ShareDashboardDialog({
           updated_at: new Date().toISOString(),
         } as any)
         .eq("id", shareId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -155,7 +164,9 @@ export function ShareDashboardDialog({
           updated_at: new Date().toISOString(),
         } as any)
         .eq("id", shareId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -180,7 +191,9 @@ export function ShareDashboardDialog({
         .from("dashboard_shares")
         .delete()
         .eq("id", shareId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -193,8 +206,7 @@ export function ShareDashboardDialog({
   const getShareUrl = (token: string) => buildSharedDashboardUrl(token);
 
   const copyLink = (token: string) => {
-    navigator.clipboard.writeText(getShareUrl(token));
-    toast.success("הקישור הועתק ללוח");
+    void copyToClipboard(getShareUrl(token), "הקישור הועתק ללוח");
   };
 
   const startEditing = (shareId: string, currentToken: string) => {
@@ -268,8 +280,12 @@ export function ShareDashboardDialog({
                       className="text-left font-mono text-sm"
                       autoFocus
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") saveSlug(share.id);
-                        if (e.key === "Escape") cancelEditing();
+                        if (e.key === "Enter") {
+                          saveSlug(share.id);
+                        }
+                        if (e.key === "Escape") {
+                          cancelEditing();
+                        }
                       }}
                     />
                     <Button

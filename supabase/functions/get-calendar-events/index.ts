@@ -115,10 +115,19 @@ serve(async (req) => {
               .includes("invalid"))
         ) {
           try {
-            await supabaseClient
-              .from("calendar_tokens")
-              .delete()
-              .eq("user_id", user.id);
+            // Only the owner's own request clears their dead connection; a viewer never disconnects someone else.
+            if (calendarOwnerId === user.id) {
+              const { error: deleteError } = await serviceClient
+                .from("calendar_tokens")
+                .delete()
+                .eq("user_id", user.id);
+              if (deleteError) {
+                console.error(
+                  "Failed to clear the dead calendar connection:",
+                  deleteError.message,
+                );
+              }
+            }
           } catch (cleanupError) {
             console.error(
               "Failed to cleanup invalid calendar tokens",
@@ -182,7 +191,7 @@ serve(async (req) => {
     const calendars = calendarListData.items || [];
 
     // Fetch events from all calendars
-    const allEvents: any[] = [];
+    const allEvents: Array<any> = [];
 
     for (const calendar of calendars) {
       try {

@@ -4,6 +4,7 @@
  * tenant's own Carmen brain (tenant-model.ts), metered under the tenant with
  * source manager_round:chat.
  */
+import { tenantAppLink } from "../../app-link.ts";
 import { tenantModelAsker } from "../../tenant-model.ts";
 import type { CollectorContext } from "../types.ts";
 import {
@@ -15,11 +16,7 @@ import {
 } from "./activity.ts";
 import { type CallsRead, loadCompletedCalls } from "./calls.ts";
 import { CALL_MS, type ClassifyPorts } from "./classify.ts";
-import {
-  type MonitoredLines,
-  monitoredLines,
-  tenantSlug,
-} from "./connections.ts";
+import { type MonitoredLines, monitoredLines } from "./connections.ts";
 import type { LiveChatFinding } from "./gate.ts";
 import { loadClosedChatKeys, loadLiveChatFindings } from "./live.ts";
 import { CHAT_LLM_SOURCE } from "./llm-meter.ts";
@@ -29,14 +26,14 @@ import { loadStaffKeys } from "./roster.ts";
 export type ChatSources = {
   lines(): Promise<MonitoredLines>;
   activity(query: ActivityQuery): Promise<ActivityRead>;
-  unlinked(query: ActivityQuery): Promise<UnlinkedGroupRow[]>;
-  staffKeys(tenantIds: string[], since: Date): Promise<Set<string>>;
+  unlinked(query: ActivityQuery): Promise<Array<UnlinkedGroupRow>>;
+  staffKeys(tenantIds: Array<string>, since: Date): Promise<Set<string>>;
   calls(
-    tenantIds: string[],
-    clientIds: string[],
+    tenantIds: Array<string>,
+    clientIds: Array<string>,
     since: Date,
   ): Promise<CallsRead>;
-  live(): Promise<LiveChatFinding[]>;
+  live(): Promise<Array<LiveChatFinding>>;
   /** `kind|fingerprint` of closed findings about messages since `since`. */
   closed(since: Date): Promise<Set<string>>;
   /** `<app>/t/<slug>/chat/`, or null without APP_URL or a slug. */
@@ -60,12 +57,7 @@ export function dbChatSources(
       loadCompletedCalls(db, tenantIds, clientIds, since),
     live: () => loadLiveChatFindings(db, tenantId, collectorId),
     closed: (since) => loadClosedChatKeys(db, tenantId, collectorId, since),
-    async chatLinkBase() {
-      const slug = appUrl ? await tenantSlug(db, tenantId) : null;
-      return appUrl && slug
-        ? `${appUrl.replace(/\/+$/, "")}/t/${encodeURIComponent(slug)}/chat/`
-        : null;
-    },
+    chatLinkBase: () => tenantAppLink(db, tenantId, appUrl, "chat/"),
     classify: {
       cache: createReviewCache(db, tenantId),
       // The round budget only leaves CALL_MS for the call: a slow reply is

@@ -28,11 +28,11 @@ export interface ColumnConfig {
 }
 
 interface ResizableTableProps {
-  columns: ColumnConfig[];
-  data: any[];
-  onColumnsChange?: (columns: ColumnConfig[]) => void;
+  columns: Array<ColumnConfig>;
+  data: Array<any>;
+  onColumnsChange?: (columns: Array<ColumnConfig>) => void;
   checkboxColumn?: {
-    checked: boolean[];
+    checked: Array<boolean>;
     onCheckedChange: (index: number, checked: boolean) => void;
     onSelectAll: (checked: boolean) => void;
   };
@@ -57,9 +57,10 @@ export function ResizableTable({
   columnOrder,
   onColumnOrderChange,
 }: ResizableTableProps) {
-  const [columns, setColumns] = useState<ColumnConfig[]>(() => {
-    if (!columnWidthStorageKey || typeof window === "undefined")
+  const [columns, setColumns] = useState<Array<ColumnConfig>>(() => {
+    if (!columnWidthStorageKey || typeof window === "undefined") {
       return initialColumns;
+    }
     return applyLeadTableColumnWidths(
       initialColumns,
       readLeadTableColumnWidths(window.localStorage),
@@ -131,7 +132,9 @@ export function ResizableTable({
 
   const handleMouseMove = useCallback(
     (e: MouseEvent) => {
-      if (!resizing) return;
+      if (!resizing) {
+        return;
+      }
 
       const diff = e.clientX - resizing.startX;
       const newWidth = Math.max(
@@ -152,7 +155,9 @@ export function ResizableTable({
   }, []);
 
   useEffect(() => {
-    if (!columnWidthStorageKey || typeof window === "undefined") return;
+    if (!columnWidthStorageKey || typeof window === "undefined") {
+      return;
+    }
     const applySavedWidths = () => {
       const saved = readLeadTableColumnWidths(window.localStorage);
       setColumns((prev) =>
@@ -184,7 +189,9 @@ export function ResizableTable({
   const toggleSticky = useCallback(
     (columnId: string) => {
       const column = columns.find((c) => c.id === columnId);
-      if (!column) return;
+      if (!column) {
+        return;
+      }
       updateColumn(columnId, { sticky: !column.sticky });
     },
     [columns, updateColumn],
@@ -211,7 +218,9 @@ export function ResizableTable({
 
   const getStickyOffset = (columnId: string) => {
     const stickyIndex = stickyColumns.findIndex((c) => c.id === columnId);
-    if (stickyIndex === -1) return 0;
+    if (stickyIndex === -1) {
+      return 0;
+    }
 
     let offset = checkboxColumn ? 50 : 0;
     for (let i = 0; i < stickyIndex; i++) {

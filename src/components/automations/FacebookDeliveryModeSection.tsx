@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useEffect, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -28,7 +29,9 @@ export function FacebookDeliveryModeSection({
   const [subscribing, setSubscribing] = useState(false);
 
   const loadSettings = async () => {
-    if (!integrationId) return;
+    if (!integrationId) {
+      return;
+    }
     setLoading(true);
     const { data } = await supabase
       .from("tenant_integrations")
@@ -46,7 +49,9 @@ export function FacebookDeliveryModeSection({
   }, [integrationId]);
 
   const updateMode = async (newMode: "pull" | "webhook") => {
-    if (!integrationId) return;
+    if (!integrationId) {
+      return;
+    }
     setMode(newMode);
     const { data } = await supabase
       .from("tenant_integrations")
@@ -65,7 +70,9 @@ export function FacebookDeliveryModeSection({
   };
 
   const subscribePage = async () => {
-    if (!integrationId || !pageId) return;
+    if (!integrationId || !pageId) {
+      return;
+    }
     setSubscribing(true);
     try {
       const { data, error } = await supabase.functions.invoke(
@@ -78,8 +85,12 @@ export function FacebookDeliveryModeSection({
           },
         },
       );
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
+      if (error) {
+        throw error;
+      }
+      if ((data as any)?.error) {
+        throw new Error((data as any).error);
+      }
       toast({ title: "העמוד נרשם ל-Webhook" });
       await loadSettings();
     } catch (e: any) {
@@ -94,10 +105,8 @@ export function FacebookDeliveryModeSection({
     }
   };
 
-  const copy = (txt: string, label: string) => {
-    navigator.clipboard.writeText(txt);
-    toast({ title: "הועתק!", description: label });
-  };
+  const copy = (txt: string, label: string) =>
+    void copyToClipboard(txt, "הועתק!", label);
 
   const pageStatus = pageId ? pageSubs[pageId] : null;
 

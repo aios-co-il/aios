@@ -8,21 +8,22 @@
 export type DateFilterOption = { value: string; label: string };
 
 /** Must appear on every combined / shared ads dashboard date selector. */
-export const REQUIRED_COMBINED_DATE_FILTERS: readonly DateFilterOption[] = [
+export const REQUIRED_COMBINED_DATE_FILTERS: ReadonlyArray<DateFilterOption> = [
   { value: "this_week", label: "השבוע" },
   { value: "last_week", label: "שבוע שעבר" },
 ] as const;
 
 /**
- * Authenticated combined dashboard (DashboardView) — client / agency / org.
- * Includes custom range.
+ * Combined dashboard (DashboardView) — client / agency / org — and its share
+ * link (SharedDashboard). Includes custom range.
  */
-export const COMBINED_DASHBOARD_DATE_FILTERS: DateFilterOption[] = [
+export const COMBINED_DASHBOARD_DATE_FILTERS: Array<DateFilterOption> = [
   { value: "today", label: "היום" },
   { value: "yesterday", label: "אתמול" },
   { value: "this_week", label: "השבוע" },
   { value: "last_week", label: "שבוע שעבר" },
   { value: "last_7_days", label: "7 ימים אחרונים" },
+  { value: "last_9_days", label: "9 ימים אחרונים" },
   { value: "last_14_days", label: "14 יום אחרונים" },
   { value: "last_30_days", label: "30 יום אחרונים" },
   { value: "last_60_days", label: "60 יום אחרונים" },
@@ -35,34 +36,14 @@ export const COMBINED_DASHBOARD_DATE_FILTERS: DateFilterOption[] = [
   { value: "custom", label: "טווח מותאם אישית" },
 ];
 
-/**
- * Public shared combined dashboard (SharedDashboard).
- * No custom picker — but week presets must match the authenticated view.
- */
-export const SHARED_COMBINED_DASHBOARD_DATE_FILTERS: DateFilterOption[] = [
-  { value: "today", label: "היום" },
-  { value: "yesterday", label: "אתמול" },
-  { value: "this_week", label: "השבוע" },
-  { value: "last_week", label: "שבוע שעבר" },
-  { value: "last_7_days", label: "7 ימים אחרונים" },
-  { value: "last_14_days", label: "14 יום אחרונים" },
-  { value: "last_30_days", label: "30 יום אחרונים" },
-  { value: "last_60_days", label: "60 יום אחרונים" },
-  { value: "last_70_days", label: "70 יום אחרונים" },
-  { value: "last_90_days", label: "90 יום אחרונים" },
-  { value: "last_120_days", label: "120 יום אחרונים" },
-  { value: "last_365_days", label: "שנה אחרונה" },
-  { value: "this_month", label: "החודש הנוכחי" },
-  { value: "last_month", label: "חודש קודם" },
-];
-
 /** Public shared single-table view (SharedTable). */
-export const SHARED_TABLE_DATE_FILTERS: DateFilterOption[] = [
+export const SHARED_TABLE_DATE_FILTERS: Array<DateFilterOption> = [
   { value: "today", label: "היום" },
   { value: "yesterday", label: "אתמול" },
   { value: "this_week", label: "השבוע" },
   { value: "last_week", label: "שבוע שעבר" },
   { value: "last_7_days", label: "7 ימים אחרונים" },
+  { value: "last_9_days", label: "9 ימים אחרונים" },
   { value: "last_14_days", label: "14 יום אחרונים" },
   { value: "last_30_days", label: "30 יום אחרונים" },
   { value: "last_60_days", label: "60 יום אחרונים" },
@@ -77,7 +58,7 @@ export const SHARED_TABLE_DATE_FILTERS: DateFilterOption[] = [
 ];
 
 /** Meta / Google Ads table-create dialogs. */
-export const ADS_TABLE_CREATE_DATE_RANGE_OPTIONS: DateFilterOption[] = [
+export const ADS_TABLE_CREATE_DATE_RANGE_OPTIONS: Array<DateFilterOption> = [
   { value: "today", label: "היום" },
   { value: "yesterday", label: "אתמול" },
   { value: "this_week", label: "השבוע" },
@@ -89,19 +70,23 @@ export const ADS_TABLE_CREATE_DATE_RANGE_OPTIONS: DateFilterOption[] = [
 ];
 
 export function dateFilterHasOption(
-  options: readonly DateFilterOption[],
+  options: ReadonlyArray<DateFilterOption>,
   value: string,
   expectedLabel?: string,
 ): boolean {
   const hit = options.find((o) => o.value === value);
-  if (!hit) return false;
-  if (expectedLabel !== undefined && hit.label !== expectedLabel) return false;
+  if (!hit) {
+    return false;
+  }
+  if (expectedLabel !== undefined && hit.label !== expectedLabel) {
+    return false;
+  }
   return true;
 }
 
 /** Throws if a combined/shared preset list dropped required week options. */
 export function assertCombinedDateFilters(
-  options: readonly DateFilterOption[],
+  options: ReadonlyArray<DateFilterOption>,
   surface: string,
 ): void {
   for (const req of REQUIRED_COMBINED_DATE_FILTERS) {
@@ -160,6 +145,11 @@ export function getDashboardDateRange(
         startDate: fmt(subDays(today, 7)),
         endDate: fmt(subDays(today, 1)),
       };
+    case "last_9_days":
+      return {
+        startDate: fmt(subDays(today, 9)),
+        endDate: fmt(subDays(today, 1)),
+      };
     case "last_14_days":
       return {
         startDate: fmt(subDays(today, 14)),
@@ -211,8 +201,9 @@ export function getDashboardDateRange(
         endDate: fmt(new Date(today.getFullYear(), today.getMonth(), 0)),
       };
     case "custom":
-      if (customStart && customEnd)
+      if (customStart && customEnd) {
         return { startDate: customStart, endDate: customEnd };
+      }
       return {
         startDate: fmt(subDays(today, 30)),
         endDate: fmt(subDays(today, 1)),

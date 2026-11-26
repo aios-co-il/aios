@@ -36,7 +36,9 @@ export function AssignPhoneFromWhatsAppDialog({
   const { data: contacts = [], isLoading } = useQuery({
     queryKey: ["whatsapp-contacts-for-assign", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase.rpc("get_unknown_chat_contacts", {
         p_tenant_id: tenantId,
       });
@@ -53,9 +55,13 @@ export function AssignPhoneFromWhatsAppDialog({
   const { data: knownContacts = [], isLoading: knownLoading } = useQuery({
     queryKey: ["known-chat-contacts-for-assign", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) return [];
+      if (!userData.user) {
+        return [];
+      }
       const { data, error } = await supabase.rpc("get_chat_contacts", {
         p_tenant_id: tenantId,
         p_connection_user_ids: [userData.user.id],
@@ -72,7 +78,9 @@ export function AssignPhoneFromWhatsAppDialog({
   });
 
   const filteredContacts = contacts.filter((c: any) => {
-    if (!searchTerm) return true;
+    if (!searchTerm) {
+      return true;
+    }
     const term = searchTerm.toLowerCase();
     return (
       (c.name && c.name.toLowerCase().includes(term)) ||
@@ -86,7 +94,9 @@ export function AssignPhoneFromWhatsAppDialog({
         .from("clients")
         .update({ phone })
         .eq("id", clientId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success(`מספר טלפון שויך ל${clientName}`);

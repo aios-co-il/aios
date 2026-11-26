@@ -72,7 +72,7 @@ Deno.test(
     )) as Record<string, unknown>;
     assertStrictEquals(saved.success, true);
     const rpc = db.calls.find((c) => c.table === "rpc:save_video_storyboard")
-      ?.value as { p_scenes: { reference_url?: string }[] };
+      ?.value as { p_scenes: Array<{ reference_url?: string }> };
     assertStrictEquals(rpc.p_scenes[0].reference_url, picture);
     assertStrictEquals(
       rpc.p_scenes[1].reference_url,

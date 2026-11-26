@@ -8,7 +8,7 @@ async function resolveRecipients(
   db: DbClient,
   tenantId: string,
   clientId: string,
-): Promise<string[]> {
+): Promise<Array<string>> {
   const phones = new Set<string>();
   const { data: managers } = await db
     .from("tenant_users")
@@ -22,7 +22,9 @@ async function resolveRecipients(
       .select("phone")
       .in("id", managerIds);
     for (const profile of profiles || []) {
-      if (profile.phone) phones.add(profile.phone);
+      if (profile.phone) {
+        phones.add(profile.phone);
+      }
     }
   }
 
@@ -43,7 +45,9 @@ async function resolveRecipients(
         .select("phone, active")
         .in("id", campaignerIds);
       for (const campaigner of campaigners || []) {
-        if (campaigner.active && campaigner.phone) phones.add(campaigner.phone);
+        if (campaigner.active && campaigner.phone) {
+          phones.add(campaigner.phone);
+        }
       }
     }
   }
@@ -59,7 +63,9 @@ export async function notifyWhatsapp(
   alertId: string,
 ) {
   const recipients = await resolveRecipients(db, tenantId, report.clientId);
-  if (!recipients.length) return;
+  if (!recipients.length) {
+    return;
+  }
   // The send runs as a tenant owner (service-role calls name their sender).
   const { data: owner } = await db
     .from("tenant_users")
@@ -68,7 +74,9 @@ export async function notifyWhatsapp(
     .in("role", ["owner", "admin"])
     .limit(1)
     .maybeSingle();
-  if (!owner?.user_id) return;
+  if (!owner?.user_id) {
+    return;
+  }
 
   const message = findingMessage(report, finding);
   const fnUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-manus-wa-message`;

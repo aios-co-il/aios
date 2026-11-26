@@ -4,8 +4,8 @@ import {
   recallCreditEmptyWhatsApp,
 } from "./recall-credit-alert.ts";
 
-function mockSupabase(opts: { existing?: unknown[] }) {
-  const calls: { table?: string; rpc?: string; payload?: unknown }[] = [];
+function mockSupabase(opts: { existing?: Array<unknown> }) {
+  const calls: Array<{ table?: string; rpc?: string; payload?: unknown }> = [];
   const from = (table: string) => {
     const api: Record<string, unknown> = {};
     const chain = () => api;

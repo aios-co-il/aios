@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState } from "react";
 import type { Tables } from "@/integrations/supabase/types";
 import {
@@ -41,8 +42,8 @@ type TrackingConfig = Pick<
 };
 
 interface TrackingCodeGeneratorProps {
-  clients: Client[];
-  trackingConfigs: TrackingConfig[];
+  clients: Array<Client>;
+  trackingConfigs: Array<TrackingConfig>;
   onCreateConfig: (data: { clientId: string; domain: string }) => void;
   isCreating: boolean;
   onViewDashboard?: (clientId: TrackingConfig["client_id"]) => void;
@@ -60,7 +61,7 @@ export function TrackingCodeGenerator({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const supabaseUrl = "https://zvoijyneresvkadpprel.supabase.co";
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 
   const generateEmbedCode = (trackingId: TrackingConfig["tracking_id"]) => {
     return `<!-- Marketing Captain Analytics -->
@@ -75,14 +76,10 @@ export function TrackingCodeGenerator({
 </script>`;
   };
 
-  const copyToClipboard = async (text: string, id: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
+  const copyCode = async (text: string, id: string) => {
+    if (await copyToClipboard(text, "הקוד הועתק!")) {
       setCopiedId(id);
-      toast.success("הקוד הועתק!");
       setTimeout(() => setCopiedId(null), 2000);
-    } catch (err) {
-      toast.error("שגיאה בהעתקה");
     }
   };
 
@@ -231,7 +228,7 @@ export function TrackingCodeGenerator({
                       variant="secondary"
                       className="absolute top-2 left-2"
                       onClick={() =>
-                        copyToClipboard(
+                        copyCode(
                           generateEmbedCode(config.tracking_id),
                           config.id,
                         )

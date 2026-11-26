@@ -8,6 +8,7 @@ export function executorClient(
   status = 200,
   overrides: Partial<ToolExecutionContext> = {},
   onRequest?: () => void,
+  respond?: (url: URL) => unknown | Promise<unknown>,
 ) {
   const calls: Array<{ url: string; method: string; body: unknown }> = [];
   const supabase = createClient<Database>(
@@ -29,7 +30,9 @@ export function executorClient(
             body: text ? JSON.parse(text) : null,
           });
           onRequest?.();
-          const response = await responses.shift();
+          const response = await (respond
+            ? respond(new URL(request.url))
+            : responses.shift());
           if (response instanceof Response) {
             return response;
           }

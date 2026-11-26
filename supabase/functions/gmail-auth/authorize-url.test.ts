@@ -1,4 +1,9 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
+import {
+  oauthStateKey,
+  signOAuthState,
+  verifyOAuthState,
+} from "../_shared/google-oauth/oauth-state.ts";
 import { fakeSupabaseHttp } from "../_shared/testing/fake-supabase-http.ts";
 import {
   servedHandler,
@@ -23,6 +28,14 @@ Deno.test("the consent screen asks for gmail.modify only", () => {
 });
 
 const SUPABASE_URL = "https://oauth-test.supabase.co";
+
+const USER_ID = "11111111-1111-4111-8111-111111111111";
+
+const TENANT_ID = "22222222-2222-4222-8222-222222222222";
+
+/** The handlers sign with this key, derived from GOOGLE_CLIENT_SECRET below. */
+const STATE_SECRET = oauthStateKey("test-secret");
+
 const env = {
   SUPABASE_URL,
   SUPABASE_ANON_KEY: "test-anon",
@@ -41,7 +54,11 @@ Deno.test({
       async () => {
         const http = fakeSupabaseHttp({
           supabaseUrl: SUPABASE_URL,
-          users: { session: "user-1" },
+          users: { session: USER_ID },
+          tables: {
+            tenant_users: [{ tenant_id: TENANT_ID, user_id: USER_ID }],
+          },
+          rpc: { is_super_admin: () => false },
         });
         await withRuntime({ env, fetch: http.fetch }, async () => {
           const handle = await servedHandler(
@@ -54,7 +71,7 @@ Deno.test({
                 Authorization: "Bearer session",
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify({ action: "init", tenantId: "tenant-1" }),
+              body: JSON.stringify({ action: "init", tenantId: TENANT_ID }),
             }),
           );
           assertEquals(response.status, 200);
@@ -64,7 +81,12 @@ Deno.test({
             "https://www.googleapis.com/auth/gmail.modify",
           ]);
           assertEquals(url.searchParams.get("client_id"), env.GOOGLE_CLIENT_ID);
-          assertEquals(url.searchParams.get("state"), "user-1|tenant-1");
+          const state = await verifyOAuthState(
+            url.searchParams.get("state"),
+            STATE_SECRET,
+          );
+          assertEquals(state?.userId, USER_ID);
+          assertEquals(state?.tenantId, TENANT_ID);
         });
       },
     );
@@ -79,16 +101,21 @@ Deno.test({
       ["https://www.googleapis.com/auth/gmail.modify", true],
     ] as const) {
       await t.step(
-        `callback scope ${String(scope)} is ${accepted ? "accepted" : "rejected"}`,
+        `complete with scope ${String(scope)} is ${accepted ? "accepted" : "rejected"}`,
         async () => {
           const existing = {
-            user_id: "user-1",
+            user_id: USER_ID,
             access_token: "existing",
             refresh_token: "existing-refresh",
           };
           const http = fakeSupabaseHttp({
             supabaseUrl: SUPABASE_URL,
-            tables: { gmail_tokens: [existing] },
+            users: { session: USER_ID },
+            tables: {
+              gmail_tokens: [existing],
+              tenant_users: [{ tenant_id: TENANT_ID, user_id: USER_ID }],
+            },
+            rpc: { is_super_admin: () => false },
             other: (url) => {
               if (url.href === "https://oauth2.googleapis.com/token") {
                 return Response.json({
@@ -111,10 +138,28 @@ Deno.test({
             const handle = await servedHandler(
               new URL("./index.ts", import.meta.url),
             );
+            const state = await signOAuthState(
+              {
+                userId: USER_ID,
+                tenantId: TENANT_ID,
+                origin: null,
+                addNew: false,
+              },
+              STATE_SECRET,
+            );
             const response = await handle(
-              new Request(
-                `${SUPABASE_URL}/functions/v1/gmail-auth?action=callback&code=code&state=user-1|tenant-1`,
-              ),
+              new Request(SUPABASE_URL, {
+                method: "POST",
+                headers: {
+                  Authorization: "Bearer session",
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  action: "complete",
+                  code: "code",
+                  state,
+                }),
+              }),
             );
             const writes = http.calls.filter(
               (call) =>
@@ -124,7 +169,11 @@ Deno.test({
             assertEquals(writes.length, accepted ? 1 : 0);
             if (accepted) {
               assertEquals(response.status, 200);
-              assertStringIncludes(await response.text(), "gmail_connected");
+              assertEquals(await response.json(), { success: true });
+              assertEquals(
+                writes[0].body && Reflect.get(writes[0].body, "tenant_id"),
+                TENANT_ID,
+              );
               assertEquals(
                 writes[0].body && Reflect.get(writes[0].body, "google_email"),
                 "mailbox@example.com",
@@ -142,8 +191,8 @@ Deno.test({
                 false,
               );
               assertEquals(
-                http.calls.filter((call) =>
-                  call.url.pathname.startsWith("/rest/"),
+                http.calls.filter(
+                  (call) => call.url.pathname === "/rest/v1/gmail_tokens",
                 ).length,
                 0,
               );

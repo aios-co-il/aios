@@ -40,15 +40,17 @@ const isStoragePath = (url: string | null): url is string =>
 async function loadScenes(
   tenantId: string,
   projectId: string,
-): Promise<StoryboardScene[]> {
+): Promise<Array<StoryboardScene>> {
   const { data, error } = await supabase
     .from("marketing_video_scenes")
     .select(BOARD_SCENE_COLUMNS)
     .eq("tenant_id", tenantId)
     .eq("item_id", projectId)
     .order("position");
-  if (error) throw error;
-  const rows = (data ?? []) as SceneRow[];
+  if (error) {
+    throw error;
+  }
+  const rows = (data ?? []) as Array<SceneRow>;
   const ids = [
     ...new Set(
       rows
@@ -63,8 +65,10 @@ async function loadScenes(
       .select("id,url")
       .eq("tenant_id", tenantId)
       .in("id", ids);
-    if (assetError) throw assetError;
-    const list = (found ?? []) as SceneAsset[];
+    if (assetError) {
+      throw assetError;
+    }
+    const list = (found ?? []) as Array<SceneAsset>;
     // Clips live in the private creative-video bucket as paths; pictures are mostly links, and
     // the user's own uploads are links to the private entity-attachments bucket.
     const paths = [...new Set(list.map((a) => a.url).filter(isStoragePath))];
@@ -74,13 +78,14 @@ async function loadScenes(
             () => ({}) as Record<string, string>,
           )
         : {};
-    for (const asset of list)
+    for (const asset of list) {
       assets.set(asset.id, {
         id: asset.id,
         url: isStoragePath(asset.url)
           ? (signed[asset.url] ?? null)
           : await resolveCreativeImageUrl(asset.url),
       });
+    }
   }
   return storyboardScenes(rows, assets);
 }
@@ -96,7 +101,9 @@ export function useWorkshopScenes(
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!tenantId || !projectId) return;
+    if (!tenantId || !projectId) {
+      return;
+    }
     const queryKey = scenesQueryKey(tenantId, projectId);
     const refresh = () => void queryClient.invalidateQueries({ queryKey });
     const channel = supabase
@@ -113,7 +120,9 @@ export function useWorkshopScenes(
       )
       .subscribe();
     const stop = subscribeWorkshopEvents((event) => {
-      if (event.item_id === projectId) refresh();
+      if (event.item_id === projectId) {
+        refresh();
+      }
     });
     return () => {
       stop();
@@ -149,7 +158,9 @@ async function refreshStoryboardPage(
       .limit(1)
       .maybeSingle();
     const meta = data ? storyboardPageWith(data.meta, scene, edit) : null;
-    if (!data || !meta) return;
+    if (!data || !meta) {
+      return;
+    }
     await supabase
       .from("workshop_artifacts")
       .update({ meta: meta as Json })
@@ -190,22 +201,28 @@ export function useEditSceneText(
           p_dialogue: patch.dialogue,
         },
       );
-      if (error) throw error;
-      if (tenantId && projectId && scene?.id)
+      if (error) {
+        throw error;
+      }
+      if (tenantId && projectId && scene?.id) {
         await refreshStoryboardPage(tenantId, projectId, scene, edit);
+      }
     },
     onMutate: async ({ sceneId, patch }) => {
       await queryClient.cancelQueries({ queryKey });
-      const before = queryClient.getQueryData<StoryboardScene[]>(queryKey);
-      if (before)
+      const before = queryClient.getQueryData<Array<StoryboardScene>>(queryKey);
+      if (before) {
         queryClient.setQueryData(
           queryKey,
           applySceneEdit(before, sceneId, patch),
         );
+      }
       return { before };
     },
     onError: (error, _vars, context) => {
-      if (context?.before) queryClient.setQueryData(queryKey, context.before);
+      if (context?.before) {
+        queryClient.setQueryData(queryKey, context.before);
+      }
       toast.error(
         isFilmInProduction(error)
           ? filmInProductionMessage("את הטקסט")

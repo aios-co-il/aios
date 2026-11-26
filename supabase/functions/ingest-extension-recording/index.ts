@@ -1,13 +1,15 @@
 // redeploy trigger: rebundle _shared/meeting-summary.ts (rich summary structure + summary_md persistence)
-// Post-upload orchestrator for Chrome-extension screen recordings.
-// The extension uploads video + low-bitrate audio to the `recordings` bucket,
-// inserts a zoom_recordings row (source='chrome_extension'), then calls this
-// function. It responds 202 immediately and continues in the background:
+// Post-upload orchestrator for uploaded recordings: Chrome-extension screen
+// recordings (video + low-bitrate audio, source='chrome_extension') and manual
+// uploads from the Recordings page and lead cards (source='manual'). The
+// uploader inserts a zoom_recordings row, then calls this function. It responds
+// 202 immediately and continues in the background:
 //   transcribe (from audio_file_path) → if client assigned: Hebrew summary →
 //   DOCX → client attachments → auto marketing brief (draft).
 import type {} from "../_shared/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { runRecordingPipeline } from "../_shared/recording-pipeline.ts";
+import { briefSourceFor } from "./brief-source.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,7 +30,9 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "Missing authorization" }, 401);
+    if (!authHeader) {
+      return json({ error: "Missing authorization" }, 401);
+    }
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -43,10 +47,14 @@ Deno.serve(async (req) => {
       data: { user },
       error: authError,
     } = await userClient.auth.getUser();
-    if (authError || !user) return json({ error: "Unauthorized" }, 401);
+    if (authError || !user) {
+      return json({ error: "Unauthorized" }, 401);
+    }
 
     const { recording_id } = await req.json();
-    if (!recording_id) return json({ error: "recording_id is required" }, 400);
+    if (!recording_id) {
+      return json({ error: "recording_id is required" }, 400);
+    }
 
     // RLS-scoped read: enforces that the caller belongs to the recording's tenant.
     const { data: recording, error: recError } = await userClient
@@ -57,8 +65,9 @@ Deno.serve(async (req) => {
       .eq("id", recording_id)
       .maybeSingle();
 
-    if (recError || !recording)
+    if (recError || !recording) {
       return json({ error: "Recording not found" }, 404);
+    }
     if (
       !recording.file_path &&
       !recording.audio_file_path &&
@@ -73,7 +82,7 @@ Deno.serve(async (req) => {
     // has progressive audio parts but no playable file/duration — point
     // playback at the first part so the recording is usable end-to-end.
     if (!recording.file_path && recording.audio_file_paths?.length) {
-      const parts: string[] = recording.audio_file_paths;
+      const parts: Array<string> = recording.audio_file_paths;
       const micParts = parts.filter((p: string) =>
         /_mic_part\d+\./.test(p),
       ).length;
@@ -96,7 +105,7 @@ Deno.serve(async (req) => {
         await runRecordingPipeline(admin, {
           recording,
           createdByUserId: user.id,
-          briefSource: "chrome_extension",
+          briefSource: briefSourceFor(recording.source),
         });
       } catch (err) {
         console.error("[ingest-extension-recording] background error:", err);

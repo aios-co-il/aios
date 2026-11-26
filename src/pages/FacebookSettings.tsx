@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -94,7 +95,9 @@ export default function FacebookSettings() {
   // Auto-select first integration when list changes (prefer own connections)
   useEffect(() => {
     if (leadAdsList.length === 0) {
-      if (selectedLeadAdsId) setSelectedLeadAdsId("");
+      if (selectedLeadAdsId) {
+        setSelectedLeadAdsId("");
+      }
       return;
     }
     const stillExists = leadAdsList.some(
@@ -116,13 +119,17 @@ export default function FacebookSettings() {
   const { data: agencies } = useQuery({
     queryKey: ["agencies", currentTenant?.id],
     queryFn: async () => {
-      if (!currentTenant?.id) return [];
+      if (!currentTenant?.id) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("agencies")
         .select("id, name")
         .eq("tenant_id", currentTenant.id)
         .eq("status", "active");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!currentTenant?.id,
@@ -132,13 +139,17 @@ export default function FacebookSettings() {
   const { data: salesPeople } = useQuery({
     queryKey: ["sales-people", currentTenant?.id],
     queryFn: async () => {
-      if (!currentTenant?.id) return [];
+      if (!currentTenant?.id) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("sales_people")
         .select("id, full_name")
         .eq("tenant_id", currentTenant.id)
         .eq("active", true);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!currentTenant?.id,
@@ -148,13 +159,17 @@ export default function FacebookSettings() {
   const { data: tags } = useQuery({
     queryKey: ["chat-tags", currentTenant?.id],
     queryFn: async () => {
-      if (!currentTenant?.id) return [];
+      if (!currentTenant?.id) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("chat_tags")
         .select("id, name, color")
         .eq("tenant_id", currentTenant.id)
         .order("sort_order");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!currentTenant?.id,
@@ -186,7 +201,9 @@ export default function FacebookSettings() {
         },
       );
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -206,7 +223,9 @@ export default function FacebookSettings() {
         .from("tenant_integrations")
         .update({ is_active: false, api_key: null })
         .eq("id", integrationId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("החיבור לפייסבוק נותק בהצלחה");
@@ -240,7 +259,9 @@ export default function FacebookSettings() {
           },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {
@@ -257,7 +278,9 @@ export default function FacebookSettings() {
   // Save CAPI settings mutation
   const saveCapiMutation = useMutation({
     mutationFn: async () => {
-      if (!currentTenant?.id) throw new Error("No tenant");
+      if (!currentTenant?.id) {
+        throw new Error("No tenant");
+      }
 
       const integrationData = {
         tenant_id: currentTenant.id,
@@ -275,12 +298,16 @@ export default function FacebookSettings() {
           .from("tenant_integrations")
           .update(integrationData)
           .eq("id", capiIntegration.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       } else {
         const { error } = await supabase
           .from("tenant_integrations")
           .insert(integrationData);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
     },
     onSuccess: () => {
@@ -309,7 +336,9 @@ export default function FacebookSettings() {
         })
         .eq("id", leadAdsIntegration.id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("Token נשמר בהצלחה");
@@ -342,7 +371,9 @@ export default function FacebookSettings() {
         },
       );
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -373,7 +404,9 @@ export default function FacebookSettings() {
         },
       );
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -397,10 +430,7 @@ export default function FacebookSettings() {
     },
   });
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success("הועתק ללוח");
-  };
+  const copyWebhookUrl = (text: string) => void copyToClipboard(text);
 
   const leadAdsSettings = leadAdsIntegration?.settings as any;
   const pages = leadAdsSettings?.pages || [];
@@ -418,7 +448,9 @@ export default function FacebookSettings() {
 
   // Check if token is valid (Facebook tokens start with "EAA" and are long)
   const isValidFacebookToken = (token: string | null | undefined): boolean => {
-    if (!token) return false;
+    if (!token) {
+      return false;
+    }
     // Facebook access tokens start with "EAA" and are typically 150+ characters
     return token.startsWith("EAA") && token.length > 100;
   };
@@ -749,7 +781,7 @@ export default function FacebookSettings() {
                       <Button
                         variant="outline"
                         size="icon"
-                        onClick={() => copyToClipboard(webhookUrl)}
+                        onClick={() => copyWebhookUrl(webhookUrl)}
                       >
                         <Copy className="h-4 w-4" />
                       </Button>
@@ -1168,7 +1200,9 @@ export default function FacebookSettings() {
       <ManageIntegrationPermissionsDialog
         open={!!sharingIntegrationId}
         onOpenChange={(open) => {
-          if (!open) setSharingIntegrationId(null);
+          if (!open) {
+            setSharingIntegrationId(null);
+          }
         }}
         integrationId={sharingIntegrationId || ""}
         integrationName={`Facebook - ${sharingIntegrationName}`}

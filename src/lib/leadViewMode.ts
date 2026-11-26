@@ -18,11 +18,14 @@ export function parseLeadViewMode(
     : null;
 }
 
-/** Table keeps the CRM screen and opens the chat record as a popup. */
+/**
+ * Where a clicked lead opens. Table and pipeline keep their screen and open
+ * the chat record as a popup; the chat view selects the lead in place.
+ */
 export type LeadOpenSurface = "popup" | "chat";
 
 export function leadOpenSurface(viewMode: LeadViewMode): LeadOpenSurface {
-  return viewMode === "table" ? "popup" : "chat";
+  return viewMode === "chat" ? "chat" : "popup";
 }
 
 function getStorage(): Pick<Storage, "getItem" | "setItem"> | null {
@@ -36,7 +39,9 @@ function getStorage(): Pick<Storage, "getItem" | "setItem"> | null {
 
 export function readStoredLeadViewMode(): LeadViewMode {
   const storage = getStorage();
-  if (!storage) return "kanban";
+  if (!storage) {
+    return "kanban";
+  }
   return (
     parseLeadViewMode(storage.getItem(LEAD_DEFAULT_VIEW_STORAGE_KEY)) ??
     parseLeadViewMode(storage.getItem(LEAD_VIEW_MODE_STORAGE_KEY)) ??
@@ -46,7 +51,9 @@ export function readStoredLeadViewMode(): LeadViewMode {
 
 export function writeStoredLeadViewMode(mode: LeadViewMode, asDefault = false) {
   const storage = getStorage();
-  if (!storage) return;
+  if (!storage) {
+    return;
+  }
   try {
     storage.setItem(LEAD_VIEW_MODE_STORAGE_KEY, mode);
     if (asDefault) {
@@ -59,6 +66,8 @@ export function writeStoredLeadViewMode(mode: LeadViewMode, asDefault = false) {
 
 export function readStoredLeadDefaultView(): LeadViewMode | null {
   const storage = getStorage();
-  if (!storage) return null;
+  if (!storage) {
+    return null;
+  }
   return parseLeadViewMode(storage.getItem(LEAD_DEFAULT_VIEW_STORAGE_KEY));
 }

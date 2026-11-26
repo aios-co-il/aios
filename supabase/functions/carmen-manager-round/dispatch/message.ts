@@ -15,7 +15,7 @@ export type MessageItem = {
 /** One message: a greeting by first name and the numbered items with their codes. */
 export function composeAlertMessage(
   recipientName: string,
-  items: MessageItem[],
+  items: Array<MessageItem>,
 ): string {
   const name = firstName(recipientName);
   const intro =
@@ -33,9 +33,9 @@ export function composeAlertMessage(
 
 /** One item per finding of `rows`, marked escalated when it reached this person above level 0. */
 export function messageItems(
-  rows: DeliveryRow[],
+  rows: Array<DeliveryRow>,
   findings: Map<string, FindingRow>,
-): MessageItem[] {
+): Array<MessageItem> {
   return [...new Set(rows.map((row) => row.finding_id))].flatMap((id) => {
     const finding = findings.get(id);
     if (!finding) {

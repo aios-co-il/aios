@@ -13,7 +13,7 @@ export type SearchClient = Pick<
   | "meta_ads_account_id"
 > & {
   agency_name: string | null;
-  matched_via: string[];
+  matched_via: Array<string>;
   ad_accounts: Array<{
     table_id: string;
     table_name: string;

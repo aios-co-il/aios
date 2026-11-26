@@ -87,19 +87,21 @@ function AgentMemoryLibrary({ agentId }: { agentId: string }) {
     });
   };
 
-  if (isLoading)
+  if (isLoading) {
     return (
       <div className="flex justify-center py-12">
         <Brain className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
-  if (tree.length === 0)
+  }
+  if (tree.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground" dir="rtl">
         <Brain className="h-10 w-10 mx-auto mb-3 opacity-30" />
         <p>אין זיכרונות עדיין. הסוכן ילמד מהאינטראקציות שלו.</p>
       </div>
     );
+  }
 
   return (
     // Content-height layout (no viewport-height container) so it fits embedded
@@ -119,7 +121,7 @@ function AgentMemoryLibrary({ agentId }: { agentId: string }) {
         >
           הכל
         </button>
-        {(tree as MemoryTreeNode[]).map((node) => {
+        {(tree as Array<MemoryTreeNode>).map((node) => {
           const meta = CATEGORY_META[node.category] ?? CATEGORY_META.other;
           const Icon = meta.icon;
           const expanded = expandedCats.has(node.category);

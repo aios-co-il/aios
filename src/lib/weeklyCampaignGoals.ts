@@ -20,7 +20,7 @@ export type WeeklyGoalTotals = Omit<
 /** One goal's campaigns in a week, with totals of that goal only. */
 export type WeeklyGoalGroup = {
   kind: ReportCampaignGoal;
-  rows: WeeklyCampaignRow[];
+  rows: Array<WeeklyCampaignRow>;
   totals: WeeklyGoalTotals;
 };
 
@@ -29,8 +29,8 @@ export type WeeklyGoalGroup = {
  * with its own totals. Goals without campaigns are left out.
  */
 export function groupWeeklyRowsByGoal(
-  rows: WeeklyCampaignRow[],
-): WeeklyGoalGroup[] {
+  rows: Array<WeeklyCampaignRow>,
+): Array<WeeklyGoalGroup> {
   return groupRowsByCampaignGoal(rows, (row) => row.kind).map((group) => ({
     kind: group.goal,
     rows: group.rows,

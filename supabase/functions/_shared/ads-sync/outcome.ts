@@ -13,6 +13,7 @@
  */
 import type { AdsEntityLevel } from "./levels.ts";
 import { redactSyncError } from "./redact.ts";
+import { ADS_SYNC_RUNS_PER_DAY } from "./schedules.ts";
 
 export const SYNC_OUTCOME_STATUSES = [
   "ok",
@@ -28,7 +29,7 @@ export type SyncOutcome = {
   /** Rows written by this run. */
   rows: number;
   /** Report levels fetched without an error (ads syncs only). */
-  levels_ok?: AdsEntityLevel[];
+  levels_ok?: Array<AdsEntityLevel>;
   error?: string;
   /** When the run finished (ISO). */
   at: string;
@@ -43,7 +44,7 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 export function buildSyncOutcome(input: {
   status: SyncOutcomeStatus;
   rows?: number;
-  levelsOk?: readonly AdsEntityLevel[];
+  levelsOk?: ReadonlyArray<AdsEntityLevel>;
   error?: string | null;
   at?: string;
   source?: string;
@@ -73,9 +74,10 @@ export function isWriteSuccess(status: SyncOutcomeStatus): boolean {
 
 /**
  * Runs in a row that did not refresh the data before the pulse raises a sync
- * alert: the morning run and the next one. One failure only shows on the report.
+ * alert: one day's scheduled runs (ADS_SYNC_RUNS_PER_DAY), so the failure has
+ * lasted at least 12 hours. A shorter outage only shows on the report.
  */
-export const SYNC_FAILURES_BEFORE_ALERT = 2;
+export const SYNC_FAILURES_BEFORE_ALERT = ADS_SYNC_RUNS_PER_DAY;
 
 /** A stored `sync_failed_streak`, or 0 when it is missing or not a count. */
 export function readFailedStreak(value: unknown): number {

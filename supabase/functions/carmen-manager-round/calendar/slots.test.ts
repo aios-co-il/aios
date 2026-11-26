@@ -49,7 +49,7 @@ Deno.test(
   "nextWorkingSlot moves the list past Friday, Shabbat and holidays",
   () => {
     const friday = new Date("2026-10-30T08:00:00Z");
-    const calendar = { business_hours: {}, holidays: [] as string[] };
+    const calendar = { business_hours: {}, holidays: [] as Array<string> };
     assertEquals(
       iso(nextWorkingSlot(LIST_CRON, friday, calendar)),
       "2026-11-01T06:30:00.000Z",

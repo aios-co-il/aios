@@ -1,13 +1,15 @@
 import { Fragment } from "react";
-import { ReportNameCell } from "@/components/report-ui/ReportTable";
-import { previousCellsFor } from "@/components/reports/PreviousPeriod/previousCells";
+import { FacebookEntityNameCell } from "@/components/reports/AdPreview/FacebookEntityNameCell";
+import { MarkedCell } from "@/components/reports/PreviousPeriod/MarkedCell";
+import { compareCellsFor } from "@/components/reports/PreviousPeriod/previousCells";
 import { PreviousValueHead } from "@/components/reports/PreviousPeriod/PreviousValueCell";
 import { Card } from "@/components/ui/card";
-import { formatReportNumber, ratio, resultCellClass } from "@/lib/reportNumber";
+import { formatReportNumber, resultCellClass } from "@/lib/reportNumber";
 import {
   type FacebookTablePrevious,
   previousRowsOf,
 } from "./facebookPreviousPeriod";
+import { costPerLead, leadsOf, spendOf, sumOf } from "./facebookMetrics";
 import type {
   FacebookReportCampaign,
   FacebookReportEntry,
@@ -65,10 +67,10 @@ export function FacebookLeadsTable({
                 key={`lead-${groupKey}`}
                 className="border-b hover:bg-muted/30"
               >
-                <ReportNameCell
+                <FacebookEntityNameCell
                   name={campaign.name}
-                  on={!campaign.off}
-                  className="p-2 text-right"
+                  off={campaign.off}
+                  adId={campaign.adId}
                 />
                 <LeadCells
                   campaigns={[campaign]}
@@ -109,7 +111,10 @@ function LeadCells({
   currency: string;
   isTotal: boolean;
 }) {
-  const prev = previousCellsFor(campaigns, previous);
+  const compared = compareCellsFor(campaigns, previous);
+  const leads = compared(leadsOf, formatReportNumber, "higher");
+  const spend = compared(spendOf, money, "neutral");
+  const cpl = compared(costPerLead, (value) => money(value, 1), "lower");
   /** An amount in the report's currency. */
   function money(value: number, digits = 0) {
     return `${currency}${formatReportNumber(value, digits)}`;
@@ -122,29 +127,24 @@ function LeadCells({
       <td className="p-2 text-center">
         {formatReportNumber(sumOf(campaigns, "clicks"))}
       </td>
-      <td className={resultCellClass("text-green-600", isTotal)}>
-        {formatReportNumber(sumOf(campaigns, "leads"))}
-      </td>
-      {prev((rows) => sumOf(rows, "leads"), formatReportNumber, "higher")}
-      <td className="p-2 text-center">{money(sumOf(campaigns, "spend"))}</td>
-      {prev((rows) => sumOf(rows, "spend"), money, "neutral")}
-      <td className={resultCellClass("text-blue-600", isTotal)}>
-        {money(costPerLead(campaigns), 1)}
-      </td>
-      {prev(costPerLead, (value) => money(value, 1), "lower")}
+      <MarkedCell
+        className={resultCellClass("text-green-600", isTotal)}
+        mark={leads.mark}
+      >
+        {formatReportNumber(leadsOf(campaigns))}
+      </MarkedCell>
+      {leads.previousCell}
+      <MarkedCell className="p-2 text-center" mark={spend.mark}>
+        {money(spendOf(campaigns))}
+      </MarkedCell>
+      {spend.previousCell}
+      <MarkedCell
+        className={resultCellClass("text-blue-600", isTotal)}
+        mark={cpl.mark}
+      >
+        {money(costPerLead(campaigns) ?? 0, 1)}
+      </MarkedCell>
+      {cpl.previousCell}
     </>
   );
-}
-
-/** Spend per lead of the rows. */
-function costPerLead(rows: Rows): number {
-  return ratio(sumOf(rows, "spend"), sumOf(rows, "leads"));
-}
-
-/** One number summed over the rows. */
-function sumOf(
-  rows: Rows,
-  key: "impressions" | "clicks" | "spend" | "leads",
-): number {
-  return rows.reduce((total, row) => total + row[key], 0);
 }

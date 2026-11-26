@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState, useMemo } from "react";
 import {
   Card,
@@ -10,7 +11,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Copy } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,9 +20,8 @@ import {
 } from "@/lib/leadJsonFields";
 
 export default function JsonLeadBuilder() {
-  const { toast } = useToast();
   const { tenant } = useCurrentTenant();
-  const [selectedFields, setSelectedFields] = useState<string[]>([
+  const [selectedFields, setSelectedFields] = useState<Array<string>>([
     "tenant_slug",
     "company_name",
   ]);
@@ -35,14 +34,18 @@ export default function JsonLeadBuilder() {
   const { data: customFields } = useQuery({
     queryKey: ["custom-fields-leads", tenant?.id],
     queryFn: async () => {
-      if (!tenant?.id) return [];
+      if (!tenant?.id) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("custom_fields")
         .select("field_key, field_label, is_visible")
         .eq("tenant_id", tenant.id)
         .eq("entity_type", "lead");
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenant?.id,
@@ -62,8 +65,9 @@ export default function JsonLeadBuilder() {
   const availableFields = useMemo(() => {
     return baseFields
       .filter((field) => {
-        if (LEAD_JSON_INTAKE_ALWAYS_SHOWN.has(field.key) || field.required)
+        if (LEAD_JSON_INTAKE_ALWAYS_SHOWN.has(field.key) || field.required) {
           return true;
+        }
         const override = customByKey[field.key];
         return override ? override.visible : true;
       })
@@ -74,7 +78,9 @@ export default function JsonLeadBuilder() {
   }, [baseFields, customByKey]);
 
   const toggleField = (fieldKey: string) => {
-    if (fieldKey === "tenant_slug") return;
+    if (fieldKey === "tenant_slug") {
+      return;
+    }
     setSelectedFields((prev) =>
       prev.includes(fieldKey)
         ? prev.filter((k) => k !== fieldKey)
@@ -95,13 +101,8 @@ export default function JsonLeadBuilder() {
     return JSON.stringify(json, null, 2);
   };
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(generateJson());
-    toast({
-      title: "הועתק ללוח",
-      description: "JSON הועתק בהצלחה",
-    });
-  };
+  const copyJson = () =>
+    void copyToClipboard(generateJson(), "הועתק ללוח", "JSON הועתק בהצלחה");
 
   return (
     <Card>
@@ -143,7 +144,7 @@ export default function JsonLeadBuilder() {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label>ה-JSON שנוצר:</Label>
-            <Button variant="outline" size="sm" onClick={copyToClipboard}>
+            <Button variant="outline" size="sm" onClick={copyJson}>
               <Copy className="h-4 w-4 ml-2" />
               העתק
             </Button>

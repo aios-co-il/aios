@@ -4,7 +4,7 @@ type WorkspaceIntegration = {
   name: string;
   type: string;
   icon_url: string | null;
-  categories: string[];
+  categories: Array<string>;
 };
 
 type PendingConnection = {
@@ -45,10 +45,18 @@ const rankCalendarCandidate = (integration: WorkspaceIntegration) => {
 
   let score = 0;
 
-  if (haystack.includes("google_calendar")) score += 10;
-  if (haystack.includes("google calendar")) score += 8;
-  if (haystack.includes("google")) score += 5;
-  if (haystack.includes("calendar")) score += 3;
+  if (haystack.includes("google_calendar")) {
+    score += 10;
+  }
+  if (haystack.includes("google calendar")) {
+    score += 8;
+  }
+  if (haystack.includes("google")) {
+    score += 5;
+  }
+  if (haystack.includes("calendar")) {
+    score += 3;
+  }
 
   return score;
 };
@@ -64,9 +72,12 @@ async function getWorkspaceCalendarIntegration(tenantId: string) {
     },
   );
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
-  const integrations = (data?.integrations ?? []) as WorkspaceIntegration[];
+  const integrations = (data?.integrations ??
+    []) as Array<WorkspaceIntegration>;
   const candidates = integrations.filter(isCalendarCandidate);
 
   if (!candidates.length) {
@@ -83,7 +94,9 @@ export async function openUnifiedCalendarConnection({
 }: {
   tenantId: string;
 }) {
-  if (!tenantId) throw new Error("לא נמצא ארגון פעיל.");
+  if (!tenantId) {
+    throw new Error("לא נמצא ארגון פעיל.");
+  }
 
   const popup = window.open(
     "about:blank",
@@ -132,7 +145,9 @@ export async function openUnifiedCalendarConnection({
       },
     );
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
 
     if (!data?.embed_url) {
       throw new Error("לא התקבל קישור חיבור מ-Unified.");
@@ -160,7 +175,9 @@ export async function findUnifiedCalendarConnectionId(tenantId: string) {
     },
   );
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
   const connections = (data?.connections ?? []) as Array<{
     id: string;
@@ -169,7 +186,9 @@ export async function findUnifiedCalendarConnectionId(tenantId: string) {
   }>;
 
   const calendarConnection = connections.find((connection) => {
-    if (connection.integration_type === "unified_calendar") return true;
+    if (connection.integration_type === "unified_calendar") {
+      return true;
+    }
     return normalize(connection.settings?.unified_category).includes(
       "calendar",
     );
@@ -180,7 +199,12 @@ export async function findUnifiedCalendarConnectionId(tenantId: string) {
 
 export function listenForUnifiedConnection(onConnected: () => void) {
   const handler = (event: MessageEvent) => {
-    if (event.data?.type !== "unified-connected") return;
+    if (
+      event.origin !== window.location.origin ||
+      event.data?.type !== "unified-connected"
+    ) {
+      return;
+    }
 
     window.removeEventListener("message", handler);
     onConnected();

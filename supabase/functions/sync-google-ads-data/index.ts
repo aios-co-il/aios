@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { type OperationalCampaignState } from "../_shared/campaign-operational-health.ts";
 import type { AdsEntityLevel } from "../_shared/ads-sync/levels.ts";
 import { scheduledMarkerPatch } from "../_shared/ads-sync/outcome.ts";
+import { requestedHistoryBackfillPatch } from "../_shared/ads-sync/history-backfill.ts";
 import { redactSyncError } from "../_shared/ads-sync/redact.ts";
 import { syncRunBody } from "../_shared/ads-sync/run-response.ts";
 import {
@@ -23,6 +24,11 @@ import type { GoogleCampaignGoal } from "../_shared/campaign-goal/google-classif
 import { operationalCampaignStates } from "../_shared/campaign-goal/delivery-status.ts";
 import { enrichConversionCategories } from "./conversion-enrichment.ts";
 import {
+  AD_CONTENT_GAQL_FIELDS,
+  type GoogleAdContent,
+  googleAdContent,
+} from "./ad-content.ts";
+import {
   detectGoogleAdsError,
   googleAdsErrorBody,
   isManagerAccountError,
@@ -41,7 +47,7 @@ const DEVELOPER_TOKEN = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN") || "";
 const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID") || "";
 const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET") || "";
 
-interface GoogleAdsRecord {
+interface GoogleAdsRecord extends GoogleAdContent {
   date: string;
   entity_level?: "campaign" | "adset" | "ad";
   campaign_id: string;
@@ -173,6 +179,7 @@ Deno.serve(async (req) => {
       scheduled_synced_through,
       scheduled_lookback_on,
       update_last_sync = true,
+      history_backfill = false,
     } = await req.json();
 
     if (!table_id) {
@@ -285,7 +292,9 @@ Deno.serve(async (req) => {
         .maybeSingle();
       // Only use it if it's still active and usable; otherwise fall through to the resolver
       // so a disabled/removed connection doesn't hard-fail an existing table.
-      if (data?.is_active && data?.api_key) integration = data;
+      if (data?.is_active && data?.api_key) {
+        integration = data;
+      }
     }
 
     if (!integration) {
@@ -335,14 +344,18 @@ Deno.serve(async (req) => {
       force = false,
     ): Promise<{ ok: boolean; needsReauth?: boolean; error?: string }> {
       const refreshTokenStr = integrationSettings?.refresh_token;
-      if (!refreshTokenStr) return { ok: true }; // nothing to do (legacy connection)
+      if (!refreshTokenStr) {
+        return { ok: true };
+      } // nothing to do (legacy connection)
 
       const expiresAtMs = integrationSettings?.expires_at
         ? new Date(integrationSettings.expires_at).getTime()
         : 0;
       const fiveMinFromNow = Date.now() + 5 * 60 * 1000;
       const stale = !expiresAtMs || expiresAtMs < fiveMinFromNow;
-      if (!force && !stale) return { ok: true };
+      if (!force && !stale) {
+        return { ok: true };
+      }
 
       const refreshResp = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
@@ -440,7 +453,9 @@ Deno.serve(async (req) => {
       });
       if (res.status === 401) {
         const r = await ensureFreshToken(true);
-        if (!r.ok) return res; // surface the original 401; outer handler will report needs_reauth
+        if (!r.ok) {
+          return res;
+        } // surface the original 401; outer handler will report needs_reauth
         res = await fetch(url, {
           ...init,
           headers: { ...baseHeaders, Authorization: `Bearer ${accessToken}` },
@@ -585,10 +600,10 @@ Deno.serve(async (req) => {
         metrics.cost_per_conversion`;
 
     const parseGaqlResults = (
-      batchesArr: any[],
+      batchesArr: Array<any>,
       entityLevel: "campaign" | "adset" | "ad",
-    ): GoogleAdsRecord[] => {
-      const parsed: GoogleAdsRecord[] = [];
+    ): Array<GoogleAdsRecord> => {
+      const parsed: Array<GoogleAdsRecord> = [];
       for (const batch of batchesArr) {
         for (const result of batch.results || []) {
           const costMicros = parseInt(result.metrics?.costMicros || "0");
@@ -630,6 +645,10 @@ Deno.serve(async (req) => {
             cost_per_conversion:
               parseInt(result.metrics?.costPerConversion || "0") / 1000000,
             roas: Math.round(roas * 100) / 100,
+            // The ad's copy, for the report's ad card; ad rows only.
+            ...(entityLevel === "ad"
+              ? googleAdContent(result.adGroupAd?.ad)
+              : {}),
           });
         }
       }
@@ -657,7 +676,9 @@ Deno.serve(async (req) => {
         data = null;
       }
       const err = detectGoogleAdsError(data);
-      if (err) throw err;
+      if (err) {
+        throw err;
+      }
       return Array.isArray(data) ? data : data?.results ? [data] : [];
     };
 
@@ -698,7 +719,7 @@ Deno.serve(async (req) => {
         ad_group.id,
         ad_group.name,
         ad_group_ad.ad.id,
-        ad_group_ad.ad.name,
+        ad_group_ad.ad.name,${AD_CONTENT_GAQL_FIELDS},
         ${gaqlMetrics}
       FROM ad_group_ad
       WHERE segments.date BETWEEN '${startIso}' AND '${endIso}'
@@ -731,7 +752,7 @@ Deno.serve(async (req) => {
         WHERE campaign.status != 'REMOVED'
       `;
       const batches = await runGaqlSearch(statusQuery);
-      const campaigns: OperationalCampaignState[] = batches.flatMap(
+      const campaigns: Array<OperationalCampaignState> = batches.flatMap(
         (batch: any) =>
           (batch.results || [])
             .map((result: any) => ({
@@ -861,10 +882,12 @@ Deno.serve(async (req) => {
 
     // Helper: try a list of candidate MCCs and return the first that works
     const tryMccCandidates = async (
-      candidates: string[],
+      candidates: Array<string>,
     ): Promise<{ data: any; mcc: string } | null> => {
       for (const mcc of candidates) {
-        if (!mcc || mcc === customerId) continue;
+        if (!mcc || mcc === customerId) {
+          continue;
+        }
         const retryResponse = await adsFetch(
           `https://googleads.googleapis.com/v23/customers/${customerId}/googleAds:searchStream`,
           {
@@ -931,7 +954,7 @@ Deno.serve(async (req) => {
         ),
       );
 
-      let listMccs: string[] = [];
+      let listMccs: Array<string> = [];
       try {
         const listResponse = await adsFetch(
           "https://googleads.googleapis.com/v23/customers:listAccessibleCustomers",
@@ -988,7 +1011,10 @@ Deno.serve(async (req) => {
     console.log(
       `[sync-google-ads] campaign batches received: ${batchesArr.length}`,
     );
-    const records: GoogleAdsRecord[] = parseGaqlResults(batchesArr, "campaign");
+    const records: Array<GoogleAdsRecord> = parseGaqlResults(
+      batchesArr,
+      "campaign",
+    );
     // A failed ad group / ad query keeps that level's stored rows (syncAdsWindow).
     const levelErrors: Partial<Record<AdsEntityLevel, string>> = {};
 
@@ -998,7 +1024,7 @@ Deno.serve(async (req) => {
     const fetchLowerLevel = async (
       query: string,
       level: "adset" | "ad",
-    ): Promise<GoogleAdsRecord[]> => {
+    ): Promise<Array<GoogleAdsRecord>> => {
       try {
         return parseGaqlResults(await runGaqlSearch(query), level);
       } catch (levelErr) {
@@ -1078,7 +1104,9 @@ Deno.serve(async (req) => {
             verifiedFrom = coveredFrom;
             // Helper: extract URL slug (path segment) from referer
             const extractSlug = (referer: string | null): string => {
-              if (!referer) return "";
+              if (!referer) {
+                return "";
+              }
               try {
                 const u = new URL(referer);
                 const seg = u.pathname.split("/").filter(Boolean)[0] || "";
@@ -1111,13 +1139,19 @@ Deno.serve(async (req) => {
             >();
 
             for (const sub of subData.submissions) {
-              if (sub.source === "test") continue;
+              if (sub.source === "test") {
+                continue;
+              }
               const day = (sub.created_at || "").slice(0, 10);
-              if (!day) continue;
+              if (!day) {
+                continue;
+              }
 
               const cid = sub.gad_campaignid;
               if (cid) {
-                if (!byCampaignId.has(cid)) byCampaignId.set(cid, new Map());
+                if (!byCampaignId.has(cid)) {
+                  byCampaignId.set(cid, new Map());
+                }
                 const dm = byCampaignId.get(cid)!;
                 dm.set(day, (dm.get(day) || 0) + 1);
               }
@@ -1125,7 +1159,9 @@ Deno.serve(async (req) => {
               // Index by form_id (primary mapping key)
               const fid = sub.form_id ? String(sub.form_id) : "";
               if (fid) {
-                if (!byFormId.has(fid)) byFormId.set(fid, new Map());
+                if (!byFormId.has(fid)) {
+                  byFormId.set(fid, new Map());
+                }
                 const dm = byFormId.get(fid)!;
                 dm.set(day, (dm.get(day) || 0) + 1);
                 const cur = formTotals.get(fid);
@@ -1142,7 +1178,9 @@ Deno.serve(async (req) => {
                     ? sub.slug
                     : extractSlug(sub.referer);
                 if (slug) {
-                  if (!bySlug.has(slug)) bySlug.set(slug, new Map());
+                  if (!bySlug.has(slug)) {
+                    bySlug.set(slug, new Map());
+                  }
                   const dm = bySlug.get(slug)!;
                   dm.set(day, (dm.get(day) || 0) + 1);
                 }
@@ -1152,20 +1190,28 @@ Deno.serve(async (req) => {
             // PRIMARY: form_id -> campaign_id mapping
             const formMapping: Record<string, string> =
               (site as any).campaign_form_mapping || {};
-            const campaignIdToForms = new Map<string, string[]>();
+            const campaignIdToForms = new Map<string, Array<string>>();
             for (const [fid, cid] of Object.entries(formMapping)) {
-              if (!cid) continue;
-              if (!campaignIdToForms.has(cid)) campaignIdToForms.set(cid, []);
+              if (!cid) {
+                continue;
+              }
+              if (!campaignIdToForms.has(cid)) {
+                campaignIdToForms.set(cid, []);
+              }
               campaignIdToForms.get(cid)!.push(fid);
             }
 
             // LEGACY: slug -> campaign_id mapping (kept for backward compat)
             const manualMapping: Record<string, string> =
               (site as any).campaign_url_mapping || {};
-            const campaignIdToSlugs = new Map<string, string[]>();
+            const campaignIdToSlugs = new Map<string, Array<string>>();
             for (const [slug, cid] of Object.entries(manualMapping)) {
-              if (!cid) continue;
-              if (!campaignIdToSlugs.has(cid)) campaignIdToSlugs.set(cid, []);
+              if (!cid) {
+                continue;
+              }
+              if (!campaignIdToSlugs.has(cid)) {
+                campaignIdToSlugs.set(cid, []);
+              }
               campaignIdToSlugs.get(cid)!.push(slug);
             }
 
@@ -1182,7 +1228,9 @@ Deno.serve(async (req) => {
             }));
 
             for (const rec of records) {
-              if ((rec.entity_level || "campaign") !== "campaign") continue;
+              if ((rec.entity_level || "campaign") !== "campaign") {
+                continue;
+              }
               // Days older than the fetched submissions stay unannotated, not 0.
               if (rec.date < coveredFrom) {
                 continue;
@@ -1193,7 +1241,9 @@ Deno.serve(async (req) => {
                 let mappedCount = 0;
                 for (const fid of mappedForms) {
                   const dm = byFormId.get(fid);
-                  if (dm) mappedCount += dm.get(rec.date) || 0;
+                  if (dm) {
+                    mappedCount += dm.get(rec.date) || 0;
+                  }
                 }
                 rec.verified_leads = mappedCount;
                 const formNames = mappedForms.map(
@@ -1218,7 +1268,9 @@ Deno.serve(async (req) => {
                 let mappedCount = 0;
                 for (const slug of mappedSlugs) {
                   const dm = bySlug.get(slug);
-                  if (dm) mappedCount += dm.get(rec.date) || 0;
+                  if (dm) {
+                    mappedCount += dm.get(rec.date) || 0;
+                  }
                 }
                 rec.verified_leads = mappedCount;
                 rec.verified_source = `${site.site_url} (slug: ${mappedSlugs.join(", ")})`;
@@ -1248,8 +1300,9 @@ Deno.serve(async (req) => {
                 const dm = bySlug.get(bestSlug)!;
                 const fuzzyCount = dm.get(rec.date) || 0;
                 rec.verified_leads = fuzzyCount;
-                if (fuzzyCount > 0)
+                if (fuzzyCount > 0) {
                   rec.verified_source = `${site.site_url}/${bestSlug} (fuzzy)`;
+                }
               } else {
                 rec.verified_leads = 0;
               }
@@ -1351,11 +1404,12 @@ Deno.serve(async (req) => {
             type: fieldTypes[i],
             position: i,
           });
-        if (fieldErr)
+        if (fieldErr) {
           console.error(
             `[sync-google-ads] field insert error for ${fieldKeys[i]}:`,
             fieldErr.message,
           );
+        }
       }
     }
 
@@ -1402,11 +1456,18 @@ Deno.serve(async (req) => {
       outcome,
       catchup: update_last_sync === false || !resolvedWindow.stampsLastSync,
       fallbackSettings: settings,
-      settingsPatch: scheduledMarkerPatch(outcome.status, {
-        scheduled_history_from,
-        scheduled_synced_through,
-        scheduled_lookback_on,
-      }),
+      settingsPatch: {
+        ...scheduledMarkerPatch(outcome.status, {
+          scheduled_history_from,
+          scheduled_synced_through,
+          scheduled_lookback_on,
+        }),
+        // Only the scheduled cron may clear the history backfill marker.
+        ...requestedHistoryBackfillPatch(outcome.status, {
+          historyBackfill: history_backfill,
+          trusted: isInternalCron && hasServiceRole,
+        }),
+      },
     });
 
     console.log(`[sync-google-ads] by_level`, byLevel);

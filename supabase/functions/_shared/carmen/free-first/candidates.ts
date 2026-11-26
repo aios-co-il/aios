@@ -18,8 +18,8 @@ export type RoutableConnection = {
  * Earlier connections come first within a tier.
  */
 export function candidatesFromConnections(
-  conns: RoutableConnection[],
-): ModelCandidate[] {
+  conns: Array<RoutableConnection>,
+): Array<ModelCandidate> {
   return conns
     .filter((c) => !!c.key_last4)
     .map((c, i) => ({
@@ -48,10 +48,10 @@ export type ModelRouteRow = {
  * (switch on) and the user holds a grant for its slug.
  */
 export function pickableConnections<T extends { id: string }>(
-  conns: T[],
-  routes: ModelRouteRow[],
+  conns: Array<T>,
+  routes: Array<ModelRouteRow>,
   allowed: (slug: string) => boolean,
-): T[] {
+): Array<T> {
   const ok = new Set(
     routes
       .filter((r) => r.connection_id && r.active === true && allowed(r.slug))
@@ -62,10 +62,20 @@ export function pickableConnections<T extends { id: string }>(
 
 /** The failover kind for an HTTP status from a chat API (0 = timeout). */
 export function failureKindFor(status: number): FailureKind {
-  if (status === 0) return "timeout";
-  if (status === 429) return "rate_limit";
-  if (status === 402) return "quota";
-  if (status === 401 || status === 403) return "authentication";
-  if (status >= 500) return "provider_unavailable";
+  if (status === 0) {
+    return "timeout";
+  }
+  if (status === 429) {
+    return "rate_limit";
+  }
+  if (status === 402) {
+    return "quota";
+  }
+  if (status === 401 || status === 403) {
+    return "authentication";
+  }
+  if (status >= 500) {
+    return "provider_unavailable";
+  }
   return "invalid_request";
 }

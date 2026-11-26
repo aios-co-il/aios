@@ -8,7 +8,7 @@ import {
   type ChannelHealth,
   type ConversationChannelStatus,
 } from "@/lib/agentChannelRouting";
-import type { SystemFixContextMetadata } from "@/lib/systemFixContext";
+import type { ScreenContextMetadata } from "@/lib/systemFixContext";
 
 export type ChannelSendResult = {
   ok: boolean;
@@ -56,7 +56,9 @@ export async function postChannel(
     "agent-channel-send",
     { body },
   );
-  if (!error) return { ok: true, status: 200, json: asJson(data) };
+  if (!error) {
+    return { ok: true, status: 200, json: asJson(data) };
+  }
   // Non-2xx: keep the status and error body the callers branch on.
   if (error instanceof FunctionsHttpError) {
     const res = error.context as Response;
@@ -73,19 +75,24 @@ export async function postChannel(
 export async function fetchBrainRoutes(
   tenantId: string,
   viewAsUserId: string | null | undefined,
-): Promise<{ list: BrainRoute[]; restricted: boolean }> {
+): Promise<{ list: Array<BrainRoute>; restricted: boolean }> {
   // "View as": the server would answer for the signed-in admin, so preview
   // from the tenant's full route list and the viewed user's own row.
-  if (viewAsUserId) return previewBrainRoutes(tenantId, viewAsUserId);
+  if (viewAsUserId) {
+    return previewBrainRoutes(tenantId, viewAsUserId);
+  }
   const res = await postChannel({ action: "list_routes", tenant_id: tenantId });
-  if (!res.ok) throw new Error(String(res.status));
+  if (!res.ok) {
+    throw new Error(String(res.status));
+  }
   const routes = Array.isArray(res.json.routes)
-    ? (res.json.routes as BrainRoute[])
+    ? (res.json.routes as Array<BrainRoute>)
     : [];
   const restricted = res.json.restricted === true;
   // A restricted user gets exactly the brains they may use, even none.
-  if (!routes.length && !restricted)
+  if (!routes.length && !restricted) {
     return { list: FALLBACK_BRAIN_ROUTES, restricted };
+  }
   return { list: routes, restricted };
 }
 
@@ -93,7 +100,7 @@ export async function fetchBrainRoutes(
 async function previewBrainRoutes(
   tenantId: string,
   userId: string,
-): Promise<{ list: BrainRoute[]; restricted: boolean }> {
+): Promise<{ list: Array<BrainRoute>; restricted: boolean }> {
   const [{ data }, row] = await Promise.all([
     supabase
       .from("agent_brain_routes")
@@ -102,7 +109,9 @@ async function previewBrainRoutes(
       .eq("active", true),
     fetchCarmenAccessRow(tenantId, userId),
   ]);
-  const all = data?.length ? (data as BrainRoute[]) : FALLBACK_BRAIN_ROUTES;
+  const all = data?.length
+    ? (data as Array<BrainRoute>)
+    : FALLBACK_BRAIN_ROUTES;
   return { list: allowedRoutes(all, row), restricted: !!row };
 }
 
@@ -114,7 +123,9 @@ export async function fetchChannelHealth(
     action: "channel_health",
     tenant_id: tenantId,
   });
-  if (!res.ok || typeof res.json.ok !== "boolean") return null;
+  if (!res.ok || typeof res.json.ok !== "boolean") {
+    return null;
+  }
   return res.json as unknown as ChannelHealth;
 }
 
@@ -125,7 +136,7 @@ export type ChannelSendArgs = {
   history: Array<{ role: string; content: string }>;
   idempotencyKey: string;
   route?: BrainRoute;
-  contextMetadata?: SystemFixContextMetadata | null;
+  contextMetadata?: ScreenContextMetadata | null;
   attachments?: Array<{
     name: string;
     url: string;

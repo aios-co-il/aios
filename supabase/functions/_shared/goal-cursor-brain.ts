@@ -13,6 +13,7 @@ import {
   cursorApiKey,
 } from "./agent-channel/cursor-api.ts";
 import { hmacSha256Hex, timingSafeEqual } from "./security.ts";
+import { publicFunctionUrl } from "./public-api/url.ts";
 
 export const BRAIN_REQUEST_TYPES = [
   "plan",
@@ -63,7 +64,9 @@ export async function mintGoalBrainToken(args: {
   goalId: string;
 }): Promise<string> {
   const secret = brainCallbackSecret();
-  if (!secret) throw new Error("Goal brain callback secret is not configured");
+  if (!secret) {
+    throw new Error("Goal brain callback secret is not configured");
+  }
   return hmacSha256Hex(
     secret,
     `${TOKEN_VERSION}:${args.requestId}:${args.tenantId}:${args.goalId}`,
@@ -84,7 +87,9 @@ export function extractJsonFromBrainResponse(
   content: string,
 ): Record<string, unknown> | null {
   const text = String(content || "").trim();
-  if (!text) return null;
+  if (!text) {
+    return null;
+  }
 
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const candidate = (fenced?.[1] || text).trim();
@@ -101,7 +106,9 @@ export function extractJsonFromBrainResponse(
   };
 
   const direct = tryParse(candidate);
-  if (direct) return direct;
+  if (direct) {
+    return direct;
+  }
 
   const start = candidate.indexOf("{");
   const end = candidate.lastIndexOf("}");
@@ -117,13 +124,12 @@ export function buildGoalBrainCallbackBlock(args: {
   goalId: string;
   token: string;
 }): string {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   return (
     `\n\n--- GOAL ENGINE BRAIN CALLBACK (required) ---\n` +
     `You are the Cursor Direct orchestration brain for Carmen's autonomous goals.\n` +
     `Reply with a single JSON object (wrap in \`\`\`json fence). No prose outside the fence unless needed.\n\n` +
     `When finished, POST your full answer to AIOS:\n` +
-    `POST ${supabaseUrl}/functions/v1/goal-brain-callback\n` +
+    `POST ${publicFunctionUrl("goal-brain-callback")}\n` +
     `Headers:\n` +
     `  Authorization: Bearer ${args.token}\n` +
     `  Content-Type: application/json\n` +
@@ -167,7 +173,9 @@ export async function resolveGoalOrchestratorSession(
       CURSOR_STICKY_AGENT_ID: Deno.env.get("CURSOR_STICKY_AGENT_ID"),
     },
   });
-  if (!direct) return null;
+  if (!direct) {
+    return null;
+  }
 
   await supabase.from("goal_orchestrator_brain").upsert(
     {
@@ -195,7 +203,9 @@ export async function getInFlightBrainRequest(
     .in("status", ["pending", "sent", "busy"])
     .order("created_at", { ascending: false })
     .limit(1);
-  if (requestType) q = q.eq("request_type", requestType);
+  if (requestType) {
+    q = q.eq("request_type", requestType);
+  }
   const { data } = await q.maybeSingle();
   return data || null;
 }
@@ -228,7 +238,9 @@ export async function createBrainRequest(
     })
     .select("*")
     .single();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
   const token = await mintGoalBrainToken({
     requestId: request.id,
@@ -258,10 +270,14 @@ export async function dispatchBrainToCursorDirect(
   },
 ): Promise<{ delivered: boolean; sessionUrl: string }> {
   const apiKey = cursorApiKey();
-  if (!apiKey) throw new Error("CURSOR_API_KEY is not configured");
+  if (!apiKey) {
+    throw new Error("CURSOR_API_KEY is not configured");
+  }
 
   const sessionId = asCursorSessionId(args.request.cursor_session_id || "");
-  if (!sessionId) throw new Error("brain_request missing cursor_session_id");
+  if (!sessionId) {
+    throw new Error("brain_request missing cursor_session_id");
+  }
 
   const callbackBlock = buildGoalBrainCallbackBlock({
     requestId: args.request.id,

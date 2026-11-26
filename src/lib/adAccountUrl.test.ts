@@ -45,10 +45,12 @@ test("a dashboard collects one shortcut per ads account", () => {
   expect(links).toStrictEqual([
     {
       url: "https://business.facebook.com/adsmanager/manage/campaigns?act=111",
+      platform: "meta",
       label: "חשבון Facebook",
     },
     {
       url: "https://ads.google.com/aw/overview?__e=1234567890",
+      platform: "google",
       label: "חשבון Google Ads",
     },
   ]);

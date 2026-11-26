@@ -13,7 +13,7 @@ interface SearchRequest {
   /** Service-role callers only: the tenant that pays for the search. */
   tenant_id?: string;
   projectId?: string;
-  keywordIds?: string[];
+  keywordIds?: Array<string>;
   keyword?: string;
   domain?: string;
   country?: string;
@@ -276,18 +276,29 @@ Deno.serve(async (req) => {
       }
 
       // Get SERP features
-      const serpFeatures: string[] = [];
+      const serpFeatures: Array<string> = [];
       for (const item of items) {
-        if (item.type === "featured_snippet")
+        if (item.type === "featured_snippet") {
           serpFeatures.push("featured_snippet");
-        if (item.type === "knowledge_graph")
+        }
+        if (item.type === "knowledge_graph") {
           serpFeatures.push("knowledge_graph");
-        if (item.type === "local_pack") serpFeatures.push("local_pack");
-        if (item.type === "shopping") serpFeatures.push("shopping");
-        if (item.type === "people_also_ask")
+        }
+        if (item.type === "local_pack") {
+          serpFeatures.push("local_pack");
+        }
+        if (item.type === "shopping") {
+          serpFeatures.push("shopping");
+        }
+        if (item.type === "people_also_ask") {
           serpFeatures.push("people_also_ask");
-        if (item.type === "video") serpFeatures.push("videos");
-        if (item.type === "images") serpFeatures.push("images");
+        }
+        if (item.type === "video") {
+          serpFeatures.push("videos");
+        }
+        if (item.type === "images") {
+          serpFeatures.push("images");
+        }
       }
 
       // Get top competitors
@@ -353,7 +364,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      const results: any[] = [];
+      const results: Array<any> = [];
       const normalizedDomain = project.domain
         .replace(/^(https?:\/\/)?(www\.)?/, "")
         .toLowerCase();
@@ -365,8 +376,8 @@ Deno.serve(async (req) => {
         try {
           let position: number | null = null;
           let foundUrl: string | null = null;
-          let serpFeatures: string[] = [];
-          let competitorsData: any[] = [];
+          let serpFeatures: Array<string> = [];
+          let competitorsData: Array<any> = [];
 
           if (usingSerpApi && serpApiKey) {
             // Use SerpAPI (legacy)
@@ -406,11 +417,18 @@ Deno.serve(async (req) => {
               }
             }
 
-            if (searchData.answer_box) serpFeatures.push("answer_box");
-            if (searchData.knowledge_graph)
+            if (searchData.answer_box) {
+              serpFeatures.push("answer_box");
+            }
+            if (searchData.knowledge_graph) {
               serpFeatures.push("knowledge_graph");
-            if (searchData.local_results) serpFeatures.push("local_pack");
-            if (searchData.shopping_results) serpFeatures.push("shopping");
+            }
+            if (searchData.local_results) {
+              serpFeatures.push("local_pack");
+            }
+            if (searchData.shopping_results) {
+              serpFeatures.push("shopping");
+            }
 
             competitorsData = organicResults
               .slice(0, 10)
@@ -488,12 +506,18 @@ Deno.serve(async (req) => {
 
             // Get SERP features
             for (const item of items) {
-              if (item.type === "featured_snippet")
+              if (item.type === "featured_snippet") {
                 serpFeatures.push("featured_snippet");
-              if (item.type === "knowledge_graph")
+              }
+              if (item.type === "knowledge_graph") {
                 serpFeatures.push("knowledge_graph");
-              if (item.type === "local_pack") serpFeatures.push("local_pack");
-              if (item.type === "shopping") serpFeatures.push("shopping");
+              }
+              if (item.type === "local_pack") {
+                serpFeatures.push("local_pack");
+              }
+              if (item.type === "shopping") {
+                serpFeatures.push("shopping");
+              }
             }
             serpFeatures = [...new Set(serpFeatures)];
 
@@ -649,14 +673,28 @@ async function handleSerpApiSearch(
   }
 
   // Get SERP features
-  const serpFeatures: string[] = [];
-  if (searchData.answer_box) serpFeatures.push("answer_box");
-  if (searchData.knowledge_graph) serpFeatures.push("knowledge_graph");
-  if (searchData.local_results) serpFeatures.push("local_pack");
-  if (searchData.shopping_results) serpFeatures.push("shopping");
-  if (searchData.related_questions) serpFeatures.push("people_also_ask");
-  if (searchData.inline_videos) serpFeatures.push("videos");
-  if (searchData.inline_images) serpFeatures.push("images");
+  const serpFeatures: Array<string> = [];
+  if (searchData.answer_box) {
+    serpFeatures.push("answer_box");
+  }
+  if (searchData.knowledge_graph) {
+    serpFeatures.push("knowledge_graph");
+  }
+  if (searchData.local_results) {
+    serpFeatures.push("local_pack");
+  }
+  if (searchData.shopping_results) {
+    serpFeatures.push("shopping");
+  }
+  if (searchData.related_questions) {
+    serpFeatures.push("people_also_ask");
+  }
+  if (searchData.inline_videos) {
+    serpFeatures.push("videos");
+  }
+  if (searchData.inline_images) {
+    serpFeatures.push("images");
+  }
 
   // Get top competitors
   const competitors = organicResults

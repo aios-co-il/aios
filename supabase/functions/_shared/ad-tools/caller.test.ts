@@ -12,7 +12,7 @@ function caller(
   bearer: string | null,
   bodyTenantId: unknown,
   access: AdToolAccess = "write",
-  calls: string[] = [],
+  calls: Array<string> = [],
 ) {
   return authorizeAdToolCaller({
     authorization: bearer === null ? null : `Bearer ${bearer}`,
@@ -49,7 +49,7 @@ Deno.test("adToolAccess: carmen-google-tools actions are writes", () => {
 Deno.test(
   "authorizeAdToolCaller: no bearer, anon key or bad JWT get 401",
   async () => {
-    const calls: string[] = [];
+    const calls: Array<string> = [];
     denied(await caller(null, A), 401);
     denied(await caller(ANON_KEY, A, "write", calls), 401);
     denied(await caller(FOREIGN_SERVICE_KEY, A, "write", calls), 401);
@@ -61,7 +61,7 @@ Deno.test(
 Deno.test(
   "authorizeAdToolCaller: service role keeps the body tenant",
   async () => {
-    const calls: string[] = [];
+    const calls: Array<string> = [];
     assertEquals(await caller(SERVICE, B, "write", calls), {
       ok: true,
       caller: { kind: "service_role", tenantId: B, approvalRun: false },

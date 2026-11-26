@@ -20,7 +20,9 @@ export function nameChatTopicLater(
       EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void };
     }
   ).EdgeRuntime;
-  if (runtime?.waitUntil) runtime.waitUntil(job);
+  if (runtime?.waitUntil) {
+    runtime.waitUntil(job);
+  }
 }
 
 async function nameChatTopic(
@@ -34,7 +36,9 @@ async function nameChatTopic(
         args.firstMessage.slice(0, 1500),
     ),
   );
-  if (!topic) return;
+  if (!topic) {
+    return;
+  }
   await sb
     .from("ai_conversations")
     .update({ title: topic })

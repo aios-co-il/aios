@@ -29,7 +29,9 @@ export async function downloadReportPdf(
     readBlobAsDataUrl(image),
   ]);
   const size = await getImageSize(dataUrl);
-  if (!size.width || !size.height) throw new Error("Invalid report image");
+  if (!size.width || !size.height) {
+    throw new Error("Invalid report image");
+  }
 
   const pageWidth = 210;
   const pageHeight = 297;
@@ -42,7 +44,9 @@ export async function downloadReportPdf(
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
   for (let page = 0; page < pageCount; page += 1) {
-    if (page > 0) pdf.addPage();
+    if (page > 0) {
+      pdf.addPage();
+    }
     pdf.addImage(
       dataUrl,
       format,

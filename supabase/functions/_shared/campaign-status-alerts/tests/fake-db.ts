@@ -10,14 +10,14 @@ export type FakeCall = {
   op: "select" | "update" | "insert";
   columns?: string;
   values?: unknown;
-  filters: string[];
+  filters: Array<string>;
   single: boolean;
 };
 
 export type FakeAnswer = { data: unknown; error: { message: string } | null };
 
 export function fakeDb(answer: (call: FakeCall) => FakeAnswer) {
-  const calls: FakeCall[] = [];
+  const calls: Array<FakeCall> = [];
   const from = (table: string) => {
     const call: FakeCall = { table, op: "select", filters: [], single: false };
     const finish = () => {
@@ -30,7 +30,9 @@ export function fakeDb(answer: (call: FakeCall) => FakeAnswer) {
     };
     const chain = {
       select: (columns?: string) => {
-        if (call.op === "select") call.columns = columns;
+        if (call.op === "select") {
+          call.columns = columns;
+        }
         return chain;
       },
       update: (values: unknown) => {
@@ -44,7 +46,7 @@ export function fakeDb(answer: (call: FakeCall) => FakeAnswer) {
         return chain;
       },
       eq: (column: string, value: unknown) => filter(`${column}=${value}`),
-      in: (column: string, values: unknown[]) =>
+      in: (column: string, values: Array<unknown>) =>
         filter(`${column} in ${values.join(",")}`),
       is: (column: string, value: unknown) => filter(`${column} is ${value}`),
       not: (column: string, op: string, value: unknown) =>

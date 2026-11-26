@@ -39,7 +39,7 @@ export interface CompositionLayout {
 
 const layout = (item: CompositionLayout): CompositionLayout => item;
 
-export const CREATIVE_COMPOSITIONS: CompositionLayout[] = [
+export const CREATIVE_COMPOSITIONS: Array<CompositionLayout> = [
   layout({
     id: "offer",
     label: "לוח הצעה",
@@ -150,12 +150,14 @@ export const pickCompositionId = (
         ? available
         : CREATIVE_COMPOSITIONS;
   let hash = 0;
-  for (const char of seed) hash = (hash * 33 + char.charCodeAt(0)) >>> 0;
+  for (const char of seed) {
+    hash = (hash * 33 + char.charCodeAt(0)) >>> 0;
+  }
   return pool[hash % pool.length].id;
 };
 
 /** Lead-gen board is opt-in from the editor — auto generation uses poster layouts. */
-export const AUTO_COMPOSITION_EXCLUDE: CompositionId[] = ["offer"];
+export const AUTO_COMPOSITION_EXCLUDE: Array<CompositionId> = ["offer"];
 
 export const DEFAULT_COMPOSITION_ID: CompositionId = "flush";
 
@@ -169,7 +171,9 @@ export const pickVariationComposition = ({
   hasConcept?: boolean;
   lockedId?: CompositionId | null;
 }): CompositionId => {
-  if (lockedId) return lockedId;
+  if (lockedId) {
+    return lockedId;
+  }
   const taken = [...used].filter(isCompositionId);
   return pickCompositionId(seed, taken, { exclude: AUTO_COMPOSITION_EXCLUDE });
 };

@@ -31,9 +31,9 @@ import {
 export type NotifyTransportInput = LineAccessInput & {
   bridgeAutomationId?: string | null;
   /** Active Carmen automations of the tenant. The bridge automation is always eligible. */
-  activeAutomationIds: string[];
-  steps: NotifyStepRow[];
-  integrations: NotifyIntegrationRow[];
+  activeAutomationIds: Array<string>;
+  steps: Array<NotifyStepRow>;
+  integrations: Array<NotifyIntegrationRow>;
   /** automation_id → its Carmen trigger's configuration.carmen_integration_id. */
   triggerPins?: Record<string, string | null | undefined>;
   /** automation_id → connection_user_id of that automation's latest session. */
@@ -54,7 +54,7 @@ export type TransportContext = {
   /** The notifying tenant's own; another tenant's line uses ownerHasActiveManus. */
   hasActiveManus: boolean;
   byId: Map<string, NotifyIntegrationRow>;
-  skipped: NotifySkippedLine[];
+  skipped: Array<NotifySkippedLine>;
 };
 
 /** The active, primary line of `provider` this step sends from, or null. */
@@ -115,7 +115,7 @@ function candidateLines(
   ctx: TransportContext,
   step: NotifyStepRow,
   provider: Provider,
-): (NotifyIntegrationRow | undefined)[] {
+): Array<NotifyIntegrationRow | undefined> {
   const pin = ctx.input.triggerPins?.[step.automation_id] || null;
   const connectionUser =
     ctx.input.connectionUserIds?.[step.automation_id] || null;

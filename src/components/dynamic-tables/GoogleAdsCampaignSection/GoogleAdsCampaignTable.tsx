@@ -27,7 +27,7 @@ import type {
 } from "./types";
 
 type Props = GoogleAdsFormatters & {
-  rows: GoogleAdsCampaignSummaryRow[];
+  rows: Array<GoogleAdsCampaignSummaryRow>;
   goal: GoogleReportGoal;
   groupTotals: GoogleAdsTotals;
   store: GoogleStoreTotals;
@@ -59,7 +59,9 @@ export function GoogleAdsCampaignTable({
   previous,
   ...formats
 }: Props) {
-  const compared = previous ? googleComparedMetrics(goal, formats) : null;
+  const comparedMetrics = previous
+    ? googleComparedMetrics(goal, formats)
+    : null;
   const [showOff, setShowOff] = useState(true);
   const isEcommerce = goal === "ecommerce";
   const isTraffic = goal === "traffic";
@@ -88,7 +90,7 @@ export function GoogleAdsCampaignTable({
           <GoogleAdsHeadCells
             goal={goal}
             showLeads={showLeads}
-            compared={compared}
+            comparedMetrics={comparedMetrics}
           />
         }
         foot={
@@ -97,7 +99,7 @@ export function GoogleAdsCampaignTable({
             showLeads={showLeads}
             groupTotals={totals}
             store={shownStore}
-            compared={compared}
+            comparedMetrics={comparedMetrics}
             previous={previous?.totals}
             storeFromWoo={storeFromWoo}
             {...formats}
@@ -111,7 +113,7 @@ export function GoogleAdsCampaignTable({
               row={row}
               goal={goal}
               showLeads={showLeads}
-              compared={compared}
+              comparedMetrics={comparedMetrics}
               previous={
                 previous
                   ? (previous.byKey.get(googleCampaignKey(row)) ?? null)

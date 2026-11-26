@@ -22,7 +22,9 @@ function normalizeSiteUrl(value?: string | null): string {
 function siteMatches(a?: string | null, b?: string | null): boolean {
   const na = normalizeSiteUrl(a);
   const nb = normalizeSiteUrl(b);
-  if (!na || !nb) return false;
+  if (!na || !nb) {
+    return false;
+  }
   return na === nb || na.includes(nb) || nb.includes(na);
 }
 
@@ -93,19 +95,21 @@ Deno.serve(async (req) => {
       ownerEmail: string | null;
       rank: number;
     };
-    const candidates: Candidate[] = [];
+    const candidates: Array<Candidate> = [];
 
     for (const i of integrations) {
       const s: any = i.settings || {};
       const clientSites = s.client_sites || {};
-      const availableSites: any[] = Array.isArray(s.available_sites)
+      const availableSites: Array<any> = Array.isArray(s.available_sites)
         ? s.available_sites
         : [];
       const ownerEmail: string | null = s.google_email || null;
 
       const mappedForClient: string | null = clientSites[clientId] || null;
       const isMappingUsable = (siteUrl: string | null) => {
-        if (!siteUrl) return false;
+        if (!siteUrl) {
+          return false;
+        }
         const meta = availableSites.find((x: any) => x?.siteUrl === siteUrl);
         return !meta || meta.permissionLevel !== "siteUnverifiedUser";
       };

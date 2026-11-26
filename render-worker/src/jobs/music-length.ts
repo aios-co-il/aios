@@ -84,10 +84,12 @@ export function filmSeconds({
       fps,
     ),
   );
-  if (!minFrames.length) return { seconds: 0, basis: "planned" };
+  if (!minFrames.length) {
+    return { seconds: 0, basis: "planned" };
+  }
   const total = (frames: Array<number>) =>
     frames.reduce((sum, n) => sum + n, 0) / fps;
-  if (narration)
+  if (narration) {
     return {
       seconds: total(
         narratedSceneFrames(minFrames, {
@@ -99,11 +101,13 @@ export function filmSeconds({
       ),
       basis: "narration",
     };
-  if (expectsNarration)
+  }
+  if (expectsNarration) {
     return {
       seconds: total(minFrames) * (1 + PLANNED_HEADROOM),
       basis: "headroom",
     };
+  }
   return { seconds: total(minFrames), basis: "planned" };
 }
 

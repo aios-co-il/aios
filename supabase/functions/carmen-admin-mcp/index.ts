@@ -96,7 +96,9 @@ async function resolveTenant(
   bearer: string | undefined,
 ): Promise<string | null> {
   const fallback = Deno.env.get("CLAUDE_DEFAULT_TENANT_ID") || null;
-  if (!bearer) return fallback;
+  if (!bearer) {
+    return fallback;
+  }
   try {
     const { data } = await sb()
       .from("agent_mcp_connections")
@@ -118,25 +120,31 @@ async function handleToolCall(
   tenantId: string | null,
 ): Promise<string> {
   if (name === "fix_campaigner_access") {
-    if (!tenantId) throw new Error("could not resolve tenant for this request");
+    if (!tenantId) {
+      throw new Error("could not resolve tenant for this request");
+    }
     const campaignerId = String(args?.campaigner_id ?? "").trim();
     const clientId = String(args?.client_id ?? "").trim();
-    if (!campaignerId || !clientId)
+    if (!campaignerId || !clientId) {
       throw new Error("campaigner_id and client_id are required");
+    }
     const { data, error } = await sb().rpc("carmen_fix_campaigner_access", {
       p_campaigner_id: campaignerId,
       p_client_id: clientId,
       p_tenant: tenantId,
     });
-    if (error) throw new Error(error.message);
+    if (error) {
+      throw new Error(error.message);
+    }
     return (data && (data.message || JSON.stringify(data))) || "done";
   }
   throw new Error(`Unknown tool: ${name}`);
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
   if (req.method === "GET") {
     return new Response(
       JSON.stringify({

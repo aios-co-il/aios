@@ -46,7 +46,7 @@ export type DeliveryStatus = (typeof DELIVERY_STATUSES)[number];
 export const DELIVERED_STATUSES = [
   "sent",
   "delivery_unknown",
-] as const satisfies readonly DeliveryStatus[];
+] as const satisfies ReadonlyArray<DeliveryStatus>;
 
 /** True when a delivery with this status went out or may have. */
 export function wentOut(status: string): boolean {
@@ -104,7 +104,7 @@ export type Level = 0 | 1 | 2;
 export type PlannedAction = {
   level: Level;
   action: "notify" | "brief" | "hold";
-  to: string[];
+  to: Array<string>;
   at: string | null;
   reason?: string;
 };
@@ -129,8 +129,8 @@ export type RouteDecision = {
   next_action_at: string | null;
   owner_user_id: string | null;
   /** null keeps the actions already recorded on the finding. */
-  planned_actions: PlannedAction[] | null;
-  deliveries: PlannedDelivery[];
+  planned_actions: Array<PlannedAction> | null;
+  deliveries: Array<PlannedDelivery>;
 };
 
 /**
@@ -146,7 +146,7 @@ export function evidenceText(evidence: Json, field: string): string | null {
 }
 
 /** Each recipient once, first occurrence kept. */
-export function uniqueByKey(recipients: Recipient[]): Recipient[] {
+export function uniqueByKey(recipients: Array<Recipient>): Array<Recipient> {
   const seen = new Set<string>();
   return recipients.filter(
     (recipient) => !seen.has(recipient.key) && !!seen.add(recipient.key),

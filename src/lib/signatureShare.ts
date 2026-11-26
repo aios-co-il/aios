@@ -2,10 +2,18 @@ export function toWhatsAppPhone(
   phone: string | null | undefined,
 ): string | null {
   const digits = (phone || "").replace(/\D/g, "");
-  if (!digits) return null;
-  if (digits.startsWith("972")) return digits;
-  if (digits.startsWith("0")) return `972${digits.slice(1)}`;
-  if (digits.length >= 9) return digits;
+  if (!digits) {
+    return null;
+  }
+  if (digits.startsWith("972")) {
+    return digits;
+  }
+  if (digits.startsWith("0")) {
+    return `972${digits.slice(1)}`;
+  }
+  if (digits.length >= 9) {
+    return digits;
+  }
   return null;
 }
 
@@ -28,7 +36,9 @@ export function buildWhatsAppSignUrl(opts: {
   documentTitle?: string;
 }): string | null {
   const waPhone = toWhatsAppPhone(opts.phone);
-  if (!waPhone) return null;
+  if (!waPhone) {
+    return null;
+  }
   const text = buildSignatureWhatsAppMessage(opts);
   return `https://wa.me/${waPhone}?text=${encodeURIComponent(text)}`;
 }
@@ -66,6 +76,8 @@ export async function copySigningUrl(
     const copied = document.execCommand("copy");
     textarea.remove();
     focused?.focus();
-    if (!copied) throw new Error("לא ניתן להעתיק אוטומטית");
+    if (!copied) {
+      throw new Error("לא ניתן להעתיק אוטומטית");
+    }
   }
 }

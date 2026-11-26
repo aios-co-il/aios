@@ -12,7 +12,9 @@ export async function workshopCheckConnections(ctx: ToolContext) {
     .order("updated_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) return { error: error.message };
+  if (error) {
+    return { error: error.message };
+  }
   const report = capabilityReport(
     (data?.settings ?? {}) as Record<string, unknown>,
     { openai: deps.envOpenAiKey },

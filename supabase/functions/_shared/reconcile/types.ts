@@ -47,7 +47,7 @@ export type FindingDetails = {
   /** missing_day: campaigns the platform shows spend for on that day. */
   campaigns_with_spend?: number;
   /** A campaign found on one side only: its days with spend. */
-  dates?: string[];
+  dates?: Array<string>;
   aios_row_missing?: true;
   platform_row_missing?: true;
   /** unmapped_account: the ad account and the connection that sees it. */
@@ -91,7 +91,7 @@ export interface PlatformSource {
     table: ReconcileTable,
     window: { start: string; end: string },
     account: AccountInfo,
-  ): Promise<{ rows: CampaignDayRow[] }>;
+  ): Promise<{ rows: Array<CampaignDayRow> }>;
 }
 
 /** Reads the stored campaign rows of a table for a date range. */
@@ -99,4 +99,4 @@ export type AiosReader = (
   table: ReconcileTable,
   start: string,
   end: string,
-) => Promise<CampaignDayRow[]>;
+) => Promise<Array<CampaignDayRow>>;

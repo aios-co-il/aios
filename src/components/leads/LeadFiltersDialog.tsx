@@ -34,12 +34,12 @@ import {
 
 export interface FilterState {
   searchQuery: string;
-  salesPersonIds: string[]; // Changed to array for multi-select
-  stageIds: string[];
+  salesPersonIds: Array<string>; // Changed to array for multi-select
+  stageIds: Array<string>;
   stageFilterMode: LeadValueFilterMode;
-  responseStatus: string[]; // Changed to array for multi-select
+  responseStatus: Array<string>; // Changed to array for multi-select
   responseStatusFilterMode: LeadValueFilterMode;
-  tagIds: string[]; // Changed from tagId to tagIds for multi-select
+  tagIds: Array<string>; // Changed from tagId to tagIds for multi-select
   startDate: Date | undefined;
   endDate: Date | undefined;
   followUpToday: boolean; // Filter for leads with follow-up date today
@@ -139,7 +139,9 @@ export function LeadFiltersDialog({
 
   // Filtered options based on search
   const filteredStatuses = useMemo(() => {
-    if (!statusSearch.trim()) return leadStatuses;
+    if (!statusSearch.trim()) {
+      return leadStatuses;
+    }
     const searchLower = statusSearch.toLowerCase();
     return leadStatuses.filter((s) =>
       s.label.toLowerCase().includes(searchLower),
@@ -147,13 +149,17 @@ export function LeadFiltersDialog({
   }, [leadStatuses, statusSearch]);
 
   const filteredTags = useMemo(() => {
-    if (!tagSearch.trim()) return allTags;
+    if (!tagSearch.trim()) {
+      return allTags;
+    }
     const searchLower = tagSearch.toLowerCase();
     return allTags.filter((t) => t.name.toLowerCase().includes(searchLower));
   }, [allTags, tagSearch]);
 
   const filteredSalesPeople = useMemo(() => {
-    if (!salesPersonSearch.trim()) return salesPeople;
+    if (!salesPersonSearch.trim()) {
+      return salesPeople;
+    }
     const searchLower = salesPersonSearch.toLowerCase();
     return salesPeople.filter((sp) =>
       sp.full_name.toLowerCase().includes(searchLower),
@@ -161,7 +167,9 @@ export function LeadFiltersDialog({
   }, [salesPeople, salesPersonSearch]);
 
   const filteredStages = useMemo(() => {
-    if (!stageSearch.trim()) return pipelineStages;
+    if (!stageSearch.trim()) {
+      return pipelineStages;
+    }
     const searchLower = stageSearch.toLowerCase();
     return pipelineStages.filter((stage) =>
       stage.label.toLowerCase().includes(searchLower),
@@ -252,7 +260,9 @@ export function LeadFiltersDialog({
 
   // Update existing preset
   const handleUpdatePreset = async () => {
-    if (!editingPreset || !tenantId) return;
+    if (!editingPreset || !tenantId) {
+      return;
+    }
 
     setIsUpdating(true);
     try {
@@ -263,7 +273,9 @@ export function LeadFiltersDialog({
         .update({ filters: filtersToSave })
         .eq("id", editingPreset.id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       toast({
         title: "פריסט עודכן בהצלחה",
@@ -339,17 +351,19 @@ export function LeadFiltersDialog({
 
   // Get selected status labels for display - show max 2 items then "+X"
   const selectedStatusLabels = useMemo(() => {
-    if (filters.responseStatus.length === 0) return "כל הסטטוסים";
+    if (filters.responseStatus.length === 0) {
+      return "כל הסטטוסים";
+    }
     const prefix = filters.responseStatusFilterMode === "hide" ? "הסתר: " : "";
 
-    const labels: string[] = [];
+    const labels: Array<string> = [];
     if (filters.responseStatus.includes("none")) {
       labels.push("ללא סטטוס");
     }
     const otherLabels = filters.responseStatus
       .filter((s) => s !== "none")
       .map((s) => leadStatuses.find((ls) => ls.status_key === s)?.label)
-      .filter(Boolean) as string[];
+      .filter(Boolean) as Array<string>;
     labels.push(...otherLabels);
 
     if (labels.length <= 2) {
@@ -360,16 +374,18 @@ export function LeadFiltersDialog({
 
   // Get selected tag labels for display - show max 2 items then "+X"
   const selectedTagLabels = useMemo(() => {
-    if (filters.tagIds.length === 0) return "כל התגיות";
+    if (filters.tagIds.length === 0) {
+      return "כל התגיות";
+    }
 
-    const labels: string[] = [];
+    const labels: Array<string> = [];
     if (filters.tagIds.includes("none")) {
       labels.push("ללא תגית");
     }
     const otherLabels = filters.tagIds
       .filter((t) => t !== "none")
       .map((t) => allTags.find((at) => at.id === t)?.name)
-      .filter(Boolean) as string[];
+      .filter(Boolean) as Array<string>;
     labels.push(...otherLabels);
 
     if (labels.length <= 2) {
@@ -380,16 +396,18 @@ export function LeadFiltersDialog({
 
   // Get selected sales people labels for display - show max 2 items then "+X"
   const selectedSalesPersonLabels = useMemo(() => {
-    if (filters.salesPersonIds.length === 0) return "כל אנשי המכירות";
+    if (filters.salesPersonIds.length === 0) {
+      return "כל אנשי המכירות";
+    }
 
-    const labels: string[] = [];
+    const labels: Array<string> = [];
     if (filters.salesPersonIds.includes("none")) {
       labels.push("ללא שיוך");
     }
     const otherLabels = filters.salesPersonIds
       .filter((sp) => sp !== "none")
       .map((sp) => salesPeople.find((p) => p.id === sp)?.full_name)
-      .filter(Boolean) as string[];
+      .filter(Boolean) as Array<string>;
     labels.push(...otherLabels);
 
     if (labels.length <= 2) {
@@ -399,12 +417,16 @@ export function LeadFiltersDialog({
   }, [filters.salesPersonIds, salesPeople]);
 
   const selectedStageLabels = useMemo(() => {
-    if (filters.stageIds.length === 0) return "כל השלבים";
+    if (filters.stageIds.length === 0) {
+      return "כל השלבים";
+    }
     const prefix = filters.stageFilterMode === "hide" ? "הסתר: " : "";
     const labels = filters.stageIds
       .map((id) => pipelineStages.find((stage) => stage.id === id)?.label)
-      .filter(Boolean) as string[];
-    if (labels.length <= 2) return `${prefix}${labels.join(", ")}`;
+      .filter(Boolean) as Array<string>;
+    if (labels.length <= 2) {
+      return `${prefix}${labels.join(", ")}`;
+    }
     return `${prefix}${labels.slice(0, 2).join(", ")} +${labels.length - 2}`;
   }, [filters.stageIds, filters.stageFilterMode, pipelineStages]);
 

@@ -1,7 +1,10 @@
 // run-agent-supervisor — routes a goal to one or more sub-agents and aggregates results.
 // Body: { supervisor_agent_id, goal, context?, tenant_id, user_id? }
+// Who may run a supervisor, and in which tenant: ../_shared/agent-runs/run-request.ts (AIO-661).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { openRunRequest } from "../_shared/agent-runs/run-request.ts";
 import { resolveModelId } from "../_shared/models.ts";
+import { requireAuth } from "../_shared/security.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,7 +26,7 @@ function jsonResponse(body: any, status = 200) {
 
 async function route(
   supervisor: any,
-  children: any[],
+  children: Array<any>,
   goal: string,
   context: any,
 ) {
@@ -56,8 +59,9 @@ async function route(
       response_format: { type: "json_object" },
     }),
   });
-  if (!resp.ok)
+  if (!resp.ok) {
     throw new Error(`routing LLM ${resp.status}: ${await resp.text()}`);
+  }
   const data = await resp.json();
   const content = data.choices?.[0]?.message?.content ?? "{}";
   let parsed: any;
@@ -70,38 +74,57 @@ async function route(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
-    const body = await req.json();
-    const { supervisor_agent_id, goal, context, tenant_id, user_id } = body;
-    if (!supervisor_agent_id || !goal || !tenant_id) {
-      return jsonResponse(
-        { error: "missing supervisor_agent_id/goal/tenant_id" },
-        400,
-      );
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const opened = await openRunRequest(req, supabase, requireAuth, {
+      field: "supervisor_agent_id",
+      isAgent: true,
+    });
+    if (!opened.ok) {
+      return jsonResponse({ error: opened.error }, opened.status);
+    }
+    const { tenantId: tenant_id, userId } = opened;
+    const supervisor_agent_id = opened.sourceId;
+    const { goal, context } = opened.body;
+    if (!goal || typeof goal !== "string") {
+      return jsonResponse({ error: "missing goal" }, 400);
     }
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-    const { data: supervisor } = await supabase
+    const { data: supervisor, error: supervisorError } = await supabase
       .from("ai_agents")
       .select("*")
       .eq("id", supervisor_agent_id)
-      .single();
-    if (!supervisor) throw new Error("supervisor agent not found");
+      .eq("tenant_id", tenant_id)
+      .maybeSingle();
+    if (supervisorError) {
+      throw new Error(`ai_agents lookup failed: ${supervisorError.message}`);
+    }
+    if (!supervisor) {
+      return jsonResponse({ error: "supervisor agent not found" }, 404);
+    }
 
-    const { data: children } = await supabase
+    const { data: links, error: linksError } = await supabase
       .from("agent_supervisors")
       .select(
-        "*, child:ai_agents!agent_supervisors_child_agent_id_fkey(id, name, talent, system_prompt)",
+        "*, child:ai_agents!agent_supervisors_child_agent_id_fkey(id, name, talent, system_prompt, tenant_id)",
       )
       .eq("supervisor_agent_id", supervisor_agent_id)
+      .eq("tenant_id", tenant_id)
       .eq("enabled", true)
       .order("priority", { ascending: false });
+    if (linksError) {
+      throw new Error(`agent_supervisors lookup failed: ${linksError.message}`);
+    }
+    // A link can name any agent id; only this tenant's agents are delegated to.
+    const children = (links ?? []).filter(
+      (link) => link.child?.tenant_id === tenant_id,
+    );
 
-    if (!children?.length) {
+    if (!children.length) {
       return jsonResponse(
         { error: "no enabled child agents configured for this supervisor" },
         400,
@@ -114,7 +137,7 @@ Deno.serve(async (req) => {
       .insert({
         tenant_id,
         agent_id: supervisor_agent_id,
-        user_id: user_id ?? null,
+        user_id: userId,
         goal,
         context: context ?? {},
         status: "running",
@@ -123,7 +146,9 @@ Deno.serve(async (req) => {
       })
       .select()
       .single();
-    if (parentErr) throw parentErr;
+    if (parentErr) {
+      throw parentErr;
+    }
 
     const delegations = await route(supervisor, children, goal, context);
 
@@ -145,8 +170,9 @@ Deno.serve(async (req) => {
         const validChild = children.find(
           (c: any) => c.child_agent_id === d.agent_id,
         );
-        if (!validChild)
+        if (!validChild) {
           return { agent_id: d.agent_id, error: "child not authorized" };
+        }
         try {
           const { data, error } = await supabase.functions.invoke(
             "run-ai-agent-v2",
@@ -156,13 +182,15 @@ Deno.serve(async (req) => {
                 goal: d.sub_goal ?? goal,
                 context: context ?? {},
                 tenant_id,
-                user_id: user_id ?? null,
+                user_id: userId,
                 parent_run_id: parentRun.id,
                 trigger_source: "supervisor_delegated",
               },
             },
           );
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
           return { agent_id: d.agent_id, ...data };
         } catch (e: any) {
           return { agent_id: d.agent_id, error: String(e?.message ?? e) };

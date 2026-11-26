@@ -6,7 +6,6 @@ import {
   Phone,
   PhoneCall,
   Building2,
-  Clock,
   Search,
   Tag,
   Mail,
@@ -21,7 +20,6 @@ import {
   ChevronRight,
   X,
   ArrowRight,
-  Pencil,
   Archive,
   FolderOpen,
 } from "lucide-react";
@@ -38,7 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { EditLeadDialog } from "@/components/forms/EditLeadDialog";
@@ -47,7 +45,6 @@ import {
   LeadTagBadges,
   LeadTagBadgesEditable,
 } from "@/components/leads/LeadTagSelector";
-import { LeadUpdatesTab } from "@/components/leads/LeadUpdatesTab";
 import { FollowUpDatePicker } from "@/components/leads/FollowUpDatePicker";
 import AddTaskForm from "@/components/forms/AddTaskForm";
 import { ManagePipelineStagesDialog } from "@/components/forms/ManagePipelineStagesDialog";
@@ -65,19 +62,10 @@ import {
   responseStatusSelectValue,
   unmatchedResponseStatusValue,
 } from "@/lib/leadFields";
-import {
-  LeadCreatedAtLines,
-  LeadSourceLines,
-} from "@/components/leads/LeadOriginLines";
-import { LeadSourceHistory } from "@/components/leads/LeadSourceHistory";
-import { SendSignatureFromLeadPanel } from "@/components/leads/SendSignatureFromLeadPanel";
-import { LeadCustomFieldsCard } from "@/components/leads/LeadCustomFieldsCard";
-import { LeadContactLink } from "@/components/LeadsPage/LeadContactLink";
-import { useCustomFieldLabels } from "@/hooks/useCustomFieldLabels";
-import { getVisibleLeadCustomFields } from "@/lib/leadCustomFields";
+import { LeadSourceLines } from "@/components/leads/LeadOriginLines";
 
 interface LeadsChatViewProps {
-  leads: any[];
+  leads: Array<any>;
   pipelineStages: Array<{
     id: string;
     label: string;
@@ -93,8 +81,7 @@ interface LeadsChatViewProps {
     sort_order: number;
   }>;
   allTags: Array<{ id: string; name: string; color: string }>;
-  leadsTagsMap: Record<string, string[]>;
-  productsLookup: Record<string, { name: string; price: number }>;
+  leadsTagsMap: Record<string, Array<string>>;
   onStatusChange: (leadId: string, newStatus: string) => void;
   onResponseStatusChange: (
     leadId: string,
@@ -128,7 +115,6 @@ export function LeadsChatView({
   leadStatuses,
   allTags,
   leadsTagsMap,
-  productsLookup,
   onStatusChange,
   onResponseStatusChange,
   onFollowUpDateUpdate,
@@ -147,9 +133,6 @@ export function LeadsChatView({
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(
     initialLeadId ?? null,
   );
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editingLead, setEditingLead] = useState<any>(null);
-  const [editInitialTab, setEditInitialTab] = useState<string>("details");
   const [activeTab, setActiveTab] = useState("details");
   const [manageStagesOpen, setManageStagesOpen] = useState(false);
   const [manageStatusesOpen, setManageStatusesOpen] = useState(false);
@@ -161,28 +144,29 @@ export function LeadsChatView({
   const [callDialogOpen, setCallDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenant();
-  const { fieldDefinitions } = useCustomFieldLabels("lead");
-  const customFields = useMemo(
-    () => getVisibleLeadCustomFields(fieldDefinitions),
-    [fieldDefinitions],
-  );
 
   const isDialog = presentation === "dialog";
 
   useEffect(() => {
-    if (initialLeadId) setSelectedLeadId(initialLeadId);
+    if (initialLeadId) {
+      setSelectedLeadId(initialLeadId);
+    }
   }, [initialLeadId]);
 
   // Auto-select first lead on desktop only. The table popup stays on the opened lead.
   useEffect(() => {
-    if (isDialog) return;
+    if (isDialog) {
+      return;
+    }
     if (!isMobile && !selectedLeadId && leads.length > 0) {
       setSelectedLeadId(leads[0].id);
     }
   }, [isDialog, isMobile, leads, selectedLeadId]);
 
   const filteredListLeads = useMemo(() => {
-    if (!searchQuery.trim()) return leads;
+    if (!searchQuery.trim()) {
+      return leads;
+    }
     const q = searchQuery.trim();
     const qLower = q.toLowerCase();
     return leads.filter(
@@ -229,8 +213,11 @@ export function LeadsChatView({
   const toggleLeadSelection = useCallback((leadId: string) => {
     setSelectedLeadIds((prev) => {
       const next = new Set(prev);
-      if (next.has(leadId)) next.delete(leadId);
-      else next.add(leadId);
+      if (next.has(leadId)) {
+        next.delete(leadId);
+      } else {
+        next.add(leadId);
+      }
       return next;
     });
   }, []);
@@ -249,11 +236,15 @@ export function LeadsChatView({
   }, []);
 
   const handleBulkDelete = async () => {
-    if (selectedLeadIds.size === 0) return;
+    if (selectedLeadIds.size === 0) {
+      return;
+    }
     const confirmed = window.confirm(
       `להעביר ${selectedLeadIds.size} לידים לארכיון? מחיקה לצמיתות רק מארכיון הלידים.`,
     );
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
     setBulkActionLoading(true);
     try {
       await archiveLeads(Array.from(selectedLeadIds));
@@ -274,14 +265,18 @@ export function LeadsChatView({
   };
 
   const handleBulkStageChange = async (stageId: string) => {
-    if (selectedLeadIds.size === 0) return;
+    if (selectedLeadIds.size === 0) {
+      return;
+    }
     setBulkActionLoading(true);
     try {
       const { error } = await supabase
         .from("leads")
         .update({ status: stageId })
         .in("id", Array.from(selectedLeadIds));
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success(`${selectedLeadIds.size} לידים עודכנו`);
       exitMultiSelect();
       queryClient.invalidateQueries({ queryKey: ["leads-table", tenantId] });
@@ -295,14 +290,18 @@ export function LeadsChatView({
   };
 
   const handleBulkResponseStatusChange = async (statusKey: string | null) => {
-    if (selectedLeadIds.size === 0) return;
+    if (selectedLeadIds.size === 0) {
+      return;
+    }
     setBulkActionLoading(true);
     try {
       const { error } = await supabase
         .from("leads")
         .update({ response_status: statusKey })
         .in("id", Array.from(selectedLeadIds));
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success(`${selectedLeadIds.size} לידים עודכנו`);
       exitMultiSelect();
       queryClient.invalidateQueries({ queryKey: ["leads-table", tenantId] });
@@ -467,7 +466,9 @@ export function LeadsChatView({
           <div
             className="flex-1 overflow-y-auto overflow-x-hidden"
             onScroll={(event) => {
-              if (!hasMore || isLoadingMore || !onLoadMore) return;
+              if (!hasMore || isLoadingMore || !onLoadMore) {
+                return;
+              }
               const el = event.currentTarget;
               if (el.scrollHeight - el.scrollTop - el.clientHeight < 120) {
                 onLoadMore();
@@ -830,34 +831,6 @@ export function LeadsChatView({
                     </Button>
                   )}
 
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8"
-                    title="ערוך ליד"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingLead(selectedLead);
-                      setEditInitialTab("details");
-                      setEditDialogOpen(true);
-                    }}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  {editingLead && (
-                    <EditLeadDialog
-                      key={editingLead.id}
-                      lead={editingLead}
-                      open={editDialogOpen}
-                      onOpenChange={(o) => {
-                        setEditDialogOpen(o);
-                        if (!o) setEditingLead(null);
-                      }}
-                      hideTrigger
-                      initialTab={editInitialTab}
-                    />
-                  )}
-
                   <AddTaskForm
                     leadId={selectedLead.id}
                     agencyId={selectedLead.agency_id || undefined}
@@ -949,225 +922,18 @@ export function LeadsChatView({
                     (activeTab === "whatsapp" || activeTab === "calls") &&
                       "hidden",
                   )}
+                  dir="rtl"
                 >
-                  <TabsContent value="details" className="mt-0 space-y-6">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-card border border-border/60 rounded-xl p-4 space-y-3 text-right shadow-sm">
-                        <h3 className="font-semibold text-sm flex items-center gap-2 justify-end text-foreground">
-                          פרטי קשר
-                          <User className="h-4 w-4 text-primary" />
-                        </h3>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex items-center justify-end gap-2">
-                            <span className="font-medium">
-                              {selectedLead.contact_name || "—"}
-                            </span>
-                            <span className="text-muted-foreground">:שם</span>
-                          </div>
-                          {isCompanyNameVisible && (
-                            <div className="flex items-center justify-end gap-2">
-                              <span className="font-medium">
-                                {selectedLead.company_name || "—"}
-                              </span>
-                              <span className="text-muted-foreground">
-                                :חברה
-                              </span>
-                            </div>
-                          )}
-                          <div className="flex items-center justify-end gap-2">
-                            {selectedLead.phone ? (
-                              <LeadContactLink
-                                kind="phone"
-                                value={selectedLead.phone}
-                                className="font-medium text-primary hover:underline"
-                              />
-                            ) : (
-                              <span>—</span>
-                            )}
-                            <span className="text-muted-foreground">
-                              :טלפון
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-end gap-2">
-                            {selectedLead.email ? (
-                              <LeadContactLink
-                                kind="email"
-                                value={selectedLead.email}
-                                className="font-medium text-primary hover:underline truncate"
-                              />
-                            ) : (
-                              <span>—</span>
-                            )}
-                            <span className="text-muted-foreground">
-                              :אימייל
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Dates & timeline */}
-                      <div className="bg-card border border-border/60 rounded-xl p-4 space-y-3 text-right shadow-sm">
-                        <h3 className="font-semibold text-sm flex items-center gap-2 justify-end text-foreground">
-                          ציר זמן
-                          <Clock className="h-4 w-4 text-primary" />
-                        </h3>
-                        <div className="space-y-2 text-sm">
-                          <LeadCreatedAtLines lead={selectedLead} />
-                          <LeadSourceLines lead={selectedLead} />
-                          <LeadSourceHistory leadId={selectedLead.id} />
-                          <div className="flex items-center justify-end gap-2">
-                            <span className="font-medium">
-                              {selectedLead.campaign_name || "—"}
-                            </span>
-                            <span className="text-muted-foreground">
-                              :שם הקמפיין
-                            </span>
-                          </div>
-                          {selectedLead.proposal_date && (
-                            <div className="flex items-center justify-end gap-2">
-                              <span className="font-medium">
-                                {format(
-                                  new Date(selectedLead.proposal_date),
-                                  "dd/MM/yyyy",
-                                  { locale: he },
-                                )}
-                              </span>
-                              <span className="text-muted-foreground">
-                                :הצעת מחיר
-                              </span>
-                            </div>
-                          )}
-                          {selectedLead.sale_date && (
-                            <div className="flex items-center justify-end gap-2">
-                              <span className="font-medium">
-                                {format(
-                                  new Date(selectedLead.sale_date),
-                                  "dd/MM/yyyy",
-                                  { locale: he },
-                                )}
-                              </span>
-                              <span className="text-muted-foreground">
-                                :תאריך מכירה
-                              </span>
-                            </div>
-                          )}
-                          {selectedLead.follow_up_date && (
-                            <div className="flex items-center justify-end gap-2">
-                              <span className="font-medium">
-                                {format(
-                                  new Date(selectedLead.follow_up_date),
-                                  "dd/MM/yyyy",
-                                  { locale: he },
-                                )}
-                              </span>
-                              <span className="text-muted-foreground">
-                                :מעקב
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <LeadCustomFieldsCard
-                      fields={customFields}
-                      formData={selectedLead.form_data}
-                    />
-
-                    {/* Notes */}
-                    <div className="bg-card border border-border/60 rounded-xl p-4 text-right shadow-sm">
-                      <h3 className="font-semibold text-sm mb-2">הערות</h3>
-                      {selectedLead.notes ? (
-                        <p
-                          className="text-sm text-muted-foreground whitespace-pre-wrap text-right"
-                          dir="rtl"
-                        >
-                          {selectedLead.notes}
-                        </p>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">
-                          אין הערות
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Updates + tasks in the same details window */}
-                    <div
-                      className="bg-card border border-border/60 rounded-xl p-4 text-right shadow-sm"
-                      dir="rtl"
-                    >
-                      <h3 className="font-semibold text-sm mb-3">
-                        עדכונים ומשימות
-                      </h3>
-                      <LeadUpdatesTab
-                        leadId={selectedLead.id}
-                        leadName={
-                          selectedLead.contact_name ||
-                          selectedLead.company_name ||
-                          "ליד"
-                        }
-                      />
-                    </div>
-
-                    {/* Products */}
-                    {selectedLead.products &&
-                      (() => {
-                        try {
-                          const parsed = JSON.parse(selectedLead.products);
-                          const ids = Array.isArray(parsed) ? parsed : [parsed];
-                          const items = ids
-                            .map((id: string) => productsLookup[id])
-                            .filter(Boolean);
-                          if (items.length === 0) return null;
-                          return (
-                            <div className="bg-card border border-border/60 rounded-xl p-4 shadow-sm">
-                              <h3 className="font-semibold text-sm mb-2">
-                                מוצרים / שירותים
-                              </h3>
-                              <div className="flex flex-wrap gap-2">
-                                {items.map((p: any, i: number) => (
-                                  <Badge key={i} variant="secondary">
-                                    {p.name}{" "}
-                                    {p.price > 0 &&
-                                      `- ₪${p.price.toLocaleString()}`}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        } catch {
-                          return null;
-                        }
-                      })()}
-                  </TabsContent>
-
-                  <TabsContent value="docs" className="mt-0" dir="rtl">
-                    <SendSignatureFromLeadPanel
-                      lead={selectedLead}
-                      tenantId={tenantId}
-                    />
-                  </TabsContent>
-
-                  {(activeTab === "proposals" ||
-                    activeTab === "files" ||
-                    activeTab === "meeting") && (
-                    <TabsContent
-                      value={activeTab}
-                      forceMount
-                      className="mt-0"
-                      dir="rtl"
-                    >
-                      <EditLeadDialog
-                        key={`${selectedLead.id}-${activeTab}`}
-                        lead={selectedLead}
-                        open={true}
-                        onOpenChange={() => {}}
-                        hideTrigger
-                        inline
-                        initialTab={activeTab}
-                      />
-                    </TabsContent>
-                  )}
+                  {/* One form behind every field tab, kept mounted so unsaved edits survive a tab switch. */}
+                  <EditLeadDialog
+                    key={selectedLead.id}
+                    lead={selectedLead}
+                    open
+                    onOpenChange={() => {}}
+                    hideTrigger
+                    inline
+                    initialTab={activeTab}
+                  />
                 </div>
 
                 {activeTab === "calls" && (

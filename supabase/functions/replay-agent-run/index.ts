@@ -1,6 +1,9 @@
 // replay-agent-run — creates a fresh run from an existing run's goal & context.
 // Body: { run_id, tenant_id, user_id? }
+// Who may replay, and in which tenant: ../_shared/agent-runs/run-request.ts (AIO-661).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { openRunRequest } from "../_shared/agent-runs/run-request.ts";
+import { requireAuth } from "../_shared/security.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,20 +22,31 @@ function jsonResponse(body: any, status = 200) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
   try {
-    const { run_id, tenant_id, user_id } = await req.json();
-    if (!run_id || !tenant_id)
-      return jsonResponse({ error: "missing run_id/tenant_id" }, 400);
-
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const opened = await openRunRequest(req, supabase, requireAuth, {
+      field: "run_id",
+    });
+    if (!opened.ok) {
+      return jsonResponse({ error: opened.error }, opened.status);
+    }
+    const { tenantId: tenant_id, sourceId: run_id, userId } = opened;
+
     const { data: orig, error } = await supabase
       .from("agent_runs")
       .select("*")
       .eq("id", run_id)
-      .single();
-    if (error || !orig) throw new Error("source run not found");
+      .eq("tenant_id", tenant_id)
+      .maybeSingle();
+    if (error) {
+      throw new Error(`agent_runs lookup failed: ${error.message}`);
+    }
+    if (!orig) {
+      return jsonResponse({ error: "source run not found" }, 404);
+    }
 
     const { data: invokeData, error: invokeErr } =
       await supabase.functions.invoke("run-ai-agent-v2", {
@@ -41,13 +55,15 @@ Deno.serve(async (req) => {
           goal: orig.goal,
           context: orig.context ?? {},
           tenant_id,
-          user_id: user_id ?? null,
+          user_id: userId,
           trigger_source: "replay",
           replay_of_run_id: run_id,
           max_steps: orig.max_steps ?? 12,
         },
       });
-    if (invokeErr) throw invokeErr;
+    if (invokeErr) {
+      throw invokeErr;
+    }
 
     if (invokeData?.run_id) {
       await supabase

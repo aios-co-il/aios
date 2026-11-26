@@ -98,8 +98,9 @@ Deno.serve(async (req) => {
       ok: boolean;
       reason?: string;
     }> => {
-      if (!settings?.refresh_token)
+      if (!settings?.refresh_token) {
         return { ok: false, reason: "missing_refresh_token" };
+      }
       const refreshResponse = await fetch(
         "https://oauth2.googleapis.com/token",
         {
@@ -203,7 +204,7 @@ Deno.serve(async (req) => {
     // Otherwise, fetch a single page (1,000 rows).
     const maxPages = aggregateAll ? 5 : 1;
     const pageSize = 1000;
-    const collectedRows: any[] = [];
+    const collectedRows: Array<any> = [];
 
     for (let page = 0; page < maxPages; page++) {
       const pagedBody = {
@@ -292,7 +293,9 @@ Deno.serve(async (req) => {
       collectedRows.push(...pageRows);
 
       // Stop early if we got less than a full page (no more data).
-      if (pageRows.length < pageSize) break;
+      if (pageRows.length < pageSize) {
+        break;
+      }
     }
 
     // Transform response

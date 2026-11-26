@@ -34,9 +34,13 @@ function wrap(list: Array<string>, width: number) {
     if (line && line.length + 1 + word.length > width) {
       lines.push(line);
       line = word;
-    } else line = line ? `${line} ${word}` : word;
+    } else {
+      line = line ? `${line} ${word}` : word;
+    }
   }
-  if (line) lines.push(line);
+  if (line) {
+    lines.push(line);
+  }
   return lines;
 }
 
@@ -46,7 +50,9 @@ function wrap(list: Array<string>, width: number) {
  */
 export function ctaLines(text: unknown) {
   const list = words(String(text ?? "").slice(0, MAX_CTA_CHARS));
-  if (!list.length) return [];
+  if (!list.length) {
+    return [];
+  }
   const total = list.join(" ").length;
   const wanted = total <= 26 ? 1 : total <= 52 ? 2 : MAX_CTA_LINES;
   // A dash splits the sentence into its parts ("join the list — the first 1000 get..."): the
@@ -56,8 +62,9 @@ export function ctaLines(text: unknown) {
     const head = list.slice(0, dash + 1).join(" ");
     const rest = balanced(list.slice(dash + 1), wanted - 1);
     const longest = Math.max(head.length, ...rest.map((line) => line.length));
-    if (rest.length <= wanted - 1 && longest <= Math.ceil(total / wanted) + 8)
+    if (rest.length <= wanted - 1 && longest <= Math.ceil(total / wanted) + 8) {
       return [head, ...rest];
+    }
   }
   return balanced(list, wanted);
 }
@@ -74,7 +81,9 @@ function balanced(list: Array<string>, count: number) {
     width += 1
   ) {
     const lines = wrap(list, width);
-    if (lines.length <= count) return lines;
+    if (lines.length <= count) {
+      return lines;
+    }
   }
   return [list.join(" ")];
 }
@@ -150,7 +159,7 @@ export function endCardTextFilters({
       `y=${top + index * step}`,
     ].join(":"),
   );
-  if (urlFile)
+  if (urlFile) {
     filters.push(
       [
         `drawtext=textfile='${urlFile}'`,
@@ -161,6 +170,7 @@ export function endCardTextFilters({
         `y=${top + lineFiles.length * step + Math.round(fontPx * 0.6)}`,
       ].join(":"),
     );
+  }
   return filters;
 }
 

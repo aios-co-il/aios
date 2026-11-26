@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useStartRecordingProcessing } from "@/hooks/useStartRecordingProcessing";
 import type { LeadRecordingItem } from "@/lib/leadRecordings";
 import { MANUAL_RECORDING_TOPIC } from "../../../supabase/functions/_shared/manual-recording-topic.ts";
 
@@ -14,45 +15,65 @@ export function LeadRecordingCell({
   leadId: string;
   tenantId: string | null;
   agencyId?: string | null;
-  recordings: LeadRecordingItem[];
+  recordings: Array<LeadRecordingItem>;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  const startProcessingUploads = useStartRecordingProcessing(() =>
+    queryClient.invalidateQueries({
+      queryKey: ["lead-call-recordings", tenantId],
+    }),
+  );
+
   const upload = useMutation({
-    mutationFn: async (files: File[]) => {
-      if (!tenantId) throw new Error("חסר ארגון");
+    mutationFn: async (files: Array<File>) => {
+      if (!tenantId) {
+        throw new Error("חסר ארגון");
+      }
+      const uploadedIds: Array<string> = [];
       for (const [index, file] of files.entries()) {
         const ext = file.name.split(".").pop() || "bin";
         const filePath = `${tenantId}/${leadId}/${Date.now()}-${index}.${ext}`;
         const { error: uploadError } = await supabase.storage
           .from("recordings")
           .upload(filePath, file);
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          throw uploadError;
+        }
         const topic =
           file.name.replace(/\.[^.]+$/, "") || MANUAL_RECORDING_TOPIC;
-        const { error } = await supabase.from("zoom_recordings").insert({
-          tenant_id: tenantId,
-          lead_id: leadId,
-          agency_id: agencyId || null,
-          meeting_topic: topic,
-          start_time: new Date().toISOString(),
-          source: "manual",
-          file_path: filePath,
-          meeting_id: `manual_${leadId}_${Date.now()}_${index}`,
-          recording_type: file.type.startsWith("audio/")
-            ? "audio_only"
-            : "manual",
-        });
-        if (error) throw error;
+        const { data, error } = await supabase
+          .from("zoom_recordings")
+          .insert({
+            tenant_id: tenantId,
+            lead_id: leadId,
+            agency_id: agencyId || null,
+            meeting_topic: topic,
+            start_time: new Date().toISOString(),
+            source: "manual",
+            file_path: filePath,
+            meeting_id: `manual_${leadId}_${Date.now()}_${index}`,
+            recording_type: file.type.startsWith("audio/")
+              ? "audio_only"
+              : "manual",
+          })
+          .select("id")
+          .single();
+        if (error) {
+          throw error;
+        }
+        uploadedIds.push(data.id);
       }
+      return uploadedIds;
     },
-    onSuccess: () => {
+    onSuccess: async (uploadedIds) => {
       queryClient.invalidateQueries({
         queryKey: ["lead-call-recordings", tenantId],
       });
       toast({ title: "ההקלטה הועלתה" });
+      await startProcessingUploads(uploadedIds);
     },
     onError: (error: Error) => {
       toast({
@@ -68,7 +89,9 @@ export function LeadRecordingCell({
       window.open(item.url, "_blank", "noopener,noreferrer");
       return;
     }
-    if (!item.filePath) return;
+    if (!item.filePath) {
+      return;
+    }
     const { data, error } = await supabase.storage
       .from(item.bucket ?? "recordings")
       .createSignedUrl(item.filePath, 3600);
@@ -107,7 +130,9 @@ export function LeadRecordingCell({
         onChange={(event) => {
           const files = Array.from(event.target.files ?? []);
           event.target.value = "";
-          if (files.length > 0) upload.mutate(files);
+          if (files.length > 0) {
+            upload.mutate(files);
+          }
         }}
       />
       <button

@@ -34,7 +34,7 @@ export function fixtureSources(
     staff: () =>
       Promise.resolve({
         keys: new Map(
-          list("staff_keys").flatMap((k): [string, null][] =>
+          list("staff_keys").flatMap((k): Array<[string, null]> =>
             typeof k === "string" ? [[k, null]] : [],
           ),
         ),
@@ -70,7 +70,7 @@ function fixtureHistory(row: Json) {
 }
 
 /** A fixture card entry, as a one-item list, or an empty list. */
-function fixtureEntry(row: Json): CardEntry[] {
+function fixtureEntry(row: Json): Array<CardEntry> {
   const fields = jsonObject(row);
   const [clientId, at, source, ref, content] = [
     fields?.client_id,

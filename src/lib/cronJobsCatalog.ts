@@ -40,21 +40,7 @@ export const CRON_JOB_CATALOG: Record<string, CronJobMeta> = {
   ...SYSTEM_CRON_JOBS,
 };
 
-/**
- * Report syncs that feed בדיקת הדופק. Times are UTC, twice a day, and each
- * slot finishes before the pulse refresh at 04:00 and 13:00 UTC.
- */
-export const REPORT_SYNC_SCHEDULES = [
-  { jobname: "sync-woocommerce-twice-daily", cron: "30 2,11 * * *" },
-  { jobname: "daily-google-ads-sync", cron: "40 2,11 * * *" },
-  { jobname: "sync-facebook-insights-twice-daily", cron: "45 2,11 * * *" },
-  { jobname: "cron-sync-facebook-ecommerce-daily", cron: "50 2,11 * * *" },
-  { jobname: "daily-ga-sync", cron: "55 2,11 * * *" },
-] as const;
-
-export const PULSE_REFRESH_CRONS = ["0 4 * * *", "0 13 * * *"] as const;
-
-/** Live campaign syncs run at 05:00 and 12:00 UTC. WooCommerce starts 15 minutes earlier. */
+/** WooCommerce syncs twice a day; its morning run starts 15 minutes before the first ads sync. */
 export const WOO_SYNC_SCHEDULE = {
   jobname: "sync-woocommerce-twice-daily",
   cron: "45 4,11 * * *",
@@ -75,9 +61,13 @@ export function getCronMeta(jobname: string): CronJobMeta {
 const HEBREW_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
 export function describeCronExpression(expr: string): string {
-  if (!expr) return "—";
+  if (!expr) {
+    return "—";
+  }
   const parts = expr.trim().split(/\s+/);
-  if (parts.length !== 5) return `Cron: ${expr}`;
+  if (parts.length !== 5) {
+    return `Cron: ${expr}`;
+  }
   const [minute, hour, dom, month, dow] = parts;
 
   const pad = (s: string) => s.padStart(2, "0");
@@ -85,15 +75,21 @@ export function describeCronExpression(expr: string): string {
     `${pad(h)}:${pad(m === "*" ? "00" : m)}`;
 
   // every minute
-  if (expr === "* * * * *") return "כל דקה";
+  if (expr === "* * * * *") {
+    return "כל דקה";
+  }
   // every N minutes
-  if (hour === "*" && minute.startsWith("*/"))
+  if (hour === "*" && minute.startsWith("*/")) {
     return `כל ${minute.slice(2)} דקות`;
+  }
   // every hour at minute X
-  if (hour === "*" && /^\d+$/.test(minute)) return `כל שעה ב-:${pad(minute)}`;
+  if (hour === "*" && /^\d+$/.test(minute)) {
+    return `כל שעה ב-:${pad(minute)}`;
+  }
   // every N hours
-  if (hour.startsWith("*/") && /^\d+$/.test(minute))
+  if (hour.startsWith("*/") && /^\d+$/.test(minute)) {
     return `כל ${hour.slice(2)} שעות`;
+  }
 
   if (
     dom === "*" &&
@@ -101,11 +97,13 @@ export function describeCronExpression(expr: string): string {
     dow === "*" &&
     /^\d+$/.test(hour) &&
     /^\d+$/.test(minute)
-  )
+  ) {
     return `כל יום ב-${timeStr(hour, minute)}`;
+  }
 
-  if (dom === "*" && month === "*" && /^\d+$/.test(dow) && /^\d+$/.test(hour))
+  if (dom === "*" && month === "*" && /^\d+$/.test(dow) && /^\d+$/.test(hour)) {
     return `כל יום ${HEBREW_DAYS[parseInt(dow) % 7]} ב-${timeStr(hour, minute)}`;
+  }
 
   // multiple hours: "0 5,14 * * *"
   if (

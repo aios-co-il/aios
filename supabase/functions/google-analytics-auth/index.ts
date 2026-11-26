@@ -1,10 +1,35 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   gaHostsMatch,
   listedPropertyMatchesDomain,
   normalizeGaHost,
 } from "../_shared/gaDomain.ts";
+import {
+  isCompleteRefusal,
+  readTenantCompleteRequest,
+} from "../_shared/google-oauth/connect-handoff.ts";
+import {
+  redirectHandoff,
+  redirectHandoffError,
+  UNKNOWN_TENANT_SLUG,
+} from "../_shared/google-oauth/handoff-response.ts";
+import {
+  INVALID_STATE_ERROR,
+  MISSING_CODE_ERROR,
+} from "../_shared/google-oauth/handoff-contract.ts";
+import {
+  isConnectRefusal,
+  readConnectRequest,
+} from "../_shared/google-oauth/connect-request.ts";
+import {
+  claimedStateOrigin,
+  oauthStateSecret,
+  signOAuthState,
+  verifyOAuthState,
+} from "../_shared/google-oauth/oauth-state.ts";
+import { userFacingMessage } from "../_shared/google-oauth/user-facing-error.ts";
+import { storeAnalyticsConnection } from "./store-connection.ts";
+import { callbackUri } from "../_shared/google-oauth/exchange-code.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,7 +37,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -24,7 +49,6 @@ serve(async (req) => {
   // OAuth configuration
   const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
   const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
-  const redirectUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/google-analytics-auth?action=oauth_callback`;
 
   if (!clientId || !clientSecret) {
     console.error("Missing Google OAuth credentials");
@@ -39,29 +63,17 @@ serve(async (req) => {
 
   // Handle OAuth initiation
   if (action === "authorize") {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Missing authorization header" }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
     try {
-      const { tenantId, userId, addNew, origin, loginHint } = await req.json();
-
-      if (!tenantId || !userId) {
-        return new Response(
-          JSON.stringify({ error: "Missing tenantId or userId" }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
-        );
+      const connect = await readConnectRequest(req);
+      if (isConnectRefusal(connect)) {
+        return new Response(JSON.stringify({ error: connect.error }), {
+          status: connect.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
+
+      const { loginHint } = connect;
+      const { addNew } = connect.state;
 
       // Google Analytics scopes
       const scopes = [
@@ -69,25 +81,21 @@ serve(async (req) => {
         "https://www.googleapis.com/auth/userinfo.email",
       ].join(" ");
 
-      const state = btoa(
-        JSON.stringify({
-          tenantId,
-          userId,
-          addNew: !!addNew,
-          origin: origin || null,
-        }),
-      );
+      const state = await signOAuthState(connect.state, oauthStateSecret());
 
       const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
       authUrl.searchParams.set("client_id", clientId);
-      authUrl.searchParams.set("redirect_uri", redirectUri);
+      authUrl.searchParams.set(
+        "redirect_uri",
+        callbackUri("google-analytics-auth", "oauth_callback"),
+      );
       authUrl.searchParams.set("response_type", "code");
       authUrl.searchParams.set("scope", scopes);
       authUrl.searchParams.set("access_type", "offline");
       if (loginHint) {
         // Reconnect flow: preselect the specific Google account being renewed.
         authUrl.searchParams.set("prompt", "consent");
-        authUrl.searchParams.set("login_hint", String(loginHint));
+        authUrl.searchParams.set("login_hint", loginHint);
       } else if (addNew) {
         // Adding another account: force the account chooser.
         authUrl.searchParams.set("prompt", "select_account consent");
@@ -114,7 +122,6 @@ serve(async (req) => {
   // Handle OAuth callback
   if (action === "oauth_callback") {
     const code = url.searchParams.get("code");
-    const state = url.searchParams.get("state");
     const error = url.searchParams.get("error");
 
     const supabase = createClient(
@@ -128,167 +135,82 @@ serve(async (req) => {
         .select("slug")
         .eq("id", tenantId)
         .single();
-      return tenant?.slug || "app";
+      return tenant?.slug || UNKNOWN_TENANT_SLUG;
     }
 
-    let stateOrigin: string | null = null;
-    let stateTenantId: string | null = null;
-    if (state) {
-      try {
-        const parsed = JSON.parse(atob(state));
-        stateOrigin = parsed.origin || null;
-        stateTenantId = parsed.tenantId || null;
-      } catch {
-        /* noop */
-      }
+    const state = await verifyOAuthState(
+      url.searchParams.get("state"),
+      oauthStateSecret(),
+    );
+    if (!state?.tenantId) {
+      return redirectHandoffError(
+        "google-analytics-auth",
+        claimedStateOrigin(url.searchParams.get("state") ?? ""),
+        null,
+        INVALID_STATE_ERROR,
+      );
     }
-    // Strip any trailing slash so `${APP_BASE}/t/...` never produces a double slash.
-    const APP_BASE = (
-      stateOrigin ||
-      Deno.env.get("APP_URL") ||
-      "https://aios.co.il"
-    ).replace(/\/+$/, "");
+
+    const tenantSlug = await getTenantSlug(state.tenantId);
 
     if (error) {
-      const slug = stateTenantId ? await getTenantSlug(stateTenantId) : "app";
-      const redirectUrl = `${APP_BASE}/t/${slug}/integrations?error=${error}`;
-      return new Response(null, {
-        status: 302,
-        headers: { Location: redirectUrl },
-      });
+      return redirectHandoffError(
+        "google-analytics-auth",
+        state.origin,
+        tenantSlug,
+        error,
+      );
     }
 
-    if (!code || !state) {
-      return new Response("Missing code or state", { status: 400 });
+    if (!code) {
+      return redirectHandoffError(
+        "google-analytics-auth",
+        state.origin,
+        tenantSlug,
+        MISSING_CODE_ERROR,
+      );
     }
 
+    return redirectHandoff(
+      "google-analytics-auth",
+      state,
+      tenantSlug,
+      code,
+      url.searchParams.get("state") ?? "",
+    );
+  }
+
+  // Finish a connect from the signed-in app (see connect-handoff.ts)
+  if (action === "complete") {
     try {
-      const { tenantId, userId, addNew } = JSON.parse(atob(state));
-      const tenantSlug = await getTenantSlug(tenantId);
-
-      // Exchange code for tokens
-      const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          code,
-          client_id: clientId,
-          client_secret: clientSecret,
-          redirect_uri: redirectUri,
-          grant_type: "authorization_code",
-        }),
-      });
-
-      const tokens = await tokenResponse.json();
-
-      if (tokens.error) {
-        console.error("Token exchange error:", tokens);
-        throw new Error(tokens.error_description || tokens.error);
-      }
-
-      const expiresAt = new Date(
-        Date.now() + tokens.expires_in * 1000,
-      ).toISOString();
-
-      // Fetch the Google email for this account
-      let googleEmail = "";
-      try {
-        const userInfoResponse = await fetch(
-          "https://www.googleapis.com/oauth2/v2/userinfo",
-          {
-            headers: { Authorization: `Bearer ${tokens.access_token}` },
-          },
-        );
-        const userInfo = await userInfoResponse.json();
-        googleEmail = userInfo.email || "";
-      } catch (e) {
-        console.error("Failed to fetch Google user info:", e);
-      }
-
-      const { data: allGa, error: allGaError } = await supabase
-        .from("tenant_integrations")
-        .select("id, user_id, settings")
-        .eq("tenant_id", tenantId)
-        .eq("integration_type", "google_analytics");
-
-      if (allGaError) {
-        throw allGaError;
-      }
-
-      const existingForUser =
-        allGa?.find((row: any) => row.user_id === userId) || null;
-      const existingForEmail = googleEmail
-        ? allGa?.find(
-            (row: any) => row.settings?.google_email === googleEmail,
-          ) || null
-        : null;
-      // Only OVERWRITE an existing row when the SAME Google account reconnects
-      // (matched by email). A different email for the same user is an ADDITIONAL
-      // account → insert a new row, so connecting a second Analytics account no
-      // longer overwrites the first. If the email couldn't be read, fall back to
-      // the user's existing row to avoid creating duplicates.
-      const existingIntegration =
-        existingForEmail || (googleEmail ? null : existingForUser);
-      const existingSettings =
-        (existingIntegration?.settings as Record<string, unknown> | null) ||
-        null;
-
-      const integrationData = {
-        is_active: true,
-        // Analytics connections are for the whole tenant (SEO reports), not only
-        // the person who completed Google OAuth.
-        connection_visibility: "org",
-        api_key: tokens.access_token,
-        settings: {
-          ...existingSettings,
-          refresh_token:
-            tokens.refresh_token || existingSettings?.refresh_token,
-          expires_at: expiresAt,
-          connected_at: new Date().toISOString(),
-          google_email: googleEmail || existingSettings?.google_email || "",
-          // Clear any stale reconnect flags now that the user has re-authorized.
-          needs_reauth: false,
-          reauth_reason: null,
-          reauth_marked_at: null,
-        },
-        updated_at: new Date().toISOString(),
-      };
-
-      let saveError;
-      if (existingIntegration) {
-        const { error } = await supabase
-          .from("tenant_integrations")
-          .update(integrationData)
-          .eq("id", existingIntegration.id);
-        saveError = error;
-      } else {
-        const { error } = await supabase.from("tenant_integrations").insert({
-          tenant_id: tenantId,
-          user_id: userId,
-          integration_type: "google_analytics",
-          ...integrationData,
+      const request = await readTenantCompleteRequest(req);
+      if (isCompleteRefusal(request)) {
+        return new Response(JSON.stringify({ error: request.error }), {
+          status: request.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
-        saveError = error;
       }
 
-      if (saveError) {
-        console.error("Error saving tokens:", saveError);
-        throw saveError;
-      }
+      await storeAnalyticsConnection(
+        request.code,
+        request.tenantId,
+        request.state.userId,
+      );
 
-      const redirectUrl = `${APP_BASE}/t/${tenantSlug}/integrations?google_analytics=connected`;
-      return new Response(null, {
-        status: 302,
-        headers: { Location: redirectUrl },
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     } catch (error) {
-      console.error("OAuth callback error:", error);
-      const slug = stateTenantId ? await getTenantSlug(stateTenantId) : "app";
-      const redirectUrl = `${APP_BASE}/t/${slug}/integrations?error=auth_failed`;
-      return new Response(null, {
-        status: 302,
-        headers: { Location: redirectUrl },
-      });
+      console.error("Analytics complete failed:", error);
+      return new Response(
+        JSON.stringify({
+          error: userFacingMessage(error, "Could not connect Google Analytics"),
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
   }
 
@@ -372,8 +294,9 @@ serve(async (req) => {
         ok: boolean;
         reason?: string;
       }> => {
-        if (!settings?.refresh_token)
+        if (!settings?.refresh_token) {
           return { ok: false, reason: "missing_refresh_token" };
+        }
         const refreshResponse = await fetch(
           "https://oauth2.googleapis.com/token",
           {
@@ -415,14 +338,16 @@ serve(async (req) => {
       // Ask for the API maximum (200) and follow nextPageToken so a login
       // with 100+ accounts is not cut off after the first page.
       const fetchAccounts = async () => {
-        const accountSummaries: any[] = [];
+        const accountSummaries: Array<any> = [];
         let pageToken = "";
         for (let page = 0; page < 20; page++) {
           const url = new URL(
             "https://analyticsadmin.googleapis.com/v1beta/accountSummaries",
           );
           url.searchParams.set("pageSize", "200");
-          if (pageToken) url.searchParams.set("pageToken", pageToken);
+          if (pageToken) {
+            url.searchParams.set("pageToken", pageToken);
+          }
           const response = await fetch(url.toString(), {
             headers: { Authorization: `Bearer ${accessToken}` },
           });
@@ -430,10 +355,14 @@ serve(async (req) => {
             .clone()
             .json()
             .catch(() => ({}));
-          if (!response.ok || data?.error) return response;
+          if (!response.ok || data?.error) {
+            return response;
+          }
           accountSummaries.push(...(data.accountSummaries || []));
           pageToken = data.nextPageToken || "";
-          if (!pageToken) break;
+          if (!pageToken) {
+            break;
+          }
         }
         return new Response(JSON.stringify({ accountSummaries }), {
           status: 200,
@@ -455,7 +384,9 @@ serve(async (req) => {
       // Persist the broken state so the settings page shows the red
       // "reconnect needed" state — not only when a data sync fails.
       const markNeedsReauth = async (reason: string) => {
-        if (probe) return;
+        if (probe) {
+          return;
+        }
         try {
           await supabase
             .from("tenant_integrations")
@@ -537,7 +468,7 @@ serve(async (req) => {
       }
 
       // Extract properties from account summaries
-      const properties: any[] = [];
+      const properties: Array<any> = [];
       if (accountsData.accountSummaries) {
         for (const account of accountsData.accountSummaries) {
           if (account.propertySummaries) {
@@ -572,13 +503,19 @@ serve(async (req) => {
                   `https://analyticsadmin.googleapis.com/v1beta/${property.id}/dataStreams?pageSize=20`,
                   { headers: { Authorization: `Bearer ${accessToken}` } },
                 );
-                if (!response.ok) return;
+                if (!response.ok) {
+                  return;
+                }
                 const data = await response.json().catch(() => ({}));
                 for (const stream of data.dataStreams || []) {
                   const uri = stream?.webStreamData?.defaultUri;
-                  if (!uri || !gaHostsMatch(uri, domainQuery)) continue;
+                  if (!uri || !gaHostsMatch(uri, domainQuery)) {
+                    continue;
+                  }
                   property.websiteUrl = uri;
-                  if (normalizeGaHost(uri) === wantedHost) exact = true;
+                  if (normalizeGaHost(uri) === wantedHost) {
+                    exact = true;
+                  }
                 }
               } catch (_e) {
                 /* this property has no readable stream */

@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -119,7 +120,9 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
         .select("id, name, website, tenant_id")
         .eq("id", clientId)
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as {
         id: string;
         name: string;
@@ -146,7 +149,9 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
         .eq("client_id", clientId)
         .eq("month", selectedMonth)
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as {
         id: string;
         month: string;
@@ -218,7 +223,9 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
         .select("month")
         .eq("client_id", clientId)
         .order("month", { ascending: true });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data as Array<{ month: string }>).map((r) =>
         r.month.slice(0, 10),
       );
@@ -244,7 +251,9 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
         .gte("month", from)
         .lte("month", selectedMonth)
         .order("month", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as Array<{ month: string; work: unknown }>;
     },
     enabled: !!clientId && !!selectedMonth,
@@ -275,15 +284,17 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
    * External links over a three-month window. The current month comes from the
    * live editor state so unsaved rows show up in the preview too.
    */
-  const recentLinks = useMemo<SeoShareRecentLink[]>(() => {
-    const out: SeoShareRecentLink[] = [];
+  const recentLinks = useMemo<Array<SeoShareRecentLink>>(() => {
+    const out: Array<SeoShareRecentLink> = [];
     const seen = new Set<string>();
     const push = (
       month: string,
       link: { id?: string; url?: string; anchor?: string; notes?: string },
     ) => {
       const url = (link.url || "").trim();
-      if (!url || seen.has(url.toLowerCase())) return;
+      if (!url || seen.has(url.toLowerCase())) {
+        return;
+      }
       seen.add(url.toLowerCase());
       let monthLabel = month;
       try {
@@ -302,12 +313,18 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
         monthLabel,
       });
     };
-    for (const link of work.links) push(selectedMonth, link);
+    for (const link of work.links) {
+      push(selectedMonth, link);
+    }
     for (const row of priorMonthsWork || []) {
       const month = row.month.slice(0, 10);
-      if (month === selectedMonth) continue;
+      if (month === selectedMonth) {
+        continue;
+      }
       const parsed = parseSeoMonthlyWork(row.work);
-      for (const link of parsed.links) push(month, link);
+      for (const link of parsed.links) {
+        push(month, link);
+      }
     }
     return out.sort((a, b) => b.month.localeCompare(a.month));
   }, [work.links, priorMonthsWork, selectedMonth]);
@@ -323,8 +340,9 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
         .maybeSingle();
       if (error) {
         // Table may not exist yet on prod before migration
-        if (String(error.message || "").includes("seo_monthly_shares"))
+        if (String(error.message || "").includes("seo_monthly_shares")) {
           return null;
+        }
         throw error;
       }
       return data as {
@@ -337,7 +355,9 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
   });
 
   useEffect(() => {
-    if (isFetching) return;
+    if (isFetching) {
+      return;
+    }
     if (!row) {
       setStatus("stable");
       setWork(emptySeoMonthlyWork());
@@ -347,7 +367,9 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
     setStatus(row.status || "stable");
     const parsed = parseSeoMonthlyWork(row.work);
     // Backfill summary from legacy free-text notes when work.summary is empty
-    if (!parsed.summary && row.notes) parsed.summary = row.notes;
+    if (!parsed.summary && row.notes) {
+      parsed.summary = row.notes;
+    }
     setWork(parsed);
     setDirty(false);
   }, [row, isFetching, selectedMonth]);
@@ -359,13 +381,17 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!user?.id) throw new Error("חסר משתמש");
+      if (!user?.id) {
+        throw new Error("חסר משתמש");
+      }
       // Prefer the existing row's tenant, then the client's home tenant, then
       // the SEO-report / session tenant — never invent a second row under MC
       // for a DMM-MC client.
       const saveTenantId =
         row?.tenant_id || client?.tenant_id || tenantId || "";
-      if (!saveTenantId) throw new Error("חסר טננט לשמירה");
+      if (!saveTenantId) {
+        throw new Error("חסר טננט לשמירה");
+      }
       const cleaned = sanitizeSeoMonthlyWork(work);
       const { error } = await (supabase as any)
         .from("seo_monthly_updates")
@@ -381,7 +407,9 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
           },
           { onConflict: "client_id,month" },
         );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return cleaned;
     },
     onSuccess: async (cleaned) => {
@@ -480,17 +508,21 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
   const upsertShare = async (overrides?: {
     work?: SeoMonthlyWork;
   }): Promise<string> => {
-    if (!tenantId || !user?.id) throw new Error("חסר משתמש או טננט");
+    if (!tenantId || !user?.id) {
+      throw new Error("חסר משתמש או טננט");
+    }
     const workForShare = overrides?.work ?? work;
     // Rebuild recent links from the work we're publishing so the public deck matches.
-    const linksForShare: SeoShareRecentLink[] = [];
+    const linksForShare: Array<SeoShareRecentLink> = [];
     const seenUrls = new Set<string>();
     const pushLink = (
       month: string,
       link: { id?: string; url?: string; anchor?: string; notes?: string },
     ) => {
       const url = (link.url || "").trim();
-      if (!url || seenUrls.has(url.toLowerCase())) return;
+      if (!url || seenUrls.has(url.toLowerCase())) {
+        return;
+      }
       seenUrls.add(url.toLowerCase());
       let label = month;
       try {
@@ -509,12 +541,17 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
         monthLabel: label,
       });
     };
-    for (const link of workForShare.links) pushLink(selectedMonth, link);
+    for (const link of workForShare.links) {
+      pushLink(selectedMonth, link);
+    }
     for (const row of priorMonthsWork || []) {
       const month = row.month.slice(0, 10);
-      if (month === selectedMonth) continue;
-      for (const link of parseSeoMonthlyWork(row.work).links)
+      if (month === selectedMonth) {
+        continue;
+      }
+      for (const link of parseSeoMonthlyWork(row.work).links) {
         pushLink(month, link);
+      }
     }
     linksForShare.sort((a, b) => b.month.localeCompare(a.month));
 
@@ -546,7 +583,9 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
         })
         .eq("client_id", clientId)
         .eq("month", selectedMonth);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return existingShare.share_token;
     }
 
@@ -569,14 +608,20 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
       })
       .select("share_token")
       .single();
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return (data as any).share_token as string;
   };
 
   const buildAndArchivePdf = async (): Promise<Blob> => {
     await new Promise((r) => setTimeout(r, 100));
-    if (!captureStackRef.current) throw new Error("אין דוח ליצוא");
-    if (!currentTenantId) throw new Error("חסר טננט לשמירת הקובץ");
+    if (!captureStackRef.current) {
+      throw new Error("אין דוח ליצוא");
+    }
+    if (!currentTenantId) {
+      throw new Error("חסר טננט לשמירת הקובץ");
+    }
     const pdf = await createSeoMonthlyReportPdf(captureStackRef.current);
     await archiveSeoMonthlyPdf({
       blob: pdf,
@@ -593,7 +638,9 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
   const handleOpenPresentation = async () => {
     setOpeningDeck(true);
     try {
-      if (dirty) await saveMutation.mutateAsync();
+      if (dirty) {
+        await saveMutation.mutateAsync();
+      }
       const token = await upsertShare();
       await buildAndArchivePdf();
       queryClient.invalidateQueries({
@@ -626,14 +673,18 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
   const handleCopyShareLink = async () => {
     setOpeningDeck(true);
     try {
-      if (dirty) await saveMutation.mutateAsync();
+      if (dirty) {
+        await saveMutation.mutateAsync();
+      }
       const token = await upsertShare();
       const url = `${SHARE_ORIGIN}/shared/seo-monthly/${token}`;
-      await navigator.clipboard.writeText(url);
       queryClient.invalidateQueries({
         queryKey: ["seo-monthly-share", clientId, selectedMonth],
       });
-      toast.success("קישור השיתוף הועתק — נפתח תמיד עם העדכונים האחרונים");
+      await copyToClipboard(
+        url,
+        "קישור השיתוף הועתק — נפתח תמיד עם העדכונים האחרונים",
+      );
     } catch (err: any) {
       const msg = String(err?.message || "");
       if (
@@ -655,7 +706,9 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
   const handleExportPdf = async () => {
     setExportingPdf(true);
     try {
-      if (dirty) await saveMutation.mutateAsync();
+      if (dirty) {
+        await saveMutation.mutateAsync();
+      }
       const safeName = `${snapshot.clientName}-${snapshot.monthLabel}`
         .replace(/[^\w\u0590-\u05FF-]+/g, "-")
         .slice(0, 60);
@@ -839,8 +892,8 @@ function OnsiteSection({
   items,
   onChange,
 }: {
-  items: SeoOnsiteItem[];
-  onChange: (next: SeoOnsiteItem[]) => void;
+  items: Array<SeoOnsiteItem>;
+  onChange: (next: Array<SeoOnsiteItem>) => void;
 }) {
   return (
     <Card>
@@ -891,13 +944,13 @@ function OnsiteSection({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {(Object.keys(ONSITE_KIND_LABELS) as SeoOnsiteKind[]).map(
-                    (k) => (
-                      <SelectItem key={k} value={k}>
-                        {ONSITE_KIND_LABELS[k]}
-                      </SelectItem>
-                    ),
-                  )}
+                  {(
+                    Object.keys(ONSITE_KIND_LABELS) as Array<SeoOnsiteKind>
+                  ).map((k) => (
+                    <SelectItem key={k} value={k}>
+                      {ONSITE_KIND_LABELS[k]}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <Input
@@ -942,8 +995,8 @@ function ArticlesSection({
   items,
   onChange,
 }: {
-  items: SeoArticleItem[];
-  onChange: (next: SeoArticleItem[]) => void;
+  items: Array<SeoArticleItem>;
+  onChange: (next: Array<SeoArticleItem>) => void;
 }) {
   return (
     <Card>
@@ -1032,8 +1085,8 @@ function LinksSection({
   items,
   onChange,
 }: {
-  items: SeoLinkItem[];
-  onChange: (next: SeoLinkItem[]) => void;
+  items: Array<SeoLinkItem>;
+  onChange: (next: Array<SeoLinkItem>) => void;
 }) {
   return (
     <Card>

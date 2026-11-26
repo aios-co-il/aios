@@ -47,12 +47,12 @@ export type GoogleRow = {
 };
 
 type GoogleBatch = {
-  results?: GoogleRow[];
+  results?: Array<GoogleRow>;
   error?: { status?: string; message?: string };
 };
 
 /** searchStream answers with a list of batches; an error may come as one object. */
-type GoogleBody = GoogleBatch | GoogleBatch[] | null;
+type GoogleBody = GoogleBatch | Array<GoogleBatch> | null;
 
 /** Every result row of a GAQL query, retrying rate limits with backoff. */
 export async function googleSearch(
@@ -60,7 +60,7 @@ export async function googleSearch(
   customerId: string,
   query: string,
   opts: GoogleRequestOptions,
-): Promise<GoogleRow[]> {
+): Promise<Array<GoogleRow>> {
   const doFetch = opts.fetch || defaultFetch;
   const sleep = opts.sleep || defaultSleep;
   for (let attempt = 0; ; attempt++) {

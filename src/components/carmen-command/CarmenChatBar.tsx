@@ -59,8 +59,10 @@ import {
   type CarmenVoice,
   isElevenLabsVoice,
   toCarmenVoice,
-  VOICE_STORAGE_KEY,
 } from "./carmenVoices";
+import { isQuietChat } from "./choices/brainPickDecision";
+import { useApplyBrainPick } from "./choices/useApplyBrainPick";
+import { useCarmenVoicePick } from "./choices/useCarmenVoicePick";
 import { CarmenVoiceOptions } from "./CarmenVoiceOptions";
 import { SendOrStopButton } from "./SendOrStopButton";
 import { useRunControl } from "./useRunControl";
@@ -118,7 +120,8 @@ import {
   transcribeAudioBlob,
   type MicCaptureMode,
 } from "@/lib/carmenTranscribeOnly";
-import type { SystemFixContextMetadata } from "@/lib/systemFixContext";
+import type { ScreenContextMetadata } from "@/lib/systemFixContext";
+import { SCREEN_CONTEXT_SOURCE } from "@functions/_shared/carmen/screen-context.ts";
 import { systemFixPromptAddon } from "@/lib/systemFixContext";
 import {
   COMMAND_CENTER_FILE_ACCEPT,
@@ -132,7 +135,7 @@ interface ChatMessage {
   id?: string;
   role: "user" | "assistant" | "tool_call";
   content?: string;
-  attachments?: CommandCenterAttachment[];
+  attachments?: Array<CommandCenterAttachment>;
   tool?: string;
   speaker?: string;
   channel?: string;
@@ -163,7 +166,7 @@ interface CarmenChatBarProps {
   onHudModeChange?: (mode: HudStage) => void;
   /** sidecar = system-fix panel with screen context (text + attachments + transcribe) */
   mode?: "default" | "sidecar";
-  contextMetadata?: SystemFixContextMetadata | null;
+  contextMetadata?: ScreenContextMetadata | null;
   sidecarPlaceholder?: string;
   /** Extra controls shown inside the composer, above the input row. */
   composerAccessory?: ReactNode;
@@ -203,9 +206,11 @@ export const CarmenChatBar = forwardRef<
   const identity = useCarmenIdentity();
   const isSidecar = mode === "sidecar";
   const [input, setInput] = useState("");
-  const [attachments, setAttachments] = useState<CommandCenterAttachment[]>([]);
+  const [attachments, setAttachments] = useState<
+    Array<CommandCenterAttachment>
+  >([]);
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<Array<ChatMessage>>([]);
   const [streamingText, setStreamingText] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   // Read synchronously by sendText, so a message typed mid-answer is queued, not sent in parallel.
@@ -214,8 +219,8 @@ export const CarmenChatBar = forwardRef<
     isStreamingRef.current = isStreaming;
   }, [isStreaming]);
   const run = useRunControl(tenantId);
-  const [liveStreamIds, setLiveStreamIds] = useState<string[]>([]);
-  const liveStreamIdsRef = useRef<string[]>([]);
+  const [liveStreamIds, setLiveStreamIds] = useState<Array<string>>([]);
+  const liveStreamIdsRef = useRef<Array<string>>([]);
   liveStreamIdsRef.current = liveStreamIds;
   const streamBufRef = useRef<Record<string, string>>({});
   const [inputMode, setInputMode] = useState<CarmenInputMode>("typed");
@@ -229,10 +234,8 @@ export const CarmenChatBar = forwardRef<
   const [isMuted, setIsMuted] = useState(false);
   const [isOutputMuted, setIsOutputMuted] = useState(false);
   const [isPreviewingVoice, setIsPreviewingVoice] = useState(false);
-  // null = no pick saved: live voice speaks Carmen's configured voice (ai_agents.voice).
-  const [selectedVoice, setSelectedVoice] = useState<CarmenVoice | null>(() =>
-    toCarmenVoice(localStorage.getItem(VOICE_STORAGE_KEY)),
-  );
+  // null = no pick stored: live voice speaks Carmen's configured voice (ai_agents.voice).
+  const { voice: selectedVoice, saveVoice } = useCarmenVoicePick(tenantId);
   const [showHistory, setShowHistory] = useState(false);
   const historyVisible = historyOpen ?? showHistory;
   const setHistory = (open: boolean) => {
@@ -248,7 +251,7 @@ export const CarmenChatBar = forwardRef<
   const audioCtxRef = useRef<AudioContext | null>(null);
   const playingRef = useRef<HTMLAudioElement | null>(null);
   // Sentence-streaming TTS: queue of segments + generation counter for cancellation
-  const ttsQueueRef = useRef<string[]>([]);
+  const ttsQueueRef = useRef<Array<string>>([]);
   const ttsPumpingRef = useRef(false);
   const ttsGenRef = useRef(0);
   // Continuous conversation mode (VAD): refs so async loops see fresh state
@@ -256,13 +259,22 @@ export const CarmenChatBar = forwardRef<
   const inputModeRef = useRef<CarmenInputMode>("typed");
   const micStreamRef = useRef<MediaStream | null>(null);
   const transcribeRecorderRef = useRef<MediaRecorder | null>(null);
-  const transcribeChunksRef = useRef<Blob[]>([]);
+  const transcribeChunksRef = useRef<Array<Blob>>([]);
   // OpenAI Realtime session — the only Command Center voice path
   const realtimeRef = useRef<RealtimeHandle | null>(null);
   const { toast } = useToast();
   const { userId } = useCurrentUser();
   const queryClient = useQueryClient();
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const chatIsQuiet = isQuietChat({
+    messageCount: messages.length,
+    conversationId,
+    streaming: isStreaming,
+    liveVoice: isConvMode,
+    voiceNote: isTranscribeRecording || isTranscribing,
+    channelStatus: brain.status,
+  });
+  useApplyBrainPick(brain, tenantId, chatIsQuiet);
   const hud = hudStage({
     routeType: brain.selected.route_type,
     debating: brain.status === "debating",
@@ -285,7 +297,9 @@ export const CarmenChatBar = forwardRef<
     revealPendingRef.current = true;
   };
   useLayoutEffect(() => {
-    if (!revealPendingRef.current) return;
+    if (!revealPendingRef.current) {
+      return;
+    }
     revealPendingRef.current = false;
     scrollToAnswerStart(listRef.current, answerRef.current);
   }, [messages, streamingText]);
@@ -305,7 +319,9 @@ export const CarmenChatBar = forwardRef<
         const {
           data: { session },
         } = await supabase.auth.getSession();
-        if (!session) return null;
+        if (!session) {
+          return null;
+        }
         const res = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/carmen-speak`,
           {
@@ -334,14 +350,18 @@ export const CarmenChatBar = forwardRef<
   /** Play one audio blob through an analyser so the face moves with it. Resolves on end. */
   const playBlob = useCallback(
     async (blob: Blob, gen: number) => {
-      if (ttsGenRef.current !== gen) return;
+      if (ttsGenRef.current !== gen) {
+        return;
+      }
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       playingRef.current = audio;
       try {
         const ctx = audioCtxRef.current ?? new AudioContext();
         audioCtxRef.current = ctx;
-        if (ctx.state === "suspended") await ctx.resume();
+        if (ctx.state === "suspended") {
+          await ctx.resume();
+        }
         const src = ctx.createMediaElementSource(audio);
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 256;
@@ -349,7 +369,9 @@ export const CarmenChatBar = forwardRef<
         analyser.connect(ctx.destination);
         const buf = new Uint8Array(analyser.frequencyBinCount);
         const tick = () => {
-          if (playingRef.current !== audio) return;
+          if (playingRef.current !== audio) {
+            return;
+          }
           analyser.getByteTimeDomainData(buf);
           let sum = 0;
           for (let i = 0; i < buf.length; i++) {
@@ -383,7 +405,9 @@ export const CarmenChatBar = forwardRef<
    * current one is playing, so speech flows continuously as text streams in.
    */
   const pumpTts = useCallback(async () => {
-    if (ttsPumpingRef.current) return;
+    if (ttsPumpingRef.current) {
+      return;
+    }
     ttsPumpingRef.current = true;
     const gen = ttsGenRef.current;
     onFaceState("speaking");
@@ -396,19 +420,27 @@ export const CarmenChatBar = forwardRef<
             ? fetchTts(ttsQueueRef.current.shift()!)
             : null);
         prefetch = null;
-        if (!next) break;
+        if (!next) {
+          break;
+        }
         const blob = await next;
-        if (ttsGenRef.current !== gen) break;
-        if (ttsQueueRef.current.length)
+        if (ttsGenRef.current !== gen) {
+          break;
+        }
+        if (ttsQueueRef.current.length) {
           prefetch = fetchTts(ttsQueueRef.current.shift()!);
-        if (blob) await playBlob(blob, gen);
+        }
+        if (blob) {
+          await playBlob(blob, gen);
+        }
       }
     } finally {
       ttsPumpingRef.current = false;
       if (ttsGenRef.current === gen) {
         // More sentences may have arrived while the last one was playing
-        if (ttsQueueRef.current.length) pumpTts();
-        else {
+        if (ttsQueueRef.current.length) {
+          pumpTts();
+        } else {
           audioLevelRef.current = 0;
           // Live speech is Realtime — never reopen the old transcribe loop.
           if (
@@ -427,7 +459,9 @@ export const CarmenChatBar = forwardRef<
   const enqueueSpeech = useCallback(
     (segment: string) => {
       const clean = segment.trim();
-      if (!clean) return;
+      if (!clean) {
+        return;
+      }
       ttsQueueRef.current.push(clean);
       pumpTts();
     },
@@ -439,18 +473,24 @@ export const CarmenChatBar = forwardRef<
     buf: string,
     minLen: number,
   ): [string, string] | null => {
-    if (buf.length < minLen) return null;
+    if (buf.length < minLen) {
+      return null;
+    }
     const re = /[.!?…]["']?(?=\s|$)|\n/g;
     let m: RegExpExecArray | null;
     while ((m = re.exec(buf))) {
       const end = m.index + m[0].length;
-      if (end >= minLen) return [buf.slice(0, end), buf.slice(end)];
+      if (end >= minLen) {
+        return [buf.slice(0, end), buf.slice(end)];
+      }
     }
     return null;
   };
 
   const rememberConv = (id: string | null | undefined, seatSlug?: string) => {
-    if (!id) return;
+    if (!id) {
+      return;
+    }
     conversationIdRef.current = id;
     setConversationId(id);
     onConversationIdChange?.(id);
@@ -469,7 +509,7 @@ export const CarmenChatBar = forwardRef<
       trimmed: string,
       history: Array<{ role: string; content: string }>,
       boundConvId: string,
-      ctxMeta: SystemFixContextMetadata | null,
+      ctxMeta: ScreenContextMetadata | null,
       // A model brain or "נתב חכם" that runs Carmen's loop (server re-checks it).
       runBrain?: string,
     ) => {
@@ -478,10 +518,19 @@ export const CarmenChatBar = forwardRef<
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("לא מחוברת");
+      if (!session) {
+        throw new Error("לא מחוברת");
+      }
       const workshop = workshopRequestParts(getWorkshopContext());
       const promptAddon =
-        [ctxMeta ? systemFixPromptAddon(ctxMeta) : "", workshop?.promptAddon]
+        [
+          // Only an AIOS screen joins the system prompt. A browser tab is the page's own
+          // words, which the server adds to the user's turn as data.
+          ctxMeta?.source === SCREEN_CONTEXT_SOURCE.commandCenterSidebar
+            ? systemFixPromptAddon(ctxMeta)
+            : "",
+          workshop?.promptAddon,
+        ]
           .filter(Boolean)
           .join("\n\n") || undefined;
       // The server saves the answer under this key too, even if the panel closes.
@@ -514,12 +563,13 @@ export const CarmenChatBar = forwardRef<
           }),
         },
       );
-      if (!res.ok)
+      if (!res.ok) {
         throw new Error(
           res.status === 429
             ? "חריגה ממגבלת הקצב — נסי שוב עוד רגע"
             : "שגיאה בתקשורת עם כרמן",
         );
+      }
 
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
@@ -533,21 +583,28 @@ export const CarmenChatBar = forwardRef<
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          break;
+        }
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() ?? "";
         for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
+          if (!line.startsWith("data: ")) {
+            continue;
+          }
           const payload = line.slice(6);
-          if (payload === "[DONE]") continue;
+          if (payload === "[DONE]") {
+            continue;
+          }
           try {
             const parsed = JSON.parse(payload);
             if (parsed.type === "token") {
               answer += parsed.content;
-              if (boundId)
+              if (boundId) {
                 streamBufRef.current[boundId] =
                   (streamBufRef.current[boundId] || "") + parsed.content;
+              }
               if (streamAppliesToActive(boundId, conversationIdRef.current)) {
                 setStreamingText(
                   boundId ? streamBufRef.current[boundId] : answer,
@@ -580,7 +637,9 @@ export const CarmenChatBar = forwardRef<
               }
             } else if (parsed.type === "workshop") {
               const event = workshopEventFrom(parsed);
-              if (event) emitWorkshopEvent(event);
+              if (event) {
+                emitWorkshopEvent(event);
+              }
             } else if (
               parsed.type === "skin" &&
               typeof parsed.slug === "string" &&
@@ -600,12 +659,14 @@ export const CarmenChatBar = forwardRef<
                 typeof parsed.error === "string" ? parsed.error : "שגיאה";
             } else if (parsed.type === "done") {
               gotDone = true;
-              if (!streamError && parsed.success === false)
+              if (!streamError && parsed.success === false) {
                 streamError =
                   typeof parsed.error === "string" ? parsed.error : "";
+              }
               // A brain that failed before writing anything explains why here.
-              if (!answer && typeof parsed.error === "string" && parsed.error)
+              if (!answer && typeof parsed.error === "string" && parsed.error) {
                 answer = `⚠️ ${parsed.error}`;
+              }
             }
           } catch {
             /* partial line */
@@ -613,8 +674,9 @@ export const CarmenChatBar = forwardRef<
         }
       }
 
-      if (shouldSpeakWithLegacyTts(inputModeRef.current) && speechBuf.trim())
+      if (shouldSpeakWithLegacyTts(inputModeRef.current) && speechBuf.trim()) {
         enqueueSpeech(speechBuf);
+      }
       const finalText =
         answer ||
         (streamError
@@ -644,7 +706,7 @@ export const CarmenChatBar = forwardRef<
         }
         if (boundId) {
           // A cut-off stream is not saved: the server saves the full answer.
-          if (gotDone)
+          if (gotDone) {
             brain
               .persistAssistant(boundId, finalText, replyKey, persistSlug)
               .then(() =>
@@ -652,13 +714,15 @@ export const CarmenChatBar = forwardRef<
                   queryKey: ["cc-conversations", tenantId],
                 }),
               );
+          }
           delete streamBufRef.current[boundId];
         }
       } else if (streamAppliesToActive(boundId, conversationIdRef.current)) {
         setStreamingText("");
       }
-      if (streamAppliesToActive(boundId, conversationIdRef.current))
+      if (streamAppliesToActive(boundId, conversationIdRef.current)) {
         revealAnswer();
+      }
       return finalText;
     },
     [tenantId, enqueueSpeech, brain, queryClient],
@@ -669,12 +733,14 @@ export const CarmenChatBar = forwardRef<
       text: string,
       opts?: {
         inputMode?: CarmenInputMode;
-        attachments?: CommandCenterAttachment[];
+        attachments?: Array<CommandCenterAttachment>;
       },
     ) => {
       const trimmed = text.trim();
       const pendingAttachments = opts?.attachments ?? attachments;
-      if ((!trimmed && pendingAttachments.length === 0) || !tenantId) return;
+      if ((!trimmed && pendingAttachments.length === 0) || !tenantId) {
+        return;
+      }
       const activeId = conversationIdRef.current;
       // Typed while Carmen still answers this chat: send it once she finishes (or is stopped).
       if (isStreamingRef.current) {
@@ -754,10 +820,11 @@ export const CarmenChatBar = forwardRef<
         });
         rememberConv(routed.conversation_id);
         boundId = routed.conversation_id || conversationIdRef.current;
-        if (boundId)
+        if (boundId) {
           setLiveStreamIds((prev) =>
             prev.includes(boundId!) ? prev : [...prev, boundId!],
           );
+        }
         if (routed.stream) {
           await streamInternal(
             agentText,
@@ -766,8 +833,9 @@ export const CarmenChatBar = forwardRef<
             ctxMeta,
             routed.run_brain,
           );
-          if (mode === "transcribe_only")
+          if (mode === "transcribe_only") {
             logTranscribeOnlyEvent("text_response", { stream: true });
+          }
         } else if (
           routed.inline_reply &&
           streamAppliesToActive(boundId, conversationIdRef.current)
@@ -813,8 +881,9 @@ export const CarmenChatBar = forwardRef<
         isStreamingRef.current = false;
         setIsStreaming(false);
         run.end();
-        if (boundId)
+        if (boundId) {
           setLiveStreamIds((prev) => prev.filter((id) => id !== boundId));
+        }
         queryClient.invalidateQueries({
           queryKey: ["cc-conversations", tenantId],
         });
@@ -838,12 +907,13 @@ export const CarmenChatBar = forwardRef<
   const handleAttachmentPick = useCallback(
     async (files: FileList | null) => {
       if (!files?.length || !userId) {
-        if (!userId)
+        if (!userId) {
           toast({
             title: "לא מחובר",
             description: "רענן את הדף ונסה שוב.",
             variant: "destructive",
           });
+        }
         return;
       }
       if (attachments.length >= COMMAND_CENTER_MAX_FILES) {
@@ -869,7 +939,9 @@ export const CarmenChatBar = forwardRef<
         });
       } finally {
         setUploadingAttachments(false);
-        if (fileInputRef.current) fileInputRef.current.value = "";
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
       }
     },
     [attachments.length, toast, userId],
@@ -910,7 +982,9 @@ export const CarmenChatBar = forwardRef<
 
   const askCarmenBrain = useCallback(
     async (question: string): Promise<string> => {
-      if (!question.trim() || !tenantId) return "לא התקבלה שאלה.";
+      if (!question.trim() || !tenantId) {
+        return "לא התקבלה שאלה.";
+      }
       setMessages((prev) => [
         ...prev,
         {
@@ -950,7 +1024,9 @@ export const CarmenChatBar = forwardRef<
         const {
           data: { session },
         } = await supabase.auth.getSession();
-        if (!session) return "שגיאת התחברות למערכת.";
+        if (!session) {
+          return "שגיאת התחברות למערכת.";
+        }
         const res = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/run-ai-agent`,
           {
@@ -975,7 +1051,9 @@ export const CarmenChatBar = forwardRef<
             signal: controller.signal,
           },
         );
-        if (!res.ok || !res.body) return "לא הצלחתי לגשת למערכת כרגע.";
+        if (!res.ok || !res.body) {
+          return "לא הצלחתי לגשת למערכת כרגע.";
+        }
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
@@ -983,30 +1061,39 @@ export const CarmenChatBar = forwardRef<
         let streamError: string | null = null;
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done) {
+            break;
+          }
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split("\n");
           buffer = lines.pop() ?? "";
           for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
+            if (!line.startsWith("data: ")) {
+              continue;
+            }
             const payload = line.slice(6);
-            if (payload === "[DONE]") continue;
+            if (payload === "[DONE]") {
+              continue;
+            }
             try {
               const parsed = JSON.parse(payload);
-              if (parsed.type === "token") answer += parsed.content;
-              else if (parsed.type === "conversation_id" && parsed.id)
+              if (parsed.type === "token") {
+                answer += parsed.content;
+              } else if (parsed.type === "conversation_id" && parsed.id) {
                 conversationIdRef.current = parsed.id;
+              }
               // the wrapper returns 200 and reports failures inside the stream
-              else if (parsed.type === "error")
+              else if (parsed.type === "error") {
                 streamError = String(
                   parsed.message ?? parsed.error ?? "שגיאה במערכת",
                 );
-              else if (
+              } else if (
                 parsed.type === "done" &&
                 parsed.success === false &&
                 !streamError
-              )
+              ) {
                 streamError = "הפעולה נכשלה";
+              }
             } catch {
               /* partial line */
             }
@@ -1048,7 +1135,9 @@ export const CarmenChatBar = forwardRef<
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!session) {
+        return;
+      }
       await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/report-error`,
         {
@@ -1126,7 +1215,9 @@ export const CarmenChatBar = forwardRef<
         }
         const callbacks: RealtimeCallbacks = {
           onUserTranscript: (text) => {
-            if (!shouldLogRealtimeTranscript()) return;
+            if (!shouldLogRealtimeTranscript()) {
+              return;
+            }
             setMessages((prev) => [
               ...prev,
               { role: "user", content: text, ...tagChatTurn("realtime_voice") },
@@ -1134,12 +1225,16 @@ export const CarmenChatBar = forwardRef<
             scrollDown();
           },
           onAssistantDelta: (delta) => {
-            if (!shouldLogRealtimeTranscript()) return;
+            if (!shouldLogRealtimeTranscript()) {
+              return;
+            }
             setStreamingText((prev) => prev + delta);
             revealAnswer();
           },
           onAssistantDone: (text) => {
-            if (!shouldLogRealtimeTranscript()) return;
+            if (!shouldLogRealtimeTranscript()) {
+              return;
+            }
             setStreamingText("");
             setMessages((prev) => [
               ...prev,
@@ -1154,7 +1249,9 @@ export const CarmenChatBar = forwardRef<
           onToolCall: askCarmenBrain,
           onSavePronunciation: savePronunciation,
           onStateChange: (state) => {
-            if (convModeRef.current) onFaceState(state);
+            if (convModeRef.current) {
+              onFaceState(state);
+            }
           },
           onError: (msg) => reportRealtimeError(msg),
           audioLevelRef,
@@ -1222,7 +1319,9 @@ export const CarmenChatBar = forwardRef<
   }, []);
 
   const startTranscribeRecording = useCallback(async () => {
-    if (isTranscribeRecording || isTranscribing || isConvMode) return;
+    if (isTranscribeRecording || isTranscribing || isConvMode) {
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       micStreamRef.current = stream;
@@ -1235,7 +1334,9 @@ export const CarmenChatBar = forwardRef<
       logTranscribeOnlyEvent("record_start");
 
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) transcribeChunksRef.current.push(e.data);
+        if (e.data.size > 0) {
+          transcribeChunksRef.current.push(e.data);
+        }
       };
 
       recorder.onstop = async () => {
@@ -1249,7 +1350,9 @@ export const CarmenChatBar = forwardRef<
           type: mimeType,
         });
         transcribeChunksRef.current = [];
-        if (audioBlob.size < 1000) return;
+        if (audioBlob.size < 1000) {
+          return;
+        }
 
         setIsTranscribing(true);
         onFaceState("listening");
@@ -1257,7 +1360,9 @@ export const CarmenChatBar = forwardRef<
           const {
             data: { session },
           } = await supabase.auth.getSession();
-          if (!session) throw new Error("לא מחוברת");
+          if (!session) {
+            throw new Error("לא מחוברת");
+          }
           const text = await transcribeAudioBlob(
             audioBlob,
             session.access_token,
@@ -1266,7 +1371,9 @@ export const CarmenChatBar = forwardRef<
               filename: "voice.webm",
             },
           );
-          if (!text) throw new Error("תמלול ריק");
+          if (!text) {
+            throw new Error("תמלול ריק");
+          }
           logTranscribeOnlyEvent("transcribe_ok", { chars: text.length });
           await sendText(text, { inputMode: "transcribe_only" });
         } catch (err: unknown) {
@@ -1305,8 +1412,11 @@ export const CarmenChatBar = forwardRef<
 
   const handleMicClick = useCallback(() => {
     if (micCaptureMode === "transcribe_only") {
-      if (isTranscribeRecording) stopTranscribeRecording();
-      else startTranscribeRecording();
+      if (isTranscribeRecording) {
+        stopTranscribeRecording();
+      } else {
+        startTranscribeRecording();
+      }
       return;
     }
     void startVoice();
@@ -1320,9 +1430,15 @@ export const CarmenChatBar = forwardRef<
 
   const selectMicCaptureMode = useCallback(
     (mode: MicCaptureMode) => {
-      if (mode === micCaptureMode) return;
-      if (isConvMode) endConversation();
-      if (isTranscribeRecording) stopTranscribeRecording();
+      if (mode === micCaptureMode) {
+        return;
+      }
+      if (isConvMode) {
+        endConversation();
+      }
+      if (isTranscribeRecording) {
+        stopTranscribeRecording();
+      }
       setMicCaptureMode(mode);
       saveMicCaptureMode(mode);
     },
@@ -1340,7 +1456,7 @@ export const CarmenChatBar = forwardRef<
   // Save the thread to ai_conversations after every completed exchange, so
   // it survives refreshes and appears in the history drawer.
   const persistConversation = useCallback(
-    async (msgs: ChatMessage[]) => {
+    async (msgs: Array<ChatMessage>) => {
       const textMsgs = msgs
         .filter((m) => m.role !== "tool_call")
         .map((m) => ({
@@ -1349,12 +1465,16 @@ export const CarmenChatBar = forwardRef<
           input_mode: m.input_mode ?? "typed",
           delivery_mode: m.delivery_mode ?? "text",
         }));
-      if (textMsgs.length < 2 || !tenantId) return;
+      if (textMsgs.length < 2 || !tenantId) {
+        return;
+      }
       try {
         const {
           data: { user },
         } = await supabase.auth.getUser();
-        if (!user) return;
+        if (!user) {
+          return;
+        }
         const sbAny = supabase as any;
         if (!conversationIdRef.current) {
           const { data } = await sbAny
@@ -1368,7 +1488,9 @@ export const CarmenChatBar = forwardRef<
             .select("id")
             .single();
           conversationIdRef.current = data?.id ?? null;
-          if (data?.id) setConversationId(data.id);
+          if (data?.id) {
+            setConversationId(data.id);
+          }
         } else {
           await sbAny
             .from("ai_conversations")
@@ -1389,11 +1511,15 @@ export const CarmenChatBar = forwardRef<
   persistRef.current = persistConversation;
   useEffect(() => {
     const last = messages[messages.length - 1];
-    if (last?.role === "assistant") persistRef.current(messages);
+    if (last?.role === "assistant") {
+      persistRef.current(messages);
+    }
   }, [messages]);
 
   useEffect(() => {
-    if (!conversationId) return;
+    if (!conversationId) {
+      return;
+    }
     const channel = (supabase as any)
       .channel(`cc-channel-${conversationId}`)
       .on(
@@ -1406,21 +1532,29 @@ export const CarmenChatBar = forwardRef<
         },
         (payload: { new: any }) => {
           const row = payload.new;
-          if (!row?.content) return;
-          if (row.role === "user") return;
+          if (!row?.content) {
+            return;
+          }
+          if (row.role === "user") {
+            return;
+          }
           setMessages((prev) => {
-            if (row.id && prev.some((m) => m.id === row.id)) return prev;
+            if (row.id && prev.some((m) => m.id === row.id)) {
+              return prev;
+            }
             // A keyed row is one turn's answer: match the turn, not the text.
             if (row.idempotency_key) {
-              if (prev.some((m) => m.replyKey === row.idempotency_key))
+              if (prev.some((m) => m.replyKey === row.idempotency_key)) {
                 return prev;
+              }
             } else if (
               row.role === "assistant" &&
               // Same words with files of their own are a different reply.
               !row.metadata?.attachments?.length &&
               replyShownThisTurn(prev, row.content)
-            )
+            ) {
               return prev;
+            }
             return [
               ...prev,
               {
@@ -1470,7 +1604,9 @@ export const CarmenChatBar = forwardRef<
           filter: `id=eq.${conversationId}`,
         },
         (payload: { new: any }) => {
-          if (payload.new?.status) brain.setStatus(payload.new.status);
+          if (payload.new?.status) {
+            brain.setStatus(payload.new.status);
+          }
           // The topic list holds the status the composer trusts.
           queryClient.invalidateQueries({
             queryKey: ["cc-conversations", tenantId],
@@ -1488,12 +1624,16 @@ export const CarmenChatBar = forwardRef<
     const convId = conversationIdRef.current;
     const meaningful =
       messages.filter((m) => m.role !== "tool_call").length >= 4;
-    if (!convId || !meaningful) return;
+    if (!convId || !meaningful) {
+      return;
+    }
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!session) {
+        return;
+      }
       fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/carmen-learn-from-session`,
         {
@@ -1533,6 +1673,9 @@ export const CarmenChatBar = forwardRef<
   const resumeRef = useRef(startFresh ? readResumeChat(tenantId) : null);
   const restoredRef = useRef(startFresh && !resumeRef.current);
   const seatSlugRef = useRef(brain.selected.slug);
+  // The selection on screen when a conversation was last opened: the render
+  // that still shows it has not caught up with the conversation's own seat.
+  const openedFromRef = useRef<BrainChannel["selected"] | null>(null);
   const loadConversation = useCallback(
     async (conv: TopicChat) => {
       learnFromConversation();
@@ -1540,6 +1683,7 @@ export const CarmenChatBar = forwardRef<
       const nextRoute = routeForRestoredChat(brain.routes, conv);
       // This chat picks its own seat; the seat-switch effect must not reset it.
       seatSlugRef.current = nextRoute.slug;
+      openedFromRef.current = brain.selected;
       brain.selectRoute(nextRoute, conv.id);
       const status = liveTopicStatus(conv.status, conv.updated_at);
       brain.setStatus(
@@ -1562,11 +1706,15 @@ export const CarmenChatBar = forwardRef<
           )
           .eq("conversation_id", conv.id)
           .order("created_at", { ascending: true });
-        if (Array.isArray(data) && data.length) msgs = data;
+        if (Array.isArray(data) && data.length) {
+          msgs = data;
+        }
       } catch {
         /* empty until messages arrive */
       }
-      if (conversationIdRef.current !== conv.id) return;
+      if (conversationIdRef.current !== conv.id) {
+        return;
+      }
       setMessages(
         msgs
           .filter(
@@ -1603,7 +1751,7 @@ export const CarmenChatBar = forwardRef<
         .select("id, title, updated_at, status, routing_mode, brain_route_id")
         .order("updated_at", { ascending: false })
         .limit(40);
-      return (data ?? []) as TopicChat[];
+      return (data ?? []) as Array<TopicChat>;
     },
   });
 
@@ -1620,7 +1768,16 @@ export const CarmenChatBar = forwardRef<
   );
 
   useEffect(() => {
-    if (!tenantId || restoredRef.current || conversationIdRef.current) return;
+    // The placeholder brain list cannot name a conversation's own brain, so
+    // the restore waits for the user's real list.
+    if (
+      !tenantId ||
+      !brain.routesReady ||
+      restoredRef.current ||
+      conversationIdRef.current
+    ) {
+      return;
+    }
     const seat = brain.selected.slug || "cursor";
     const resumeId = resumeRef.current?.conversationId;
     const last =
@@ -1645,15 +1802,26 @@ export const CarmenChatBar = forwardRef<
     loadConversation,
     brain.selected,
     brain.routes,
+    brain.routesReady,
   ]);
 
   /** Switching seats must open that seat's thread — never keep Carmen lines inside Cursor Direct. */
   useEffect(() => {
     const nextSlug = brain.selected.slug;
+    // A conversation being opened selects its own seat. A render that still
+    // shows the selection it was opened from is not a seat switch.
+    if (openedFromRef.current === brain.selected) {
+      return;
+    }
+    openedFromRef.current = null;
     const prevSlug = seatSlugRef.current;
-    if (prevSlug === nextSlug) return;
+    if (prevSlug === nextSlug) {
+      return;
+    }
     seatSlugRef.current = nextSlug;
-    if (!tenantId) return;
+    if (!tenantId) {
+      return;
+    }
 
     const scoped = conversationsForRoute(
       pastConversations ?? [],
@@ -1667,7 +1835,9 @@ export const CarmenChatBar = forwardRef<
       ? undefined
       : scoped.find((c) => c.id === saved) || scoped[0];
     if (hit) {
-      if (hit.id !== conversationIdRef.current) loadConversation(hit);
+      if (hit.id !== conversationIdRef.current) {
+        loadConversation(hit);
+      }
       return;
     }
     conversationIdRef.current = null;
@@ -1695,8 +1865,9 @@ export const CarmenChatBar = forwardRef<
     if (
       !volumeControlsLiveSession(inputModeRef.current) &&
       !realtimeRef.current
-    )
+    ) {
       return;
+    }
     const next = !muteRef.current;
     muteRef.current = next;
     setIsMuted(next);
@@ -1707,24 +1878,24 @@ export const CarmenChatBar = forwardRef<
     if (
       !volumeControlsLiveSession(inputModeRef.current) &&
       !realtimeRef.current
-    )
+    ) {
       return;
+    }
     const next = !outputMutedRef.current;
     outputMutedRef.current = next;
     setIsOutputMuted(next);
     realtimeRef.current?.setOutputMuted(next);
-    if (next) stopSpeech();
+    if (next) {
+      stopSpeech();
+    }
   }, [stopSpeech]);
 
   const selectVoice = useCallback(
     async (voice: CarmenVoice | null) => {
-      setSelectedVoice(voice);
-      if (voice) {
-        localStorage.setItem(VOICE_STORAGE_KEY, voice);
-      } else {
-        localStorage.removeItem(VOICE_STORAGE_KEY);
+      saveVoice(voice);
+      if (!convModeRef.current || !realtimeRef.current) {
+        return;
       }
-      if (!convModeRef.current || !realtimeRef.current) return;
 
       realtimeRef.current.stop();
       realtimeRef.current = null;
@@ -1742,11 +1913,13 @@ export const CarmenChatBar = forwardRef<
         onFaceState("idle");
       }
     },
-    [beginRealtime, endConversation, onFaceState, toast],
+    [beginRealtime, endConversation, onFaceState, saveVoice, toast],
   );
 
   const previewVoice = useCallback(async () => {
-    if (isPreviewingVoice) return;
+    if (isPreviewingVoice) {
+      return;
+    }
     setIsPreviewingVoice(true);
     stopSpeech();
     try {
@@ -1765,23 +1938,30 @@ export const CarmenChatBar = forwardRef<
 
   // Session panel: remember its chat, and when it closed, for the reopen.
   useEffect(() => {
-    if (startFresh && tenantId && restoredRef.current)
+    if (startFresh && tenantId && restoredRef.current) {
       writeResumeChat(tenantId, conversationId);
+    }
   }, [startFresh, tenantId, conversationId]);
   useEffect(
     () => () => {
-      if (startFresh) markResumeChatClosed();
+      if (startFresh) {
+        markResumeChatClosed();
+      }
     },
     [startFresh],
   );
   // The workshop board's "comment on this scene" writes its line here and hands over the focus.
   useEffect(() => {
-    if (!isSidecar) return;
+    if (!isSidecar) {
+      return;
+    }
     return subscribeComposerPrefill((text) => {
       setInput((current) => prefilledDraft(current, text));
       requestAnimationFrame(() => {
         const el = inputRef.current;
-        if (!el) return;
+        if (!el) {
+          return;
+        }
         el.focus();
         el.setSelectionRange(el.value.length, el.value.length);
       });
@@ -2053,7 +2233,9 @@ export const CarmenChatBar = forwardRef<
                   }
                 >
                   {(
-                    Object.keys(MIC_CAPTURE_MODE_LABELS) as MicCaptureMode[]
+                    Object.keys(
+                      MIC_CAPTURE_MODE_LABELS,
+                    ) as Array<MicCaptureMode>
                   ).map((mode) => (
                     <option key={mode} value={mode}>
                       {MIC_CAPTURE_MODE_LABELS[mode]}
@@ -2120,13 +2302,13 @@ export const CarmenChatBar = forwardRef<
             className="max-w-[120px] bg-transparent text-xs text-[var(--cc-text)] outline-none"
             disabled={isConvMode || isTranscribeRecording || isTranscribing}
           >
-            {(Object.keys(MIC_CAPTURE_MODE_LABELS) as MicCaptureMode[]).map(
-              (mode) => (
-                <option key={mode} value={mode}>
-                  {MIC_CAPTURE_MODE_LABELS[mode]}
-                </option>
-              ),
-            )}
+            {(
+              Object.keys(MIC_CAPTURE_MODE_LABELS) as Array<MicCaptureMode>
+            ).map((mode) => (
+              <option key={mode} value={mode}>
+                {MIC_CAPTURE_MODE_LABELS[mode]}
+              </option>
+            ))}
           </select>
         </div>
         <div
@@ -2223,7 +2405,9 @@ export const CarmenChatBar = forwardRef<
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") sendText(input);
+            if (e.key === "Enter") {
+              sendText(input);
+            }
           }}
           placeholder={composerPlaceholder}
           disabled={

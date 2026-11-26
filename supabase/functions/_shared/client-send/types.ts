@@ -30,7 +30,7 @@ export const UNRESOLVED_RECIPIENT = "unresolved";
 export type SendRecipient = {
   kind: RecipientKind;
   /** Every client the address belongs to, across the sender's scope. */
-  clientIds: string[];
+  clientIds: Array<string>;
   leadId: string | null;
   groupId: string | null;
   /** A WhatsApp group linked to more than one client. */

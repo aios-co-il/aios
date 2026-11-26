@@ -32,17 +32,26 @@ export function lipsyncCandidates(
   env: NodeJS.ProcessEnv = process.env,
 ): Array<string> {
   const names: Array<string> = [];
-  if (keys.elevenLabsKey) names.push("elevenlabs");
+  if (keys.elevenLabsKey) {
+    names.push("elevenlabs");
+  }
   const kling = klingKeys(
     { accessKey: keys.klingAccessKey, secretKey: keys.klingSecretKey },
     env,
   );
-  if (kling.accessKey && kling.secretKey) names.push("kling");
-  if (keys.openRouterKey) names.push("heygen");
-  if (higgsfieldCredential(keys.higgsfieldKeyId, keys.higgsfieldKeySecret))
+  if (kling.accessKey && kling.secretKey) {
+    names.push("kling");
+  }
+  if (keys.openRouterKey) {
+    names.push("heygen");
+  }
+  if (higgsfieldCredential(keys.higgsfieldKeyId, keys.higgsfieldKeySecret)) {
     names.push("higgsfield");
+  }
   // Last: Veo speaks the line itself from the still, so the voice is Veo's, not the chosen one.
-  if (keys.openRouterKey) names.push("openrouter");
+  if (keys.openRouterKey) {
+    names.push("openrouter");
+  }
   return names;
 }
 
@@ -91,8 +100,9 @@ export const estimateFor =
 
 export const audioMime = (bytes: Uint8Array | null | undefined) => {
   // RIFF....WAVE
-  if (bytes?.[0] === 0x52 && bytes?.[1] === 0x49 && bytes?.[2] === 0x46)
+  if (bytes?.[0] === 0x52 && bytes?.[1] === 0x49 && bytes?.[2] === 0x46) {
     return "audio/wav";
+  }
   return "audio/mpeg";
 };
 

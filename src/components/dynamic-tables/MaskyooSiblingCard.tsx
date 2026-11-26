@@ -39,19 +39,23 @@ export function MaskyooSiblingCard({
     queryKey: ["maskyoo-numbers-by-client", clientId, accessibleTenantIds],
     enabled: !!clientId && accessibleTenantIds.length > 0,
     staleTime: 60_000,
-    queryFn: async (): Promise<MaskyooNumberRow[]> => {
+    queryFn: async (): Promise<Array<MaskyooNumberRow>> => {
       const { data, error } = await supabase
         .from("maskyoo_numbers")
         .select("display_number, category, is_ignored")
         .in("tenant_id", accessibleTenantIds)
         .eq("client_id", clientId)
         .eq("is_ignored", false);
-      if (error) throw error;
-      return (data || []) as MaskyooNumberRow[];
+      if (error) {
+        throw error;
+      }
+      return (data || []) as Array<MaskyooNumberRow>;
     },
   });
 
-  if (!clientId || !storageTenantId) return null;
+  if (!clientId || !storageTenantId) {
+    return null;
+  }
 
   const numbers = (rows || []).map((r) => {
     const cat = (r.category || "organic").toLowerCase();

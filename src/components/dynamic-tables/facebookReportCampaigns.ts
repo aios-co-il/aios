@@ -37,6 +37,8 @@ export type FacebookReportCampaign = {
   followers: FacebookFollowerTotals;
   /** Paused, removed or its report switched off; shown only when it spent. */
   off: boolean;
+  /** The Meta ad id of an ad-level row, for its preview; other rows have none. */
+  adId?: string | null;
 };
 
 /** A row with its entity key, in the order the entity first appears. */
@@ -48,13 +50,13 @@ export type FacebookReportEntry = [string, FacebookReportCampaign];
  * Off campaigns that spent nothing in the period are left out.
  */
 export function groupFacebookReportCampaigns(
-  records: CampaignOffRecord[],
+  records: Array<CampaignOffRecord>,
   level: AdsEntityLevel,
   options: {
     leadsOnly: boolean;
     isReportOff?: (record: CampaignOffRecord) => boolean;
   },
-): Record<ReportCampaignGoal, FacebookReportEntry[]> {
+): Record<ReportCampaignGoal, Array<FacebookReportEntry>> {
   const offKeys = campaignOffKeys(
     records,
     (data) => getEntityGroupKey(data, level),
@@ -84,7 +86,7 @@ export function groupFacebookReportCampaigns(
 
 /** Sums each entity's delivery, results, Meta result and followers over its records. */
 function aggregateFacebookReportCampaigns(
-  records: CampaignOffRecord[],
+  records: Array<CampaignOffRecord>,
   level: AdsEntityLevel,
 ): Record<string, FacebookReportCampaign> {
   const groups: Record<string, FacebookReportCampaign> = {};
@@ -104,6 +106,7 @@ function aggregateFacebookReportCampaigns(
       result: emptyFacebookResultTotals(),
       followers: emptyFacebookFollowers(),
       off: false,
+      adId: level === "ad" ? metaAdIdOf(data) : null,
     });
     group.impressions += Number(data.impressions) || 0;
     group.clicks += Number(data.clicks) || 0;
@@ -117,4 +120,13 @@ function aggregateFacebookReportCampaigns(
     group.followers = addFacebookFollowers(group.followers, data);
   }
   return groups;
+}
+
+/** The row's Meta ad id (stored as a string or a number), or null without one. */
+function metaAdIdOf(data: Record<string, unknown>): string | null {
+  const adId = data.ad_id;
+  if (typeof adId === "number") {
+    return String(adId);
+  }
+  return typeof adId === "string" && adId ? adId : null;
 }
