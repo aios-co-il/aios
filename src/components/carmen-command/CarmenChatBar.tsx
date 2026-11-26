@@ -123,6 +123,25 @@ import {
 import type { ScreenContextMetadata } from "@/lib/systemFixContext";
 import { SCREEN_CONTEXT_SOURCE } from "@functions/_shared/carmen/screen-context.ts";
 import { systemFixPromptAddon } from "@/lib/systemFixContext";
+import type { PanelChannel } from "./device/panelStep";
+import {
+  deviceToolsToSend,
+  stepRequestFields,
+  type StreamDevice,
+} from "./device/deviceRequest";
+import type { DeviceActionReply } from "@functions/_shared/carmen/device/contract.ts";
+import {
+  deviceActionFrom,
+  isStepUnavailable,
+  STEP_UNAVAILABLE_TEXT,
+} from "./device/deviceReply";
+import {
+  holdsReplyKey,
+  joinStepAnswer,
+  STEP_LIMIT_TEXT,
+  withStepReplyKey,
+} from "./device/stepMessages";
+import { useBrowserSteps } from "./device/useBrowserSteps";
 import {
   COMMAND_CENTER_FILE_ACCEPT,
   COMMAND_CENTER_MAX_FILES,
@@ -130,6 +149,9 @@ import {
   uploadCommandCenterAttachments,
   type CommandCenterAttachment,
 } from "@/lib/commandCenterAttachments";
+
+/** Shown while a browser step waits for the extension's panel (AIO-656). */
+const BROWSER_STEP_LABEL = "עובדת בדפדפן שלך…";
 
 interface ChatMessage {
   id?: string;
@@ -143,6 +165,8 @@ interface ChatMessage {
   delivery_mode?: "text" | "realtime";
   /** The turn's reply_key: the same answer saved by client and server. */
   replyKey?: string;
+  /** The reply_keys of the browser-step continuations joined into this answer. */
+  stepReplyKeys?: ReadonlyArray<string>;
 }
 
 export interface CarmenChatBarHandle {
@@ -167,6 +191,8 @@ interface CarmenChatBarProps {
   /** sidecar = system-fix panel with screen context (text + attachments + transcribe) */
   mode?: "default" | "sidecar";
   contextMetadata?: ScreenContextMetadata | null;
+  /** The Chrome extension's side panel framing the chat, for browser steps; null elsewhere. */
+  browserPanel?: PanelChannel | null;
   sidecarPlaceholder?: string;
   /** Extra controls shown inside the composer, above the input row. */
   composerAccessory?: ReactNode;
@@ -196,6 +222,7 @@ export const CarmenChatBar = forwardRef<
     onHudModeChange,
     mode = "default",
     contextMetadata = null,
+    browserPanel = null,
     sidecarPlaceholder,
     composerAccessory,
     startFresh = false,
@@ -219,6 +246,7 @@ export const CarmenChatBar = forwardRef<
     isStreamingRef.current = isStreaming;
   }, [isStreaming]);
   const run = useRunControl(tenantId);
+  const browserSteps = useBrowserSteps(browserPanel);
   const [liveStreamIds, setLiveStreamIds] = useState<Array<string>>([]);
   const liveStreamIdsRef = useRef<Array<string>>([]);
   liveStreamIdsRef.current = liveStreamIds;
@@ -512,6 +540,8 @@ export const CarmenChatBar = forwardRef<
       ctxMeta: ScreenContextMetadata | null,
       // A model brain or "נתב חכם" that runs Carmen's loop (server re-checks it).
       runBrain?: string,
+      // The panel's tools to offer, or the browser step this request continues (AIO-656).
+      device?: StreamDevice,
     ) => {
       // The reply belongs to the brain that started it, even if the picker changes.
       const persistSlug = runBrain ?? brain.selected?.slug;
@@ -535,6 +565,13 @@ export const CarmenChatBar = forwardRef<
           .join("\n\n") || undefined;
       // The server saves the answer under this key too, even if the panel closes.
       const replyKey = crypto.randomUUID();
+      const continuation = device?.continuation;
+      if (continuation) {
+        setMessages((prev) =>
+          withStepReplyKey(prev, continuation.intoReplyKey, replyKey),
+        );
+      }
+      const runId = continuation?.runId ?? run.begin();
       const res = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/run-ai-agent`,
         {
@@ -544,7 +581,7 @@ export const CarmenChatBar = forwardRef<
             Authorization: `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
-            command_text: trimmed,
+            ...stepRequestFields(trimmed, device),
             tenant_id: tenantId,
             surface: "internal_chat",
             stream: true,
@@ -559,11 +596,15 @@ export const CarmenChatBar = forwardRef<
             workshop_artifact_id: workshop?.workshopArtifactId ?? undefined,
             workshop_client_id: workshop?.workshopClientId ?? undefined,
             brain_slug: runBrain || undefined,
-            run_id: run.begin(),
+            run_id: runId,
           }),
         },
       );
-      if (!res.ok) {
+      const refused =
+        Boolean(continuation) &&
+        res.status === 409 &&
+        isStepUnavailable(await res.json().catch(() => null));
+      if (!res.ok && !refused) {
         throw new Error(
           res.status === 429
             ? "חריגה ממגבלת הקצב — נסי שוב עוד רגע"
@@ -571,17 +612,19 @@ export const CarmenChatBar = forwardRef<
         );
       }
 
-      const reader = res.body!.getReader();
+      const reader = refused ? null : (res.body?.getReader() ?? null);
       const decoder = new TextDecoder();
       let buffer = "";
       let answer = "";
-      let gotDone = false;
+      let gotDone = refused;
+      let unavailable = refused;
+      let deviceAction: DeviceActionReply | null = null;
       let streamError = "";
       let speechBuf = "";
       let firstSegmentSent = false;
       let boundId = boundConvId;
 
-      while (true) {
+      while (reader) {
         const { done, value } = await reader.read();
         if (done) {
           break;
@@ -599,6 +642,7 @@ export const CarmenChatBar = forwardRef<
           }
           try {
             const parsed = JSON.parse(payload);
+            deviceAction = deviceActionFrom(parsed) ?? deviceAction;
             if (parsed.type === "token") {
               answer += parsed.content;
               if (boundId) {
@@ -659,12 +703,26 @@ export const CarmenChatBar = forwardRef<
                 typeof parsed.error === "string" ? parsed.error : "שגיאה";
             } else if (parsed.type === "done") {
               gotDone = true;
-              if (!streamError && parsed.success === false) {
+              unavailable = Boolean(continuation) && isStepUnavailable(parsed);
+              // A turn paused at a browser step without text of its own saves the pause line.
+              if (
+                deviceAction &&
+                !answer &&
+                typeof parsed.output === "string"
+              ) {
+                answer = parsed.output;
+              }
+              if (!streamError && !unavailable && parsed.success === false) {
                 streamError =
                   typeof parsed.error === "string" ? parsed.error : "";
               }
               // A brain that failed before writing anything explains why here.
-              if (!answer && typeof parsed.error === "string" && parsed.error) {
+              if (
+                !answer &&
+                !unavailable &&
+                typeof parsed.error === "string" &&
+                parsed.error
+              ) {
                 answer = `⚠️ ${parsed.error}`;
               }
             }
@@ -677,30 +735,32 @@ export const CarmenChatBar = forwardRef<
       if (shouldSpeakWithLegacyTts(inputModeRef.current) && speechBuf.trim()) {
         enqueueSpeech(speechBuf);
       }
-      const finalText =
-        answer ||
-        (streamError
-          ? `⚠️ כרמן לא הצליחה לענות: ${streamError}`
-          : gotDone
-            ? ""
-            : "⚠️ החיבור נותק באמצע — נסי שוב.");
+      const finalText = unavailable
+        ? STEP_UNAVAILABLE_TEXT
+        : answer ||
+          (streamError
+            ? `⚠️ כרמן לא הצליחה לענות: ${streamError}`
+            : gotDone
+              ? ""
+              : "⚠️ החיבור נותק באמצע — נסי שוב.");
       if (finalText) {
         if (streamAppliesToActive(boundId, conversationIdRef.current)) {
-          // The server's saved copy of this turn may have arrived first.
+          const own: ChatMessage = {
+            role: "assistant",
+            content: finalText,
+            speaker: "carmen",
+            channel: runBrain || "internal",
+            replyKey,
+            ...tagChatTurn("typed"),
+          };
+          // A continuation's text joins the paused answer; otherwise the server's saved copy
+          // of this turn may have arrived first.
           setMessages((prev) =>
-            prev.some((m) => m.replyKey === replyKey)
-              ? prev
-              : [
-                  ...prev,
-                  {
-                    role: "assistant",
-                    content: finalText,
-                    speaker: "carmen",
-                    channel: runBrain || "internal",
-                    replyKey,
-                    ...tagChatTurn("typed"),
-                  },
-                ],
+            continuation
+              ? joinStepAnswer(prev, replyKey, finalText, own)
+              : prev.some((m) => holdsReplyKey(m, replyKey))
+                ? prev
+                : [...prev, own],
           );
           setStreamingText("");
         }
@@ -723,7 +783,13 @@ export const CarmenChatBar = forwardRef<
       if (streamAppliesToActive(boundId, conversationIdRef.current)) {
         revealAnswer();
       }
-      return finalText;
+      return {
+        deviceAction: unavailable ? null : deviceAction,
+        unavailable,
+        runId,
+        replyKey,
+        conversationId: boundId,
+      };
     },
     [tenantId, enqueueSpeech, brain, queryClient],
   );
@@ -826,13 +892,48 @@ export const CarmenChatBar = forwardRef<
           );
         }
         if (routed.stream) {
-          await streamInternal(
+          const offered = isSidecar
+            ? deviceToolsToSend(browserPanel)
+            : undefined;
+          const turn = await streamInternal(
             agentText,
             history,
             boundId || "",
             ctxMeta,
             routed.run_brain,
+            { tools: offered },
           );
+          if (turn.deviceAction) {
+            const end = await browserSteps.run(
+              turn.deviceAction,
+              offered,
+              (actionId) =>
+                streamInternal(
+                  agentText,
+                  history,
+                  turn.conversationId,
+                  ctxMeta,
+                  routed.run_brain,
+                  {
+                    tools: deviceToolsToSend(browserPanel),
+                    continuation: {
+                      actionId,
+                      runId: turn.runId,
+                      intoReplyKey: turn.replyKey,
+                    },
+                  },
+                ),
+            );
+            if (end === "limit") {
+              setMessages((prev) =>
+                joinStepAnswer(prev, turn.replyKey, STEP_LIMIT_TEXT, {
+                  role: "assistant",
+                  content: STEP_LIMIT_TEXT,
+                  speaker: "carmen",
+                }),
+              );
+            }
+          }
           if (mode === "transcribe_only") {
             logTranscribeOnlyEvent("text_response", { stream: true });
           }
@@ -901,6 +1002,8 @@ export const CarmenChatBar = forwardRef<
       liveStreamIds,
       isSidecar,
       contextMetadata,
+      browserPanel,
+      browserSteps,
     ],
   );
 
@@ -1544,7 +1647,7 @@ export const CarmenChatBar = forwardRef<
             }
             // A keyed row is one turn's answer: match the turn, not the text.
             if (row.idempotency_key) {
-              if (prev.some((m) => m.replyKey === row.idempotency_key)) {
+              if (prev.some((m) => holdsReplyKey(m, row.idempotency_key))) {
                 return prev;
               }
             } else if (
@@ -2003,7 +2106,10 @@ export const CarmenChatBar = forwardRef<
 
   /** The stop button: Carmen stops at her next step and says what she already did. */
   function stopRun() {
-    run.stop().catch((e: Error) =>
+    const stopped = run.stop();
+    // A step waiting for the panel is dropped; the run continues only once the stop is recorded.
+    browserSteps.stop(stopped);
+    stopped.catch((e: Error) =>
       toast({
         title: "לא הצלחתי לעצור",
         description: e.message,
@@ -2125,8 +2231,16 @@ export const CarmenChatBar = forwardRef<
               </div>
             )}
             {thisChatBusy && !streamingText && (
-              <div className="flex justify-center py-2">
+              <div className="flex items-center justify-center gap-2 py-2">
                 <ThinkingGalaxy />
+                {browserSteps.waiting && (
+                  <span
+                    className="text-xs text-[var(--cc-text-dim)]"
+                    aria-live="polite"
+                  >
+                    {BROWSER_STEP_LABEL}
+                  </span>
+                )}
               </div>
             )}
           </div>
