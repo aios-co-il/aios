@@ -1,6 +1,6 @@
 // Who may sync a Search Console table: a member of the table's organization
 // or a super admin. The connection must belong to that organization, or to
-// another one the caller is also a member of.
+// another one the caller is a member of, super admins included.
 import { tenantUserAccess } from "../_shared/auth/tenant-access.ts";
 import { type DbClient, userClient } from "../_shared/supabase-clients.ts";
 
@@ -31,10 +31,7 @@ export async function refuseGscSync(
   }
 
   const tableAccess = await tenantUserAccess(db, tableTenantId, user.id);
-  if (tableAccess.superAdmin) {
-    return null;
-  }
-  if (!tableAccess.member) {
+  if (!tableAccess.member && !tableAccess.superAdmin) {
     return DENIED;
   }
   if (integrationTenantId === tableTenantId) {

@@ -22,11 +22,15 @@ const env = {
   SUPABASE_SERVICE_ROLE_KEY: "test-service",
 };
 
-/** The member belongs to OWN_TENANT and SECOND_TENANT; the outsider to none. */
+/**
+ * The member belongs to OWN_TENANT and SECOND_TENANT; the outsider to none.
+ * `superAdmin` makes the caller a super admin.
+ */
 async function refusalStatus(
   authHeader: string | null,
   tableTenantId: string,
   integrationTenantId: string,
+  superAdmin = false,
 ): Promise<number | null> {
   const http = fakeSupabaseHttp({
     supabaseUrl: SUPABASE_URL,
@@ -37,7 +41,7 @@ async function refusalStatus(
         { tenant_id: SECOND_TENANT, user_id: MEMBER },
       ],
     },
-    rpc: { is_super_admin: () => false },
+    rpc: { is_super_admin: () => superAdmin },
   });
 
   const refusal = await withRuntime({ env, fetch: http.fetch }, () =>
@@ -87,6 +91,20 @@ Deno.test(
     assertEquals(
       await refusalStatus("Bearer member", OWN_TENANT, SECOND_TENANT),
       null,
+    );
+  },
+);
+
+Deno.test(
+  "a super admin syncs any table, but only with a connection of its organization",
+  async () => {
+    assertEquals(
+      await refusalStatus("Bearer outsider", OWN_TENANT, OWN_TENANT, true),
+      null,
+    );
+    assertEquals(
+      await refusalStatus("Bearer outsider", OWN_TENANT, OTHER_TENANT, true),
+      403,
     );
   },
 );
