@@ -50,6 +50,25 @@ export default tseslint.config(
     },
   },
   {
+    // Model-written Markdown has one renderer, which decides what an image may load (AIO-665).
+    files: ["**/*.{ts,tsx}"],
+    ignores: ["src/components/ReplyMarkdown/ReplyMarkdown.tsx"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "react-markdown",
+              message:
+                "Render Markdown with ReplyMarkdown (src/components/ReplyMarkdown).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: [
       "**/*.{test,spec}.{js,mjs,cjs,jsx,ts,tsx}",
       "**/{__tests__,tests}/**/*.{js,mjs,cjs,jsx,ts,tsx}",

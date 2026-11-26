@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { ReplyMarkdown } from "@/components/ReplyMarkdown/ReplyMarkdown";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
@@ -241,9 +240,7 @@ export function SummaryViewerDialog({
             <div className="flex-1 min-h-0 overflow-y-auto rounded-lg border bg-card p-5">
               {summaryMd ? (
                 <div dir="rtl" className={SUMMARY_PROSE_CLASS}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {summaryMd}
-                  </ReactMarkdown>
+                  <ReplyMarkdown>{summaryMd}</ReplyMarkdown>
                 </div>
               ) : (
                 <div className="text-sm text-muted-foreground text-center py-8">
