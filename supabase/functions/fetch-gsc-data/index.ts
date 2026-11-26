@@ -8,10 +8,12 @@ import {
   gscPeriodBounds,
   readGscSnapshots,
 } from "../_shared/gscKeywords.ts";
+import { withGoogleTokens } from "../_shared/google-oauth/integration-tokens.ts";
 import {
   isGscRefusal,
   readClientGscAccess,
 } from "../_shared/seo/client-gsc-access.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -74,7 +76,7 @@ Deno.serve(async (req) => {
     );
 
     // Only a Search Console connection that serves this client.
-    const { data: integration, error: intErr } = await supabase
+    const { data: storedIntegration, error: intErr } = await supabase
       .from("tenant_integrations")
       .select("*")
       .eq("id", integrationId)
@@ -86,12 +88,15 @@ Deno.serve(async (req) => {
       console.error("tenant_integrations lookup failed:", intErr.message);
       throw new Error("Could not read the Search Console connection");
     }
-    if (!integration) {
+    if (!storedIntegration) {
       return new Response(JSON.stringify({ error: "Integration not found" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const [integration] = await withGoogleTokens(serviceClient(), [
+      storedIntegration,
+    ]);
 
     // Refresh token if needed
     let accessToken = integration.api_key;

@@ -80,7 +80,7 @@ export async function isSuperAdminUser(
 }
 
 /** Whether the user has a tenant_users row in the tenant; no tenant means no. */
-async function isTenantMember(
+export async function isTenantMember(
   sb: Pick<DbClient, "from">,
   tenantId: string,
   userId: string,

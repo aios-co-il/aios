@@ -2,7 +2,8 @@ import { useContext } from "react";
 import { cn } from "@/lib/utils";
 import type { OrbBuddyState } from "../CarmenOrbBuddy";
 import { getCarmenRole } from "../../../../supabase/functions/_shared/carmen/skin-roles";
-import { type MiniMeGender, MiniMeGenderContext } from "./miniMeGender";
+import type { MiniMeGender } from "../../../../supabase/functions/_shared/carmen/minime-gender";
+import { MiniMeGenderContext } from "./miniMeGender";
 import { miniMeImage } from "./miniMeImages";
 import "./mini-me.css";
 

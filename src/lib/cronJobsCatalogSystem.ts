@@ -78,6 +78,14 @@ export const SYSTEM_CRON_JOBS: Record<string, CronJobMeta> = {
     icon: "🧹",
     sends: "none",
   },
+  "cleanup-carmen-device-actions": {
+    label: "ניקוי פעולות הדפדפן של כרמן",
+    description:
+      "כל לילה: מוחק רישומים של פעולות שכרמן ביקשה מהדפדפן ונוצרו לפני יותר מ-90 יום.",
+    category: "system",
+    icon: "🧹",
+    sends: "none",
+  },
   "cleanup-automation-executions": {
     label: "ניקוי היסטוריית אוטומציות",
     description: "כל לילה: מוחק הרצות אוטומציה בנות יותר מ-30 יום.",

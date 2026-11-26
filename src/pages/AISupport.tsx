@@ -29,7 +29,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 
 import { useIsMobile } from "@/hooks/use-mobile";
-import ReactMarkdown from "react-markdown";
+import { ReplyMarkdown } from "@/components/ReplyMarkdown/ReplyMarkdown";
 import { invalidateAIEntityQueries } from "@/lib/aiInvalidation";
 
 interface Message {
@@ -488,7 +488,7 @@ export default function AISupport() {
                     <div className="flex justify-start">
                       <Card className="p-2 md:p-3 max-w-[85%] md:max-w-[80%] bg-card border">
                         <div className="prose prose-sm dark:prose-invert max-w-none text-sm md:text-base">
-                          <ReactMarkdown>{msg.content || ""}</ReactMarkdown>
+                          <ReplyMarkdown>{msg.content || ""}</ReplyMarkdown>
                         </div>
                       </Card>
                     </div>
@@ -500,7 +500,7 @@ export default function AISupport() {
                 <div className="flex justify-start">
                   <Card className="p-2 md:p-3 max-w-[85%] md:max-w-[80%] bg-card border">
                     <div className="prose prose-sm dark:prose-invert max-w-none text-sm md:text-base">
-                      <ReactMarkdown>{streamingMessage}</ReactMarkdown>
+                      <ReplyMarkdown>{streamingMessage}</ReplyMarkdown>
                     </div>
                     <Loader2 className="h-3 w-3 animate-spin inline-block mr-1" />
                   </Card>

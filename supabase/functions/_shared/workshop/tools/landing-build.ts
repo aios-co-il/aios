@@ -118,7 +118,7 @@ export async function workshopBuildLandingPage(ctx: ToolContext) {
         success: true,
         preview_ready: false,
         say_to_user:
-          "העמוד נבנה, והתצוגה המקדימה עוד עולה. בעוד דקה אשלח את הקישור.",
+          "העמוד נבנה, והתצוגה המקדימה עוד עולה. בקשו ממני את הקישור שוב בעוד דקה.",
       };
     }
     return {

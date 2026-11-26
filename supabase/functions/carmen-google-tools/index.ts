@@ -4,6 +4,7 @@
 // with the tenant in the body, or a user JWT scoped to the user's own tenant.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { isNumericId } from "../_shared/ad-tools/ids.ts";
+import { withGoogleToken } from "../_shared/google-oauth/integration-tokens.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { authorizeGoogleCall } from "./gate.ts";
 
@@ -27,14 +28,15 @@ async function getGadsAuth(
   client_id?: string;
   client_secret?: string;
 } | null> {
-  const { data } = await supabase
+  const { data: stored } = await supabase
     .from("tenant_integrations")
-    .select("api_key, additional_config")
+    .select("id, api_key, additional_config")
     .eq("tenant_id", tenant_id)
     .eq("integration_type", "google_ads")
     .eq("is_active", true)
     .limit(1)
     .maybeSingle();
+  const data = await withGoogleToken(serviceClient(), stored);
   if (!data) {
     return null;
   }

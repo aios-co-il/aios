@@ -510,6 +510,12 @@ verify_jwt = true
 [functions.carmen-manager-round-run]
 verify_jwt = true
 
+# The extension's panel claims and completes a device action with the user's
+# session (AIO-667); the row is read as the caller (RLS), then written with the
+# service key.
+[functions.carmen-device-action]
+verify_jwt = true
+
 # A signed-in person approves client-card drafts from the card-drafts page;
 # the findings are read as the caller (RLS), then written with the service key.
 [functions.carmen-card-drafts-approve]

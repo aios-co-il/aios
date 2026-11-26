@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { withGoogleTokens } from "../_shared/google-oauth/integration-tokens.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 import {
   isCompleteRefusal,
   readTenantCompleteRequest,
@@ -239,15 +241,19 @@ Deno.serve(async (req) => {
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
       );
 
-      const { data: integration, error: integrationError } = await supabase
-        .from("tenant_integrations")
-        .select("*")
-        .eq("id", integrationId)
-        .single();
+      const { data: storedIntegration, error: integrationError } =
+        await supabase
+          .from("tenant_integrations")
+          .select("*")
+          .eq("id", integrationId)
+          .single();
 
-      if (integrationError || !integration) {
+      if (integrationError || !storedIntegration) {
         throw new Error("Integration not found");
       }
+      const [integration] = await withGoogleTokens(serviceClient(), [
+        storedIntegration,
+      ]);
 
       let accessToken = integration.api_key;
       const settings = integration.settings as any;

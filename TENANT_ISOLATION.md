@@ -73,6 +73,7 @@ USING (
 - ✅ cursor_task_sessions
 - ✅ tenant_inactive_members
 - ✅ carmen_user_choices
+- ✅ carmen_device_actions
 
 ### 5. טבלאות גלובליות (ללא tenant_id)
 
