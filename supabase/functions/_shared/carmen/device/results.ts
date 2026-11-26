@@ -7,6 +7,10 @@
 
 export const READ_PAGE_ELEMENTS_MAX = 150;
 export const READ_PAGE_TEXT_MAX = 6000;
+/** The longest origin, path, title, snapshot id or storage path a result may carry, in characters. */
+export const RESULT_FIELD_MAX = 2048;
+/** The longest `ref`, `role` or `name` of one element, in characters. */
+export const PAGE_ELEMENT_FIELD_MAX = 200;
 
 /** Where the tab was when the tool finished, as Chrome reports it; never the page's own claim. */
 export type PageLocation = { origin: string; path: string };

@@ -12,8 +12,12 @@ import {
   webHostname,
 } from "./never-controllable.ts";
 
-/** `never`: refused, nobody is asked. `ask`: a card, every time. `free`: runs without a card. */
-export type DeviceCardRule = "never" | "ask" | "free";
+/**
+ * `never`: refused, nobody is asked. `ask`: a card, every time. `free`: runs without a card.
+ * The action row's `decision` check lists the same values; `table-lists.test.ts` fails when they differ.
+ */
+export const DEVICE_CARD_RULES = ["never", "ask", "free"] as const;
+export type DeviceCardRule = (typeof DEVICE_CARD_RULES)[number];
 
 export type DeviceStep = {
   tool: DeviceToolName;

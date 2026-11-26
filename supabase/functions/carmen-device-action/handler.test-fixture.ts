@@ -1,0 +1,117 @@
+import type { DeviceActionDeps } from "./handler.ts";
+import type { ActionDb } from "./rows.ts";
+
+export type FakeRow = Record<string, unknown>;
+export type FakeTables = Record<string, Array<FakeRow>>;
+
+export const ME = "11111111-1111-4111-8111-111111111111";
+export const COLLEAGUE = "22222222-2222-4222-8222-222222222222";
+export const TENANT = "33333333-3333-4333-8333-333333333333";
+export const RUN = "44444444-4444-4444-8444-444444444444";
+export const ACTION = "55555555-5555-4555-8555-555555555555";
+export const NOW = new Date("2026-11-26T10:00:00.000Z");
+
+const USER_BY_TOKEN: Record<string, string> = {
+  "Bearer me": ME,
+  "Bearer colleague": COLLEAGUE,
+};
+
+/**
+ * A stand-in for the Supabase client over in-memory rows: a query matches the rows that
+ * pass every `.eq()` and `.gt()` filter and `visible`, which plays row-level security, and
+ * `.update()` changes exactly those rows. `failing` names a table whose queries return an
+ * error.
+ */
+export function fakeDb(
+  tables: FakeTables,
+  visible: (row: FakeRow) => boolean = () => true,
+  failing?: string,
+): ActionDb {
+  /** One query on a table. */
+  function from(table: string) {
+    const filters = [visible];
+    let patch: FakeRow | null = null;
+    const query = {
+      select: () => query,
+      update(values: FakeRow) {
+        patch = values;
+        return query;
+      },
+      eq(column: string, value: unknown) {
+        filters.push((row) => row[column] === value);
+        return query;
+      },
+      gt(column: string, value: string) {
+        filters.push((row) => String(row[column]) > value);
+        return query;
+      },
+      maybeSingle() {
+        if (table === failing) {
+          return Promise.resolve({ data: null, error: { message: "boom" } });
+        }
+        const rows = (tables[table] ?? []).filter((row) =>
+          filters.every((passes) => passes(row)),
+        );
+        rows.forEach((row) => Object.assign(row, patch));
+        return Promise.resolve({ data: rows[0] ?? null, error: null });
+      },
+    };
+    return query;
+  }
+
+  // The fake implements only the calls rows.ts and run-stop.ts make, so it is not the full client type.
+  return { from } as unknown as ActionDb;
+}
+
+/** A pending read-page action of mine that expires in two minutes, with `overrides`. */
+export function actionRow(overrides: FakeRow = {}): FakeRow {
+  return {
+    id: ACTION,
+    tenant_id: TENANT,
+    user_id: ME,
+    run_id: RUN,
+    tool: "browser_read_page",
+    arguments: {},
+    status: "pending",
+    expires_at: new Date(NOW.getTime() + 120_000).toISOString(),
+    ...overrides,
+  };
+}
+
+/** Tables holding one action and the given stops, and deps over them: each caller reads only their own rows. */
+export function world(
+  action: FakeRow = actionRow(),
+  options: { stops?: Array<FakeRow>; failing?: string } = {},
+) {
+  const tables: FakeTables = {
+    carmen_device_actions: [action],
+    carmen_run_cancellations: options.stops ?? [],
+  };
+  const deps: DeviceActionDeps = {
+    userId: (req) =>
+      Promise.resolve(userOf(req.headers.get("Authorization") ?? "")),
+    userDb: (authorization) =>
+      fakeDb(
+        tables,
+        (row) => row.user_id === userOf(authorization),
+        options.failing,
+      ),
+    serviceDb: () => fakeDb(tables),
+    now: () => NOW,
+  };
+  return { action, deps };
+}
+
+/** A POST of `body` as the token's user. */
+export function post(body: unknown, token = "Bearer me"): Request {
+  return new Request("http://local/carmen-device-action", {
+    method: "POST",
+    headers: { Authorization: token, "Content-Type": "application/json" },
+    body: typeof body === "string" ? body : JSON.stringify(body),
+  });
+}
+
+/** The user a token signs in, or null. */
+function userOf(authorization: string): string | null {
+  return USER_BY_TOKEN[authorization] ?? null;
+}

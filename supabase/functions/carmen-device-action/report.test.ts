@@ -1,0 +1,61 @@
+import { assertEquals } from "jsr:@std/assert@1";
+import { DEVICE_ACTION_STATUS } from "../_shared/carmen/device/contract.ts";
+import { PANEL_STATUSES, parseReport } from "./report.ts";
+
+const PAGE = { origin: "https://example.com", path: "/a" };
+
+Deno.test("parseReport", async (t) => {
+  await t.step("a panel reports every status but the server's three", () => {
+    const serverOnly = DEVICE_ACTION_STATUS.filter(
+      (status) => !PANEL_STATUSES.some((reported) => reported === status),
+    );
+
+    assertEquals(serverOnly, ["pending", "claimed", "outcome_unknown"]);
+  });
+
+  await t.step("a done step needs a card rule that lets it run", () => {
+    const done = { status: "done", observed: PAGE, result: PAGE };
+
+    assertEquals(parseReport({ ...done, decision: "ask" })?.decision, "ask");
+    assertEquals(parseReport({ ...done, decision: "free" })?.decision, "free");
+    assertEquals(parseReport({ ...done, decision: "never" }), null);
+    assertEquals(parseReport(done), null);
+  });
+
+  await t.step("a done step needs where it ran and what it got", () => {
+    const done = { status: "done", decision: "free" };
+
+    assertEquals(parseReport({ ...done, result: PAGE }), null);
+    assertEquals(parseReport({ ...done, observed: PAGE }), null);
+  });
+
+  await t.step("a user declines only a card", () => {
+    assertEquals(parseReport({ status: "denied", decision: "free" }), null);
+    assertEquals(parseReport({ status: "denied", decision: "ask" }), {
+      status: "denied",
+      decision: "ask",
+      observed: null,
+      result: null,
+    });
+  });
+
+  await t.step("a step that did not run carries no result", () => {
+    for (const status of PANEL_STATUSES.filter((known) => known !== "done")) {
+      const report = { status, decision: "ask", result: PAGE };
+
+      assertEquals(parseReport(report), null);
+    }
+  });
+
+  await t.step("an unknown rule or a malformed address is refused", () => {
+    const refused = { status: "refused" };
+
+    assertEquals(parseReport({ ...refused, decision: "trusted" }), null);
+    assertEquals(parseReport({ ...refused, observed: "example.com" }), null);
+    assertEquals(parseReport({ ...refused, observed: PAGE })?.observed, PAGE);
+    assertEquals(
+      parseReport({ ...refused, decision: "never" })?.decision,
+      "never",
+    );
+  });
+});
