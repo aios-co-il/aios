@@ -19,6 +19,7 @@ import { CarmenSessionButton } from "./CarmenSessionButton";
 import { UserMenu } from "./UserMenu";
 import { useUserTenants } from "./useUserTenants";
 import { useProcessPendingInvitation } from "./useProcessPendingInvitation";
+import { useGoogleConnectRedirect } from "./useGoogleConnectRedirect";
 
 function RouteContentLoader() {
   return <CarmenLoadingScreen />;
@@ -30,6 +31,7 @@ export function AppLayout() {
   const contentFadeRef = useCarmenContentFade<HTMLDivElement>();
   const { userTenants, handleTenantChange } = useUserTenants(userId);
   useProcessPendingInvitation(userId);
+  useGoogleConnectRedirect();
   useApplyAppColorMode();
 
   return (

@@ -199,7 +199,10 @@ export async function findUnifiedCalendarConnectionId(tenantId: string) {
 
 export function listenForUnifiedConnection(onConnected: () => void) {
   const handler = (event: MessageEvent) => {
-    if (event.data?.type !== "unified-connected") {
+    if (
+      event.origin !== window.location.origin ||
+      event.data?.type !== "unified-connected"
+    ) {
       return;
     }
 

@@ -1,30 +1,25 @@
-/* The Mini Me floats, blinks, and reacts to Carmen's state. */
+/* The Mini Me floats and reacts to Carmen's state. */
 .mini-me {
   display: block;
-  height: auto;
-  overflow: visible;
+  aspect-ratio: 1;
 }
 .mini-me-figure {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* The renders sit on white; the circle keeps only the frosted disc. */
+  border-radius: 9999px;
+  object-fit: cover;
   animation: mini-me-float 3.4s ease-in-out infinite;
 }
-.mini-me-eyes {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: mini-me-blink 4.2s infinite;
-}
-.mini-me-mouth {
-  transform-box: fill-box;
-  transform-origin: center;
-}
-.mini-me[data-state="speaking"] .mini-me-mouth {
+.mini-me[data-state="speaking"] .mini-me-figure {
   animation: mini-me-talk 0.5s ease-in-out infinite alternate;
 }
 .mini-me[data-state="listening"] .mini-me-figure {
-  transform-origin: 140px 270px;
   animation: mini-me-tilt 2.6s ease-in-out infinite alternate;
 }
-.mini-me[data-state="working"] .mini-me-pupils {
-  animation: mini-me-glance 2.4s ease-in-out infinite alternate;
+.mini-me[data-state="working"] .mini-me-figure {
+  animation: mini-me-tilt 1.2s ease-in-out infinite alternate;
 }
 
 @keyframes mini-me-float {
@@ -33,25 +28,15 @@
     transform: translateY(0);
   }
   50% {
-    transform: translateY(-6px);
-  }
-}
-@keyframes mini-me-blink {
-  0%,
-  94%,
-  100% {
-    transform: scaleY(1);
-  }
-  97% {
-    transform: scaleY(0.1);
+    transform: translateY(-3%);
   }
 }
 @keyframes mini-me-talk {
   from {
-    transform: scaleY(1);
+    transform: scale(1);
   }
   to {
-    transform: scaleY(1.9);
+    transform: scale(1.05);
   }
 }
 @keyframes mini-me-tilt {
@@ -62,18 +47,9 @@
     transform: rotate(3deg);
   }
 }
-@keyframes mini-me-glance {
-  from {
-    transform: translate(0, 0);
-  }
-  to {
-    transform: translate(-6px, -5px);
-  }
-}
 
 @media (prefers-reduced-motion: reduce) {
-  .mini-me *,
-  .mini-me {
+  .mini-me-figure {
     animation: none !important;
   }
 }

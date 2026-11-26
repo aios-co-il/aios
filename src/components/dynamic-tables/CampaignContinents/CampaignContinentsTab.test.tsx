@@ -39,10 +39,10 @@ describe("CampaignContinentsTab", () => {
       />,
     );
     expect(screen.getByText("סיכום לפי יבשת")).toBeTruthy();
-    const southAmerica = screen.getAllByText("דרום אמריקה");
-    expect(southAmerica).toHaveLength(2);
-    expect(southAmerica[0].closest("a")?.getAttribute("href")).toBe(
-      "#continent-south_america",
+    const america = screen.getAllByText("אמריקה");
+    expect(america).toHaveLength(2);
+    expect(america[0].closest("a")?.getAttribute("href")).toBe(
+      "#continent-america",
     );
     expect(screen.getAllByText("₪972").length).toBeGreaterThan(0);
     expect(screen.getAllByText("₪486").length).toBeGreaterThan(0);

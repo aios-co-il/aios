@@ -72,7 +72,7 @@ import {
 import { LeadSourceHistory } from "@/components/leads/LeadSourceHistory";
 import { SendSignatureFromLeadPanel } from "@/components/leads/SendSignatureFromLeadPanel";
 import { LeadCustomFieldsCard } from "@/components/leads/LeadCustomFieldsCard";
-import { LeadContactLink } from "@/components/LeadsPage/LeadContactLink";
+import { ContactValue } from "@/components/contact/ContactValue";
 import { useCustomFieldLabels } from "@/hooks/useCustomFieldLabels";
 import { getVisibleLeadCustomFields } from "@/lib/leadCustomFields";
 
@@ -1001,10 +1001,10 @@ export function LeadsChatView({
                           )}
                           <div className="flex items-center justify-end gap-2">
                             {selectedLead.phone ? (
-                              <LeadContactLink
+                              <ContactValue
                                 kind="phone"
                                 value={selectedLead.phone}
-                                className="font-medium text-primary hover:underline"
+                                className="font-medium text-primary"
                               />
                             ) : (
                               <span>—</span>
@@ -1015,10 +1015,10 @@ export function LeadsChatView({
                           </div>
                           <div className="flex items-center justify-end gap-2">
                             {selectedLead.email ? (
-                              <LeadContactLink
+                              <ContactValue
                                 kind="email"
                                 value={selectedLead.email}
-                                className="font-medium text-primary hover:underline truncate"
+                                className="font-medium text-primary"
                               />
                             ) : (
                               <span>—</span>

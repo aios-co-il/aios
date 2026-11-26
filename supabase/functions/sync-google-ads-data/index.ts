@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { type OperationalCampaignState } from "../_shared/campaign-operational-health.ts";
 import type { AdsEntityLevel } from "../_shared/ads-sync/levels.ts";
 import { scheduledMarkerPatch } from "../_shared/ads-sync/outcome.ts";
+import { requestedHistoryBackfillPatch } from "../_shared/ads-sync/history-backfill.ts";
 import { redactSyncError } from "../_shared/ads-sync/redact.ts";
 import { syncRunBody } from "../_shared/ads-sync/run-response.ts";
 import {
@@ -23,6 +24,11 @@ import type { GoogleCampaignGoal } from "../_shared/campaign-goal/google-classif
 import { operationalCampaignStates } from "../_shared/campaign-goal/delivery-status.ts";
 import { enrichConversionCategories } from "./conversion-enrichment.ts";
 import {
+  AD_CONTENT_GAQL_FIELDS,
+  type GoogleAdContent,
+  googleAdContent,
+} from "./ad-content.ts";
+import {
   detectGoogleAdsError,
   googleAdsErrorBody,
   isManagerAccountError,
@@ -41,7 +47,7 @@ const DEVELOPER_TOKEN = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN") || "";
 const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID") || "";
 const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET") || "";
 
-interface GoogleAdsRecord {
+interface GoogleAdsRecord extends GoogleAdContent {
   date: string;
   entity_level?: "campaign" | "adset" | "ad";
   campaign_id: string;
@@ -173,6 +179,7 @@ Deno.serve(async (req) => {
       scheduled_synced_through,
       scheduled_lookback_on,
       update_last_sync = true,
+      history_backfill = false,
     } = await req.json();
 
     if (!table_id) {
@@ -638,6 +645,10 @@ Deno.serve(async (req) => {
             cost_per_conversion:
               parseInt(result.metrics?.costPerConversion || "0") / 1000000,
             roas: Math.round(roas * 100) / 100,
+            // The ad's copy, for the report's ad card; ad rows only.
+            ...(entityLevel === "ad"
+              ? googleAdContent(result.adGroupAd?.ad)
+              : {}),
           });
         }
       }
@@ -708,7 +719,7 @@ Deno.serve(async (req) => {
         ad_group.id,
         ad_group.name,
         ad_group_ad.ad.id,
-        ad_group_ad.ad.name,
+        ad_group_ad.ad.name,${AD_CONTENT_GAQL_FIELDS},
         ${gaqlMetrics}
       FROM ad_group_ad
       WHERE segments.date BETWEEN '${startIso}' AND '${endIso}'
@@ -1445,11 +1456,18 @@ Deno.serve(async (req) => {
       outcome,
       catchup: update_last_sync === false || !resolvedWindow.stampsLastSync,
       fallbackSettings: settings,
-      settingsPatch: scheduledMarkerPatch(outcome.status, {
-        scheduled_history_from,
-        scheduled_synced_through,
-        scheduled_lookback_on,
-      }),
+      settingsPatch: {
+        ...scheduledMarkerPatch(outcome.status, {
+          scheduled_history_from,
+          scheduled_synced_through,
+          scheduled_lookback_on,
+        }),
+        // Only the scheduled cron may clear the history backfill marker.
+        ...requestedHistoryBackfillPatch(outcome.status, {
+          historyBackfill: history_backfill,
+          trusted: isInternalCron && hasServiceRole,
+        }),
+      },
     });
 
     console.log(`[sync-google-ads] by_level`, byLevel);

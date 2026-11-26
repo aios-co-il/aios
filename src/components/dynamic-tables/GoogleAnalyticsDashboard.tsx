@@ -43,19 +43,15 @@ import {
   UserCheck,
 } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import {
-  format,
-  subDays,
-  startOfWeek,
-  endOfWeek,
-  startOfMonth,
-  endOfMonth,
-  subMonths,
-  isWithinInterval,
-  parseISO,
-} from "date-fns";
+import { format, isWithinInterval, parseISO } from "date-fns";
 import { he } from "date-fns/locale";
 import { GaKpiStrip } from "./GaReport/GaKpiStrip";
+import {
+  gaPresetRange,
+  mapExternalGaPreset,
+  type GaDateRange,
+  type GaDatePreset,
+} from "./GaReport/gaDatePreset";
 import { GaChannelBreakdown } from "./GaReport/GaChannelBreakdown";
 import {
   breakdownFromChannels,
@@ -102,25 +98,6 @@ const COLORS = [
   "#6366F1", // indigo
 ];
 
-type DateRangePreset =
-  | "all"
-  | "today"
-  | "yesterday"
-  | "this_week"
-  | "last_week"
-  | "last_7_days"
-  | "last_14_days"
-  | "last_30_days"
-  | "last_60_days"
-  | "last_70_days"
-  | "last_120_days"
-  | "this_month"
-  | "last_month"
-  | "last_90_days"
-  | "last_180_days"
-  | "last_365_days"
-  | "custom";
-
 interface DateRange {
   from: Date | undefined;
   to: Date | undefined;
@@ -135,36 +112,10 @@ export function GoogleAnalyticsDashboard({
   dashboardId,
   defaultReportMode,
 }: GoogleAnalyticsDashboardProps) {
-  const mapExternalPreset = (ext?: string): DateRangePreset => {
-    if (!ext) {
-      return "last_7_days";
-    }
-    const map: Record<string, DateRangePreset> = {
-      all: "all",
-      today: "today",
-      yesterday: "yesterday",
-      this_week: "this_week",
-      last_week: "last_week",
-      last_7_days: "last_7_days",
-      last_14_days: "last_14_days",
-      last_30_days: "last_30_days",
-      last_60_days: "last_60_days",
-      last_70_days: "last_70_days",
-      last_120_days: "last_120_days",
-      this_month: "this_month",
-      last_month: "last_month",
-      last_90_days: "last_90_days",
-      last_180_days: "last_180_days",
-      last_365_days: "last_365_days",
-      custom: "custom",
-    };
-    return map[ext] || "last_7_days";
-  };
-
   const usesExternalFilter = typeof externalDateFilter === "string";
   const isMobile = useIsMobile();
-  const [datePreset, setDatePreset] = useState<DateRangePreset>(
-    mapExternalPreset(externalDateFilter),
+  const [datePreset, setDatePreset] = useState<GaDatePreset>(
+    mapExternalGaPreset(externalDateFilter),
   );
   const [customDateRange, setCustomDateRange] = useState<DateRange>({
     from: undefined,
@@ -174,7 +125,7 @@ export function GoogleAnalyticsDashboard({
   // Sync with external date filter when it changes
   useEffect(() => {
     if (externalDateFilter) {
-      setDatePreset(mapExternalPreset(externalDateFilter));
+      setDatePreset(mapExternalGaPreset(externalDateFilter));
     }
   }, [externalDateFilter]);
   const [showComparison, setShowComparison] = useState(false);
@@ -248,88 +199,28 @@ export function GoogleAnalyticsDashboard({
     return Number.isFinite(parsed) ? parsed : 0;
   };
 
-  // Calculate date range based on preset.
-  // STANDARD (mem://ui/date-range-calculation-standard):
-  // Relative ranges (last_N_days) END YESTERDAY (today excluded — partial data),
-  // matching Google Ads, GA's own "Last N days", crm-records, WooCommerceDashboard,
-  // and DashboardView.wooDateRange. Absolute presets (today, this_week, this_month)
-  // include today as appropriate.
-  const getDateRange = (
-    preset: DateRangePreset,
-  ): { start: Date; end: Date } => {
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-    const yesterday = subDays(today, 1);
-    yesterday.setHours(23, 59, 59, 999);
-
-    switch (preset) {
-      case "all": {
-        const allStart = new Date("2020-01-01");
-        allStart.setHours(0, 0, 0, 0);
-        return { start: allStart, end: today };
-      }
-      case "today": {
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
-        return { start: todayStart, end: today };
-      }
-      case "yesterday": {
-        const yesterdayStart = subDays(today, 1);
-        yesterdayStart.setHours(0, 0, 0, 0);
-        return { start: yesterdayStart, end: yesterday };
-      }
-      case "this_week":
-        return { start: startOfWeek(today, { weekStartsOn: 0 }), end: today };
-      case "last_week": {
-        const prevWeekRef = subDays(today, 7);
+  /**
+   * A custom range comes from the dashboard when it drives the filter, else
+   * from this report's own picker; every other preset is gaPresetRange.
+   */
+  function getDateRange(preset: GaDatePreset): GaDateRange {
+    if (preset === "custom") {
+      if (
+        usesExternalFilter &&
+        externalCustomDateRange?.from &&
+        externalCustomDateRange?.to
+      ) {
         return {
-          start: startOfWeek(prevWeekRef, { weekStartsOn: 0 }),
-          end: endOfWeek(prevWeekRef, { weekStartsOn: 0 }),
+          start: externalCustomDateRange.from,
+          end: externalCustomDateRange.to,
         };
       }
-      case "last_7_days":
-        return { start: subDays(today, 7), end: yesterday };
-      case "last_14_days":
-        return { start: subDays(today, 14), end: yesterday };
-      case "last_30_days":
-        return { start: subDays(today, 30), end: yesterday };
-      case "last_60_days":
-        return { start: subDays(today, 60), end: yesterday };
-      case "last_70_days":
-        return { start: subDays(today, 70), end: yesterday };
-      case "last_120_days":
-        return { start: subDays(today, 120), end: yesterday };
-      case "this_month":
-        return { start: startOfMonth(today), end: today };
-      case "last_month": {
-        const lastMonth = subMonths(today, 1);
-        return { start: startOfMonth(lastMonth), end: endOfMonth(lastMonth) };
+      if (customDateRange.from && customDateRange.to) {
+        return { start: customDateRange.from, end: customDateRange.to };
       }
-      case "last_90_days":
-        return { start: subDays(today, 90), end: yesterday };
-      case "last_180_days":
-        return { start: subDays(today, 180), end: yesterday };
-      case "last_365_days":
-        return { start: subDays(today, 365), end: yesterday };
-      case "custom":
-        if (
-          usesExternalFilter &&
-          externalCustomDateRange?.from &&
-          externalCustomDateRange?.to
-        ) {
-          return {
-            start: externalCustomDateRange.from,
-            end: externalCustomDateRange.to,
-          };
-        }
-        if (customDateRange.from && customDateRange.to) {
-          return { start: customDateRange.from, end: customDateRange.to };
-        }
-        return { start: subDays(today, 30), end: yesterday };
-      default:
-        return { start: subDays(today, 30), end: yesterday };
     }
-  };
+    return gaPresetRange(preset);
+  }
 
   const currentRange = getDateRange(datePreset);
 
@@ -812,6 +703,7 @@ export function GoogleAnalyticsDashboard({
     { value: "this_week", label: "השבוע" },
     { value: "last_week", label: "שבוע שעבר" },
     { value: "last_7_days", label: "7 ימים אחרונים" },
+    { value: "last_9_days", label: "9 ימים אחרונים" },
     { value: "last_14_days", label: "14 יום אחרונים" },
     { value: "last_30_days", label: "30 יום אחרונים" },
     { value: "last_60_days", label: "60 יום אחרונים" },
@@ -850,7 +742,7 @@ export function GoogleAnalyticsDashboard({
           ) : (
             <Select
               value={datePreset}
-              onValueChange={(v) => setDatePreset(v as DateRangePreset)}
+              onValueChange={(v) => setDatePreset(v as GaDatePreset)}
             >
               <SelectTrigger className="w-full min-w-0 sm:w-[180px]">
                 <SelectValue />

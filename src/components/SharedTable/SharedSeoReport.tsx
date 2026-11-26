@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ChevronLeft, FileText, Globe } from "lucide-react";
 import { PublicSeoMonthlyWorkView } from "@/components/dynamic-tables/PublicSeoMonthlyWorkView";
 import { computeGaOrganicByMonth } from "@/components/dynamic-tables/seo/computeGaOrganicByMonth";
+import { AdAccountButtons } from "@/components/reports/ReportHeader/AdAccountButtons";
 import { ReportHeader } from "@/components/reports/ReportHeader/ReportHeader";
 import { Button } from "@/components/ui/button";
 import { parseSharedReportTabs } from "@/lib/sharedReportTabs";
@@ -73,6 +74,11 @@ export function SharedSeoReport({
         <ReportHeader
           title={table.name}
           badges={<Globe className="h-4 w-4 text-primary" />}
+          actions={
+            !summaryOnly && data.ad_account_links?.length ? (
+              <AdAccountButtons links={data.ad_account_links} />
+            ) : undefined
+          }
         />
 
         {monthlyWork.length > 0 && !summaryOnly && (

@@ -8,6 +8,7 @@ import {
   jerusalemToday,
   planScheduledSyncWindows,
 } from "../_shared/report-sync-window.ts";
+import { planHistoryBackfill } from "../_shared/ads-sync/history-backfill.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -297,6 +298,11 @@ Deno.serve(async (req) => {
       }
     };
 
+    // Tables whose history backfill this invocation already posted: the
+    // rate-limit retry pass re-runs syncOne with the settings read at the
+    // start, so it would fetch the backfill window again.
+    const backfillPosted = new Set<string>();
+
     const syncOne = async (
       table: any,
     ): Promise<{ ok: boolean; rateLimited: boolean; reason?: string }> => {
@@ -308,12 +314,34 @@ Deno.serve(async (req) => {
         scheduled_synced_through?: string;
         scheduled_lookback_on?: string;
       };
+      const today = jerusalemToday();
       const plan = planScheduledSyncWindows(
-        jerusalemToday(),
+        today,
         settings.scheduled_history_from,
         settings.scheduled_synced_through,
         settings.scheduled_lookback_on,
       );
+      const backfill = planHistoryBackfill(settings, {
+        catchup: plan.catchup,
+        today,
+      });
+      if (backfill && !backfillPosted.has(table.id)) {
+        backfillPosted.add(table.id);
+        // sync-google-ads-data clears the marker after its write; a failure
+        // keeps it for the next run and does not hold back the refresh.
+        const filled = await postSync({
+          table_id: table.id,
+          start_date: backfill.startDate,
+          end_date: backfill.endDate,
+          history_backfill: true,
+          update_last_sync: false,
+        });
+        if (!filled.ok) {
+          console.error(
+            `[cron-google-ads] ${table.name}: history backfill failed, kept for the next run: ${filled.reason}`,
+          );
+        }
+      }
       if (plan.catchup) {
         const chunk = await postSync({
           table_id: table.id,

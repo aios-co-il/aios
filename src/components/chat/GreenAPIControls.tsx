@@ -1,9 +1,9 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Phone, Users, Copy, Check } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
 
 interface GreenAPIControlsProps {
   phone: string | null;
@@ -20,13 +20,9 @@ export function GreenAPIControls({
     if (!groupChatId) {
       return;
     }
-    try {
-      await navigator.clipboard.writeText(groupChatId);
+    if (await copyToClipboard(groupChatId, "מזהה הקבוצה הועתק")) {
       setCopied(true);
-      toast.success("מזהה הקבוצה הועתק");
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      toast.error("שגיאה בהעתקה");
     }
   };
 

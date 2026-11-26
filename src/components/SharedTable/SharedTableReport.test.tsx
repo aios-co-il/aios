@@ -4,7 +4,7 @@ import { format, subDays } from "date-fns";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { previousPeriodRange } from "@/components/reports/PreviousPeriod/previousPeriod";
 import { stubResizeObserver } from "@/test/stubResizeObserver";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness, withTestQuery } from "@/test/withTestQuery";
 import { SharedTableReport } from "./SharedTableReport";
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
@@ -39,13 +39,14 @@ const table = {
  * Answers public-table like the edge function: the shown window by default,
  * and the previous window when the page asks for a custom range.
  */
-function stubPublicTable() {
+function stubPublicTable(extra: Record<string, unknown> = {}) {
   const fetchMock = vi.fn(async (url: string) => {
     const previous = new URL(url).searchParams.has("custom_start");
     const records = previous ? [salesDay(9, 50, 1)] : [salesDay(2, 120, 3)];
-    return new Response(JSON.stringify({ table, fields: [], records }), {
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ table, fields: [], records, ...extra }),
+      { headers: { "Content-Type": "application/json" } },
+    );
   });
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
@@ -71,8 +72,42 @@ describe("SharedTableReport", () => {
     expect(screen.queryByText("תקופה קודמת")).toBeNull();
   });
 
-  it("shows the summary without controls, ending at the snapshot marker, when summaryOnly", async () => {
+  it("opens the ad account public-table sends, as the internal report does", async () => {
+    const url =
+      "https://business.facebook.com/adsmanager/manage/campaigns?act=111";
+    stubPublicTable({
+      ad_account_links: [{ url, platform: "meta", label: "חשבון Facebook" }],
+    });
+    const open = vi.fn();
+    vi.stubGlobal("open", open);
+    const user = userEvent.setup();
+    render(withTestQuery(<SharedTableReport shareToken="share-token" />));
+
+    await user.click(
+      await screen.findByRole("button", { name: "פתח חשבון מודעות" }),
+    );
+
+    expect(open).toHaveBeenCalledWith(url, "_blank", "noopener,noreferrer");
+  });
+
+  it("shows no ad account button without links", async () => {
     stubPublicTable();
+    render(withTestQuery(<SharedTableReport shareToken="share-token" />));
+
+    await screen.findByText("עלות לרכישה");
+    expect(screen.queryByRole("button", { name: /חשבון/ })).toBeNull();
+  });
+
+  it("shows the summary without controls, ending at the snapshot marker, when summaryOnly", async () => {
+    stubPublicTable({
+      ad_account_links: [
+        {
+          url: "https://ads.google.com/aw/overview?__e=1",
+          platform: "google",
+          label: "חשבון Google Ads",
+        },
+      ],
+    });
     const { container } = render(
       withTestQuery(
         <SharedTableReport
@@ -88,6 +123,9 @@ describe("SharedTableReport", () => {
       screen.queryByRole("button", { name: /השוואה לתקופה קודמת/ }),
     ).toBeNull();
     expect(screen.queryByRole("button", { name: /30 יום אחרונים/ })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "פתח חשבון מודעות" }),
+    ).toBeNull();
     expect(
       container.querySelector('[data-snapshot-end="true"]'),
     ).not.toBeNull();
@@ -138,5 +176,63 @@ describe("SharedTableReport", () => {
       expected?.startDate,
     );
     expect(previousUrl?.searchParams.get("custom_end")).toBe(expected?.endDate);
+  });
+
+  it("keeps the header and dates with a notice when public-table refuses the window", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        new URL(url).searchParams.has("custom_start")
+          ? new Response(JSON.stringify({ error: "Invalid date range" }), {
+              status: 400,
+            })
+          : new Response(
+              JSON.stringify({
+                table,
+                fields: [],
+                records: [salesDay(2, 1, 1)],
+              }),
+              { headers: { "Content-Type": "application/json" } },
+            ),
+      ),
+    );
+    const { wrapper: Provider } = createTestQueryHarness();
+    const view = render(
+      <Provider>
+        <SharedTableReport
+          shareToken="share-token"
+          dates={{ filter: "last_30_days" }}
+          onDatesChange={() => undefined}
+        />
+      </Provider>,
+    );
+    await screen.findByText("עלות לרכישה");
+
+    view.rerender(
+      <Provider>
+        <SharedTableReport
+          shareToken="share-token"
+          dates={{
+            filter: "custom",
+            customStart: new Date(2024, 0, 1),
+            customEnd: new Date(2026, 0, 1),
+          }}
+          onDatesChange={() => undefined}
+        />
+      </Provider>,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "לא ניתן להציג את הטווח שנבחר",
+    );
+    expect(
+      screen.getByRole("heading", { name: "דוח פייסבוק" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /01\/01\/24/ })).toBeTruthy();
+    expect(screen.queryByText("הקישור אינו תקין")).toBeNull();
+    expect(
+      view.container.querySelector('[data-snapshot-error="range_refused"]'),
+    ).not.toBeNull();
   });
 });

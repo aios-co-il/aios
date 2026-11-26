@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useForm } from "react-hook-form";
 import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -563,7 +564,7 @@ export function EditAutomationDialog({
                 <div className="flex gap-2">
                   <Input
                     readOnly
-                    value={`https://zvoijyneresvkadpprel.supabase.co/functions/v1/webhook-task-intake`}
+                    value={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webhook-task-intake`}
                     className="font-mono text-xs bg-background"
                   />
                   <Button
@@ -571,10 +572,10 @@ export function EditAutomationDialog({
                     variant="outline"
                     size="icon"
                     onClick={() => {
-                      navigator.clipboard.writeText(
-                        `https://zvoijyneresvkadpprel.supabase.co/functions/v1/webhook-task-intake`,
+                      void copyToClipboard(
+                        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webhook-task-intake`,
+                        "הועתק!",
                       );
-                      toast.success("הועתק!");
                     }}
                   >
                     <Copy className="h-4 w-4" />
@@ -602,7 +603,7 @@ export function EditAutomationDialog({
                   <div className="flex gap-2">
                     <Input
                       readOnly
-                      value={`https://zvoijyneresvkadpprel.supabase.co/functions/v1/webhook-maskyoo-intake?tenant_id=${automation.tenant_id || "YOUR_TENANT_ID"}`}
+                      value={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webhook-maskyoo-intake?tenant_id=${automation.tenant_id || "YOUR_TENANT_ID"}`}
                       className="font-mono text-xs bg-background"
                     />
                     <Button
@@ -610,10 +611,10 @@ export function EditAutomationDialog({
                       variant="outline"
                       size="icon"
                       onClick={() => {
-                        navigator.clipboard.writeText(
-                          `https://zvoijyneresvkadpprel.supabase.co/functions/v1/webhook-maskyoo-intake?tenant_id=${automation.tenant_id || ""}`,
+                        void copyToClipboard(
+                          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webhook-maskyoo-intake?tenant_id=${automation.tenant_id || ""}`,
+                          "הועתק!",
                         );
-                        toast.success("הועתק!");
                       }}
                     >
                       <Copy className="h-4 w-4" />

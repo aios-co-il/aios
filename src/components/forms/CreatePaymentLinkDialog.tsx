@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import React, { useState } from "react";
 import {
   Dialog,
@@ -115,10 +116,8 @@ export const CreatePaymentLinkDialog: React.FC<
   });
 
   const handleCopyLink = async () => {
-    if (paymentUrl) {
-      await navigator.clipboard.writeText(paymentUrl);
+    if (paymentUrl && (await copyToClipboard(paymentUrl, "הקישור הועתק!"))) {
       setCopied(true);
-      toast.success("הקישור הועתק!");
       setTimeout(() => setCopied(false), 2000);
     }
   };

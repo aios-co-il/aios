@@ -1,4 +1,28 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { allowedAppOrigin } from "../_shared/google-oauth/app-origin.ts";
+import {
+  isCompleteRefusal,
+  readCompleteRequest,
+  refuseFormerMember,
+} from "../_shared/google-oauth/connect-handoff.ts";
+import {
+  redirectHandoff,
+  redirectHandoffError,
+  UNKNOWN_TENANT_SLUG,
+} from "../_shared/google-oauth/handoff-response.ts";
+import {
+  INVALID_STATE_ERROR,
+  MISSING_CODE_ERROR,
+} from "../_shared/google-oauth/handoff-contract.ts";
+import {
+  claimedStateOrigin,
+  oauthStateSecret,
+  signOAuthState,
+  verifyOAuthState,
+} from "../_shared/google-oauth/oauth-state.ts";
+import { userFacingMessage } from "../_shared/google-oauth/user-facing-error.ts";
+import { storeAdsConnection } from "./store-connection.ts";
+import { callbackUri } from "../_shared/google-oauth/exchange-code.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,7 +35,6 @@ const corsHeaders = {
 const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID") || "";
 const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET") || "";
 const DEVELOPER_TOKEN = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN") || "";
-const REDIRECT_URI = `${Deno.env.get("SUPABASE_URL")}/functions/v1/google-ads-auth?action=oauth_callback`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -24,7 +47,7 @@ Deno.serve(async (req) => {
 
     // Handle OAuth callback
     if (action === "oauth_callback") {
-      return handleOAuthCallback(url);
+      return await handleOAuthCallback(url);
     }
 
     // All other actions require authentication
@@ -49,16 +72,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { data: tenantId } = await supabase.rpc("get_user_tenant_id", {
-      _user_id: user.id,
-    });
-    if (!tenantId) {
-      return new Response(JSON.stringify({ error: "No tenant found" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     let body: any = {};
     if (req.method === "POST") {
       try {
@@ -69,9 +82,28 @@ Deno.serve(async (req) => {
       }
     }
 
+    // complete takes the tenant from the signed state, so it does not need a default tenant.
+    if ((action || body.action) === "complete") {
+      return await completeConnect(body, user.id);
+    }
+
+    const { data: tenantId } = await supabase.rpc("get_user_tenant_id", {
+      _user_id: user.id,
+    });
+    if (!tenantId) {
+      return new Response(JSON.stringify({ error: "No tenant found" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     switch (action || body.action) {
       case "get_auth_url":
-        return getAuthUrl(tenantId, user.id, body.origin);
+        return await getAuthUrl(
+          tenantId,
+          user.id,
+          allowedAppOrigin(body.origin ?? req.headers.get("origin")),
+        );
 
       case "get_accounts":
         return getGoogleAdsAccounts(supabase, tenantId, user.id);
@@ -91,25 +123,33 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error in google-ads-auth:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: userFacingMessage(error) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
 
-function getAuthUrl(tenantId: string, userId: string, origin?: string) {
-  const state = btoa(
-    JSON.stringify({ tenantId, userId, origin: origin || null }),
+async function getAuthUrl(
+  tenantId: string,
+  userId: string,
+  origin: string | null,
+) {
+  const state = await signOAuthState(
+    { userId, tenantId, origin, addNew: false },
+    oauthStateSecret(),
   );
 
   const scopes = ["https://www.googleapis.com/auth/adwords"];
 
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authUrl.searchParams.set("client_id", GOOGLE_CLIENT_ID);
-  authUrl.searchParams.set("redirect_uri", REDIRECT_URI);
+  authUrl.searchParams.set(
+    "redirect_uri",
+    callbackUri("google-ads-auth", "oauth_callback"),
+  );
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("scope", scopes.join(" "));
   authUrl.searchParams.set("access_type", "offline");
@@ -123,7 +163,6 @@ function getAuthUrl(tenantId: string, userId: string, origin?: string) {
 
 async function handleOAuthCallback(url: URL) {
   const code = url.searchParams.get("code");
-  const state = url.searchParams.get("state");
   const error = url.searchParams.get("error");
 
   // Create supabase client for database operations
@@ -139,136 +178,94 @@ async function handleOAuthCallback(url: URL) {
       .select("slug")
       .eq("id", tenantId)
       .single();
-    return tenant?.slug || "app";
+    return tenant?.slug || UNKNOWN_TENANT_SLUG;
   }
 
-  // Try to extract origin from state for accurate redirects on error too.
-  let stateOrigin: string | null = null;
-  let stateTenantId: string | null = null;
-  if (state) {
-    try {
-      const parsed = JSON.parse(atob(state));
-      stateOrigin = parsed.origin || null;
-      stateTenantId = parsed.tenantId || null;
-    } catch {
-      /* noop */
-    }
+  const state = await verifyOAuthState(
+    url.searchParams.get("state"),
+    oauthStateSecret(),
+  );
+  if (!state?.tenantId) {
+    return redirectHandoffError(
+      "google-ads-auth",
+      claimedStateOrigin(url.searchParams.get("state") ?? ""),
+      null,
+      INVALID_STATE_ERROR,
+    );
   }
-  // Strip any trailing slash so `${APP_BASE}/t/...` never produces a double slash.
-  const APP_BASE = (
-    stateOrigin ||
-    Deno.env.get("APP_URL") ||
-    "https://aios.co.il"
-  ).replace(/\/+$/, "");
+
+  const tenantSlug = await getTenantSlug(state.tenantId);
 
   if (error) {
-    const slug = stateTenantId ? await getTenantSlug(stateTenantId) : "app";
-    const redirectUrl = `${APP_BASE}/t/${slug}/integrations?error=${error}`;
-    return new Response(null, {
-      status: 302,
-      headers: { Location: redirectUrl },
+    return redirectHandoffError(
+      "google-ads-auth",
+      state.origin,
+      tenantSlug,
+      error,
+    );
+  }
+
+  if (!code) {
+    return redirectHandoffError(
+      "google-ads-auth",
+      state.origin,
+      tenantSlug,
+      MISSING_CODE_ERROR,
+    );
+  }
+
+  return redirectHandoff(
+    "google-ads-auth",
+    state,
+    tenantSlug,
+    code,
+    url.searchParams.get("state") ?? "",
+  );
+}
+
+/** Finishes a connect from the signed-in app (see connect-handoff.ts). */
+async function completeConnect(body: unknown, userId: string) {
+  const request = await readCompleteRequest(body, userId);
+  if (isCompleteRefusal(request)) {
+    return new Response(JSON.stringify({ error: request.error }), {
+      status: request.status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
-  if (!code || !state) {
-    return new Response("Missing code or state", { status: 400 });
-  }
-
-  try {
-    const { tenantId, userId } = JSON.parse(atob(state));
-    const tenantSlug = await getTenantSlug(tenantId);
-
-    // Exchange code for tokens
-    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: GOOGLE_CLIENT_ID,
-        client_secret: GOOGLE_CLIENT_SECRET,
-        code,
-        grant_type: "authorization_code",
-        redirect_uri: REDIRECT_URI,
-      }),
-    });
-
-    const tokens = await tokenResponse.json();
-
-    if (tokens.error) {
-      throw new Error(tokens.error_description || tokens.error);
-    }
-
-    // Calculate token expiry
-    const expiresAt = new Date(
-      Date.now() + tokens.expires_in * 1000,
-    ).toISOString();
-
-    // Check if integration already exists
-    const { data: existing } = await supabase
-      .from("tenant_integrations")
-      .select("id, settings")
-      .eq("tenant_id", tenantId)
-      .eq("integration_type", "google_ads")
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    const existingAdsSettings =
-      (existing?.settings as Record<string, unknown> | null) || {};
-    const integrationData = {
-      is_active: true,
-      api_key: tokens.access_token,
-      settings: {
-        ...existingAdsSettings,
-        refresh_token:
-          tokens.refresh_token || existingAdsSettings?.refresh_token,
-        expires_at: expiresAt,
-        connected_at: new Date().toISOString(),
-        // Clear any stale reconnect flags on successful re-authorization
-        needs_reauth: false,
-        reauth_reason: null,
-        reauth_marked_at: null,
+  const { tenantId } = request.state;
+  if (!tenantId) {
+    return new Response(
+      JSON.stringify({ error: "This connect link has no organization" }),
+      {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
-      updated_at: new Date().toISOString(),
-    };
+    );
+  }
 
-    let saveError;
-    if (existing) {
-      // Update existing integration
-      const { error } = await supabase
-        .from("tenant_integrations")
-        .update(integrationData)
-        .eq("id", existing.id);
-      saveError = error;
-    } else {
-      // Insert new integration
-      const { error } = await supabase.from("tenant_integrations").insert({
-        tenant_id: tenantId,
-        user_id: userId,
-        integration_type: "google_ads",
-        ...integrationData,
+  // Membership lookup and storage share the catch, so a database error never reaches the browser.
+  try {
+    const refusal = await refuseFormerMember(tenantId, userId);
+    if (refusal) {
+      return new Response(JSON.stringify({ error: refusal.error }), {
+        status: refusal.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
-      saveError = error;
     }
 
-    if (saveError) {
-      console.error("Error saving tokens:", saveError);
-      throw saveError;
-    }
-
-    // Redirect back to integrations page on the user's original origin
-    const redirectUrl = `${APP_BASE}/t/${tenantSlug}/integrations?google_ads=connected`;
-    return new Response(null, {
-      status: 302,
-      headers: { Location: redirectUrl },
-    });
-  } catch (err: any) {
-    console.error("OAuth callback error:", err);
-    const slug = stateTenantId ? await getTenantSlug(stateTenantId) : "app";
-    const redirectUrl = `${APP_BASE}/t/${slug}/integrations?error=${encodeURIComponent(err.message)}`;
-    return new Response(null, {
-      status: 302,
-      headers: { Location: redirectUrl },
+    await storeAdsConnection(request.code, tenantId, userId);
+  } catch (error) {
+    console.error("Google Ads complete failed:", error);
+    return new Response(JSON.stringify({ error: userFacingMessage(error) }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+
+  return new Response(JSON.stringify({ success: true }), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 }
 
 async function refreshAccessToken(_supabase: any, tenantId: string) {

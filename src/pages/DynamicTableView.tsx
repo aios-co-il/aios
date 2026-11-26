@@ -38,7 +38,6 @@ import {
   AlertCircle,
   Play,
   ShoppingCart,
-  ExternalLink,
   User,
 } from "lucide-react";
 import { format, subDays } from "date-fns";
@@ -126,18 +125,18 @@ import {
 import { invalidateReportTables } from "@/lib/invalidateReportTables";
 import { useAdsRangeSync } from "@/hooks/useAdsRangeSync";
 import {
-  adAccountShortcutLabel,
-  getAdAccountLinks,
+  type AdAccountTable,
   getAdAccountUrl,
+  getTableAdAccountLinks,
 } from "@/lib/adAccountUrl";
 import { useClientAdLinks } from "@/hooks/useClientAdLinks";
-
-/** A client table as the ads-account links read it. */
-type AdAccountTable = NonNullable<Parameters<typeof getAdAccountUrl>[0]>;
+import { AdAccountButtons } from "@/components/reports/ReportHeader/AdAccountButtons";
 import { ReportHeader } from "@/components/reports/ReportHeader/ReportHeader";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
 import { ReportDataTrust } from "@/components/reports/ReportDataTrust";
 import { AdsEntityLevelTabs } from "@/components/reports/AdsEntityLevelTabs";
+import { filterRecordsByCampaign } from "@/components/reports/AdsCampaignFilter/adsCampaignFilter";
+import { useAdsCampaignFilter } from "@/components/reports/AdsCampaignFilter/useAdsCampaignFilter";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
 import { AdsGoalTables } from "@/components/reports/AdsGoalTables/AdsGoalTables";
 import { weeklySourceModesForTable } from "@/lib/weeklyCampaignGoals";
@@ -263,6 +262,7 @@ export default function DynamicTableView({
     { value: "this_week", label: "השבוע" },
     { value: "last_week", label: "שבוע שעבר" },
     { value: "last_7_days", label: "7 ימים אחרונים" },
+    { value: "last_9_days", label: "9 ימים אחרונים" },
     { value: "last_14_days", label: "14 יום" },
     { value: "last_30_days", label: "30 יום" },
     { value: "last_60_days", label: "60 יום" },
@@ -318,6 +318,7 @@ export default function DynamicTableView({
       case "this_week":
       case "last_week":
       case "last_7_days":
+      case "last_9_days":
       case "last_14_days":
       case "last_30_days":
       case "last_60_days":
@@ -414,15 +415,11 @@ export default function DynamicTableView({
       return Array.isArray(response.data) ? response.data : [];
     },
     enabled: !!tenantId && !!reportClientId && !adAccountUrl && !isEmbed,
-    ...reportQueryOptions<
-      NonNullable<Parameters<typeof getAdAccountLinks>[0]>
-    >(),
+    ...reportQueryOptions<Array<AdAccountTable>>(),
   });
-  const adAccountLinks = adAccountUrl
-    ? [{ url: adAccountUrl, label: "פתח חשבון מודעות" }]
-    : clientAdLinks.loading
-      ? []
-      : getAdAccountLinks(siblingTables, clientAdLinks.links);
+  const adAccountLinks = clientAdLinks.loading
+    ? []
+    : getTableAdAccountLinks(table, siblingTables, clientAdLinks.links);
 
   const isGoogleAdsEcommerceReport =
     table?.integration_type === "google_ads" && isEcommerceReportTable(table);
@@ -595,12 +592,18 @@ export default function DynamicTableView({
       enabled: !!table?.id && isAdsReportTable && adsReportView === "weekly",
     });
 
-  const entityLevelRecords = useMemo(() => {
+  const allEntityLevelRecords = useMemo(() => {
     if (!isAdsReportTable) {
       return displayRecords;
     }
     return filterRecordsByEntityLevel(displayRecords, adsEntityLevel);
   }, [displayRecords, adsEntityLevel, isAdsReportTable]);
+
+  const adsCampaignFilter = useAdsCampaignFilter(
+    allEntityLevelRecords,
+    adsEntityLevel,
+  );
+  const entityLevelRecords = adsCampaignFilter.records;
 
   // Filter records by entity search (campaign / ad set / ad name)
   const filteredRecords = useMemo(() => {
@@ -634,13 +637,21 @@ export default function DynamicTableView({
     if (!previousPeriod.records || recordsPlaceholder) {
       return undefined;
     }
-    return previousReportRecords(previousPeriod.records, adsEntityLevel, {
-      searching: !!debouncedCampaignSearch.trim(),
-      shown: filteredRecords,
-    });
+    return previousReportRecords(
+      filterRecordsByCampaign(
+        previousPeriod.records,
+        adsCampaignFilter.control.value,
+      ),
+      adsEntityLevel,
+      {
+        searching: !!debouncedCampaignSearch.trim(),
+        shown: filteredRecords,
+      },
+    );
   }, [
     previousPeriod.records,
     recordsPlaceholder,
+    adsCampaignFilter.control.value,
     adsEntityLevel,
     debouncedCampaignSearch,
     filteredRecords,
@@ -1986,7 +1997,10 @@ export default function DynamicTableView({
     return (
       <div className="container mx-auto py-8 px-4">
         <CarmenLoadingScreen
-          messages={["כרמן פותחת את הטבלה…", "טוענת את השדות והנתונים…"]}
+          messages={[
+            "{name} {פותחת|פותח} את הטבלה…",
+            "{טוענת|טוען} את השדות והנתונים…",
+          ]}
         />
       </div>
     );
@@ -2258,20 +2272,7 @@ export default function DynamicTableView({
                     כרטיס לקוח
                   </Button>
                 )}
-                {adAccountLinks.map((link) => (
-                  <Button
-                    key={link.url}
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                    onClick={() =>
-                      window.open(link.url, "_blank", "noopener,noreferrer")
-                    }
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    {adAccountShortcutLabel(link, adAccountLinks.length)}
-                  </Button>
-                ))}
+                <AdAccountButtons links={adAccountLinks} />
                 {!table.client_id && (
                   <Button
                     variant="outline"
@@ -3228,6 +3229,7 @@ export default function DynamicTableView({
               <AdsEntityLevelTabs
                 value={adsEntityLevel}
                 onChange={setAdsEntityLevel}
+                campaignFilter={adsCampaignFilter.control}
               />
             </div>
           )}
@@ -3257,6 +3259,7 @@ export default function DynamicTableView({
               woo={useGoogleWooOverlay ? (wooReportAttribution ?? null) : null}
               manualRoi={{ readOnly: isEmbed }}
               showTrackingWarnings
+              adPreview={table ? { tableId: table.id } : null}
             />
           )}
 
@@ -3313,7 +3316,10 @@ export default function DynamicTableView({
         ) ? null : isLoading ? (
           <CarmenLoadingScreen
             variant="card"
-            messages={["כרמן מושכת את נתוני הטבלה…", "מחשבת את התקופה הנבחרת…"]}
+            messages={[
+              "{name} {מושכת|מושך} את נתוני הטבלה…",
+              "{מחשבת|מחשב} את התקופה הנבחרת…",
+            ]}
           />
         ) : (
           <div className="border rounded-lg overflow-hidden bg-background shadow-sm">
@@ -3583,7 +3589,7 @@ export default function DynamicTableView({
                       {recordsFetching ? (
                         <CarmenLoadingScreen
                           variant="inline"
-                          messages={["כרמן מרעננת את הנתונים…"]}
+                          messages={["{name} {מרעננת|מרענן} את הנתונים…"]}
                         />
                       ) : campaignSearch ? (
                         <p className="text-muted-foreground mb-3">

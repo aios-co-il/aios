@@ -113,7 +113,7 @@ export default function Suppliers() {
       {suppliersResolving && (
         <CarmenLoadingScreen
           variant="card"
-          messages={["כרמן אוספת את הספקים…"]}
+          messages={["{name} {אוספת|אוסף} את הספקים…"]}
         />
       )}
 

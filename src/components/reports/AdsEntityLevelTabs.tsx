@@ -1,3 +1,5 @@
+import { AdsCampaignPicker } from "@/components/reports/AdsCampaignFilter/AdsCampaignPicker";
+import type { AdsCampaignFilterControl } from "@/components/reports/AdsCampaignFilter/useAdsCampaignFilter";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ADS_ENTITY_LEVEL_LABELS,
@@ -9,15 +11,22 @@ interface AdsEntityLevelTabsProps {
   value: AdsEntityLevel;
   onChange: (level: AdsEntityLevel) => void;
   className?: string;
+  /**
+   * The campaign pick beside the tabs. The picker hides itself with fewer than
+   * two campaigns, so the campaign level, which lists none, shows no picker.
+   */
+  campaignFilter: AdsCampaignFilterControl;
 }
 
+/** The report's campaign / ad set / ad tabs, with the campaign picker. */
 export function AdsEntityLevelTabs({
   value,
   onChange,
   className,
+  campaignFilter,
 }: AdsEntityLevelTabsProps) {
   return (
-    <div dir="rtl" className="w-full flex justify-start">
+    <div dir="rtl" className="w-full flex flex-wrap items-center gap-2">
       <Tabs
         value={value}
         onValueChange={(next) => onChange(next as AdsEntityLevel)}
@@ -36,6 +45,7 @@ export function AdsEntityLevelTabs({
           ))}
         </TabsList>
       </Tabs>
+      <AdsCampaignPicker {...campaignFilter} />
     </div>
   );
 }
