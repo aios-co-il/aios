@@ -107,7 +107,7 @@ class OrbBuddyView @JvmOverloads constructor(
         ox = (w - fw) / 2f
         oy = (h - fh) / 2f
         r = 0.263f * fw
-        backdrop = RadialGradient(w / 2f, h * 0.45f, max(w, h) * 0.65f, BACKDROP_CENTER, BACKDROP_EDGE, Shader.TileMode.CLAMP)
+        backdrop = tileBackdrop(w.toFloat(), h.toFloat())
         val sw = 0.474f * fw
         shadow = RadialGradient(0f, 0f, sw / 2f, intArrayOf(alpha(TINT, 0.28f), Color.TRANSPARENT), floatArrayOf(0f, 0.7f), Shader.TileMode.CLAMP)
         bodyLayers = bodyShaders(r)
@@ -284,6 +284,10 @@ class OrbBuddyView @JvmOverloads constructor(
         private const val TINT = 0xFF22B573.toInt()
         private const val BACKDROP_CENTER = 0xFF1C334C.toInt()
         private const val BACKDROP_EDGE = 0xFF0A1526.toInt()
+
+        /** The call tile's dark glass behind the figure, for a [w]×[h] tile. */
+        fun tileBackdrop(w: Float, h: Float): Shader =
+            RadialGradient(w / 2f, h * 0.45f, max(w, h) * 0.65f, BACKDROP_CENTER, BACKDROP_EDGE, Shader.TileMode.CLAMP)
 
         /**
          * Dark glass around the origin, bottom to top: a see-through core with a tinted rim,
