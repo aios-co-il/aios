@@ -43,12 +43,12 @@ begin
   end if;
 
   if exists (
-    select 1 from information_schema.role_table_grants
+    select 1 from information_schema.table_privileges
     where table_schema = 'public'
       and table_name = 'calendar_tokens'
       and grantee in ('PUBLIC', 'anon', 'authenticated')
   ) then
-    raise exception 'lock_calendar_tokens: anon or authenticated still has a grant on calendar_tokens';
+    raise exception 'lock_calendar_tokens: PUBLIC, anon or authenticated still has a grant on calendar_tokens';
   end if;
 end;
 $$;
