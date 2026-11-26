@@ -1,11 +1,9 @@
 import { useContext } from "react";
 import { useActivePersona } from "@/components/carmen/personas/useActivePersona";
-import {
-  type MiniMeGender,
-  MiniMeGenderContext,
-} from "@/components/carmen/MiniMe/miniMeGender";
+import { MiniMeGenderContext } from "@/components/carmen/MiniMe/miniMeGender";
 import { useKnownCarmenAvatarStyle } from "@/hooks/useCarmenAvatarStyle";
 import { DEFAULT_ASSISTANT_NAME } from "../../../supabase/functions/_shared/carmen/assistant-name.ts";
+import type { MiniMeGender } from "../../../supabase/functions/_shared/carmen/minime-gender.ts";
 import { BUILTIN_PERSONAS } from "../../../supabase/functions/_shared/carmen/personas.ts";
 
 /** Who a loading line is about: the assistant's name and its Hebrew gender. */

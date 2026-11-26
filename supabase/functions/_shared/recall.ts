@@ -1,6 +1,8 @@
 // Recall.ai Meeting Bot API helpers (Zoom, Google Meet, Teams).
 import { detectMeetingPlatform } from "./meeting-url.ts";
-import { MEETING_BOT_IMAGE_JPEG_B64 } from "./recall-bot-image.ts";
+
+/** Recall's limit on `automatic_video_output` `b64_data` (bot_create: `maxLength`). */
+export const RECALL_JPEG_B64_MAX_LENGTH = 1835008;
 
 const CREDIT_PROBE_MEETING_URL = "https://zoom.us/j/99900011122";
 export const RECALL_CANARY_MARKER = "נבדק עכשיו";
@@ -140,6 +142,8 @@ export interface CreateRecallBotOpts {
   meeting_url: string;
   /** The participant name the bot joins with (`meetingBotName`, AIO-592). */
   bot_name: string;
+  /** The bot's video tile: a 16:9 JPEG in base64. Without one the bot joins with no picture. */
+  picture_jpeg_b64?: string | null;
   join_at?: string | null;
   metadata?: Record<string, string>;
 }
@@ -164,14 +168,6 @@ export async function createRecallBot(
     meeting_url: opts.meeting_url,
     bot_name: opts.bot_name,
     metadata: opts.metadata ?? {},
-    // The bot's tile shows the Mini Me before and during recording.
-    automatic_video_output: {
-      in_call_recording: { kind: "jpeg", b64_data: MEETING_BOT_IMAGE_JPEG_B64 },
-      in_call_not_recording: {
-        kind: "jpeg",
-        b64_data: MEETING_BOT_IMAGE_JPEG_B64,
-      },
-    },
     recording_config: {
       video_mixed_mp4: {},
       // Mixed audio is a small artifact we can hand to Whisper when Recall's own
@@ -199,6 +195,15 @@ export async function createRecallBot(
 
   if (opts.join_at) {
     body.join_at = opts.join_at;
+  }
+
+  if (opts.picture_jpeg_b64) {
+    // The bot's tile shows the same picture before and during recording.
+    const picture = { kind: "jpeg", b64_data: opts.picture_jpeg_b64 };
+    body.automatic_video_output = {
+      in_call_recording: picture,
+      in_call_not_recording: picture,
+    };
   }
 
   // Zoom meetings that require email — any address works; no real Zoom account needed.
