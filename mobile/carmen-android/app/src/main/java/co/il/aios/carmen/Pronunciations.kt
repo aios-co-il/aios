@@ -23,7 +23,7 @@ class Pronunciations(private val account: AiosAccount) {
                 "POST",
                 "carmen_pronunciations?on_conflict=tenant_id,term_key",
                 row,
-                prefer = "resolution=merge-duplicates,return=minimal",
+                prefer = AiosAccount.PREFER_UPSERT,
             )
             "נשמר: $cleanTerm נהגה $cleanSpoken."
         }.getOrElse { "לא הצלחתי לשמור את ההגייה כרגע." }
