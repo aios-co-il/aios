@@ -93,7 +93,10 @@ async function sync(
         gscConnection(OTHER_GSC, OTHER_TENANT),
       ],
     },
-    rpc: { is_super_admin: () => superAdmin },
+    rpc: {
+      is_super_admin: () => superAdmin,
+      google_integration_tokens: () => [],
+    },
     other: () => Response.json({ rows: [] }),
   });
 
@@ -120,7 +123,7 @@ async function sync(
       (call) => call.url.hostname === "www.googleapis.com",
     ).length,
     secretReads: http.calls.filter((call) =>
-      call.url.pathname.endsWith("/integration_secrets"),
+      call.url.pathname.endsWith("/rpc/google_integration_tokens"),
     ).length,
   };
 }
