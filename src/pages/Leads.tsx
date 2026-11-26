@@ -134,6 +134,12 @@ import {
 import { LeadsKanbanStage } from "@/components/LeadsPage/LeadsKanbanStage";
 import { LeadsPaginationBar } from "@/components/LeadsPage/LeadsPaginationBar";
 import { LeadsSearchInput } from "@/components/LeadsPage/LeadsSearchInput";
+import { LeadFieldCell } from "@/components/LeadsPage/LeadFieldCell";
+import { LeadCustomFieldCell } from "@/components/LeadsPage/LeadCustomFieldCell";
+import { LeadSelectCell } from "@/components/LeadsPage/LeadSelectCell";
+import { isEditableLeadField } from "@/components/LeadsPage/leadCellValues";
+import { useSaveLeadFields } from "@/components/LeadsPage/useSaveLeadFields";
+import { leadSourceSelectOptions } from "@/lib/leadFields";
 import { HeaderSearch } from "@/components/layout/HeaderSearch/HeaderSearch";
 import { LeadsSidePanel } from "@/components/LeadsPage/LeadsSidePanel";
 import { LeadsSummaryList } from "@/components/LeadsPage/LeadsSummaryList";
@@ -4089,6 +4095,7 @@ function TableWithStickyScroll({
     "call_recording",
     isFieldVisible,
   );
+  const saveLeadFields = useSaveLeadFields();
   const customTableColumns = getLeadTableCustomColumns(
     fieldDefinitions,
     LEAD_SYSTEM_FIELD_KEYS,
@@ -4639,10 +4646,18 @@ function TableWithStickyScroll({
               width: 170,
               sticky: true,
               render: (lead: any) => (
-                <LeadNameCell
-                  name={lead.contact_name}
-                  onOpen={() => openLeadInChat?.(lead.id)}
-                />
+                <LeadFieldCell
+                  lead={lead}
+                  field="contact_name"
+                  label={getFieldLabel("contact_name", "שם")}
+                  trigger="icon"
+                  onSave={saveLeadFields.mutate}
+                >
+                  <LeadNameCell
+                    name={lead.contact_name}
+                    onOpen={() => openLeadInChat?.(lead.id)}
+                  />
+                </LeadFieldCell>
               ),
             },
             ...(isLeadTableColumnVisible("created_at", isFieldVisible)
@@ -4684,7 +4699,15 @@ function TableWithStickyScroll({
                     label: getFieldLabel("phone", "טלפון"),
                     width: 150,
                     render: (lead: LeadTableRow) => (
-                      <LeadPhoneCell phone={lead.phone} />
+                      <LeadFieldCell
+                        lead={lead}
+                        field="phone"
+                        label={getFieldLabel("phone", "טלפון")}
+                        trigger="icon"
+                        onSave={saveLeadFields.mutate}
+                      >
+                        <LeadPhoneCell phone={lead.phone} />
+                      </LeadFieldCell>
                     ),
                   },
                 ]
@@ -4696,7 +4719,14 @@ function TableWithStickyScroll({
                     label: getFieldLabel("company_name", "שם חברה"),
                     width: 170,
                     render: (lead: any) => (
-                      <LeadCompanyCell company={lead.company_name} />
+                      <LeadFieldCell
+                        lead={lead}
+                        field="company_name"
+                        label={getFieldLabel("company_name", "שם חברה")}
+                        onSave={saveLeadFields.mutate}
+                      >
+                        <LeadCompanyCell company={lead.company_name} />
+                      </LeadFieldCell>
                     ),
                   },
                 ]
@@ -4708,12 +4738,14 @@ function TableWithStickyScroll({
                     label: getFieldLabel("campaign_name", "שם קמפיין"),
                     width: 180,
                     render: (lead: any) => (
-                      <span
-                        className="truncate"
-                        title={lead.campaign_name || ""}
+                      <LeadFieldCell
+                        lead={lead}
+                        field="campaign_name"
+                        label={getFieldLabel("campaign_name", "שם קמפיין")}
+                        onSave={saveLeadFields.mutate}
                       >
-                        {lead.campaign_name || "—"}
-                      </span>
+                        <LeadPlainCell text={lead.campaign_name || "—"} />
+                      </LeadFieldCell>
                     ),
                   },
                 ]
@@ -4725,7 +4757,19 @@ function TableWithStickyScroll({
                     label: getFieldLabel("source", "מקור הליד"),
                     width: 140,
                     render: (lead: LeadTableRow) => (
-                      <LeadSourceBadge lead={lead} />
+                      <LeadSelectCell
+                        value={lead.source ?? undefined}
+                        options={leadSourceSelectOptions(lead.source)}
+                        label={getFieldLabel("source", "מקור הליד")}
+                        onSave={(source) =>
+                          saveLeadFields.mutate({
+                            leadId: lead.id,
+                            patch: { source },
+                          })
+                        }
+                      >
+                        <LeadSourceBadge lead={lead} />
+                      </LeadSelectCell>
                     ),
                   },
                 ]
@@ -4838,15 +4882,17 @@ function TableWithStickyScroll({
                   lead[field.key],
                   field.type,
                 );
-                if (field.key === "email" && text !== "—") {
-                  return <ContactValue kind="email" value={text} />;
-                }
                 const link =
                   field.key === "folder_link" && /^https?:\/\//i.test(text)
                     ? text
                     : null;
-                if (link) {
-                  return (
+                // A mail address and a link keep their own clicks, so they edit from the pencil.
+                const hasOwnClicks =
+                  (field.key === "email" && text !== "—") || !!link;
+                const content =
+                  field.key === "email" && text !== "—" ? (
+                    <ContactValue kind="email" value={text} />
+                  ) : link ? (
                     <a
                       href={link}
                       target="_blank"
@@ -4857,9 +4903,23 @@ function TableWithStickyScroll({
                     >
                       {text}
                     </a>
+                  ) : (
+                    <LeadPlainCell text={text} />
                   );
+                if (!isEditableLeadField(field.key)) {
+                  return content;
                 }
-                return <LeadPlainCell text={text} />;
+                return (
+                  <LeadFieldCell
+                    lead={lead}
+                    field={field.key}
+                    label={getFieldLabel(field.key, field.label)}
+                    trigger={hasOwnClicks ? "icon" : "cell"}
+                    onSave={saveLeadFields.mutate}
+                  >
+                    {content}
+                  </LeadFieldCell>
+                );
               },
             })),
             ...customTableColumns.map((field) => ({
@@ -4867,12 +4927,21 @@ function TableWithStickyScroll({
               label: field.field_label,
               width: 160,
               render: (lead: any) => (
-                <LeadPlainCell
-                  text={formatLeadTableFieldValue(
-                    readLeadCustomColumnValue(lead.form_data, field.field_key),
-                    field.field_type,
-                  )}
-                />
+                <LeadCustomFieldCell
+                  lead={lead}
+                  field={field}
+                  onSave={saveLeadFields.mutate}
+                >
+                  <LeadPlainCell
+                    text={formatLeadTableFieldValue(
+                      readLeadCustomColumnValue(
+                        lead.form_data,
+                        field.field_key,
+                      ),
+                      field.field_type,
+                    )}
+                  />
+                </LeadCustomFieldCell>
               ),
             })),
             {
