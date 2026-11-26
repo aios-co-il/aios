@@ -107,12 +107,12 @@ begin
   end if;
 
   if exists (
-    select 1 from information_schema.role_table_grants
+    select 1 from information_schema.table_privileges
     where table_schema = 'public'
       and table_name = 'integration_secrets'
       and grantee in ('PUBLIC', 'anon', 'authenticated')
   ) then
-    raise exception 'integration_secrets: anon or authenticated has a grant';
+    raise exception 'integration_secrets: PUBLIC, anon or authenticated has a grant';
   end if;
 
   if exists (

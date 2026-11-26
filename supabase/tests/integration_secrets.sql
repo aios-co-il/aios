@@ -1,11 +1,12 @@
--- Google tokens in integration_secrets (20261124110000_integration_secrets.sql).
+-- Google tokens in integration_secrets (20261126100000_integration_secrets.sql).
 -- Synthetic tenant, users and rows; full rollback. Runs on a scratch database,
 -- a Preview branch or Staging.
 --
 -- - A Google row's api_key and settings.refresh_token are copied into
 --   integration_secrets on insert and on every token update, also when the
 --   owner makes the change from the browser (the trigger is security definer).
--- - No browser role reads or writes integration_secrets, the owner included.
+-- - No browser role reads or writes integration_secrets, the owner included;
+--   the service role does both.
 -- - Other integration types are not copied; deleting a row deletes its secrets.
 BEGIN;
 DO $test$
@@ -79,8 +80,32 @@ BEGIN
       failures := failures || format('%s updated integration_secrets', got);
     EXCEPTION WHEN insufficient_privilege THEN NULL;
     END;
+    BEGIN
+      INSERT INTO public.integration_secrets (integration_id, tenant_id, refresh_token)
+      VALUES (google_id, tenant_id_, 'planted');
+      failures := failures || format('%s inserted into integration_secrets', got);
+    EXCEPTION WHEN insufficient_privilege THEN NULL;
+    END;
+    BEGIN
+      DELETE FROM public.integration_secrets WHERE integration_id = google_id;
+      failures := failures || format('%s deleted from integration_secrets', got);
+    EXCEPTION WHEN insufficient_privilege THEN NULL;
+    END;
     RESET ROLE;
   END LOOP;
+
+  -- The service role, which the edge functions use, reads and writes the tokens.
+  SET LOCAL ROLE service_role;
+  BEGIN
+    UPDATE public.integration_secrets SET access_token = 'access-3' WHERE integration_id = google_id;
+    SELECT access_token INTO got FROM public.integration_secrets WHERE integration_id = google_id;
+    IF got IS DISTINCT FROM 'access-3' THEN
+      failures := failures || format('service role write: got %s, want access-3', coalesce(got, 'no row'));
+    END IF;
+  EXCEPTION WHEN insufficient_privilege THEN
+    failures := failures || 'the service role could not read or write integration_secrets';
+  END;
+  RESET ROLE;
 
   -- Other integration types are not copied, and the trigger's type check does
   -- not stop a member saving one from the browser.
