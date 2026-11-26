@@ -1,4 +1,4 @@
--- Green API webhook tokens in Vault (20261126200000_green_api_webhook_token.sql).
+-- Green API webhook tokens in Vault (20261126220000_green_api_webhook_token.sql).
 -- Synthetic tenant, user and lines; full rollback. Runs on a scratch database,
 -- a Preview branch or Staging.
 --
