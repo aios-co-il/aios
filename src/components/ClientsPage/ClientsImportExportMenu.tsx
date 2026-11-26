@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import { Download, FileSpreadsheet, Upload, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +15,8 @@ interface ClientsImportExportMenuProps {
   onImportSheet: () => void;
   /** Shown only to owners, super admins and team managers; null hides it. */
   onBulkMetaSync: (() => void) | null;
+  /** Replaces the default outline button, e.g. with a side panel row. */
+  trigger?: ReactElement;
 }
 
 /** The import / export menu beside "add client". */
@@ -22,14 +25,17 @@ export function ClientsImportExportMenu({
   onImportCsv,
   onImportSheet,
   onBulkMetaSync,
+  trigger,
 }: ClientsImportExportMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="h-9 gap-2" title="ייבוא/ייצוא">
-          <FileSpreadsheet className="h-4 w-4" />
-          <span className="hidden sm:inline">ייבוא / ייצוא</span>
-        </Button>
+        {trigger ?? (
+          <Button variant="outline" className="h-9 gap-2" title="ייבוא/ייצוא">
+            <FileSpreadsheet className="h-4 w-4" />
+            <span className="hidden sm:inline">ייבוא / ייצוא</span>
+          </Button>
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="bg-background">
         <DropdownMenuItem onClick={onExport}>

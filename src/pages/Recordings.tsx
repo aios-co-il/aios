@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import { useStartRecordingProcessing } from "@/hooks/useStartRecordingProcessing";
 import { useTenant } from "@/contexts/TenantContext";
 import { useAgency } from "@/contexts/AgencyContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -300,6 +301,8 @@ export default function Recordings() {
       }),
   });
 
+  const startProcessingUploads = useStartRecordingProcessing(invalidate);
+
   const uploadMutation = useMutation({
     mutationFn: async () => {
       if (!currentTenantId) {
@@ -317,33 +320,39 @@ export default function Recordings() {
         }
         filePath = fileName;
       }
-      const { error } = await supabase.from("zoom_recordings").insert({
-        tenant_id: currentTenantId,
-        meeting_topic: uploadTopic || MANUAL_RECORDING_TOPIC,
-        topic_set_manually: !!uploadTopic.trim(),
-        start_time: new Date(uploadDate).toISOString(),
-        source: "manual",
-        file_path: filePath,
-        client_id: uploadClientId || null,
-        agency_id: uploadClientId
-          ? clients.find((client) => client.id === uploadClientId)?.agency_id ||
-            null
-          : null,
-        folder_id: selection.kind === "folder" ? selection.folderId : null,
-        meeting_id: `manual_${Date.now()}`,
-        recording_type: "manual",
-      } as any);
+      const { data, error } = await supabase
+        .from("zoom_recordings")
+        .insert({
+          tenant_id: currentTenantId,
+          meeting_topic: uploadTopic || MANUAL_RECORDING_TOPIC,
+          topic_set_manually: !!uploadTopic.trim(),
+          start_time: new Date(uploadDate).toISOString(),
+          source: "manual",
+          file_path: filePath,
+          client_id: uploadClientId || null,
+          agency_id: uploadClientId
+            ? clients.find((client) => client.id === uploadClientId)
+                ?.agency_id || null
+            : null,
+          folder_id: selection.kind === "folder" ? selection.folderId : null,
+          meeting_id: `manual_${Date.now()}`,
+          recording_type: "manual",
+        } as any)
+        .select("id")
+        .single();
       if (error) {
         throw error;
       }
+      return filePath ? [data.id] : [];
     },
-    onSuccess: () => {
+    onSuccess: async (uploadedIds) => {
       invalidate();
       toast({ title: "ההקלטה הועלתה בהצלחה" });
       setUploadOpen(false);
       setUploadTopic("");
       setUploadFile(null);
       setUploadClientId("");
+      await startProcessingUploads(uploadedIds);
     },
     onError: (err: any) =>
       toast({

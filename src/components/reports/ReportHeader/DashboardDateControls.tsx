@@ -17,33 +17,32 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useIsMobile } from "@/hooks/use-mobile";
-import {
-  COMBINED_DASHBOARD_DATE_FILTERS,
-  type DateFilterOption,
-} from "@/lib/dashboardDateFilters";
+import { COMBINED_DASHBOARD_DATE_FILTERS } from "@/lib/dashboardDateFilters";
+import { MAX_CUSTOM_RANGE_DAYS } from "../../../../supabase/functions/_shared/share-links/request-range.ts";
 
-type DateRange = { from?: Date; to?: Date };
+/** A custom range as the calendar picks it: one end, both or neither. */
+export type DashboardDateRange = { from?: Date; to?: Date };
 
 type DashboardDateControlsProps = {
   dateFilter: string;
   onDateFilterChange: (value: string) => void;
-  /** The presets offered; the signed-in dashboard's, with a custom range, by default. */
-  filters?: ReadonlyArray<DateFilterOption>;
-  /** The custom range and its setter; a list without "custom" needs neither. */
-  customDateRange?: DateRange;
-  onCustomDateRangeChange?: (range: DateRange) => void;
+  /** The custom range and its setter, for the "custom" preset. */
+  customDateRange: DashboardDateRange;
+  onCustomDateRangeChange: (range: DashboardDateRange) => void;
   /** Shown before the dates, such as an organization's agency picker. */
   agencyPicker?: ReactNode;
   /** Shown after the dates, such as the previous-period button. */
   children?: ReactNode;
 };
 
-/** The dashboard's date range: a preset, or a custom range from a calendar. */
+/**
+ * The dashboard's date range: a preset, or a custom range from a calendar.
+ * The signed-in dashboard and its share link offer the same list.
+ */
 export function DashboardDateControls({
   dateFilter,
   onDateFilterChange,
-  filters = COMBINED_DASHBOARD_DATE_FILTERS,
-  customDateRange = {},
+  customDateRange,
   onCustomDateRangeChange,
   agencyPicker,
   children,
@@ -66,14 +65,14 @@ export function DashboardDateControls({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {filters.map((filter) => (
+          {COMBINED_DASHBOARD_DATE_FILTERS.map((filter) => (
             <SelectItem key={filter.value} value={filter.value}>
               {filter.label}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
-      {dateFilter === "custom" && onCustomDateRangeChange && (
+      {dateFilter === "custom" && (
         <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" className="gap-1.5">
@@ -92,7 +91,9 @@ export function DashboardDateControls({
               mode="range"
               defaultMonth={customDateRange.from}
               selected={{ from: customDateRange.from, to: customDateRange.to }}
-              onSelect={(range: DateRange | undefined) => {
+              // The share links refuse a longer window, so it cannot be picked.
+              max={MAX_CUSTOM_RANGE_DAYS}
+              onSelect={(range: DashboardDateRange | undefined) => {
                 onCustomDateRangeChange({ from: range?.from, to: range?.to });
                 if (range?.from && range?.to) {
                   setCalendarOpen(false);

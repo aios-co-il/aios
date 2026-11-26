@@ -16,6 +16,10 @@ export function renderAuth(path = "/auth") {
         <Routes>
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/t/test/home" element={<p>Home route</p>} />
+          <Route
+            path="/t/test/card-drafts"
+            element={<p>Card drafts route</p>}
+          />
         </Routes>
       </MemoryRouter>,
     ),

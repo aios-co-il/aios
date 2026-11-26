@@ -106,32 +106,29 @@ const plan = (
   );
 
 Deno.test(
-  "the morning run fetches yesterday and today after yesterday's afternoon run",
+  "the first run of the day fetches yesterday and today after yesterday's last run",
   () => {
-    const morning = plan("2026-10-06", "2026-10-05", "2026-10-05");
+    const first = plan("2026-10-06", "2026-10-05", "2026-10-05");
 
-    assertEquals(morning.refresh, {
+    assertEquals(first.refresh, {
       startDate: "2026-10-05",
       endDate: "2026-10-06",
     });
-    assertStrictEquals(morning.catchup, null);
-    assertStrictEquals(morning.syncedThrough, "2026-10-06");
-    assertStrictEquals(morning.lookbackOn, "2026-10-05");
+    assertStrictEquals(first.catchup, null);
+    assertStrictEquals(first.syncedThrough, "2026-10-06");
+    assertStrictEquals(first.lookbackOn, "2026-10-05");
   },
 );
 
-Deno.test(
-  "the afternoon run fetches only today after this morning's run",
-  () => {
-    const afternoon = plan("2026-10-06", "2026-10-06");
+Deno.test("later runs fetch only today after the first run of the day", () => {
+  const later = plan("2026-10-06", "2026-10-06");
 
-    assertEquals(afternoon.refresh, {
-      startDate: "2026-10-06",
-      endDate: "2026-10-06",
-    });
-    assertStrictEquals(afternoon.catchup, null);
-  },
-);
+  assertEquals(later.refresh, {
+    startDate: "2026-10-06",
+    endDate: "2026-10-06",
+  });
+  assertStrictEquals(later.catchup, null);
+});
 
 Deno.test("missed runs are filled from the last successful day", () => {
   assertEquals(plan("2026-10-06", "2026-10-02").refresh, {
@@ -164,7 +161,7 @@ Deno.test("a marker after today is clamped to today", () => {
 });
 
 Deno.test(
-  "every third day the morning run re-fetches the last 7 days for late conversions",
+  "every third day the first run of the day re-fetches the last 7 days for late conversions",
   () => {
     const today = "2026-10-06";
     const due = plan(
@@ -179,8 +176,8 @@ Deno.test(
     });
     assertStrictEquals(due.lookbackOn, today);
 
-    const afternoon = plan(today, today, due.lookbackOn);
-    assertEquals(afternoon.refresh, { startDate: today, endDate: today });
+    const later = plan(today, today, due.lookbackOn);
+    assertEquals(later.refresh, { startDate: today, endDate: today });
 
     for (const days of [1, 2]) {
       const notYet = plan(today, "2026-10-05", shiftDateString(today, -days));

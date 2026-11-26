@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Copy, Pencil, Trash2 } from "lucide-react";
+import { Copy, Globe, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ClientRow } from "./clientRow";
@@ -62,29 +62,20 @@ function RowAction({
   );
 }
 
-/** A contact link with its icon, or a dash when the value is empty. */
-export function LinkCell({
-  icon: Icon,
-  href,
-  external = false,
-  children,
-}: {
-  icon: LucideIcon;
-  href: string | null;
-  external?: boolean;
-  children: string | null;
-}) {
-  if (!href) {
+/** A link to the client's website in a new tab, or a dash when it has none. */
+export function WebsiteCell({ website }: { website: string | null }) {
+  if (!website) {
     return <Empty />;
   }
   return (
     <a
-      href={href}
+      href={website}
       className="flex items-center gap-2 whitespace-nowrap text-sm transition-colors hover:text-brand-accent-700 dark:hover:text-brand-accent-400"
-      {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+      target="_blank"
+      rel="noopener noreferrer"
     >
-      <Icon className="h-4 w-4 text-muted-foreground" />
-      <span dir="ltr">{children}</span>
+      <Globe className="h-4 w-4 text-muted-foreground" />
+      <span>קישור</span>
     </a>
   );
 }

@@ -105,6 +105,10 @@ function getDateRange(
       endDate = shiftDateString(today, -1);
       break;
     }
+    case "last_9_days":
+      startDate = shiftDateString(today, -9);
+      endDate = shiftDateString(today, -1);
+      break;
     case "last_14_days":
       startDate = shiftDateString(today, -14);
       endDate = shiftDateString(today, -1);

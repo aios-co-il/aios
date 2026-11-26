@@ -5,8 +5,7 @@ export type Continent =
   | "asia"
   | "africa"
   | "europe"
-  | "north_america"
-  | "south_america"
+  | "america"
   | "oceania"
   | "antarctica"
   | "general";
@@ -15,8 +14,7 @@ export const CONTINENT_TITLES: Record<Continent, string> = {
   asia: "אסיה",
   africa: "אפריקה",
   europe: "אירופה",
-  north_america: "צפון ומרכז אמריקה",
-  south_america: "דרום אמריקה",
+  america: "אמריקה",
   oceania: "אוקיאניה",
   antarctica: "אנטארקטיקה",
   general: "כללי",

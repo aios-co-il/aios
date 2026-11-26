@@ -1,16 +1,24 @@
-/** Voices the OpenAI Realtime API speaks. */
-export const REALTIME_VOICES = new Set([
-  "alloy",
-  "ash",
-  "ballad",
-  "coral",
-  "echo",
-  "sage",
-  "shimmer",
-  "verse",
-  "marin",
-  "cedar",
-]);
+/**
+ * The voices the OpenAI Realtime API speaks, as a voice picker shows them. Every client
+ * reads this list (`voice-list.ts`), so adding a voice here adds it to each picker.
+ */
+export const OPENAI_VOICES = [
+  { id: "marin", label: "Marin — טבעי וחם" },
+  { id: "cedar", label: "Cedar — עמוק ובטוח" },
+  { id: "coral", label: "Coral — בהיר וידידותי" },
+  { id: "sage", label: "Sage — רגוע ומאוזן" },
+  { id: "shimmer", label: "Shimmer — רך ונעים" },
+  { id: "alloy", label: "Alloy — ניטרלי ומדויק" },
+  { id: "ash", label: "Ash — יציב וישיר" },
+  { id: "ballad", label: "Ballad — עשיר והבעתי" },
+  { id: "echo", label: "Echo — חד ואנרגטי" },
+  { id: "verse", label: "Verse — דינמי ושיחתי" },
+] as const;
+
+/** The ids a Realtime session accepts as its voice. */
+export const REALTIME_VOICES = new Set<string>(
+  OPENAI_VOICES.map((voice) => voice.id),
+);
 
 // The agent settings (ProfileTab) also offer TTS-only voices that Realtime rejects;
 // each maps to the closest Realtime voice.

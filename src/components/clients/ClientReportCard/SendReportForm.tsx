@@ -21,6 +21,8 @@ type Props = {
   sendLabel: string;
   phase: SendPhase;
   onSend: () => void;
+  /** Why sending waits, such as a half-picked custom range; shown under the button. */
+  sendBlockedHint?: string | null;
   /** Extra rows above the message, such as the share link status. */
   children?: ReactNode;
 };
@@ -33,6 +35,7 @@ export function SendReportForm({
   sendLabel,
   phase,
   onSend,
+  sendBlockedHint = null,
   children,
 }: Props) {
   const { client, groups, teamMembers } = contacts;
@@ -121,7 +124,7 @@ export function SendReportForm({
 
       <Button
         onClick={onSend}
-        disabled={phase !== "idle"}
+        disabled={phase !== "idle" || !!sendBlockedHint}
         size="sm"
         className="w-full gap-1"
       >
@@ -136,6 +139,11 @@ export function SendReportForm({
           </>
         )}
       </Button>
+      {sendBlockedHint && phase === "idle" && (
+        <p className="text-xs text-muted-foreground text-center">
+          {sendBlockedHint}
+        </p>
+      )}
     </div>
   );
 }

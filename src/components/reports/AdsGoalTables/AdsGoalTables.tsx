@@ -1,6 +1,10 @@
 import { googleManualRoiFigures } from "@/components/dynamic-tables/googleLeadCampaignRecords";
 import type { AdsEntityLevel } from "@/lib/adsEntityLevel";
 import { getCurrencySymbol } from "@/lib/currency";
+import {
+  AdPreviewContext,
+  type AdPreviewSource,
+} from "../AdPreview/AdPreviewContext";
 import type {
   AdsReportRecord,
   AdsReportTable,
@@ -23,6 +27,8 @@ type Props = {
   manualRoi: ManualRoiOptions;
   /** The notes on suspicious Google conversion values, meant for the agency. */
   showTrackingWarnings: boolean;
+  /** Where a Facebook ad row's name opens its preview; null for no previews. */
+  adPreview: AdPreviewSource | null;
 };
 
 /**
@@ -30,6 +36,8 @@ type Props = {
  * and its share link so a design fix reaches both: Facebook sales, leads and
  * traffic tables, or Google Ads tables per campaign goal, each with its
  * previous-period columns while the comparison is on, and the manual ROI card.
+ * A Facebook ad row's name opens the ad's preview from both pages, and a
+ * Google ad row with stored copy opens its drawn card.
  */
 export function AdsGoalTables({
   table,
@@ -39,6 +47,7 @@ export function AdsGoalTables({
   woo,
   manualRoi,
   showTrackingWarnings,
+  adPreview,
 }: Props) {
   const currencyCode = table.integration_settings?.currency;
   const currency = getCurrencySymbol(
@@ -50,14 +59,16 @@ export function AdsGoalTables({
     integrationType === "facebook_ecommerce"
   ) {
     return records.length > 0 ? (
-      <FacebookGoalTables
-        table={table}
-        records={records}
-        previousRecords={previousRecords}
-        level={level}
-        currency={currency}
-        manualRoi={manualRoi}
-      />
+      <AdPreviewContext.Provider value={adPreview}>
+        <FacebookGoalTables
+          table={table}
+          records={records}
+          previousRecords={previousRecords}
+          level={level}
+          currency={currency}
+          manualRoi={manualRoi}
+        />
+      </AdPreviewContext.Provider>
     ) : null;
   }
   if (integrationType !== "google_ads") {

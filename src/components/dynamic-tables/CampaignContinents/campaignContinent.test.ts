@@ -4,17 +4,17 @@ import { campaignContinent, type Continent } from "./campaignContinent";
 /** Echo's Google Ads campaigns, as the account names them. */
 const ECHO: Array<[string, Continent]> = [
   ["טיול משפחות לטנזניה בחנוכה - חיפוש", "africa"],
-  ["טיול לפטגוניה - Pmax", "south_america"],
+  ["טיול לפטגוניה - Pmax", "america"],
   ["טיול לקרנבלים באירופה - Pmax", "europe"],
   ["טיול לדרום הודו - Pmax", "asia"],
   ["שייט באיים הפולינזיים - Pmax", "oceania"],
   ["ויאטנם קמבודיה - מקס", "asia"],
-  ["טיול לארגנטינה, צ'ילה וברזיל - Pmax", "south_america"],
-  ["טיול למקסיקו וגואטמלה - Pmax", "north_america"],
+  ["טיול לארגנטינה, צ'ילה וברזיל - Pmax", "america"],
+  ["טיול למקסיקו וגואטמלה - Pmax", "america"],
   ["טיול ליפן בפריחת הדובדבן - Pmax", "asia"],
-  ["טיול לניקרגואה, הונדורס ובליז - Pmax", "north_america"],
-  ["טיול לצפון ארגנטינה, צ׳ילה ואי הפסחא - Pmax", "south_america"],
-  ["טיול לשלוש הגויאנות - Pmax", "south_america"],
+  ["טיול לניקרגואה, הונדורס ובליז - Pmax", "america"],
+  ["טיול לצפון ארגנטינה, צ׳ילה ואי הפסחא - Pmax", "america"],
+  ["טיול לשלוש הגויאנות - Pmax", "america"],
   ["טיול לסרי לנקה צפון ודרום - Pmax", "asia"],
   ["טיול לגאנה, טוגו ובנין - Pmax", "africa"],
   ["טיול לניו זילנד - Pmax", "oceania"],
@@ -22,8 +22,8 @@ const ECHO: Array<[string, Continent]> = [
   ["טיול לאיסלנד בחורף - Pmax", "europe"],
   ["טיול לטאיוואן - Pmax", "asia"],
   ["טיול לאיים האזוריים - Pmax", "europe"],
-  ["מערב ארצות הברית - Pmax", "north_america"],
-  ["טיול לפרו ובוליביה - Pmax", "south_america"],
+  ["מערב ארצות הברית - Pmax", "america"],
+  ["טיול לפרו ובוליביה - Pmax", "america"],
   ["הטיול המקיף לאינדונזיה", "asia"],
   ["טיול למאוריציוס וראוניון - Pmax", "africa"],
   ["שייט באיי סיישל - Pmax", "africa"],
@@ -47,6 +47,12 @@ describe("campaignContinent", () => {
 
   it("takes the destination the name mentions first", () => {
     expect(campaignContinent("דרום אפריקה ומאוריציוס")).toBe("africa");
-    expect(campaignContinent("קובה ופרו")).toBe("north_america");
+    expect(campaignContinent("יפן ופרו")).toBe("asia");
+  });
+
+  it("puts North, Central and South America in one continent", () => {
+    expect(campaignContinent("קובה ופרו")).toBe("america");
+    expect(campaignContinent("טיול לקנדה ואלסקה")).toBe("america");
+    expect(campaignContinent("טיול לפטגוניה")).toBe("america");
   });
 });
