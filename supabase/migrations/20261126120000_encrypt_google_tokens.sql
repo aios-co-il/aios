@@ -25,7 +25,7 @@ $$;
 revoke all on function public.google_token_secret_name(text, uuid) from public, anon, authenticated;
 
 -- Stores one token of a connection in Vault: creates its secret, or replaces
--- its value. A null token leaves the stored one.
+-- its value. A null or empty token leaves the stored one.
 create or replace function public.store_google_token_in_vault(
   p_integration_id uuid,
   p_kind text,
@@ -40,7 +40,7 @@ declare
   v_name text := public.google_token_secret_name(p_kind, p_integration_id);
   v_secret_id uuid;
 begin
-  if p_token is null then
+  if nullif(p_token, '') is null then
     return;
   end if;
 
@@ -65,18 +65,8 @@ as $$
 declare
   v_access text := nullif(new.api_key, '');
   v_refresh text;
-  v_decoded jsonb;
 begin
-  if jsonb_typeof(new.settings) = 'string' then
-    begin
-      v_decoded := (new.settings #>> '{}')::jsonb;
-    exception when invalid_text_representation then
-      v_decoded := null;
-    end;
-    if jsonb_typeof(v_decoded) = 'object' then
-      new.settings := v_decoded;
-    end if;
-  end if;
+  new.settings := public.decoded_integration_settings(new.settings);
   v_refresh := nullif(new.settings ->> 'refresh_token', '');
 
   -- Step 3's check: an insert with an existing connection's id would store its
@@ -171,10 +161,10 @@ do $$
 begin
   if exists (
     select 1 from public.integration_secrets s
-    where (s.access_token is not null and not exists (
+    where (nullif(s.access_token, '') is not null and not exists (
              select 1 from vault.secrets v
              where v.name = public.google_token_secret_name('access', s.integration_id)))
-       or (s.refresh_token is not null and not exists (
+       or (nullif(s.refresh_token, '') is not null and not exists (
              select 1 from vault.secrets v
              where v.name = public.google_token_secret_name('refresh', s.integration_id)))
   ) then
