@@ -4,12 +4,18 @@
  * or a super admin (_shared/auth/tenant-access.ts), and an agent_id must not
  * belong to another tenant than the body's tenant_id. Checked before any
  * brain, key or tool is resolved. Service callers are trusted as before.
+ *
+ * The run and the checks after this one read the body's raw ids, so both ids
+ * must first be text the database reads the way this guard does (AIO-659).
  */
 import { tenantUserAccess } from "../_shared/auth/tenant-access.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
 
 export type RunAuth = { kind: "user" | "service"; userId: string | null };
+
+/** The body fields that name the run's tenant and agent. */
+const RUN_ID_FIELDS = ["tenant_id", "agent_id"] as const;
 
 /** Why the run is refused, or null when the caller may run it. */
 export async function runTenantDenied(
@@ -22,6 +28,14 @@ export async function runTenantDenied(
   }
   if (!auth.userId) {
     return "Unauthorized";
+  }
+
+  const malformed = RUN_ID_FIELDS.filter((field) => !absentOrUuid(body[field]));
+  if (malformed.length > 0) {
+    console.warn(
+      `[run-ai-agent] refused user ${auth.userId}: ${malformed.join(", ")} is not a uuid string`,
+    );
+    return "Invalid tenant_id or agent_id";
   }
 
   const bodyTenant = text(body.tenant_id);
@@ -62,6 +76,21 @@ async function agentTenantOf(
     throw new Error(`ai_agents lookup failed: ${error.message}`);
   }
   return data?.tenant_id ?? "";
+}
+
+/**
+ * Whether a body id is absent (undefined, null or "") or exactly a hyphenated
+ * uuid string. Anything else could name a row to the queries that follow while
+ * reading as no id here: supabase-js sends an array as its joined items, and
+ * PostgreSQL also takes a uuid without hyphens or in braces.
+ */
+function absentOrUuid(value: unknown): boolean {
+  return (
+    value === undefined ||
+    value === null ||
+    value === "" ||
+    (typeof value === "string" && asUuidOrNull(value) === value)
+  );
 }
 
 function text(value: unknown): string {

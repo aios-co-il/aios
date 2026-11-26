@@ -14,7 +14,6 @@ export type CarmenVoiceGroup = {
   voices: Array<CarmenVoiceOption>;
 };
 
-export const VOICE_STORAGE_KEY = "aios:carmen-voice";
 export const DEFAULT_VOICE_LABEL = "קול ברירת מחדל של כרמן";
 
 /** The heading the picker shows above each provider's voices. */
