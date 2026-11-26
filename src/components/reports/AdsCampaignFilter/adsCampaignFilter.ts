@@ -45,16 +45,16 @@ export function listAdsCampaigns(
 }
 
 /**
- * The campaign the rows are narrowed to, or null for every campaign: on the
- * campaign level, with no pick, or when the picked campaign has no rows in
- * the shown data (another date window), where the picker reads "all" too.
+ * The campaign the rows are narrowed to, or null for every campaign: with no
+ * pick, or when the picked campaign is not listed (the campaign level lists
+ * none, and another date window may have no rows of it), where the picker
+ * reads "all" too.
  */
 export function resolveAdsCampaignKey(
-  level: AdsEntityLevel,
   selected: string | null,
   campaigns: Array<AdsCampaignOption>,
 ): string | null {
-  if (level === "campaign" || selected === null) {
+  if (selected === null) {
     return null;
   }
 
