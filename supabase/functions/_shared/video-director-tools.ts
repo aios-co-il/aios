@@ -1,3 +1,5 @@
+import type { DbClient } from "./supabase-clients.ts";
+
 /** Carmen tools for the video director skin. Plain TypeScript, no Deno APIs. */
 
 const ASPECTS = new Set(["9:16", "16:9", "1:1", "4:5"]);
@@ -36,25 +38,6 @@ export const VIDEO_DIRECTOR_TOOLS = [
 export const isVideoDirectorTool = (name: string) =>
   VIDEO_DIRECTOR_TOOLS.some((tool) => tool.name === name);
 
-type QueryResult = { data: unknown; error: { message: string } | null };
-
-type Query = {
-  select: (...args: Array<unknown>) => Query;
-  eq: (...args: Array<unknown>) => Query;
-  order: (...args: Array<unknown>) => Query;
-  limit: (...args: Array<unknown>) => Query;
-  maybeSingle: () => Promise<QueryResult>;
-  then: (
-    onFulfilled: (value: QueryResult) => unknown,
-    onRejected?: (reason: unknown) => unknown,
-  ) => Promise<unknown>;
-};
-
-export type VideoDirectorDb = {
-  from: (table: string) => Query;
-  rpc: (fn: string, args: Record<string, unknown>) => Promise<QueryResult>;
-};
-
 const rowsOf = (data: unknown) => (Array.isArray(data) ? data : []);
 
 /**
@@ -62,16 +45,18 @@ const rowsOf = (data: unknown) => (Array.isArray(data) ? data : []);
  * project inside the caller's tenant and checks client access before touching it.
  */
 export async function executeVideoDirectorTool(
-  supabase: VideoDirectorDb,
+  supabase: DbClient,
   tenantId: string,
   name: string,
   args: Record<string, unknown>,
   assertClientAccess: (clientId: string) => Promise<void> = async () => {},
 ) {
   const itemId = String(args.item_id ?? "").trim();
+
   if (!itemId) {
     return { error: "item_id נדרש" };
   }
+
   if (!isVideoDirectorTool(name)) {
     return { error: "כלי לא מוכר" };
   }
@@ -82,12 +67,15 @@ export async function executeVideoDirectorTool(
     .eq("id", itemId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
+
   if (item.error) {
     return { error: item.error.message };
   }
+
   if (!item.data) {
     return { error: "פרויקט לא נמצא" };
   }
+
   const project = item.data as {
     id: string;
     title: string | null;
@@ -95,6 +83,7 @@ export async function executeVideoDirectorTool(
     current_stage_id: string | null;
     payload?: { video?: { scene_engine?: string; sound_engine?: string } };
   };
+
   if (project.client_id) {
     try {
       await assertClientAccess(project.client_id);
@@ -114,9 +103,11 @@ export async function executeVideoDirectorTool(
       .eq("item_id", itemId)
       .eq("tenant_id", tenantId)
       .order("position");
+
     if (scenes.error) {
       return { error: scenes.error.message };
     }
+
     const music = await supabase
       .from("marketing_assets")
       .select("id, url, created_at")
@@ -125,9 +116,11 @@ export async function executeVideoDirectorTool(
       .eq("type", "music")
       .order("created_at", { ascending: false })
       .limit(1);
+
     if (music.error) {
       return { error: music.error.message };
     }
+
     const render = await supabase
       .from("marketing_runs")
       .select("id, status, error, output, created_at")
@@ -136,10 +129,13 @@ export async function executeVideoDirectorTool(
       .eq("kind", "render")
       .order("created_at", { ascending: false })
       .limit(1);
+
     if (render.error) {
       return { error: render.error.message };
     }
+
     const sceneRows = rowsOf(scenes.data) as Array<{ status?: string }>;
+
     return {
       item_id: project.id,
       title: project.title,
@@ -166,16 +162,21 @@ export async function executeVideoDirectorTool(
       p_aspect: aspect,
       p_stage_id: project.current_stage_id,
     });
+
     if (queued.error) {
       if (queued.error.message.includes("no approved clips")) {
         return { error: "אין לסצנות קליפים להרכבה" };
       }
+
       return { error: queued.error.message };
     }
+
     const runs = rowsOf(queued.data) as Array<{ id?: string }>;
+
     if (runs.length === 0) {
       return { queued: false, message: "סרט כבר בהרכבה", cost_usd: 0 };
     }
+
     return {
       queued: true,
       run_id: runs[0]?.id ?? null,

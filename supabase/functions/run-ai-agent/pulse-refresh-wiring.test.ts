@@ -14,7 +14,8 @@ import { ALL_TOOLS } from "./tool-catalog.ts";
 
 const read = (path: string) =>
   Deno.readTextFileSync(new URL(path, import.meta.url));
-const runAiAgent = readRunStages() + "\n" + read("./index.ts");
+
+const runAiAgent = readRunStages() + "\n" + read("./direct-tools/handle.ts");
 
 // Source guards follow the extracted owners; full-run parity tests cover assembled requests.
 Deno.test("run-ai-agent index.ts", async (t) => {
@@ -38,13 +39,13 @@ Deno.test("run-ai-agent index.ts", async (t) => {
       );
       assertMatch(
         runAiAgent,
-        /toolName === REFRESH_PULSE_TOOL_NAME &&\s*pulseRefreshRoute\.digestShortcut\s*\) \{\s*pulseDigestShortcut = buildPulseRefreshDigestReply\(result\);/,
+        /toolName === REFRESH_PULSE_TOOL_NAME &&\s*pulseRefreshRoute\.digestShortcut\s*\) \{\s*pulseDigestShortcut = buildPulseRefreshDigestReply\(\s*result\b/,
       );
       assert(!runAiAgent.includes("isPulseRefreshRequest("));
       // The tool runs with executeTool's caller and scope.
       assertMatch(
-        runAiAgent,
-        /case REFRESH_PULSE_TOOL_NAME:\s*return executeRefreshCampaignPulseTool\(/,
+        read("./tool-execution/routes/pulse.ts"),
+        /\[REFRESH_PULSE_TOOL_NAME\]: legacyRefreshCampaignPulseRoute/,
       );
       assertMatch(
         read("./executors/refresh-campaign-pulse.ts"),
@@ -96,21 +97,27 @@ Deno.test("run-ai-agent index.ts", async (t) => {
 
   await t.step("pulse skins only name tools that run-ai-agent offers", () => {
     const toolNames = new Set(ALL_TOOLS.map((tool) => tool.name));
+
     for (const row of [PULSE_CHECK_SKILL_ROW, ECOMMERCE_PULSE_SKILL_ROW]) {
       for (const tool of row.allowed_tools) {
         assert(toolNames.has(tool), `${row.slug} → ${tool}`);
       }
+
       const text = [row.system_prompt, row.constraints, row.steps].join("\n");
+
       for (const mentioned of text.match(/\b[a-z]+(?:_[a-z0-9]+)+\b/g) || []) {
         // Output fields and tool arguments, not tools.
         const field =
           /_(7d|pct)$|^is_|^client_(id|name)$|^formatted_markdown$|^whatsapp_digest$|^refresh_note$/;
+
         if (field.test(mentioned)) {
           continue;
         }
+
         assert(toolNames.has(mentioned), `${row.slug} mentions ${mentioned}`);
       }
     }
+
     assertNotMatch(
       JSON.stringify(ECOMMERCE_PULSE_SKILL_ROW),
       /list_shopify_orders|list_woocommerce_orders/,

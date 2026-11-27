@@ -216,14 +216,29 @@ Deno.test("runTenantDenied: ids that are not uuid strings", async (t) => {
 Deno.test(
   "run-ai-agent checks the body's ids before any other read of the body",
   () => {
-    const agent = readFileSync(
+    const entry = readFileSync(
       new URL("../../run-ai-agent/index.ts", import.meta.url),
       "utf8",
     );
-    const serve = agent.slice(agent.indexOf("Deno.serve(async (req) =>"));
+    assertMatch(
+      entry,
+      /import \{ handleRequest \} from "\.\/request\/handle\.ts";/,
+    );
+    assertMatch(entry, /Deno\.serve\(handleRequest\);/);
+    const agent = readFileSync(
+      new URL("../../run-ai-agent/request/handle.ts", import.meta.url),
+      "utf8",
+    );
+    assertMatch(
+      agent,
+      /return handleRequestWithDependencies\(req, REQUEST_DEPENDENCIES\);/,
+    );
+    const serve = agent.slice(
+      agent.indexOf("export async function handleRequestWithDependencies("),
+    );
     const bind = "bindRunAgentCaller(bodyJson, auth);";
     const bindAt = serve.indexOf(bind);
-    const guardAt = serve.indexOf("await runTenantDenied(");
+    const guardAt = serve.indexOf("await dependencies.runTenantDenied(");
     assert(bindAt > 0, "Deno.serve must call bindRunAgentCaller");
     assert(guardAt > bindAt, "runTenantDenied must follow the binding");
 
@@ -231,16 +246,22 @@ Deno.test(
     const between = serve.slice(bindAt + bind.length, guardAt);
     assertEquals(between.match(/bodyJson(\.\w+)?/g), [
       "bodyJson.direct_tool",
+      "bodyJson.direct_tool",
       "bodyJson",
     ]);
     assertMatch(
       between,
-      /if \(auth\.kind !== "service"\) \{\s*return new Response\([^;]*\);\s*\}\s*return await handleDirectTool\(bodyJson\);/,
+      /if \(bodyJson\.direct_tool && auth\.kind !== "service"\) \{\s*return new Response\([^;]*\);\s*\}/,
+    );
+
+    assertMatch(
+      between,
+      /if \(bodyJson\.direct_tool\) \{\s*return await dependencies\.handleDirectTool\(bodyJson, supabase\);/,
     );
 
     assertMatch(
       serve.slice(guardAt),
-      /^await runTenantDenied\(guardClient, auth, bodyJson\);\s*if \(tenantDenied\) \{\s*return new Response\(/,
+      /^await dependencies\.runTenantDenied\(\s*supabase,\s*auth,\s*bodyJson,?\s*\);\s*if \(tenantDenied\) \{\s*return new Response\(/,
     );
   },
 );
