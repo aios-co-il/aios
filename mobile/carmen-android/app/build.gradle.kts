@@ -105,8 +105,8 @@ android {
         applicationId = "co.il.aios.carmen"
         minSdk = 30
         targetSdk = 35
-        versionCode = 29
-        versionName = "0.9.14"
+        versionCode = 30
+        versionName = "0.9.15"
         // 64-bit phones only: keeps the APK small enough to download reliably to a phone.
         ndk { abiFilters += listOf("arm64-v8a") }
         // Chat pictures (ChatPictures.kt): the site's limits and bucket, never a copy.

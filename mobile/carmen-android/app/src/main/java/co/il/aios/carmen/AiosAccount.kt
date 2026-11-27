@@ -17,8 +17,9 @@ import java.security.SecureRandom
 import java.util.concurrent.TimeUnit
 
 /**
- * The signed-in AIOS user: Supabase Auth session (password sign-in, refresh) and active tenant.
- * Every call blocks, so callers run it off the main thread. Tokens stay in app-private storage.
+ * The signed-in AIOS user: Supabase Auth session (password sign-in, refresh) and the app's own
+ * organization ([AppOrganization]), independent of the one the website has open. Every call
+ * blocks, so callers run it off the main thread. Tokens stay in app-private storage.
  */
 class AiosAccount(context: Context) {
 
@@ -30,6 +31,16 @@ class AiosAccount(context: Context) {
     val isConfigured: Boolean get() = BuildConfig.SUPABASE_URL.isNotEmpty() && BuildConfig.SUPABASE_KEY.isNotEmpty()
     val email: String? get() = prefs.getString(KEY_EMAIL, null)
     val isSignedIn: Boolean get() = prefs.getString(KEY_REFRESH, null) != null
+
+    /**
+     * The organization the app works in, as last stored; its name is empty on a phone that
+     * signed in before names were kept, until [fillOrganizationName]. Never blocks.
+     */
+    val organization: Organization?
+        get() {
+            val id = prefs.getString(KEY_TENANT, null) ?: return null
+            return Organization(id, prefs.getString(KEY_TENANT_NAME, null).orEmpty(), prefs.getString(KEY_TENANT_SLUG, null))
+        }
 
     /** Signed in with a tenant, the only state in which Carmen can work. */
     val isReady: Boolean get() = isSignedIn && prefs.getString(KEY_TENANT, null) != null
@@ -46,7 +57,7 @@ class AiosAccount(context: Context) {
         }
 
     /**
-     * Signs in with an AIOS email and password and resolves the user's active tenant. It also
+     * Signs in with an AIOS email and password and picks the app's first organization. It also
      * opens a second, independent session for the in-app web screen, so one sign-in covers both
      * without the two clients sharing (and racing to rotate) one refresh token.
      */
@@ -90,19 +101,16 @@ class AiosAccount(context: Context) {
         WEB("${BuildConfig.AUTH_SCHEME}://auth/web"),
     }
 
-    /** Stores the app's session and resolves the tenant whose Command Center the app opens. */
+    /** Stores the app's session and its first organization ([AppOrganization.signInTenant]). */
     private fun completeSignIn(session: JSONObject) {
         saveTokens(session, session.optJSONObject("user")?.optString("email").orEmpty())
-        val tenantId = resolveActiveTenant()
-        if (tenantId == null) {
+        val organization = signInOrganization()
+        if (organization == null) {
             // A session without a tenant cannot talk to Carmen: never leave the app signed in that way.
             signOut()
             throw IOException(NO_TENANT_MESSAGE)
         }
-        prefs.edit {
-            putString(KEY_TENANT, tenantId)
-            putString(KEY_TENANT_SLUG, tenantSlug(tenantId))
-        }
+        storeOrganization(organization)
     }
 
     private fun randomUrlSafe(bytes: Int): String = urlSafe(ByteArray(bytes).also { SecureRandom().nextBytes(it) })
@@ -110,7 +118,7 @@ class AiosAccount(context: Context) {
     private fun urlSafe(bytes: ByteArray): String =
         Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
 
-    /** The Command Center page for the user's tenant, or the web app's home before sign-in. */
+    /** The Command Center page for the app's organization, or the web app's home before sign-in. */
     fun webStartUrl(): String {
         val slug = prefs.getString(KEY_TENANT_SLUG, null) ?: return BuildConfig.WEB_URL
         return "${BuildConfig.WEB_URL}/t/$slug/command-center"
@@ -124,13 +132,54 @@ class AiosAccount(context: Context) {
     fun webStorageKey(): String =
         "sb-${BuildConfig.SUPABASE_URL.substringAfter("://").substringBefore('.')}-auth-token"
 
-    /** The organization's Carmen style, [CarmenLook.ORBS] unless it chose another one the app draws. */
+    /**
+     * The app organization's Carmen style, [CarmenLook.ORBS] unless it chose another one the app
+     * draws. Read through `carmen_org_avatar_style`, which checks membership: the table's own
+     * policy shows only the organization the website has open.
+     */
     fun carmenAvatarStyle(): String {
-        val tenantId = session().tenantId
-        val rows = restGet(
-            "tenant_settings?tenant_id=eq.$tenantId&setting_key=eq.carmen_avatar_style&select=setting_value",
-        )
-        return CarmenLook.parseStyle(rows)
+        val body = JSONObject().put("p_tenant_id", session().tenantId)
+        return CarmenLook.parseStyle(JSONArray(rpc("carmen_org_avatar_style", body).ifEmpty { "[]" }))
+    }
+
+    /**
+     * Stores a finished voice call through `carmen_save_voice_conversation` ([VoiceMemory.saveRequest]
+     * builds [body]) and returns the conversation's id. The function checks membership in the
+     * app's organization: the table's own policies accept only the one the website has open.
+     */
+    fun saveVoiceConversation(body: JSONObject): String =
+        VoiceMemory.conversationId(rpc("carmen_save_voice_conversation", body))
+
+    /** Blocking. The organizations the user belongs to, in the server's order. Throws on a failed read. */
+    fun organizations(): List<Organization> {
+        val session = session()
+        return AppOrganization.parseMemberships(restGet(AppOrganization.membershipsQuery(session.userId)))
+    }
+
+    /**
+     * Blocking. Makes [tenantId] the app's organization from the next call or request, after
+     * checking the user belongs to it, and returns it. Throws without changing anything when
+     * they do not or the read fails. The website's organization stays as it is.
+     */
+    fun chooseOrganization(tenantId: String): Organization {
+        val memberships = organizations()
+        if (!AppOrganization.canPick(tenantId, memberships)) throw IOException("אינך חבר בארגון הזה")
+
+        val organization = memberships.first { it.id == tenantId }
+        storeOrganization(organization)
+        return organization
+    }
+
+    /** Blocking. Stores the app organization's name when the phone has none yet; true when it did. */
+    fun fillOrganizationName(): Boolean {
+        val current = organization ?: return false
+        if (current.name.isNotEmpty()) return false
+        session() // restGet sends the stored token: refresh it first.
+        val read = AppOrganization.parseTenant(restGet(AppOrganization.tenantQuery(current.id))) ?: return false
+        if (organization?.id != read.id) return false
+
+        storeOrganization(read)
+        return true
     }
 
     /**
@@ -283,20 +332,38 @@ class AiosAccount(context: Context) {
         }
     }
 
-    /** The tenant the user last chose in AIOS, else the first tenant they belong to. */
-    private fun resolveActiveTenant(): String? {
+    /** The app's first organization at sign-in ([AppOrganization.signInTenant]), with its name and slug. */
+    private fun signInOrganization(): Organization? {
         val userId = prefs.getString(KEY_USER, null) ?: return null
-        return firstTenant("user_active_tenant?user_id=eq.$userId&select=tenant_id")
-            ?: firstTenant("tenant_users?user_id=eq.$userId&select=tenant_id&limit=1")
+        val memberships = AppOrganization.parseMemberships(restGet(AppOrganization.membershipsQuery(userId)))
+        val active = AppOrganization.parseActiveTenant(restGet(AppOrganization.activeTenantQuery(userId)))
+        val tenantId = AppOrganization.signInTenant(active, memberships) ?: return null
+        return memberships.firstOrNull { it.id == tenantId }
+            ?: AppOrganization.parseTenant(restGet(AppOrganization.tenantQuery(tenantId)))
+            ?: Organization(tenantId, "", null)
     }
 
-    private fun tenantSlug(tenantId: String): String? = runCatching {
-        restGet("tenants?id=eq.$tenantId&select=slug").optJSONObject(0)?.optString("slug")?.ifEmpty { null }
-    }.getOrNull()
+    private fun storeOrganization(organization: Organization) {
+        prefs.edit {
+            putString(KEY_TENANT, organization.id)
+            putString(KEY_TENANT_SLUG, organization.slug)
+            putString(KEY_TENANT_NAME, organization.name.ifEmpty { null })
+        }
+    }
 
-    private fun firstTenant(query: String): String? {
-        val rows = restGet(query)
-        return if (rows.length() == 0) null else rows.getJSONObject(0).optString("tenant_id").ifEmpty { null }
+    /** POSTs [body] to a database function as the signed-in user and returns the reply's text. */
+    private fun rpc(name: String, body: JSONObject): String {
+        val request = Request.Builder()
+            .url("${BuildConfig.SUPABASE_URL}/rest/v1/rpc/$name")
+            .header("apikey", BuildConfig.SUPABASE_KEY)
+            .header("Authorization", "Bearer ${session().accessToken}")
+            .post(body.toString().toRequestBody(JSON))
+            .build()
+        http.newCall(request).execute().use { response ->
+            val text = response.body?.string().orEmpty()
+            if (!response.isSuccessful) throw IOException("rpc $name: ${response.code} ${text.take(200)}")
+            return text
+        }
     }
 
     private fun restGet(query: String): JSONArray {
@@ -354,6 +421,7 @@ class AiosAccount(context: Context) {
         private const val KEY_EMAIL = "email"
         private const val KEY_TENANT = "tenant_id"
         private const val KEY_TENANT_SLUG = "tenant_slug"
+        private const val KEY_TENANT_NAME = "tenant_name"
         private const val KEY_WEB_SESSION = "web_session"
         private const val KEY_PKCE_PREFIX = "pkce_"
     }

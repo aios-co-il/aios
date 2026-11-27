@@ -21,7 +21,7 @@ import androidx.core.net.toUri
 import kotlin.concurrent.thread
 
 /**
- * Settings and test screen: AIOS sign-in, listening on/off, Carmen's voice, setup shortcuts,
+ * Settings and test screen: AIOS sign-in, the app's organization, listening on/off, Carmen's voice, setup shortcuts,
  * counters and log export.
  */
 class SettingsActivity : AppCompatActivity() {
@@ -34,6 +34,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var accountSection: AccountSection
     private lateinit var voiceButton: Button
     private lateinit var voicePreference: VoicePreference
+    private lateinit var organizationPicker: OrganizationPicker
 
     private val refresh = object : Runnable {
         override fun run() {
@@ -63,8 +64,14 @@ class SettingsActivity : AppCompatActivity() {
         }
         findViewById<Button>(R.id.full_screen_button).setOnClickListener { openFullScreenSetting() }
         findViewById<Button>(R.id.export_button).setOnClickListener { exportLog() }
-        accountSection = AccountSection(this, onSignedOut = ::renderVoice)
+        accountSection = AccountSection(this, onSignedOut = ::renderAccountChoices)
         voicePreference = VoicePreference(this)
+        // Another organization has its own stored voice and Carmen style: show its voice once read.
+        organizationPicker = OrganizationPicker(this, findViewById(R.id.organization_button)) {
+            renderVoice()
+            voicePreference.refresh(::renderVoice)
+            CarmenLook.refresh(this, AiosAccount(this)) {}
+        }
         voiceButton = findViewById(R.id.voice_button)
         voiceButton.setOnClickListener { pickVoice() }
         findViewById<Button>(R.id.clear_button).setOnClickListener {
@@ -77,6 +84,7 @@ class SettingsActivity : AppCompatActivity() {
         super.onResume()
         WakeWordService.resumeIfEnabled(this)
         accountSection.render()
+        organizationPicker.render()
         // The voice may have been picked on the web meanwhile: show the cached one now, and
         // the row's once it is read.
         renderVoice()
@@ -166,6 +174,12 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    /** What belongs to the signed-in account: its organization and its voice. */
+    private fun renderAccountChoices() {
+        organizationPicker.render()
+        renderVoice()
     }
 
     private fun renderVoice() {
