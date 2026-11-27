@@ -28,7 +28,7 @@ Deno.test(
     // That handler answers service-role callers only; a signed-in chat turn gets a 403.
     assertMatch(
       request,
-      /if \(bodyJson\.direct_tool\) \{\s*if \(auth\.kind !== "service"\)/,
+      /if \(bodyJson\.direct_tool && auth\.kind !== "service"\) \{\s*return new Response\([^;]*status: 403,/,
     );
     // The chat turn's approval context names the turn and the user's text, never outOfBand.
     const modelTool = readFileSync(
