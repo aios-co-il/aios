@@ -1,4 +1,5 @@
 import { z } from "npm:zod@3.25.76";
+import { type GoogleClient, sharedGoogleClient } from "./google-client.ts";
 import { LOCAL_HOSTS } from "./handoff-contract.ts";
 import { tokenErrorSummary } from "./token-error.ts";
 
@@ -11,24 +12,22 @@ const googleTokensSchema = z.object({
 
 export type GoogleTokens = z.infer<typeof googleTokensSchema>;
 
-/** Google's tokens for an authorization code. The redirect URI must be the one the code was issued for. */
+/**
+ * Google's tokens for an authorization code. The redirect URI and the client
+ * must be the ones the code was issued for.
+ */
 export async function exchangeGoogleCode(
   code: string,
   redirectUri: string,
+  client: GoogleClient = sharedGoogleClient(),
 ): Promise<GoogleTokens> {
-  const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
-  const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
-  if (!clientId || !clientSecret) {
-    throw new Error("GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET is not set");
-  }
-
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       code,
-      client_id: clientId,
-      client_secret: clientSecret,
+      client_id: client.clientId,
+      client_secret: client.clientSecret,
       redirect_uri: redirectUri,
       grant_type: "authorization_code",
     }),

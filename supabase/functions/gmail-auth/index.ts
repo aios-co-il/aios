@@ -6,6 +6,7 @@ import {
   readCompleteRequest,
   refuseFormerMember,
 } from "../_shared/google-oauth/connect-handoff.ts";
+import { gmailGoogleClient } from "../_shared/google-oauth/google-client.ts";
 import { popupCallbackResponse } from "../_shared/google-oauth/popup-handoff.ts";
 import {
   oauthStateSecret,
@@ -102,11 +103,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "init") {
-      const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
-      if (!clientId) {
-        throw new Error("Missing GOOGLE_CLIENT_ID");
-      }
-
+      const { clientId } = gmailGoogleClient();
       const redirectUri = callbackUri("gmail-auth", null);
       const tenantId = requestBody.tenantId;
       if (!tenantId) {
