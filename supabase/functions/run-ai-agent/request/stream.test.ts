@@ -1,7 +1,7 @@
 import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { createAgentStream } from "./stream.ts";
 import type { AgentStreamDependencies, AgentStreamInput } from "./stream.ts";
-import type { BackgroundRuntime } from "../background-runtime.ts";
+import type {} from "../../_shared/edge-runtime.d.ts";
 import { executorClient } from "../executors/executor-client.test-fixture.ts";
 
 /** A chat with the same idempotent reply key used by the saved-reply path. */
@@ -86,7 +86,7 @@ Deno.test(
       replyKey: string | null;
     }> = [];
     const globals = globalThis as typeof globalThis & {
-      EdgeRuntime?: BackgroundRuntime;
+      EdgeRuntime?: typeof EdgeRuntime;
     };
     const previous = globals.EdgeRuntime;
     globals.EdgeRuntime = { waitUntil: (work) => background.push(work) };
