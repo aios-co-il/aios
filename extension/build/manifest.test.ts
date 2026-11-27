@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CAPTURE_GRANT, GRANTABLE_SITES } from "../src/device/siteGrant.ts";
-import { extensionManifest } from "./manifest.ts";
+import { BACKGROUND_WORKER, extensionManifest } from "./manifest.ts";
 
 const ENVIRONMENTS = [
   {
@@ -27,11 +27,12 @@ describe("extensionManifest", () => {
         supabaseOrigins: [...environment.supabaseOrigins],
       });
 
-      it("adds scripting and nothing broader than the plan allows", () => {
+      it("adds scripting, identity for Google sign-in, and nothing broader than the plan allows", () => {
         expect(manifest.permissions).toEqual([
           "storage",
           "sidePanel",
           "scripting",
+          "identity",
         ]);
         expect(manifest.optional_permissions).toEqual(["tabs"]);
       });
@@ -48,9 +49,12 @@ describe("extensionManifest", () => {
         );
       });
 
-      it("registers no content script and no background worker", () => {
+      it("registers no content script, and the worker that runs Google sign-in", () => {
         expect(manifest.content_scripts).toBeUndefined();
-        expect(manifest.background).toBeUndefined();
+        expect(manifest.background).toEqual({
+          service_worker: BACKGROUND_WORKER,
+          type: "module",
+        });
       });
     });
   }

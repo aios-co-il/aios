@@ -6,6 +6,9 @@ import { EXTENSION_PUBLIC_KEYS } from "./extensionKey";
 
 const NAME = "AIOS Rec";
 
+/** The service worker's file in the build; vite.config.ts writes it under this name. */
+export const BACKGROUND_WORKER = "background.js";
+
 const TOOLBAR_ICONS = {
   "16": "icons/icon16.png",
   "32": "icons/icon32.png",
@@ -35,7 +38,7 @@ export function extensionManifest(
     name: environment.name === "production" ? NAME : `${NAME} (Staging)`,
     description:
       "Record meetings into the AIOS recordings library with automatic transcription and summary",
-    version: "1.5",
+    version: "1.6",
     // The panel's newest API: URL.canParse, in the tab parser it shares with the site.
     minimum_chrome_version: "120",
     // Fixes an unpacked build's id, which the site's framing rule (vercel.json) names.
@@ -46,8 +49,11 @@ export function extensionManifest(
     },
     // Carmen's panel; the popup's button opens it, so the toolbar icon keeps opening the popup.
     side_panel: { default_path: "sidepanel.html" },
+    // Runs the Google sign-in, which outlives the popup (src/background.ts).
+    background: { service_worker: BACKGROUND_WORKER, type: "module" },
     // `scripting` reads a page for Carmen, and only on a site the user granted from the panel.
-    permissions: ["storage", "sidePanel", "scripting"],
+    // `identity` catches Google sign-in's return to the extension's chromiumapp.org address.
+    permissions: ["storage", "sidePanel", "scripting", "identity"],
     // Asked for from the panel's "Carmen sees the tab" switch.
     optional_permissions: [TAB_SHARING_PERMISSION],
     // One site at a time, from a tap on the panel's card; none at install. `<all_urls>` only for

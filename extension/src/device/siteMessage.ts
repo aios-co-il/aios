@@ -23,7 +23,7 @@ export type FramedSite = { appOrigin: string; frameWindow: unknown };
 
 /** The envelope's messages that travel from the site to the panel. */
 export type SiteMessage =
-  | { type: typeof PANEL_MESSAGE.hello; v: number }
+  | { type: typeof PANEL_MESSAGE.hello; v: number; user_id?: string }
   | {
       type: typeof PANEL_MESSAGE.action | typeof PANEL_MESSAGE.cancel;
       v: number;
@@ -63,7 +63,8 @@ export function readSiteMessage(
 
 /** What the panel does with each accepted message. */
 export type SiteMessageHandlers = {
-  onHello: () => void;
+  /** Gets the site's signed-in user id, when the site sent one. */
+  onHello: (siteUserId: string | undefined) => void;
   onAction: (id: string) => Promise<void>;
   onCancel: (id: string) => void;
 };
@@ -81,14 +82,14 @@ export function routeSiteMessage(
   }
 
   const { message } = reading;
-  if (message.type === PANEL_MESSAGE.action) {
+  if (message.type === PANEL_MESSAGE.hello) {
+    handlers.onHello(message.user_id);
+  } else if (message.type === PANEL_MESSAGE.action) {
     handlers.onAction(message.action_id).catch((error: unknown) => {
       console.error("[carmen-panel] the device action failed", error);
     });
   } else if (message.type === PANEL_MESSAGE.cancel) {
     handlers.onCancel(message.action_id);
-  } else {
-    handlers.onHello();
   }
 }
 

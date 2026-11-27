@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { PANEL_MESSAGE } from "../../../supabase/functions/_shared/carmen/device/panel-envelope.ts";
+import {
+  PANEL_MESSAGE,
+  panelSignal,
+} from "../../../supabase/functions/_shared/carmen/device/panel-envelope.ts";
 import { readSiteMessage, routeSiteMessage } from "./siteMessage.ts";
 
 const APP_ORIGIN = "https://aios.co.il";
@@ -113,9 +116,26 @@ describe("routeSiteMessage", () => {
       called,
     );
 
-    expect(called.onHello).toHaveBeenCalledOnce();
+    expect(called.onHello).toHaveBeenCalledExactlyOnceWith(undefined);
     expect(called.onAction).toHaveBeenCalledWith(ID);
     expect(called.onCancel).toHaveBeenCalledWith(ID);
+  });
+
+  it("hands the site's user id from a hello, and drops one that is not a uuid", () => {
+    const called = handlers();
+
+    routeSiteMessage(
+      fromSite(panelSignal(PANEL_MESSAGE.hello, ID)),
+      SITE,
+      called,
+    );
+    routeSiteMessage(
+      fromSite({ type: PANEL_MESSAGE.hello, v: 1, user_id: "a token" }),
+      SITE,
+      called,
+    );
+
+    expect(called.onHello.mock.calls).toEqual([[ID], [undefined]]);
   });
 
   it("acts on nothing from another origin", () => {

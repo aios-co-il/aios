@@ -17,6 +17,8 @@ import {
 
 const ACTION_ID = "0f8e7f2c-5b1d-4c6e-9a3b-2d4f6a8c0e1f";
 
+const USER_ID = "7c1d2e3f-4a5b-4c6d-8e9f-0a1b2c3d4e5f";
+
 const ACTION_KINDS = [
   PANEL_MESSAGE.action,
   PANEL_MESSAGE.result,
@@ -33,6 +35,7 @@ Deno.test("panel envelope", async (t) => {
   await t.step("each built message reads back as itself", () => {
     for (const message of [
       panelSignal(PANEL_MESSAGE.hello),
+      panelSignal(PANEL_MESSAGE.hello, USER_ID),
       panelSignal(PANEL_MESSAGE.ready),
       panelCapabilities(),
       panelTabContext({ url: "https://example.com/a", title: "A" }),
@@ -42,6 +45,32 @@ Deno.test("panel envelope", async (t) => {
     ]) {
       assertEquals(parsePanelMessage(structuredClone(message)), message);
     }
+  });
+
+  await t.step("a hello names the site's user only by a uuid", () => {
+    assertEquals(panelSignal(PANEL_MESSAGE.hello, USER_ID), {
+      type: "carmen:hello",
+      v: 1,
+      user_id: USER_ID,
+    });
+    assertEquals(
+      panelSignal(PANEL_MESSAGE.hello),
+      panelSignal(PANEL_MESSAGE.hello),
+    );
+    assertEquals(
+      parsePanelMessage({
+        ...panelSignal(PANEL_MESSAGE.hello),
+        user_id: "eyJhbGciOi.token",
+      }),
+      panelSignal(PANEL_MESSAGE.hello),
+    );
+    assertEquals(
+      parsePanelMessage({
+        ...panelSignal(PANEL_MESSAGE.ready),
+        user_id: USER_ID,
+      }),
+      panelSignal(PANEL_MESSAGE.ready),
+    );
   });
 
   await t.step("a tab is cleaned on the way out and on the way in", () => {

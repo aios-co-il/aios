@@ -30,9 +30,10 @@ export type ExtensionPanel = {
  * The AIOS Chrome extension's side panel, when it frames this page; both fields are null on
  * the site itself and in any other frame. The page says hello to the panel, keeps the latest
  * tab and capabilities it reports, and reads a message only from the panel's exact origin
- * and window.
+ * and window. The hello names the signed-in user's id (`userId`, again when it changes), so
+ * the panel can flag an extension signed in as someone else; no token crosses the frame.
  */
-export function useExtensionPanel(): ExtensionPanel {
+export function useExtensionPanel(userId?: string): ExtensionPanel {
   const [panelOrigin] = useState(framingExtensionOrigin);
   const [tab, setTab] = useState<BrowserTab | null>(null);
   const [tools, setTools] = useState<ReadonlyArray<DeviceToolName>>([]);
@@ -74,10 +75,13 @@ export function useExtensionPanel(): ExtensionPanel {
     }
 
     window.addEventListener("message", onMessage);
-    window.parent.postMessage(panelSignal(PANEL_MESSAGE.hello), panelOrigin);
+    window.parent.postMessage(
+      panelSignal(PANEL_MESSAGE.hello, userId),
+      panelOrigin,
+    );
 
     return () => window.removeEventListener("message", onMessage);
-  }, [panelOrigin]);
+  }, [panelOrigin, userId]);
 
   const tabContext = useMemo(
     () => tab && browserTabContextMetadata(tab, new Date().toISOString()),

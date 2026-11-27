@@ -39,7 +39,7 @@ const SUPABASE_CONFIG = "supabase/config.toml";
 const STAGING_SOURCE = "the build environment or extension/.env.staging.local";
 
 /** The remote in supabase/config.toml that each environment runs on. */
-const SUPABASE_REMOTE: Record<EnvironmentName, string> = {
+export const SUPABASE_REMOTE: Record<EnvironmentName, string> = {
   production: "production",
   staging: "develop",
 };
@@ -167,7 +167,7 @@ function httpsOrigin(value: string, setting: string): string {
 }
 
 /** Walks nested tables of parsed TOML; a missing step gives undefined. */
-function valueAt(table: unknown, path: Array<string>): unknown {
+export function valueAt(table: unknown, path: Array<string>): unknown {
   return path.reduce<unknown>(
     (node, key) => (isTable(node) ? node[key] : undefined),
     table,

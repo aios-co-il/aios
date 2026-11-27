@@ -20,7 +20,15 @@
     </header>
     <div id="signin-notice" class="panel-notice hidden">
       כדי לדבר עם כרמן כאן, התחברו ב-popup של התוסף (הסמל של AIOS בסרגל הכלים)
-      ובחרו ארגון, ואז סגרו ופתחו את החלונית מחדש.
+      באותו משתמש כמו באתר, למשל ב"התחברות עם Google", ובחרו ארגון, ואז סגרו
+      ופתחו את החלונית מחדש.
+    </div>
+    <!-- The words come from src/userMatch.ts; the panel sets them as text. -->
+    <div id="user-notice" class="panel-notice hidden" role="alert">
+      <span id="user-notice-text"></span>
+      <button id="switch-user" class="link" type="button">
+        התנתקות מהתוסף והחלפת משתמש
+      </button>
     </div>
     <div id="frame-notice" class="panel-notice hidden">
       כרמן לא ענתה בחלונית. אם אתם כבר מחוברים ל-AIOS, סגרו ופתחו את החלונית

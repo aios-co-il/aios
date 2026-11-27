@@ -19,7 +19,10 @@ export const PANEL_PROTOCOL_VERSION = 1;
 export const PANEL_MESSAGE_NAMESPACE = "carmen:";
 
 export const PANEL_MESSAGE = {
-  /** Site to panel: the Command Center is mounted and listening. */
+  /**
+   * Site to panel: the Command Center is mounted and listening. It names the site's
+   * signed-in user id, so the panel can tell the extension is signed in as someone else.
+   */
   hello: "carmen:hello",
   /** Panel to site: the hello was heard; capabilities and the tab follow. */
   ready: "carmen:ready",
@@ -74,12 +77,12 @@ const ACTION_TYPES: ReadonlyArray<string> = [
   PANEL_MESSAGE.cancel,
 ];
 
-/** A row id as PostgreSQL writes it: a hyphenated uuid and nothing else. */
-const ACTION_ID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** A row or user id as PostgreSQL writes it: a hyphenated uuid and nothing else. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type PanelMessage =
-  | { type: PanelSignalType; v: number }
+  /** Only a hello carries `user_id`: an id to compare, never a token. */
+  | { type: PanelSignalType; v: number; user_id?: string }
   | {
       type: typeof PANEL_MESSAGE.capabilities;
       v: number;
@@ -109,7 +112,7 @@ export function parsePanelMessage(data: unknown): PanelMessage | null {
     return null;
   }
   if (data.type === PANEL_MESSAGE.hello || data.type === PANEL_MESSAGE.ready) {
-    return panelSignal(data.type);
+    return panelSignal(data.type, "user_id" in data ? data.user_id : null);
   }
   if (data.type === PANEL_MESSAGE.tabContext && "tab" in data) {
     return panelTabContext(data.tab);
@@ -133,9 +136,9 @@ export function parsePanelMessage(data: unknown): PanelMessage | null {
     : null;
 }
 
-/** A received action id when it is a row id, else null. */
+/** A received id (an action's or a user's) when it is a uuid, else null. */
 function rowId(value: unknown): string | null {
-  return typeof value === "string" && ACTION_ID.test(value) ? value : null;
+  return typeof value === "string" && UUID.test(value) ? value : null;
 }
 
 /** The message that tells the site the panel could not claim the action, and why. */
@@ -166,9 +169,14 @@ export function claimsPanelNamespace(data: unknown): boolean {
   );
 }
 
-/** A hello or ready message of this version. */
-export function panelSignal(type: PanelSignalType): PanelMessage {
-  return { type, v: PANEL_PROTOCOL_VERSION };
+/**
+ * A hello or ready message of this version. A hello carries the site's signed-in user id
+ * when it is a uuid; anything else given as the id is left out.
+ */
+export function panelSignal(type: PanelSignalType, userId?: unknown) {
+  const id = type === PANEL_MESSAGE.hello ? rowId(userId) : null;
+
+  return { type, v: PANEL_PROTOCOL_VERSION, ...(id ? { user_id: id } : {}) };
 }
 
 /**
