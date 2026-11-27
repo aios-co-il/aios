@@ -8,6 +8,7 @@ import {
   DEVICE_CARD_LIFE_MS,
   type DeviceToolName,
 } from "../../../supabase/functions/_shared/carmen/device/contract.ts";
+import type { PanelClaimFailure } from "../../../supabase/functions/_shared/carmen/device/panel-envelope.ts";
 import {
   type CompleteBody,
   completeBody,
@@ -42,7 +43,7 @@ export type ClaimAnswer =
       /** For a screenshot, the manager's permission to picture a sensitive page, as the server read it. */
       sensitiveScreenshotsAllowed: boolean;
     }
-  | { ok: false; reason: string };
+  | { ok: false; failure: PanelClaimFailure; reason: string };
 
 type Claimed = Extract<ClaimAnswer, { ok: true }>;
 
@@ -57,6 +58,10 @@ export type ReadActionDeps = ReadDeps &
     completeOnClose: (body: CompleteBody) => void;
     /** Posts `carmen:result` for the id to the framed site. */
     postResult: (id: string) => void;
+    /** Posts `carmen:claim-failed` for the id, and why, to the framed site. */
+    postClaimFailed: (id: string, failure: PanelClaimFailure) => void;
+    /** Shows the panel's own line asking the user to sign in to the extension. */
+    showSignIn: () => void;
     /** Starts a timer and returns its cancel. */
     setTimer: (run: () => void, ms: number) => () => void;
   };
@@ -101,15 +106,20 @@ export function createReadActions(deps: ReadActionDeps): ReadActions {
   }
 
   /**
-   * After a refused claim nothing is posted: the row is not this panel's, so there is no
-   * result for the site to continue from; the site's own wait ends it.
+   * After a failed claim nothing ran and there is no result to continue from: the panel
+   * tells the site why, so the chat says so at once, and without a session it also asks
+   * the user to sign in to the extension.
    */
   async function claimAndRun(action: OpenAction): Promise<void> {
     const claim = await deps.claim(action.id);
     if (!claim.ok) {
       console.warn(
-        `[carmen-panel] claim of action ${action.id} refused: ${claim.reason}`,
+        `[carmen-panel] claim of action ${action.id} ${claim.failure}: ${claim.reason}`,
       );
+      if (claim.failure === "signed_out") {
+        deps.showSignIn();
+      }
+      deps.postClaimFailed(action.id, claim.failure);
       return;
     }
     const clearTimer = deps.setTimer(

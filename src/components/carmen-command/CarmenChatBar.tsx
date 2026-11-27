@@ -138,7 +138,9 @@ import {
 import {
   holdsReplyKey,
   joinStepAnswer,
-  STEP_LIMIT_TEXT,
+  joinStepLine,
+  STEP_TIMEOUT_TEXT,
+  stepEndText,
   withStepReplyKey,
 } from "./device/stepMessages";
 import { TrustedSites } from "./device/TrustedSites";
@@ -918,10 +920,21 @@ export const CarmenChatBar = forwardRef<
             pictures,
           );
           if (streamed.deviceAction) {
+            /** Adds a line about the browser step to the paused answer. */
+            function addStepLine(line: string) {
+              setMessages((prev) =>
+                joinStepLine(prev, streamed.replyKey, line, {
+                  role: "assistant",
+                  content: line,
+                  speaker: "carmen",
+                }),
+              );
+            }
             const end = await browserSteps.run({
               first: streamed.deviceAction,
               offered,
               since: stopMark,
+              onTimeout: () => addStepLine(STEP_TIMEOUT_TEXT),
               continueRun: (actionId, tools) =>
                 streamInternal(
                   agentText,
@@ -939,14 +952,9 @@ export const CarmenChatBar = forwardRef<
                   },
                 ),
             });
-            if (end === "limit") {
-              setMessages((prev) =>
-                joinStepAnswer(prev, streamed.replyKey, STEP_LIMIT_TEXT, {
-                  role: "assistant",
-                  content: STEP_LIMIT_TEXT,
-                  speaker: "carmen",
-                }),
-              );
+            const endLine = stepEndText(end);
+            if (endLine) {
+              addStepLine(endLine);
             }
           }
           if (mode === "transcribe_only") {

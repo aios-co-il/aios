@@ -18,6 +18,8 @@ export type StepChainStart = {
   offered: ReadonlyArray<string> | undefined;
   /** `mark()` taken when the message was sent: a Stop pressed since then holds. */
   since: number;
+  /** The panel said nothing within the wait; called before the run continues. */
+  onTimeout: () => void;
   /** Continues the run; `tools` is what the panel announces now, so a step after tab sharing went off is not offered. */
   continueRun: (
     actionId: string,
@@ -71,6 +73,7 @@ export function useBrowserSteps(panel: PanelChannel | null) {
             waitingOnRef.current = actionId;
             setWaitingOn(actionId);
           },
+          onTimeout: start.onTimeout,
         });
       } finally {
         if (chainRef.current === chain) {

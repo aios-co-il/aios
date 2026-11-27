@@ -15,7 +15,7 @@ import {
   type BrowserTabContextMetadata,
   browserTabContextMetadata,
 } from "@functions/_shared/carmen/screen-context.ts";
-import type { PanelChannel } from "./device/panelStep";
+import type { ClaimFailedListener, PanelChannel } from "./device/panelStep";
 import { EXTENSION_ORIGINS } from "./extensionOrigins";
 
 /** What the AIOS Chrome extension's side panel gives the chat it frames. */
@@ -37,6 +37,7 @@ export function useExtensionPanel(): ExtensionPanel {
   const [tab, setTab] = useState<BrowserTab | null>(null);
   const [tools, setTools] = useState<ReadonlyArray<DeviceToolName>>([]);
   const resultListeners = useRef(new Set<(actionId: string) => void>());
+  const claimFailedListeners = useRef(new Set<ClaimFailedListener>());
 
   useEffect(() => {
     if (!panelOrigin) {
@@ -63,6 +64,12 @@ export function useExtensionPanel(): ExtensionPanel {
         const actionId = message.action_id;
 
         resultListeners.current.forEach((listener) => listener(actionId));
+      } else if (message.type === PANEL_MESSAGE.claimFailed) {
+        const { action_id: actionId, reason } = message;
+
+        claimFailedListeners.current.forEach((listener) =>
+          listener(actionId, reason),
+        );
       }
     }
 
@@ -78,18 +85,25 @@ export function useExtensionPanel(): ExtensionPanel {
   );
   const panel = useMemo(
     () =>
-      panelOrigin && panelChannel(panelOrigin, tools, resultListeners.current),
+      panelOrigin &&
+      panelChannel(panelOrigin, tools, {
+        result: resultListeners.current,
+        claimFailed: claimFailedListeners.current,
+      }),
     [panelOrigin, tools],
   );
 
   return { tabContext, panel: panel || null };
 }
 
-/** The action messages to the panel at its exact origin, and its results to the listeners. */
+/** The action messages to the panel at its exact origin, and its results and failed claims to the listeners. */
 function panelChannel(
   panelOrigin: string,
   tools: ReadonlyArray<DeviceToolName>,
-  listeners: Set<(actionId: string) => void>,
+  listeners: {
+    result: Set<(actionId: string) => void>;
+    claimFailed: Set<ClaimFailedListener>;
+  },
 ): PanelChannel {
   return {
     tools,
@@ -104,8 +118,12 @@ function panelChannel(
         panelOrigin,
       ),
     onResult: (listener) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
+      listeners.result.add(listener);
+      return () => listeners.result.delete(listener);
+    },
+    onClaimFailed: (listener) => {
+      listeners.claimFailed.add(listener);
+      return () => listeners.claimFailed.delete(listener);
     },
   };
 }

@@ -8,6 +8,7 @@ import {
   type DeviceClaimReply,
   isDeviceToolName,
 } from "../../../supabase/functions/_shared/carmen/device/contract.ts";
+import type { PanelClaimFailure } from "../../../supabase/functions/_shared/carmen/device/panel-envelope.ts";
 import type { CompleteBody } from "./completion.ts";
 import type { ClaimAnswer } from "./readActions.ts";
 
@@ -43,7 +44,7 @@ export function deviceActionApi(
   async function post(body: object, keepalive = false): Promise<Response> {
     const token = keepalive ? lastToken : await config.accessToken();
     if (!token) {
-      throw new Error("No signed-in session in the extension");
+      throw new SignedOut();
     }
     lastToken = token;
     return config.fetch(endpoint, {
@@ -60,7 +61,11 @@ export function deviceActionApi(
     });
   }
 
-  /** Claims an action: its tool and arguments on 200, otherwise the reason, never a throw. */
+  /**
+   * Claims an action: its tool and arguments on 200, otherwise why, never a throw. No
+   * session or a rejected one (401) is `signed_out`; the server's one refusal (404) is
+   * `refused`; anything else is `failed`.
+   */
   async function claim(id: string): Promise<ClaimAnswer> {
     try {
       const response = await post({ action: "claim", id });
@@ -68,6 +73,7 @@ export function deviceActionApi(
       if (!response.ok) {
         return {
           ok: false,
+          failure: claimFailure(response.status),
           reason: `${response.status} ${JSON.stringify(answer)}`,
         };
       }
@@ -88,9 +94,14 @@ export function deviceActionApi(
                 "sensitive_screenshots_allowed" satisfies keyof DeviceClaimReply,
               )?.value === true,
           }
-        : { ok: false, reason: "the claim answer has no device tool" };
+        : {
+            ok: false,
+            failure: "failed",
+            reason: "the claim answer has no device tool",
+          };
     } catch (error) {
-      return { ok: false, reason: String(error) };
+      const failure = error instanceof SignedOut ? "signed_out" : "failed";
+      return { ok: false, failure, reason: String(error) };
     }
   }
 
@@ -124,6 +135,21 @@ export function deviceActionApi(
   }
 
   return { claim, complete, completeOnClose };
+}
+
+/** The extension holds no session to send. */
+class SignedOut extends Error {
+  constructor() {
+    super("No signed-in session in the extension");
+  }
+}
+
+/** What a refused or failed claim's HTTP status says. */
+function claimFailure(status: number): PanelClaimFailure {
+  if (status === 401) {
+    return "signed_out";
+  }
+  return status === 404 ? "refused" : "failed";
 }
 
 /** A field of the claim's answer when it is a string, else null: anything else grants nothing. */

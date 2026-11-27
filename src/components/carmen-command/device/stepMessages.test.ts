@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { PANEL_CLAIM_FAILURES } from "@functions/_shared/carmen/device/panel-envelope.ts";
 import {
+  CLAIM_FAILURE_TEXT,
   holdsReplyKey,
   joinStepAnswer,
+  joinStepLine,
   type KeyedMessage,
+  STEP_LIMIT_TEXT,
+  stepEndText,
   withStepReplyKey,
 } from "./stepMessages";
 
@@ -71,5 +76,36 @@ describe("joinStepAnswer", () => {
       PAUSED,
       own,
     ]);
+  });
+});
+
+describe("joinStepLine", () => {
+  it("adds the chat's own line to the paused answer, which holds its own key", () => {
+    const own = { content: "שורה" };
+
+    expect(joinStepLine([PAUSED], "key-1", "שורה", own)).toEqual([
+      { ...PAUSED, content: `${PAUSED.content}\n\nשורה` },
+    ]);
+  });
+
+  it("makes the line its own message when the paused answer is gone", () => {
+    const own = { content: "שורה" };
+
+    expect(joinStepLine([], "key-1", "שורה", own)).toEqual([own]);
+  });
+});
+
+describe("stepEndText", () => {
+  it("names the step limit and each reason the panel could not take the step", () => {
+    expect(stepEndText("limit")).toBe(STEP_LIMIT_TEXT);
+    for (const failure of PANEL_CLAIM_FAILURES) {
+      expect(stepEndText(failure)).toBe(CLAIM_FAILURE_TEXT[failure]);
+    }
+  });
+
+  it("adds nothing when the answer says it all", () => {
+    for (const end of ["answered", "unavailable", "stopped", null] as const) {
+      expect(stepEndText(end)).toBeNull();
+    }
   });
 });

@@ -2,6 +2,10 @@ import {
   DEVICE_CARD_LIFE_MS,
   type DeviceToolName,
 } from "@functions/_shared/carmen/device/contract.ts";
+import {
+  PANEL_CLAIM_FAILURES,
+  type PanelClaimFailure,
+} from "@functions/_shared/carmen/device/panel-envelope.ts";
 
 /**
  * The chat's line to the extension's side panel that frames it: what the panel announced,
@@ -17,22 +21,35 @@ export type PanelChannel = {
   postCancel: (actionId: string) => void;
   /** Calls the listener with each completed step's id; returns the unsubscribe. */
   onResult: (listener: (actionId: string) => void) => () => void;
+  /** Calls the listener with each step the panel could not claim, and why; returns the unsubscribe. */
+  onClaimFailed: (listener: ClaimFailedListener) => () => void;
 };
 
-/** How a wait for the panel ended. */
-export type PanelStepEnd = "result" | "timeout" | "stopped";
+/** Hears that the panel could not claim a step, and why. */
+export type ClaimFailedListener = (
+  actionId: string,
+  failure: PanelClaimFailure,
+) => void;
+
+/** How a wait for the panel ended: a result, the panel's failed claim (why), the wait running out, or a Stop. */
+export type PanelStepEnd = "result" | "timeout" | "stopped" | PanelClaimFailure;
 
 /**
- * How long the chat waits for the panel. After a refused claim the panel posts nothing, so
- * the chat ends the wait itself: the card's life, plus a margin for a completion still on
- * its way. By then the server treats the step as expired.
+ * How long the chat waits for the panel when it hears nothing at all (a panel that closed,
+ * or a build that does not say when a claim fails): the card's life, plus a margin for a
+ * completion still on its way. By then the server treats the step as expired.
  */
 export const STEP_WAIT_MS = DEVICE_CARD_LIFE_MS + 15_000;
 
+/** Whether a wait ended because the panel could not claim the step. */
+export function isClaimFailure(end: string): end is PanelClaimFailure {
+  return PANEL_CLAIM_FAILURES.some((failure) => failure === end);
+}
+
 /**
- * Hands one step to the panel and waits until the panel reports it complete, the wait runs
- * out, or the user stops the run. A timeout or a stop also tells the panel to drop the step.
- * A stop before anything was posted posts nothing.
+ * Hands one step to the panel and waits until the panel reports it complete or could not
+ * claim it, the wait runs out, or the user stops the run. A timeout or a stop also tells
+ * the panel to drop the step. A stop before anything was posted posts nothing.
  */
 export function runPanelStep(
   panel: PanelChannel,
@@ -46,7 +63,8 @@ export function runPanelStep(
   return new Promise((resolve) => {
     let settled = false;
     // Listen before posting, so a fast panel's result is never missed.
-    const unsubscribe = panel.onResult(onResult);
+    const unsubscribeResult = panel.onResult(onResult);
+    const unsubscribeClaim = panel.onClaimFailed(onClaimFailed);
     const timer = setTimeout(() => settle("timeout"), waitMs);
     signal.addEventListener("abort", onAbort, { once: true });
     panel.postAction(actionId);
@@ -58,6 +76,13 @@ export function runPanelStep(
       }
     }
 
+    /** A step the panel could not claim: this wait's, or another one's. */
+    function onClaimFailed(failed: string, failure: PanelClaimFailure) {
+      if (failed === actionId) {
+        settle(failure);
+      }
+    }
+
     /** Ends the wait once, whatever ends it first. */
     function settle(end: PanelStepEnd) {
       if (settled) {
@@ -65,9 +90,11 @@ export function runPanelStep(
       }
       settled = true;
       clearTimeout(timer);
-      unsubscribe();
+      unsubscribeResult();
+      unsubscribeClaim();
       signal.removeEventListener("abort", onAbort);
-      if (end !== "result") {
+      // A panel that could not claim the step holds nothing to drop.
+      if (end === "timeout" || end === "stopped") {
         panel.postCancel(actionId);
       }
       resolve(end);

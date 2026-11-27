@@ -4,6 +4,7 @@
  */
 import {
   panelActionRef,
+  panelClaimFailed,
   PANEL_MESSAGE,
   type PanelMessage,
 } from "../../../supabase/functions/_shared/carmen/device/panel-envelope.ts";
@@ -87,6 +88,9 @@ export function panelReadActions(
     readPage,
     newSnapshotId: () => crypto.randomUUID(),
     postResult: (id) => post(panelActionRef(PANEL_MESSAGE.result, id)),
+    postClaimFailed: (id, failure) => post(panelClaimFailed(id, failure)),
+    showSignIn: () =>
+      element("signin-notice", HTMLElement).classList.remove("hidden"),
     setTimer: (run, ms) => {
       const timer = setTimeout(run, ms);
       return () => clearTimeout(timer);

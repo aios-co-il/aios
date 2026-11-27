@@ -28,6 +28,7 @@ function chain(autoReport = true) {
     stopRecorded: vi.fn(async () => true),
     continueRun: vi.fn(async (): Promise<ContinuedReply> => ANSWERED),
     onWaiting: vi.fn(),
+    onTimeout: vi.fn(),
   };
 
   return { ...fake, stop, deps };
@@ -136,6 +137,18 @@ describe("runBrowserSteps", () => {
     expect(deps.continueRun).not.toHaveBeenCalled();
   });
 
+  it("ends with the panel's failed claim and continues nothing", async () => {
+    const { deps, deliverClaimFailure } = chain(false);
+    const ended = runBrowserSteps(FIRST, deps);
+
+    deliverClaimFailure(ACTION_ID, "refused");
+
+    await expect(ended).resolves.toBe("refused");
+    expect(deps.continueRun).not.toHaveBeenCalled();
+    expect(deps.onTimeout).not.toHaveBeenCalled();
+    expect(deps.onWaiting).toHaveBeenLastCalledWith(null);
+  });
+
   it("clears the waiting state when the continuation fails", async () => {
     const { deps } = chain();
     deps.continueRun.mockRejectedValue(new Error("network"));
@@ -162,5 +175,16 @@ describe("runBrowserSteps without a panel answer", () => {
 
     expect(deps.continueRun).not.toHaveBeenCalled();
     expect(deps.onWaiting).toHaveBeenLastCalledWith(ACTION_ID);
+  });
+
+  it("says the panel did not answer, then continues the run", async () => {
+    const { deps } = chain(false);
+    const ended = runBrowserSteps(FIRST, deps);
+
+    await vi.advanceTimersByTimeAsync(STEP_WAIT_MS);
+
+    await expect(ended).resolves.toBe("answered");
+    expect(deps.onTimeout).toHaveBeenCalledOnce();
+    expect(deps.continueRun).toHaveBeenCalledExactlyOnceWith(ACTION_ID);
   });
 });
