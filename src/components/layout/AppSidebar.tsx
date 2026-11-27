@@ -161,6 +161,7 @@ import {
 } from "@/lib/menuStructure";
 import { computeSidebarOverlay } from "@/visual-workspace/hooks/useSitemap";
 import { AiosOrbMark } from "@/components/brand/AiosOrbMark";
+import { isCarmenAppWebView } from "@/lib/carmenAppWebView";
 
 // Permissions are derived from the menu structure itself — see permissionForMenuKey
 // in @/lib/menuStructure (explicit `permission` field on a module, else
@@ -297,14 +298,17 @@ export function AppSidebar() {
         .select("slug")
         .eq("id", newTenantId)
         .single();
-      await supabase.from("user_active_tenant").upsert(
-        {
-          user_id: userId,
-          tenant_id: newTenantId,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id" },
-      );
+      // The Carmen Android app's web view switches by URL only, never the website's organization.
+      if (!isCarmenAppWebView()) {
+        await supabase.from("user_active_tenant").upsert(
+          {
+            user_id: userId,
+            tenant_id: newTenantId,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" },
+        );
+      }
       if (newTenant?.slug) {
         const currentPath = window.location.pathname;
         const pathMatch = currentPath.match(/^\/t\/[^/]+\/(.+)$/);

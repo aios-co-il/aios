@@ -58,6 +58,8 @@
     <string name="organization_saved">מהשיחה הבאה כרמן עובדת בארגון: %1$s</string>
     <string name="organization_save_failed">הארגון לא הוחלף: %1$s</string>
     <string name="organization_during_call">אי אפשר להחליף ארגון באמצע שיחה</string>
+    <string name="organization_during_answer">אי אפשר להחליף ארגון בזמן שכרמן עונה</string>
+    <string name="organization_not_member">אינך חבר בארגון הזה</string>
     <string name="voice_title">הקול של כרמן</string>
     <string name="voice_default">קול: ברירת המחדל של כרמן</string>
     <string name="voice_default_option">ברירת המחדל של כרמן</string>

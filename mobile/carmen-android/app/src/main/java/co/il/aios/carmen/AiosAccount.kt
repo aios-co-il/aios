@@ -118,11 +118,8 @@ class AiosAccount(context: Context) {
     private fun urlSafe(bytes: ByteArray): String =
         Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
 
-    /** The Command Center page for the app's organization, or the web app's home before sign-in. */
-    fun webStartUrl(): String {
-        val slug = prefs.getString(KEY_TENANT_SLUG, null) ?: return BuildConfig.WEB_URL
-        return "${BuildConfig.WEB_URL}/t/$slug/command-center"
-    }
+    /** The Command Center page for the app's organization ([commandCenterUrl]). */
+    fun webStartUrl(): String = commandCenterUrl(BuildConfig.WEB_URL, prefs.getString(KEY_TENANT_SLUG, null))
 
     /** The web session waiting to be handed to the in-app web screen, consumed once. */
     fun takeWebSession(): String? =
@@ -162,10 +159,9 @@ class AiosAccount(context: Context) {
      * they do not or the read fails. The website's organization stays as it is.
      */
     fun chooseOrganization(tenantId: String): Organization {
-        val memberships = organizations()
-        if (!AppOrganization.canPick(tenantId, memberships)) throw IOException("אינך חבר בארגון הזה")
+        val organization = organizations().firstOrNull { it.id == tenantId }
+            ?: throw IOException(app.getString(R.string.organization_not_member))
 
-        val organization = memberships.first { it.id == tenantId }
         storeOrganization(organization)
         return organization
     }
@@ -292,10 +288,7 @@ class AiosAccount(context: Context) {
      * and returns the written rows. [method] is POST (insert) or PATCH (update).
      */
     fun restWrite(method: String, query: String, body: JSONObject, prefer: String = "return=representation"): JSONArray {
-        val request = Request.Builder()
-            .url("${BuildConfig.SUPABASE_URL}/rest/v1/$query")
-            .header("apikey", BuildConfig.SUPABASE_KEY)
-            .header("Authorization", "Bearer ${session().accessToken}")
+        val request = restRequest(query, session().accessToken)
             .header("Prefer", prefer)
             .method(method, body.toString().toRequestBody(JSON))
             .build()
@@ -353,10 +346,7 @@ class AiosAccount(context: Context) {
 
     /** POSTs [body] to a database function as the signed-in user and returns the reply's text. */
     private fun rpc(name: String, body: JSONObject): String {
-        val request = Request.Builder()
-            .url("${BuildConfig.SUPABASE_URL}/rest/v1/rpc/$name")
-            .header("apikey", BuildConfig.SUPABASE_KEY)
-            .header("Authorization", "Bearer ${session().accessToken}")
+        val request = restRequest("rpc/$name", session().accessToken)
             .post(body.toString().toRequestBody(JSON))
             .build()
         http.newCall(request).execute().use { response ->
@@ -366,17 +356,24 @@ class AiosAccount(context: Context) {
         }
     }
 
+    /**
+     * Reads as the stored token without refreshing it: sign-in reads memberships before the app
+     * has an organization, which [session] requires.
+     */
     private fun restGet(query: String): JSONArray {
-        val request = Request.Builder()
-            .url("${BuildConfig.SUPABASE_URL}/rest/v1/$query")
-            .header("apikey", BuildConfig.SUPABASE_KEY)
-            .header("Authorization", "Bearer ${prefs.getString(KEY_ACCESS, null)}")
-            .build()
+        val request = restRequest(query, prefs.getString(KEY_ACCESS, null)).build()
         http.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw IOException("טעינת הטננט נכשלה (${response.code})")
             return JSONArray(response.body?.string() ?: "[]")
         }
     }
+
+    /** A REST API request for [path] (a table query or `rpc/<name>`) as the user holding [accessToken]. */
+    private fun restRequest(path: String, accessToken: String?): Request.Builder =
+        Request.Builder()
+            .url("${BuildConfig.SUPABASE_URL}/rest/v1/$path")
+            .header("apikey", BuildConfig.SUPABASE_KEY)
+            .header("Authorization", "Bearer $accessToken")
 
     private fun authError(text: String, code: Int): String {
         val message = runCatching { JSONObject(text) }.getOrNull()
@@ -396,6 +393,17 @@ class AiosAccount(context: Context) {
         fun afterFailedAuth(grantType: String, code: Int, signOut: () -> Unit) {
             if (grantType == "refresh_token" && refreshTokenRejected(code)) signOut()
         }
+
+        /**
+         * The Command Center page for [slug], or [webUrl] before an organization has one. The
+         * `carmen_app=1` flag tells the site it runs in the app's web view, where it never writes
+         * the website's organization (`CARMEN_APP_PARAM` in `src/lib/carmenAppWebView.ts`).
+         */
+        fun commandCenterUrl(webUrl: String, slug: String?): String =
+            if (slug == null) webUrl else "$webUrl/t/$slug/command-center?$WEB_VIEW_FLAG"
+
+        /** The site's name for the flag is `CARMEN_APP_PARAM` in `src/lib/carmenAppWebView.ts`. */
+        private const val WEB_VIEW_FLAG = "carmen_app=1"
 
         private val JSON = "application/json".toMediaType()
         private val http = OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build()

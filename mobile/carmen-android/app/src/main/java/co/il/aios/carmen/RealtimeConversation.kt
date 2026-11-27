@@ -252,7 +252,7 @@ class RealtimeConversation(
         worker.shutdown()
         tools.shutdownNow()
         log.record(EventLog.Event.CONVERSATION_ENDED, reason)
-        thread(name = "carmen-memory") { memory.save(transcript, toolbox.brain.conversationId) }
+        thread(name = "carmen-memory") { memory.save(transcript, toolbox.brain.conversation) }
         listener.onEnded(reason)
     }
 

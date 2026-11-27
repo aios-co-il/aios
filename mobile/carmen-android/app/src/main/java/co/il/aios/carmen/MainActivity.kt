@@ -64,8 +64,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<android.view.View>(R.id.home_portrait_frame).setOnClickListener {
             withMic { WakeWordService.talk(this) }
         }
-        // The app's own organization: a pick re-reads what belongs to it, as a visit does.
-        organizationPicker = OrganizationPicker(this, findViewById(R.id.home_organization_button), ::refreshOrganizationLook)
+        // The app's own organization; a pick re-reads what belongs to it, as a visit does.
+        organizationPicker = OrganizationPicker(this, findViewById(R.id.home_organization_button), ::showPortrait)
         listenSwitch.setOnClickListener { toggleListening(listenSwitch.isChecked) }
         findViewById<Button>(R.id.chat_button).setOnClickListener {
             startActivity(Intent(this, ChatActivity::class.java))
@@ -84,7 +84,9 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         WakeWordService.resumeIfEnabled(this)
         organizationPicker.render()
-        refreshOrganizationLook()
+        showPortrait()
+        // Carmen's style and the stored voice may have changed on the web; the next call speaks in it.
+        OrganizationPicker.refreshFor(this, AiosAccount(this), ::showPortrait) {}
         portrait.start()
         handler.post(refresh)
     }
@@ -95,17 +97,9 @@ class MainActivity : AppCompatActivity() {
         super.onPause()
     }
 
-    /**
-     * Re-reads Carmen's style and the stored voice of the app's organization: they may have
-     * changed on the web meanwhile, or the user picked another organization.
-     */
-    private fun refreshOrganizationLook() {
-        val portraitView = findViewById<android.widget.ImageView>(R.id.home_portrait)
-        CarmenLook.showPortrait(portraitView)
-        val account = AiosAccount(this)
-        CarmenLook.refresh(this, account) { CarmenLook.showPortrait(portraitView) }
-        // The next call speaks in the voice stored for this organization.
-        VoicePreference(this, account).refresh()
+    /** Carmen's portrait in the organization's style as last read. */
+    private fun showPortrait() {
+        CarmenLook.showPortrait(findViewById(R.id.home_portrait))
     }
 
     private fun toggleListening(on: Boolean) {

@@ -3,9 +3,7 @@ package co.il.aios.carmen
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** The app's own organization: the memberships it lists, the first choice and what may be picked. */
@@ -58,12 +56,6 @@ class AppOrganizationTest {
     fun theActiveTenantReadGivesItsTenantOrNothing() {
         assertEquals("org-m", AppOrganization.parseActiveTenant(JSONArray().put(JSONObject().put("tenant_id", "org-m"))))
         assertNull(AppOrganization.parseActiveTenant(JSONArray()))
-    }
-
-    @Test
-    fun onlyAnOrganizationTheUserBelongsToCanBePicked() {
-        assertTrue(AppOrganization.canPick("org-m", listOf(pisgot, captain)))
-        assertFalse(AppOrganization.canPick("org-other", listOf(pisgot, captain)))
     }
 
     @Test

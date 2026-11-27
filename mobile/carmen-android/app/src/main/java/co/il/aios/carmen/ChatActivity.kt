@@ -353,6 +353,15 @@ object CarmenChat {
     private val main = Handler(Looper.getMainLooper())
     private const val TAG = "CarmenChat"
 
+    /**
+     * Forgets the conversation after the app moved to another organization, so neither its
+     * history nor its conversation id goes with the new one. Main thread.
+     */
+    fun reset() {
+        messages.clear()
+        brain = null
+    }
+
     fun brain(context: Context): CarmenBrain =
         brain ?: CarmenBrain(AiosAccount(context.applicationContext)).also { brain = it }
 

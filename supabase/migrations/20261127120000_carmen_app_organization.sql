@@ -23,7 +23,8 @@
 -- conversation in p_tenant_id (p_conversation_id NULL) or replaces the
 -- messages of the caller's own conversation there, and returns its id. The
 -- caller must be a member of p_tenant_id; a conversation of another user or
--- organization is not found.
+-- organization is not found. Bounds: a title of up to 200 characters, and up to
+-- 2000 messages in up to 2 MB of JSON, far above an hour-long call.
 CREATE OR REPLACE FUNCTION public.carmen_save_voice_conversation(
   p_tenant_id uuid,
   p_messages jsonb,
@@ -46,6 +47,16 @@ BEGIN
 
   IF jsonb_typeof(p_messages) IS DISTINCT FROM 'array' THEN
     RAISE EXCEPTION 'carmen_save_voice_conversation: messages must be a JSON array'
+      USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+
+  IF jsonb_array_length(p_messages) > 2000 OR octet_length(p_messages::text) > 2000000 THEN
+    RAISE EXCEPTION 'carmen_save_voice_conversation: more than 2000 messages or 2 MB'
+      USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+
+  IF char_length(p_title) > 200 THEN
+    RAISE EXCEPTION 'carmen_save_voice_conversation: title longer than 200 characters'
       USING ERRCODE = 'invalid_parameter_value';
   END IF;
 
@@ -77,8 +88,8 @@ GRANT EXECUTE ON FUNCTION public.carmen_save_voice_conversation(uuid, jsonb, tex
   TO authenticated;
 
 -- The organization's Carmen style row for a member of p_tenant_id, in the
--- shape of a tenant_settings read (no row when none is set or the caller is
--- not a member). Only this one key: other settings keep their policies. The
+-- shape of a tenant_settings read: at most one row (the table is unique on
+-- tenant and key), none when none is set or the caller is not a member. Only this one key: other settings keep their policies. The
 -- key is ORG_STYLE_SETTING_KEY in supabase/functions/_shared/carmen/personas.ts.
 CREATE OR REPLACE FUNCTION public.carmen_org_avatar_style(p_tenant_id uuid)
 RETURNS TABLE (setting_value jsonb)
@@ -92,7 +103,6 @@ AS $$
   WHERE ts.tenant_id = p_tenant_id
     AND ts.setting_key = 'carmen_avatar_style'
     AND public.user_is_tenant_member(p_tenant_id)
-  LIMIT 1
 $$;
 
 REVOKE ALL ON FUNCTION public.carmen_org_avatar_style(uuid) FROM PUBLIC, anon, authenticated;

@@ -50,10 +50,11 @@ class VoiceTranscript {
 class VoiceMemory(private val account: AiosAccount, private val log: EventLog) {
 
     /** Blocking: call off the main thread. Failures are logged, never thrown. */
-    fun save(transcript: VoiceTranscript, conversationId: String?) {
+    fun save(transcript: VoiceTranscript, conversation: OrgConversation?) {
         if (!transcript.worthSaving()) return
         runCatching {
-            val id = account.saveVoiceConversation(saveRequest(account.session().tenantId, transcript, conversationId))
+            val tenantId = account.session().tenantId
+            val id = account.saveVoiceConversation(saveRequest(tenantId, transcript, conversation?.idIn(tenantId)))
             account.callFunction("carmen-learn-from-session", JSONObject().put("ai_conversation_id", id)).use { response ->
                 if (!response.isSuccessful) log.record(EventLog.Event.ERROR, "Voice memory learn: HTTP ${response.code}")
             }

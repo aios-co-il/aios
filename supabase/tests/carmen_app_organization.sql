@@ -49,7 +49,9 @@ BEGIN
     (v_peer, v_app),
     (v_outsider, v_site);
   INSERT INTO public.tenant_settings (tenant_id, setting_key, setting_value)
-  VALUES (v_app, 'carmen_avatar_style', '{"style":"minime"}');
+  VALUES
+    (v_app, 'carmen_avatar_style', '{"style":"minime"}'),
+    (v_app, 'qa_other_setting', '{"secret":"not for members"}');
   INSERT INTO public.ai_conversations (user_id, tenant_id, title, messages)
   VALUES (v_peer, v_app, 'QA peer', '[]') RETURNING id INTO v_peer_conversation;
 
@@ -95,10 +97,48 @@ BEGIN
   EXCEPTION WHEN invalid_parameter_value THEN NULL;
   END;
 
-  -- The style of the app's organization reads; the site's has none.
-  SELECT setting_value INTO v_style FROM public.carmen_org_avatar_style(v_app);
-  IF v_style ->> 'style' IS DISTINCT FROM 'minime' THEN
-    RAISE EXCEPTION 'member: the app organization style must read, got %', v_style;
+  -- Bounds: a 200-character title and 2000 messages pass; one more of either is refused.
+  PERFORM public.carmen_save_voice_conversation(
+    v_app,
+    (SELECT jsonb_agg(jsonb_build_object('role', 'user', 'content', 'שלום')) FROM generate_series(1, 2000)),
+    repeat('א', 200)
+  );
+
+  BEGIN
+    PERFORM public.carmen_save_voice_conversation(v_app, v_messages, repeat('א', 201));
+    RAISE EXCEPTION 'member: a title over 200 characters must be refused';
+  EXCEPTION WHEN invalid_parameter_value THEN
+    IF SQLERRM NOT LIKE '%title longer than 200%' THEN
+      RAISE EXCEPTION 'member: the long-title refusal must say why, got %', SQLERRM;
+    END IF;
+  END;
+
+  BEGIN
+    PERFORM public.carmen_save_voice_conversation(
+      v_app,
+      (SELECT jsonb_agg(jsonb_build_object('role', 'user', 'content', 'שלום')) FROM generate_series(1, 2001))
+    );
+    RAISE EXCEPTION 'member: more than 2000 messages must be refused';
+  EXCEPTION WHEN invalid_parameter_value THEN
+    IF SQLERRM NOT LIKE '%more than 2000 messages%' THEN
+      RAISE EXCEPTION 'member: the long-transcript refusal must say why, got %', SQLERRM;
+    END IF;
+  END;
+
+  BEGIN
+    PERFORM public.carmen_save_voice_conversation(
+      v_app,
+      jsonb_build_array(jsonb_build_object('role', 'user', 'content', repeat('a', 2000001)))
+    );
+    RAISE EXCEPTION 'member: a transcript over 2 MB must be refused';
+  EXCEPTION WHEN invalid_parameter_value THEN NULL;
+  END;
+
+  -- The style of the app's organization reads, and only that key; the site's has none.
+  SELECT count(*), max(setting_value::text)::jsonb INTO v_rows, v_style
+  FROM public.carmen_org_avatar_style(v_app);
+  IF v_rows <> 1 OR v_style IS DISTINCT FROM '{"style":"minime"}'::jsonb THEN
+    RAISE EXCEPTION 'member: only the app organization style must read, got % rows, %', v_rows, v_style;
   END IF;
 
   SELECT count(*) INTO v_rows FROM public.carmen_org_avatar_style(v_site);

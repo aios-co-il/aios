@@ -66,12 +66,8 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<Button>(R.id.export_button).setOnClickListener { exportLog() }
         accountSection = AccountSection(this, onSignedOut = ::renderAccountChoices)
         voicePreference = VoicePreference(this)
-        // Another organization has its own stored voice and Carmen style: show its voice once read.
-        organizationPicker = OrganizationPicker(this, findViewById(R.id.organization_button)) {
-            renderVoice()
-            voicePreference.refresh(::renderVoice)
-            CarmenLook.refresh(this, AiosAccount(this)) {}
-        }
+        // Another organization has its own stored voice: show it once read.
+        organizationPicker = OrganizationPicker(this, findViewById(R.id.organization_button), onVoiceChanged = ::renderVoice)
         voiceButton = findViewById(R.id.voice_button)
         voiceButton.setOnClickListener { pickVoice() }
         findViewById<Button>(R.id.clear_button).setOnClickListener {
@@ -88,7 +84,7 @@ class SettingsActivity : AppCompatActivity() {
         // The voice may have been picked on the web meanwhile: show the cached one now, and
         // the row's once it is read.
         renderVoice()
-        voicePreference.refresh(::renderVoice)
+        OrganizationPicker.refreshFor(this, AiosAccount(this), onLookChanged = {}, onVoiceChanged = ::renderVoice)
         handler.post(refresh)
     }
 

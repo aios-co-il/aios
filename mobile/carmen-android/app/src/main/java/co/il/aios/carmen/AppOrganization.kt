@@ -47,9 +47,6 @@ object AppOrganization {
     /** The picker's list: by name, so the order does not change between opens. */
     fun forPicker(memberships: List<Organization>): List<Organization> = memberships.sortedBy { it.name }
 
-    /** Whether the user may pick [tenantId]: only an organization they belong to. */
-    fun canPick(tenantId: String, memberships: List<Organization>): Boolean = memberships.any { it.id == tenantId }
-
     private fun organizationOf(json: JSONObject): Organization? {
         val id = json.optString("id").ifEmpty { null } ?: return null
         val slug = if (json.isNull("slug")) null else json.optString("slug").ifEmpty { null }
