@@ -3,12 +3,13 @@
 // the real OPENAI_API_KEY never reaches the frontend.
 //
 // POST body: { voice?: string, tenant_id?: string, provider?: "openai" | "elevenlabs",
-// list_voices?: boolean } — without a voice, Carmen's configured voice; without a tenant,
+// list_voices?: boolean, persona?: boolean } — without a voice, Carmen's configured voice; without a tenant,
 // the caller's active tenant. Her persona, tone and mood come from the same agent settings
 // as the text chat.
 // Response (OpenAI, the default for clients that send no provider): { client_secret, model }.
 // Response (ElevenLabs, AIO-505): ElevenLabsSession.
 // Response (list_voices, for a voice picker): { voices } from voice-list.ts, and no session.
+// Response (persona, to draw the caller's character): EffectivePersonaReply from persona-reply.ts.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { getCaller, getUserOpenAIKey } from "../_shared/userKey.ts";
 import { orgVoiceKeyAllowed } from "../_shared/carmen/voice-access.ts";
@@ -19,9 +20,10 @@ import { SAVE_PRONUNCIATION_TOOL } from "./pronunciations.ts";
 import {
   loadCallerAddress,
   loadSessionContext,
+  sessionGreeting,
   sessionInstructions,
 } from "./session-context.ts";
-import { pickGreeting } from "./greetings.ts";
+import { personaReply } from "./persona-reply.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -106,13 +108,17 @@ Deno.serve(async (req) => {
     if (!caller) {
       return json(401, { error: "Unauthorized" });
     }
-    const { voice, tenant_id, provider, list_voices } = await req
+    const { voice, tenant_id, provider, list_voices, persona } = await req
       .json()
       .catch(() => ({}) as Record<string, unknown>);
 
     // The voice list is the same for every caller: no tenant, key or provider access.
     if (list_voices === true) {
       return json(200, voiceListReply(provider));
+    }
+    if (persona === true) {
+      const reply = await personaReply(caller.id, tenant_id);
+      return json(reply.status, reply.body);
     }
 
     const isOwner = orgVoiceKeyAllowed(caller.email, Deno.env.get("APP_ENV"));
@@ -217,7 +223,7 @@ Deno.serve(async (req) => {
     return json(200, {
       client_secret: secret,
       model: REALTIME_MODEL,
-      greeting: pickGreeting(),
+      greeting: sessionGreeting(context),
     });
   } catch (e) {
     return json(500, {

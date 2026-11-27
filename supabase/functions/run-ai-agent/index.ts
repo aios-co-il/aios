@@ -259,8 +259,8 @@ import { callerAddressLine } from "../_shared/carmen/user-address.ts";
 import {
   type PersonaSource,
   loadPersona,
-  personaPromptSection,
 } from "../_shared/carmen/persona-runtime.ts";
+import { personaPromptSection } from "../_shared/carmen/persona-prompt.ts";
 
 import { sceneEngineFor } from "../_shared/workshop/scene-engine-for.ts";
 import { connectedSceneEngines } from "../_shared/workshop/engine-choice.ts";

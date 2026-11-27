@@ -12,9 +12,10 @@ import { personalLineOwner } from "./line-owner-pick.ts";
 import type { Surface } from "./surface.ts";
 
 /**
- * The signed-in user in the app; on WhatsApp a personal line's owner, else the
- * organization when the turn arrived on its main line (AIO-654); and nobody in
- * tasks.
+ * In the app the signed-in user's effective character (their pick, else the
+ * organization's, as the website draws it); on WhatsApp a personal line's
+ * owner, else the organization when the turn arrived on its main line
+ * (AIO-654); and nobody in tasks.
  */
 export function turnPersonaSource(
   surface: Surface,
@@ -29,5 +30,7 @@ export function turnPersonaSource(
     return body[ORG_PERSONA_FIELD] === true ? { kind: "organization" } : null;
   }
   const inApp = surface === "internal_chat" || surface === "aios";
-  return inApp && callerUserId ? { kind: "user", userId: callerUserId } : null;
+  return inApp && callerUserId
+    ? { kind: "effective", userId: callerUserId }
+    : null;
 }

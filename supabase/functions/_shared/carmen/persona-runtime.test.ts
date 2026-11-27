@@ -1,57 +1,13 @@
 import {
   assertEquals,
-  assertMatch,
   assertNotMatch,
   assertStringIncludes,
 } from "jsr:@std/assert@1";
 import { describe, it } from "jsr:@std/testing@1/bdd";
 import { withConsoleErrors } from "../testing/console-errors.ts";
-import {
-  callWordsOf,
-  loadCallerPersona,
-  loadPersona,
-  personaPromptSection,
-} from "./persona-runtime.ts";
+import { loadCallerPersona, loadPersona } from "./persona-runtime.ts";
+import { db, row } from "./persona-runtime.test-fixture.ts";
 import { BUILTIN_PERSONAS } from "./personas.ts";
-
-interface Answer {
-  data: unknown;
-  error: { message: string } | null;
-}
-
-/** A client that answers each table's read with a fixed result, whatever the filters. */
-function db(tables: Record<string, Answer>) {
-  return {
-    from: (table: string) => {
-      const answer = tables[table] ?? { data: [], error: null };
-      const query = {
-        select: () => query,
-        eq: () => query,
-        maybeSingle: () => Promise.resolve(answer),
-        then: (resolve: (value: Answer) => unknown) => resolve(answer),
-      };
-      return query;
-    },
-  };
-}
-
-/** A stored character row. */
-function row(fields: Record<string, unknown>) {
-  return {
-    id: "row-1",
-    builtin_key: null,
-    owner_user_id: null,
-    display_name: "דמות",
-    call_words: [],
-    intro_line: null,
-    look: "orbs",
-    mood: null,
-    personality: null,
-    soul: null,
-    writing_style: null,
-    ...fields,
-  };
-}
 
 describe("loadCallerPersona", () => {
   it("is null without a pick, a user or an org", async () => {
@@ -134,16 +90,6 @@ describe("loadCallerPersona", () => {
       carmen_persona_choices: { data: null, error: { message: "down" } },
     });
     assertEquals(await loadCallerPersona(failed, "t1", "u1"), null);
-  });
-});
-
-describe("callWordsOf", () => {
-  it("gives the character's call words, lowercased", () => {
-    assertEquals(callWordsOf(BUILTIN_PERSONAS.aios), ["aios", "איוס"]);
-  });
-
-  it("is empty without a character", () => {
-    assertEquals(callWordsOf(null), []);
   });
 });
 
@@ -247,27 +193,5 @@ describe("persona-runtime.ts source", () => {
       [...source.matchAll(/from "([^"]+)"/g)].map((match) => match[1]).sort(),
       ["../supabase-clients.ts", "./personas.ts"],
     );
-  });
-});
-
-describe("personaPromptSection", () => {
-  it("names the character and keeps the rules", () => {
-    const section = personaPromptSection(BUILTIN_PERSONAS.minime);
-    assertMatch(section, /כ"מיני מי"/);
-    assertMatch(section, /אני מיני מי/);
-    assertMatch(section, /כללי האישור שלך לא משתנים/);
-    assertNotMatch(section, /אישיות והתנהגות/);
-  });
-
-  it("adds personality, soul and writing style when set", () => {
-    const section = personaPromptSection({
-      ...BUILTIN_PERSONAS.carmen,
-      personality: "חדה וישירה",
-      soul: "שאף ליד לא ייפול",
-      writingStyle: "playful",
-    });
-    assertMatch(section, /אישיות והתנהגות: חדה וישירה/);
-    assertMatch(section, /נשמה \/ מטרת קיום: שאף ליד לא ייפול/);
-    assertMatch(section, /סגנון כתיבה: משחקי/);
   });
 });

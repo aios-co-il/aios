@@ -22,11 +22,11 @@ import {
   pulseBriefInstructions,
 } from "./pulse-brief.ts";
 import { buildVoiceInstructions } from "./voice-instructions.ts";
-import {
-  loadCallerPersona,
-  personaPromptSection,
-} from "../_shared/carmen/persona-runtime.ts";
+import { personaPromptSection } from "../_shared/carmen/persona-prompt.ts";
 import type { PersonaProfile } from "../_shared/carmen/personas.ts";
+import type { MiniMeGender } from "../_shared/carmen/minime-gender.ts";
+import { loadVoiceCharacter } from "./voice-character.ts";
+import { CARMEN_GREETER, pickGreeting } from "./greetings.ts";
 import { agentMoodPrompt } from "../_shared/carmen/agent-mood.ts";
 import { voiceBriefScope } from "./voice-scope.ts";
 
@@ -39,8 +39,13 @@ export type SessionContext = {
   lastConversation: LastConversation | null;
   /** The latest campaign pulse for the clients the caller may hear about. */
   pulseBrief: PulseBrief | null;
-  /** The character the caller picked (AIO-570), or null to stay Carmen. */
+  /**
+   * The caller's effective character (AIO-570): their pick, else the
+   * organization's; null to stay Carmen.
+   */
   persona: PersonaProfile | null;
+  /** The gender the character speaks in (Carmen: feminine). */
+  gender: MiniMeGender;
 };
 
 /** Loads what both voice providers speak from; each part falls back on its own. */
@@ -58,18 +63,20 @@ export async function loadSessionContext(
       lastConversation: null,
       pulseBrief: null,
       persona: null,
+      gender: CARMEN_GREETER.gender,
     };
   }
   // The caller hears only the clients the brain would show them (manager: whole org).
   const scope = await voiceBriefScope(db, userId, agent.tenantId);
-  const [pronunciations, orgBrief, lastConversation, pulseBrief, persona] =
+  const [pronunciations, orgBrief, lastConversation, pulseBrief, character] =
     await Promise.all([
       loadPronunciations(db, agent.tenantId),
       loadOrgBrief(db, agent.tenantId, new Date(), scope),
       loadLastConversation(db, userId, agent.tenantId),
       loadPulseBrief(db, agent.tenantId, scope),
-      loadCallerPersona(db, agent.tenantId, userId),
+      loadVoiceCharacter(db, agent.tenantId, userId),
     ]);
+  const persona = character.picked?.persona ?? null;
   return {
     agent: withPersonaMood(agent, persona),
     pronunciations,
@@ -77,6 +84,7 @@ export async function loadSessionContext(
     lastConversation,
     pulseBrief,
     persona,
+    gender: character.gender,
   };
 }
 
@@ -88,6 +96,7 @@ export function sessionInstructions(
   return [
     buildVoiceInstructions(context.agent?.profile ?? null, addressLine),
     context.persona ? personaPromptSection(context.persona).trim() : "",
+    context.persona && context.gender === "male" ? MALE_SELF_LINE : "",
     context.orgBrief ? orgBriefInstructions(context.orgBrief) : "",
     context.pulseBrief ? pulseBriefInstructions(context.pulseBrief) : "",
     context.lastConversation
@@ -97,6 +106,21 @@ export function sessionInstructions(
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+/**
+ * The voice prompt speaks to the assistant in the feminine; a male character
+ * is told to speak of himself in the masculine, as his greeting does.
+ */
+const MALE_SELF_LINE =
+  'הדמות שלך זכר: דבר על עצמך בלשון זכר ("אני בודק", "אני שומע").';
+
+/** The call's opening line, said by the session's character (ElevenLabs `first_message`, OpenAI `greeting`). */
+export function sessionGreeting(context: SessionContext): string {
+  return pickGreeting({
+    name: context.persona?.displayName ?? null,
+    gender: context.gender,
+  });
 }
 
 /** The picked character's mood replaces Carmen's own for this caller. */

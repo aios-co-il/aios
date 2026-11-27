@@ -78,10 +78,10 @@ async function readVoiceAgent(
 /**
  * The body's tenant when the caller is a member (or a super admin), as run-ai-agent uses
  * the tenant the client sends; without one, the active tenant (get_user_tenant_id).
- * A tenant the caller may not use is logged and yields null.
+ * A tenant the caller may not use is logged and yields null; a failed read throws.
  */
-async function resolveTenantId(
-  db: DbClient,
+export async function resolveTenantId(
+  db: Pick<DbClient, "from" | "rpc">,
   userId: string,
   requestedTenantId: unknown,
 ): Promise<string | null> {

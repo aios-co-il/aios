@@ -4,11 +4,8 @@
  * logged and the bot joins without one.
  */
 import { encodeBase64 } from "jsr:@std/encoding@1/base64";
-import { toAddressGender } from "../_shared/carmen/address-gender.ts";
-import {
-  type MiniMeGender,
-  resolveMiniMeGender,
-} from "../_shared/carmen/minime-gender.ts";
+import { loadMiniMeGender } from "../_shared/carmen/load-minime-gender.ts";
+import type { MiniMeGender } from "../_shared/carmen/minime-gender.ts";
 import { absolutePortraitUrl } from "../_shared/carmen/skin-gallery.ts";
 import { meetingBotPicturePath } from "../_shared/meeting-bot/bot-picture.ts";
 import type {
@@ -43,7 +40,7 @@ export async function loadMeetingBotPicture(
   let url: string | null = null;
 
   try {
-    const gender = await senderMiniMeGender(deps.db, deps.userId);
+    const gender = await loadMiniMeGender(deps.db, deps.userId);
     url = meetingBotPictureUrl(deps.appUrl, gender);
     if (!url) {
       throw new Error("APP_URL is not set to a web address");
@@ -94,29 +91,4 @@ export function meetingBotPictureUrl(
     return null;
   }
   return absolutePortraitUrl(meetingBotPicturePath(gender), origin);
-}
-
-/** The sender's Mini Me set by the site's rule; male for no sender or an unreadable profile. */
-export async function senderMiniMeGender(
-  db: Pick<DbClient, "from">,
-  userId: string | null,
-): Promise<MiniMeGender> {
-  if (!userId) {
-    return resolveMiniMeGender(null, null);
-  }
-  const { data, error } = await db
-    .from("profiles")
-    .select("minime_gender, gender")
-    .eq("id", userId)
-    .maybeSingle();
-  if (error) {
-    console.error(
-      "[dispatch-meeting-bot] sender profile lookup failed",
-      error.message,
-    );
-  }
-  return resolveMiniMeGender(
-    data?.minime_gender,
-    toAddressGender(data?.gender),
-  );
 }

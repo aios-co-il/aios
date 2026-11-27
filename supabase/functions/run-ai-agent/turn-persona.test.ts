@@ -34,10 +34,10 @@ describe("turnPersonaSource", () => {
     );
   });
 
-  it("speaks as the signed-in user in the app, and as nobody in tasks", () => {
+  it("speaks as the signed-in user's effective character in the app, and as nobody in tasks", () => {
     for (const surface of ["internal_chat", "aios"] as const) {
       assertEquals(turnPersonaSource(surface, mainLine, USER), {
-        kind: "user",
+        kind: "effective",
         userId: USER,
       });
     }

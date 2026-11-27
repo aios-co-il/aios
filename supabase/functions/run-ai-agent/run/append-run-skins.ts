@@ -1,7 +1,5 @@
-import {
-  loadPersona,
-  personaPromptSection,
-} from "../../_shared/carmen/persona-runtime.ts";
+import { loadPersona } from "../../_shared/carmen/persona-runtime.ts";
+import { personaPromptSection } from "../../_shared/carmen/persona-prompt.ts";
 import type { RunState } from "./state.ts";
 import { buildSkillsBlockBySlug } from "../../_shared/skills/registry.ts";
 import { activeSkinBlock } from "../../_shared/carmen/active-skin.ts";

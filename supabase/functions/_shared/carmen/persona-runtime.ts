@@ -4,22 +4,31 @@ import {
   ORG_STYLE_SETTING_KEY,
   type PersonaProfile,
   type PersonaRowFields,
+  type PersonaLook,
   isBuiltinPersonaKey,
   orgStylePersonaKey,
   parseOrgStyle,
   personaFromRow,
-  usableCallWords,
 } from "./personas.ts";
 
 type Db = Pick<DbClient, "from">;
 
 /**
- * Whose character a turn speaks as: a member's pick (the signed-in user, or a
- * personal WhatsApp line's owner), or the organization's choice on its main
- * WhatsApp line (AIO-654).
+ * Whose character a turn speaks as: a member's pick only (a personal WhatsApp
+ * line's owner), the organization's choice on its main WhatsApp line
+ * (AIO-654), or the signed-in user's effective character in the app and voice
+ * (their pick, else the organization's: `resolveEffectivePersona`).
  */
 export type PersonaSource =
-  { kind: "user"; userId: string } | { kind: "organization" };
+  | { kind: "user"; userId: string }
+  | { kind: "organization" }
+  | { kind: "effective"; userId: string };
+
+/** A character with the key it was picked by: a built-in key or a `carmen_personas` id. */
+export interface KeyedPersona {
+  key: string;
+  persona: PersonaProfile;
+}
 
 /**
  * The service-only run-ai-agent request field that says a turn arrived on the
@@ -40,9 +49,30 @@ export function loadPersona(
   if (!source) {
     return Promise.resolve(null);
   }
-  return source.kind === "user"
-    ? loadCallerPersona(db, tenantId, source.userId)
-    : loadOrgPersona(db, tenantId);
+  if (source.kind === "user") {
+    return loadCallerPersona(db, tenantId, source.userId);
+  }
+  const keyed =
+    source.kind === "effective"
+      ? resolveEffectivePersona(db, tenantId, source.userId)
+      : loadOrgPersona(db, tenantId);
+  return keyed.then((found) => found?.persona ?? null);
+}
+
+/**
+ * The character the user sees and talks to in the organization, by the
+ * website's rule (`useCarmenAvatarStyle`): their own pick, else the
+ * organization's character (`loadOrgPersona`), else null for Carmen herself.
+ */
+export async function resolveEffectivePersona(
+  db: Db,
+  tenantId: string | null,
+  userId: string | null,
+): Promise<KeyedPersona | null> {
+  return (
+    (await loadCallerPick(db, tenantId, userId)) ??
+    (await loadOrgPersona(db, tenantId))
+  );
 }
 
 /**
@@ -55,6 +85,15 @@ export async function loadCallerPersona(
   tenantId: string | null,
   userId: string | null,
 ): Promise<PersonaProfile | null> {
+  return (await loadCallerPick(db, tenantId, userId))?.persona ?? null;
+}
+
+/** The user's pick with its key (`loadCallerPersona`). */
+async function loadCallerPick(
+  db: Db,
+  tenantId: string | null,
+  userId: string | null,
+): Promise<KeyedPersona | null> {
   if (!tenantId || !userId) {
     return null;
   }
@@ -74,54 +113,6 @@ export async function loadCallerPersona(
 }
 
 /**
- * A character's call words, lowercased. On WhatsApp they wake the line whose
- * character it is: a personal line its owner's (AIO-576), the main line the
- * organization's (AIO-654), each next to the line's own keywords.
- */
-export function callWordsOf(persona: PersonaProfile | null): Array<string> {
-  // Words saved before validation existed (or written around the app) are checked again here.
-  const words = usableCallWords(persona?.callWords ?? []).map((word) =>
-    word.trim().toLowerCase(),
-  );
-  return [...new Set(words)].filter(Boolean);
-}
-
-/**
- * The prompt section that makes the assistant this character for the caller:
- * its name, how it introduces itself, and its personality, soul and writing
- * style. Mood is applied separately (`agentMoodPrompt`).
- */
-export function personaPromptSection(persona: PersonaProfile): string {
-  const lines = [
-    `🎭 **הדמות שלך מול המשתמש הזה:** המשתמש בחר לעבוד איתך כ"${persona.displayName}". מולו שמך ${persona.displayName}, וכך את מציגה ומזכירה את עצמך (גם כשהפרומפט קורא לך בשם אחר). היכולות, ההרשאות וכללי האישור שלך לא משתנים.`,
-  ];
-  if (persona.introLine) {
-    lines.push(
-      `כשמציגה את עצמך, זה הבסיס (לא נוסח קבוע): "${persona.introLine}"`,
-    );
-  }
-  if (persona.personality) {
-    lines.push(`אישיות והתנהגות: ${persona.personality}`);
-  }
-  if (persona.soul) {
-    lines.push(`נשמה / מטרת קיום: ${persona.soul}`);
-  }
-  if (persona.writingStyle) {
-    lines.push(
-      `סגנון כתיבה: ${WRITING_STYLES[persona.writingStyle] ?? persona.writingStyle}`,
-    );
-  }
-  return `\n\n${lines.join("\n")}`;
-}
-
-const WRITING_STYLES: Record<string, string> = {
-  formal: "רשמי",
-  casual: "חברותי",
-  professional: "מקצועי",
-  playful: "משחקי",
-};
-
-/**
  * The organization's character: the Mini Me (with the organization's edit)
  * when its Carmen style is the Mini Me, else null so the line stays Carmen. It
  * reads no member's row. A failed read is logged and read as Carmen, so the
@@ -130,7 +121,20 @@ const WRITING_STYLES: Record<string, string> = {
 async function loadOrgPersona(
   db: Db,
   tenantId: string | null,
-): Promise<PersonaProfile | null> {
+): Promise<KeyedPersona | null> {
+  const style = await loadOrgStyle(db, tenantId);
+  const key = style ? orgStylePersonaKey(style) : null;
+  return tenantId && key ? resolvePersona(db, tenantId, null, key) : null;
+}
+
+/**
+ * The organization's Carmen style (Settings → Branding), or null with no
+ * tenant or a failed read, which is logged.
+ */
+export async function loadOrgStyle(
+  db: Db,
+  tenantId: string | null,
+): Promise<PersonaLook | null> {
   if (!tenantId) {
     return null;
   }
@@ -144,8 +148,7 @@ async function loadOrgPersona(
     console.error("[persona] organization style lookup failed", error.message);
     return null;
   }
-  const key = orgStylePersonaKey(parseOrgStyle(data?.setting_value));
-  return key ? resolvePersona(db, tenantId, null, key) : null;
+  return parseOrgStyle(data?.setting_value);
 }
 
 /** The picked key as a character the user (or, with no user, the organization) may use. */
@@ -154,9 +157,10 @@ async function resolvePersona(
   tenantId: string,
   userId: string | null,
   key: string,
-): Promise<PersonaProfile | null> {
+): Promise<KeyedPersona | null> {
   const rows = await loadRows(db, tenantId);
-  return pickPersona(rows, key, userId);
+  const persona = pickPersona(rows, key, userId);
+  return persona ? { key, persona } : null;
 }
 
 /** The org's stored characters; a failure is logged and read as none. */

@@ -14,7 +14,6 @@ import {
   createBotWithPicture,
   loadMeetingBotPicture,
   meetingBotPictureUrl,
-  senderMiniMeGender,
 } from "./load-bot-picture.ts";
 
 const APP_URL = "https://staging.example.test";
@@ -70,18 +69,6 @@ function localServer(respond: () => Response) {
     stop: () => server.shutdown(),
   };
 }
-
-Deno.test("the sender's Mini Me set follows the site's rule", async () => {
-  const chose = dbWithProfile({ minime_gender: "female", gender: "male" });
-  const addressed = dbWithProfile({ minime_gender: null, gender: "female" });
-  const unknown = dbWithProfile({ minime_gender: null, gender: null });
-
-  assertEquals(await senderMiniMeGender(chose, "user-1"), "female");
-  assertEquals(await senderMiniMeGender(addressed, "user-1"), "female");
-  assertEquals(await senderMiniMeGender(unknown, "user-1"), "male");
-  assertEquals(await senderMiniMeGender(unknown, "nobody"), "male");
-  assertEquals(await senderMiniMeGender(unknown, null), "male");
-});
 
 Deno.test(
   "the picture's address is the configured app's origin and the served path",
