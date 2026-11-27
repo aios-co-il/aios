@@ -1,3 +1,4 @@
+import type { DbClient } from "../../_shared/supabase-clients.ts";
 import type { AgentRequestBody } from "./types.ts";
 import type { Surface } from "../surface.ts";
 import type { RunInputs } from "../run/contracts.ts";
@@ -6,6 +7,7 @@ import type { saveCarmenReply } from "../../_shared/carmen/background-reply.ts";
 
 export interface AgentStreamInput {
   req: Request;
+  supabase: DbClient;
   bodyJson: AgentRequestBody;
   surface: Surface;
   authKind: string;
@@ -14,10 +16,6 @@ export interface AgentStreamInput {
 }
 
 export interface AgentStreamDependencies {
-  createClient: (
-    url: string,
-    key: string,
-  ) => import("../../_shared/supabase-clients.ts").DbClient;
   handleRunAgent: typeof handleRunAgent;
   saveCarmenReply: typeof saveCarmenReply;
 }

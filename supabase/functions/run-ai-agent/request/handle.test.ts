@@ -1,4 +1,4 @@
-import { assertEquals } from "jsr:@std/assert@1";
+import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { handleRequestWithDependencies } from "./handle.ts";
 import {
   REQUEST_DEPENDENCIES,
@@ -27,17 +27,20 @@ function dependencies(
 
       return fixture.context.supabase;
     },
-    runTenantDenied: async () => {
+    runTenantDenied: async (client) => {
+      assertStrictEquals(client, fixture.context.supabase);
       log.push("tenant");
 
       return null;
     },
-    resolvePickAwareEngine: async () => {
+    resolvePickAwareEngine: async (client) => {
+      assertStrictEquals(client, fixture.context.supabase);
       log.push("brain");
 
       return { kind: "internal" };
     },
-    internalBrainDenied: async () => {
+    internalBrainDenied: async (client) => {
+      assertStrictEquals(client, fixture.context.supabase);
       log.push("grant");
 
       return null;
@@ -166,11 +169,26 @@ Deno.test(
   "authorized JSON runs preserve origin and defer the internal fallback lookup",
   async () => {
     const log: Array<string> = [];
+    let checkedClient: unknown;
     const response = await handleRequestWithDependencies(
       request(),
       dependencies(log, {
-        handleRunAgent: async (body, surface, emit, brain, context, tail) => {
+        runTenantDenied: async (client) => {
+          checkedClient = client;
+          log.push("tenant");
+          return null;
+        },
+        handleRunAgent: async (
+          supabase,
+          body,
+          surface,
+          emit,
+          brain,
+          context,
+          tail,
+        ) => {
           log.push("run");
+          assertStrictEquals(supabase, checkedClient);
           assertEquals(body.user_id, USER);
           assertEquals(surface, "internal_chat");
           assertEquals(emit, undefined);
@@ -194,6 +212,7 @@ Deno.test(
   "service direct-tool requests preserve their explicit caller and bypass brain routing",
   async () => {
     const log: Array<string> = [];
+    const client = executorClient([]).context.supabase;
     const response = await handleRequestWithDependencies(
       request({ direct_tool: { action: "list" } }),
       dependencies(log, {
@@ -202,7 +221,12 @@ Deno.test(
 
           return { kind: "service", userId: null };
         },
-        handleDirectTool: async (body) => {
+        createClient: () => {
+          log.push("client");
+          return client;
+        },
+        handleDirectTool: async (body, supabase) => {
+          assertStrictEquals(supabase, client);
           log.push("direct");
           assertEquals(body.user_id, "forged");
 
@@ -211,6 +235,6 @@ Deno.test(
       }),
     );
     assertEquals(await response.text(), "direct");
-    assertEquals(log, ["auth", "direct"]);
+    assertEquals(log, ["auth", "client", "direct"]);
   },
 );

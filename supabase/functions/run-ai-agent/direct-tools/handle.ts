@@ -1,11 +1,9 @@
+import type { DbClient } from "../../_shared/supabase-clients.ts";
 import { loadCarmenAgent } from "../../_shared/carmen/load-carmen-agent.ts";
 import type { Json } from "../../_shared/database.types.ts";
 import { executeApprovedDirectTool } from "./execute-approved.ts";
 import { json } from "./response.ts";
 import type { DirectToolBody, DirectToolDependencies } from "./types.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import { SUPABASE_URL } from "../runtime.ts";
-import { SUPABASE_SERVICE_ROLE_KEY } from "../runtime.ts";
 import { resolveDirectCaller } from "./caller.ts";
 import { executeTool } from "../tool-execution/execute.ts";
 import { asUuidOrNull } from "../../_shared/uuid.ts";
@@ -25,13 +23,10 @@ import { classifyDirectTool } from "../../_shared/carmen-direct-tools.mjs";
 /** Handles service-only direct calls, keeping approved execution ahead of ordinary tool resolution. */
 export async function handleDirectTool(
   bodyJson: DirectToolBody,
-  dependencies: DirectToolDependencies = { createClient, executeTool },
+  supabase: DbClient,
+  dependencies: DirectToolDependencies = { executeTool },
 ): Promise<Response> {
   const req = bodyJson.direct_tool || {};
-  const supabase = dependencies.createClient(
-    SUPABASE_URL,
-    SUPABASE_SERVICE_ROLE_KEY,
-  );
   const caller =
     String(req.caller || "agent")
       .replace(/[^a-z0-9_-]/gi, "")

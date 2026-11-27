@@ -1,8 +1,5 @@
 import type { BackgroundRuntime } from "../background-runtime.ts";
 import { corsHeaders } from "../runtime.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import { SUPABASE_URL } from "../runtime.ts";
-import { SUPABASE_SERVICE_ROLE_KEY } from "../runtime.ts";
 import { handleRunAgent } from "../run/handle.ts";
 import { createReplyRecorder } from "../../_shared/carmen/background-reply.ts";
 import { parseReplyKey } from "../../_shared/carmen/background-reply.ts";
@@ -18,12 +15,19 @@ declare const EdgeRuntime: BackgroundRuntime;
 export function createAgentStream(
   input: AgentStreamInput,
   dependencies: AgentStreamDependencies = {
-    createClient,
     handleRunAgent,
     saveCarmenReply,
   },
 ): Response {
-  const { req, bodyJson, surface, authKind, brainEngine, internalTail } = input;
+  const {
+    req,
+    supabase,
+    bodyJson,
+    surface,
+    authKind,
+    brainEngine,
+    internalTail,
+  } = input;
 
   // Streaming mode: AIOS-compatible SSE.
   // Events emitted: {type:'tool_call',tool,args}, {type:'token',content}, {type:'done',...}
@@ -49,6 +53,7 @@ export function createAgentStream(
 
         try {
           const resp = await dependencies.handleRunAgent(
+            supabase,
             bodyJson,
             surface,
             emit,
@@ -102,17 +107,11 @@ export function createAgentStream(
           recorder.conversationId
         ) {
           await dependencies
-            .saveCarmenReply(
-              dependencies.createClient(
-                SUPABASE_URL,
-                SUPABASE_SERVICE_ROLE_KEY,
-              ),
-              {
-                conversationId: recorder.conversationId,
-                content: recorder.reply(final.output),
-                replyKey,
-              },
-            )
+            .saveCarmenReply(supabase, {
+              conversationId: recorder.conversationId,
+              content: recorder.reply(final.output),
+              replyKey,
+            })
             .catch((e) => console.error("[carmen] reply save failed:", e));
         }
       })();

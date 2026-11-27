@@ -1,4 +1,4 @@
-import { assert, assertEquals } from "jsr:@std/assert@1";
+import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { createAgentStream } from "./stream.ts";
 import type {
   AgentStreamDependencies,
@@ -10,6 +10,7 @@ import { executorClient } from "../executors/executor-client.test-fixture.ts";
 /** A chat with the same idempotent reply key used by the saved-reply path. */
 function input(): AgentStreamInput {
   return {
+    supabase: executorClient([]).context.supabase,
     req: new Request("https://example.test/run", {
       headers: { origin: "https://app.example" },
     }),
@@ -27,11 +28,8 @@ function dependencies(
   run: AgentStreamDependencies["handleRunAgent"],
   save: AgentStreamDependencies["saveCarmenReply"] = ignoreSave,
 ): AgentStreamDependencies {
-  const fixture = executorClient([]);
-
   return {
     handleRunAgent: run,
-    createClient: () => fixture.context.supabase,
     saveCarmenReply: save,
   };
 }
@@ -50,11 +48,11 @@ Deno.test(
     const response = createAgentStream(
       input(),
       dependencies(async (...args) => {
-        assertEquals(args[4], {
+        assertEquals(args[5], {
           authKind: "user",
           origin: "https://app.example",
         });
-        args[2]?.({ type: "token", content: "hello" });
+        args[3]?.({ type: "token", content: "hello" });
 
         return new Response(
           JSON.stringify({
@@ -97,23 +95,26 @@ Deno.test(
     globals.EdgeRuntime = { waitUntil: (work) => background.push(work) };
 
     try {
+      const turn = input();
       const response = createAgentStream(
-        input(),
+        turn,
         dependencies(
           async (...args) => {
-            args[2]?.({
+            assertStrictEquals(args[0], turn.supabase);
+            args[3]?.({
               type: "conversation_id",
               id: "22222222-2222-4222-8222-222222222222",
             });
-            args[2]?.({ type: "token", content: "first" });
+            args[3]?.({ type: "token", content: "first" });
             await gate.promise;
-            args[2]?.({ type: "token", content: " second" });
+            args[3]?.({ type: "token", content: " second" });
 
             return new Response(
               JSON.stringify({ success: true, output: "fallback" }),
             );
           },
           async (...args) => {
+            assertStrictEquals(args[0], turn.supabase);
             saved.push(args[1]);
           },
         ),

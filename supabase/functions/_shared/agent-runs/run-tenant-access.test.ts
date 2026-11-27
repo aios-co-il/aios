@@ -246,16 +246,22 @@ Deno.test(
     const between = serve.slice(bindAt + bind.length, guardAt);
     assertEquals(between.match(/bodyJson(\.\w+)?/g), [
       "bodyJson.direct_tool",
+      "bodyJson.direct_tool",
       "bodyJson",
     ]);
     assertMatch(
       between,
-      /if \(auth\.kind !== "service"\) \{\s*return new Response\([^;]*\);\s*\}\s*return await dependencies\.handleDirectTool\(bodyJson\);/,
+      /if \(bodyJson\.direct_tool && auth\.kind !== "service"\) \{\s*return new Response\([^;]*\);\s*\}/,
+    );
+
+    assertMatch(
+      between,
+      /if \(bodyJson\.direct_tool\) \{\s*return await dependencies\.handleDirectTool\(bodyJson, supabase\);/,
     );
 
     assertMatch(
       serve.slice(guardAt),
-      /^await dependencies\.runTenantDenied\(\s*guardClient,\s*auth,\s*bodyJson,?\s*\);\s*if \(tenantDenied\) \{\s*return new Response\(/,
+      /^await dependencies\.runTenantDenied\(\s*supabase,\s*auth,\s*bodyJson,?\s*\);\s*if \(tenantDenied\) \{\s*return new Response\(/,
     );
   },
 );

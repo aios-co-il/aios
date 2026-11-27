@@ -49,28 +49,27 @@ export async function handleRequestWithDependencies(
   // Service-to-service calls keep their explicit user (./caller-trust.ts).
   bindRunAgentCaller(bodyJson, auth);
 
-  if (bodyJson.direct_tool) {
-    if (auth.kind !== "service") {
-      return new Response(
-        JSON.stringify({ error: "direct_tool is service-only" }),
-        {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    return await dependencies.handleDirectTool(bodyJson);
+  if (bodyJson.direct_tool && auth.kind !== "service") {
+    return new Response(
+      JSON.stringify({ error: "direct_tool is service-only" }),
+      {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 
-  // A signed-in user runs only in a tenant they belong to (AIO-306), checked
-  // before any brain, key or tool of that tenant is read.
-  const guardClient = dependencies.createClient(
+  const supabase = dependencies.createClient(
     SUPABASE_URL,
     SUPABASE_SERVICE_ROLE_KEY,
   );
+
+  if (bodyJson.direct_tool) {
+    return await dependencies.handleDirectTool(bodyJson, supabase);
+  }
+
   const tenantDenied = await dependencies.runTenantDenied(
-    guardClient,
+    supabase,
     auth,
     bodyJson,
   );
@@ -99,11 +98,11 @@ export async function handleRequestWithDependencies(
   // The brain the user picked runs Carmen's loop (_shared/carmen/brain-engine);
   // the route, grant and keys are all read here, never taken from the body.
   const engine = await dependencies.resolvePickAwareEngine(
-    guardClient,
+    supabase,
     auth,
     bodyJson,
     async () =>
-      !(await dependencies.internalBrainDenied(guardClient, auth, {
+      !(await dependencies.internalBrainDenied(supabase, auth, {
         tenantId: bodyJson.tenant_id,
         agentId: bodyJson.agent_id,
       })),
@@ -120,7 +119,7 @@ export async function handleRequestWithDependencies(
   // Per-user Carmen permissions, on every surface (_shared/carmen/brain-guard).
   // A picked model brain was checked against its own grant above.
   if (engine.kind === "internal") {
-    const denied = await dependencies.internalBrainDenied(guardClient, auth, {
+    const denied = await dependencies.internalBrainDenied(supabase, auth, {
       tenantId: bodyJson.tenant_id,
       agentId: bodyJson.agent_id,
     });
@@ -134,11 +133,12 @@ export async function handleRequestWithDependencies(
   // Read only when Carmen's own engine runs: the OpenRouter brain as its last link, under
   // that brain's own access rules.
   function internalTail() {
-    return dependencies.openRouterTail(guardClient, auth, bodyJson);
+    return dependencies.openRouterTail(supabase, auth, bodyJson);
   }
 
   if (!wantStream) {
     return await dependencies.handleRunAgent(
+      supabase,
       bodyJson,
       surface,
       undefined,
@@ -154,6 +154,7 @@ export async function handleRequestWithDependencies(
   // reloaded tab), and the server saves the answer (_shared/carmen/background-reply).
   return dependencies.createAgentStream({
     req,
+    supabase,
     bodyJson,
     surface,
     authKind: auth.kind,

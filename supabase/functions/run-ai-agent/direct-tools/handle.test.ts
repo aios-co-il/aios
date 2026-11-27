@@ -14,7 +14,6 @@ function fixture(
   const executions: Array<Parameters<DirectToolDependencies["executeTool"]>> =
     [];
   const dependencies: DirectToolDependencies = {
-    createClient: () => database.context.supabase,
     executeTool: async (...args) => {
       executions.push(args);
 
@@ -72,6 +71,7 @@ Deno.test(
           },
         },
       },
+      test.context.supabase,
       test.dependencies,
     );
     assertEquals((await response.json()).result.approval_id, "approval");
@@ -126,6 +126,7 @@ Deno.test(
     const test = fixture([row, null]);
     const response = await handleDirectTool(
       { direct_tool: { action: "execute_approved", approval_id: "approval" } },
+      test.context.supabase,
       test.dependencies,
     );
     assertEquals(response.status, 200);
@@ -151,6 +152,7 @@ Deno.test(
         {
           direct_tool: { action: "execute_approved", approval_id: "approval" },
         },
+        test.context.supabase,
         test.dependencies,
       );
       assertEquals(response.status, 409);
@@ -181,6 +183,7 @@ Deno.test(
     );
     const response = await handleDirectTool(
       { direct_tool: { action: "execute_approved", approval_id: "approval" } },
+      test.context.supabase,
       test.dependencies,
     );
     assertEquals(response.status, 400);
