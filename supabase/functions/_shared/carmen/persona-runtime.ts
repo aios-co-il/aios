@@ -1,15 +1,14 @@
 import type { DbClient } from "../supabase-clients.ts";
 import {
-  BUILTIN_PERSONAS,
   ORG_STYLE_SETTING_KEY,
+  PERSONA_LOOKS,
   type PersonaProfile,
-  type PersonaRowFields,
   type PersonaLook,
-  isBuiltinPersonaKey,
   orgStylePersonaKey,
   parseOrgStyle,
-  personaFromRow,
+  usableCallWords,
 } from "./personas.ts";
+import { loadStoredPersona } from "./persona-rows.ts";
 
 type Db = Pick<DbClient, "from">;
 
@@ -24,10 +23,20 @@ export type PersonaSource =
   | { kind: "organization" }
   | { kind: "effective"; userId: string };
 
-/** A character with the key it was picked by: a built-in key or a `carmen_personas` id. */
+/** Who chose the character a turn speaks as: the user, or the organization (its Carmen style). */
+export type PersonaChooser = "user" | "organization";
+
+/** A character with the key it was picked by (a built-in key or a `carmen_personas` id) and who picked it. */
 export interface KeyedPersona {
   key: string;
   persona: PersonaProfile;
+  chosenBy: PersonaChooser;
+}
+
+/** The user's effective character, and the look they see (the character's, else the organization's style). */
+export interface EffectiveCharacter {
+  picked: KeyedPersona | null;
+  look: PersonaLook;
 }
 
 /**
@@ -37,42 +46,50 @@ export interface KeyedPersona {
  */
 export const ORG_PERSONA_FIELD = "org_persona";
 
-const ROW_FIELDS =
-  "id, builtin_key, owner_user_id, display_name, call_words, intro_line, look, mood, personality, soul, writing_style";
-
 /** The character a turn speaks as, or null when it speaks as Carmen herself. */
-export function loadPersona(
+export async function loadPersona(
   db: Db,
   tenantId: string | null,
   source: PersonaSource | null,
 ): Promise<PersonaProfile | null> {
+  return (await loadKeyedPersona(db, tenantId, source))?.persona ?? null;
+}
+
+/** `loadPersona` with the character's key and who chose it. */
+export async function loadKeyedPersona(
+  db: Db,
+  tenantId: string | null,
+  source: PersonaSource | null,
+): Promise<KeyedPersona | null> {
   if (!source) {
-    return Promise.resolve(null);
+    return null;
   }
   if (source.kind === "user") {
-    return loadCallerPersona(db, tenantId, source.userId);
+    return loadCallerPick(db, tenantId, source.userId);
   }
-  const keyed =
+  const character =
     source.kind === "effective"
-      ? resolveEffectivePersona(db, tenantId, source.userId)
-      : loadOrgPersona(db, tenantId);
-  return keyed.then((found) => found?.persona ?? null);
+      ? await resolveEffectivePersona(db, tenantId, source.userId)
+      : await loadOrgCharacter(db, tenantId);
+  return character.picked;
 }
 
 /**
- * The character the user sees and talks to in the organization, by the
- * website's rule (`useCarmenAvatarStyle`): their own pick, else the
- * organization's character (`loadOrgPersona`), else null for Carmen herself.
+ * The character the user talks to in the organization: their own pick, else
+ * the organization's character (`loadOrgCharacter`), else null for Carmen
+ * herself. The website draws the same look (`useCarmenAvatarStyle`); for the
+ * name it still shows the organization's assistant name when the user picked
+ * none. The organization's style is read only when the user picked none.
  */
 export async function resolveEffectivePersona(
   db: Db,
   tenantId: string | null,
   userId: string | null,
-): Promise<KeyedPersona | null> {
-  return (
-    (await loadCallerPick(db, tenantId, userId)) ??
-    (await loadOrgPersona(db, tenantId))
-  );
+): Promise<EffectiveCharacter> {
+  const pick = await loadCallerPick(db, tenantId, userId);
+  return pick
+    ? { picked: pick, look: pick.persona.look }
+    : loadOrgCharacter(db, tenantId);
 }
 
 /**
@@ -108,30 +125,48 @@ async function loadCallerPick(
     return null;
   }
   return choice
-    ? resolvePersona(db, tenantId, userId, choice.persona_key)
+    ? resolvePersona(db, tenantId, userId, choice.persona_key, "user")
     : null;
 }
 
 /**
- * The organization's character: the Mini Me (with the organization's edit)
- * when its Carmen style is the Mini Me, else null so the line stays Carmen. It
- * reads no member's row. A failed read is logged and read as Carmen, so the
- * main line keeps answering as it does today.
+ * A character's call words, lowercased. On WhatsApp they wake the line whose
+ * character it is: a personal line its owner's (AIO-576), the main line the
+ * organization's (AIO-654), each next to the line's own keywords.
  */
-async function loadOrgPersona(
+export function callWordsOf(persona: PersonaProfile | null): Array<string> {
+  // Words saved before validation existed (or written around the app) are checked again here.
+  const words = usableCallWords(persona?.callWords ?? []).map((word) =>
+    word.trim().toLowerCase(),
+  );
+  return [...new Set(words)].filter(Boolean);
+}
+
+/**
+ * The organization's character: the Mini Me (with the organization's edit)
+ * when its Carmen style is the Mini Me, else none so the line stays Carmen,
+ * with the style as the look. It reads no member's row. A failed read is
+ * logged and read as Carmen in the default look, so the main line keeps
+ * answering as it does today.
+ */
+async function loadOrgCharacter(
   db: Db,
   tenantId: string | null,
-): Promise<KeyedPersona | null> {
-  const style = await loadOrgStyle(db, tenantId);
-  const key = style ? orgStylePersonaKey(style) : null;
-  return tenantId && key ? resolvePersona(db, tenantId, null, key) : null;
+): Promise<EffectiveCharacter> {
+  const style = (await loadOrgStyle(db, tenantId)) ?? PERSONA_LOOKS[0];
+  const key = orgStylePersonaKey(style);
+  const picked =
+    tenantId && key
+      ? await resolvePersona(db, tenantId, null, key, "organization")
+      : null;
+  return { picked, look: style };
 }
 
 /**
  * The organization's Carmen style (Settings → Branding), or null with no
  * tenant or a failed read, which is logged.
  */
-export async function loadOrgStyle(
+async function loadOrgStyle(
   db: Db,
   tenantId: string | null,
 ): Promise<PersonaLook | null> {
@@ -157,50 +192,8 @@ async function resolvePersona(
   tenantId: string,
   userId: string | null,
   key: string,
+  chosenBy: PersonaChooser,
 ): Promise<KeyedPersona | null> {
-  const rows = await loadRows(db, tenantId);
-  const persona = pickPersona(rows, key, userId);
-  return persona ? { key, persona } : null;
-}
-
-/** The org's stored characters; a failure is logged and read as none. */
-async function loadRows(db: Db, tenantId: string): Promise<Array<StoredRow>> {
-  const { data, error } = await db
-    .from("carmen_personas")
-    .select(ROW_FIELDS)
-    .eq("tenant_id", tenantId);
-  if (error) {
-    console.error("[persona] characters lookup failed", error.message);
-    return [];
-  }
-  return data ?? [];
-}
-
-interface StoredRow extends PersonaRowFields {
-  id: string;
-  owner_user_id: string | null;
-}
-
-/**
- * A key as a character: a built-in as the user's own version, else the org's
- * edit, else its defaults; or a created one. A user's own row counts only for
- * that user, and never with no user.
- */
-function pickPersona(
-  rows: Array<StoredRow>,
-  key: string,
-  userId: string | null,
-): PersonaProfile | null {
-  if (isBuiltinPersonaKey(key)) {
-    const builtinRows = rows.filter((row) => row.builtin_key === key);
-    const edit =
-      builtinRows.find((row) => row.owner_user_id === userId) ??
-      builtinRows.find((row) => row.owner_user_id === null);
-    return edit ? personaFromRow(edit) : BUILTIN_PERSONAS[key];
-  }
-  const row = rows.find((item) => item.id === key);
-  if (!row || (row.owner_user_id && row.owner_user_id !== userId)) {
-    return null;
-  }
-  return personaFromRow(row);
+  const persona = await loadStoredPersona(db, tenantId, userId, key);
+  return persona ? { key, persona, chosenBy } : null;
 }

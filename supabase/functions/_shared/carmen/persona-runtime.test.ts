@@ -5,7 +5,11 @@ import {
 } from "jsr:@std/assert@1";
 import { describe, it } from "jsr:@std/testing@1/bdd";
 import { withConsoleErrors } from "../testing/console-errors.ts";
-import { loadCallerPersona, loadPersona } from "./persona-runtime.ts";
+import {
+  callWordsOf,
+  loadCallerPersona,
+  loadPersona,
+} from "./persona-runtime.ts";
 import { db, row } from "./persona-runtime.test-fixture.ts";
 import { BUILTIN_PERSONAS } from "./personas.ts";
 
@@ -90,6 +94,16 @@ describe("loadCallerPersona", () => {
       carmen_persona_choices: { data: null, error: { message: "down" } },
     });
     assertEquals(await loadCallerPersona(failed, "t1", "u1"), null);
+  });
+});
+
+describe("callWordsOf", () => {
+  it("gives the character's call words, lowercased", () => {
+    assertEquals(callWordsOf(BUILTIN_PERSONAS.aios), ["aios", "איוס"]);
+  });
+
+  it("is empty without a character", () => {
+    assertEquals(callWordsOf(null), []);
   });
 });
 
@@ -180,18 +194,28 @@ describe("loadPersona", () => {
   });
 });
 
-describe("persona-runtime.ts source", () => {
+describe("persona-runtime.ts and persona-rows.ts source", () => {
   it("only reads: it writes no row, calls no function and sends nothing", async () => {
-    const source = await Deno.readTextFile(
-      new URL("./persona-runtime.ts", import.meta.url),
-    );
-    assertNotMatch(
-      source,
-      /\.(insert|update|upsert|delete|rpc)\(|fetch\(|functions\.invoke/,
-    );
-    assertEquals(
-      [...source.matchAll(/from "([^"]+)"/g)].map((match) => match[1]).sort(),
-      ["../supabase-clients.ts", "./personas.ts"],
-    );
+    for (const file of ["./persona-runtime.ts", "./persona-rows.ts"]) {
+      const source = await Deno.readTextFile(new URL(file, import.meta.url));
+      assertNotMatch(
+        source,
+        /\.(insert|update|upsert|delete|rpc)\(|fetch\(|functions\.invoke/,
+      );
+      const imports = [...source.matchAll(/from "([^"]+)"/g)].map(
+        (match) => match[1],
+      );
+      assertEquals(
+        imports.every((path) =>
+          [
+            "../supabase-clients.ts",
+            "./personas.ts",
+            "./persona-rows.ts",
+          ].includes(path),
+        ),
+        true,
+        file,
+      );
+    }
   });
 });

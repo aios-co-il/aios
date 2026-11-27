@@ -1,10 +1,10 @@
 import { type DbClient, serviceClient } from "../_shared/supabase-clients.ts";
-import { loadOrgStyle } from "../_shared/carmen/persona-runtime.ts";
-import { PERSONA_LOOKS, type PersonaLook } from "../_shared/carmen/personas.ts";
+import { resolveEffectivePersona } from "../_shared/carmen/persona-runtime.ts";
+import { withGender } from "../_shared/carmen/persona-speaker.ts";
+import type { PersonaLook } from "../_shared/carmen/personas.ts";
 import { loadOrgAssistantName } from "../_shared/carmen/load-carmen-agent.ts";
 import type { MiniMeGender } from "../_shared/carmen/minime-gender.ts";
 import { resolveTenantId } from "./agent-profile.ts";
-import { loadVoiceCharacter } from "./voice-character.ts";
 
 /**
  * The character a client draws and names for the caller in a tenant
@@ -30,6 +30,12 @@ export type PersonaReply = {
 
 type Db = Pick<DbClient, "from" | "rpc">;
 
+/** The tenant the read answers for, or why it answers for none. */
+type TenantLookup =
+  | { kind: "tenant"; tenantId: string }
+  | { kind: "refused" }
+  | { kind: "failed" };
+
 const LOG = "[carmen-realtime-session]";
 
 /**
@@ -42,30 +48,34 @@ export async function personaReply(
   requestedTenantId: unknown,
   db: Db = serviceClient(),
 ): Promise<PersonaReply> {
-  const tenantId = await tenantOrNull(db, callerId, requestedTenantId);
-  if (tenantId === undefined) {
+  const lookup = await lookUpTenant(db, callerId, requestedTenantId);
+  if (lookup.kind === "failed") {
     return { status: 500, body: { error: "persona_lookup_failed" } };
   }
-  if (!tenantId) {
+  if (lookup.kind === "refused") {
     return { status: 403, body: { error: "tenant_not_allowed" } };
   }
-  return { status: 200, body: await effectivePersona(db, tenantId, callerId) };
+  return {
+    status: 200,
+    body: await effectivePersona(db, lookup.tenantId, callerId),
+  };
 }
 
-/** The checked tenant, null when the caller may not use it, undefined when the read failed (logged). */
-async function tenantOrNull(
+/** The checked tenant (`resolveTenantId`); a failed read is logged. */
+async function lookUpTenant(
   db: Db,
   callerId: string,
   requestedTenantId: unknown,
-): Promise<string | null | undefined> {
+): Promise<TenantLookup> {
   try {
-    return await resolveTenantId(db, callerId, requestedTenantId);
+    const tenantId = await resolveTenantId(db, callerId, requestedTenantId);
+    return tenantId ? { kind: "tenant", tenantId } : { kind: "refused" };
   } catch (e) {
     console.error(
       `${LOG} persona tenant read failed`,
       e instanceof Error ? e.message : e,
     );
-    return undefined;
+    return { kind: "failed" };
   }
 }
 
@@ -75,24 +85,20 @@ async function effectivePersona(
   tenantId: string,
   callerId: string,
 ): Promise<EffectivePersonaReply> {
-  const { picked, gender } = await loadVoiceCharacter(db, tenantId, callerId);
-  if (picked) {
-    const { key, persona } = picked;
-    return {
-      key,
-      display_name: persona.displayName,
-      look: persona.look,
-      gender,
-    };
+  const { picked, look } = await resolveEffectivePersona(
+    db,
+    tenantId,
+    callerId,
+  );
+  const speaker = await withGender(db, picked, callerId);
+  if (speaker) {
+    const { key, persona, gender } = speaker;
+    return { key, display_name: persona.displayName, look, gender };
   }
-  const [displayName, orgStyle] = await Promise.all([
-    loadOrgAssistantName(db, tenantId),
-    loadOrgStyle(db, tenantId),
-  ]);
   return {
     key: null,
-    display_name: displayName,
-    look: orgStyle ?? PERSONA_LOOKS[0],
-    gender,
+    display_name: await loadOrgAssistantName(db, tenantId),
+    look,
+    gender: "female",
   };
 }

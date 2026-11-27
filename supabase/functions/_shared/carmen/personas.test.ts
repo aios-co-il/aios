@@ -1,9 +1,7 @@
 import { assertEquals, assertNotEquals } from "jsr:@std/assert@1";
 import { describe, it } from "jsr:@std/testing@1/bdd";
 import {
-  BUILTIN_PERSONAS,
   callWordProblem,
-  callWordsOf,
   orgStylePersonaKey,
   parseOrgStyle,
   usableCallWords,
@@ -53,15 +51,5 @@ describe("orgStylePersonaKey", () => {
     assertEquals(orgStylePersonaKey("minime"), "minime");
     assertEquals(orgStylePersonaKey("orbs"), null);
     assertEquals(orgStylePersonaKey("character"), null);
-  });
-});
-
-describe("callWordsOf", () => {
-  it("gives the character's call words, lowercased", () => {
-    assertEquals(callWordsOf(BUILTIN_PERSONAS.aios), ["aios", "איוס"]);
-  });
-
-  it("is empty without a character", () => {
-    assertEquals(callWordsOf(null), []);
   });
 });

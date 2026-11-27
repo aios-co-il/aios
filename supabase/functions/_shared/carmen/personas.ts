@@ -112,19 +112,6 @@ export function usableCallWords(words: Array<string>): Array<string> {
   return words.filter((word) => callWordProblem(word) === null);
 }
 
-/**
- * A character's call words, lowercased. On WhatsApp they wake the line whose
- * character it is: a personal line its owner's (AIO-576), the main line the
- * organization's (AIO-654), each next to the line's own keywords.
- */
-export function callWordsOf(persona: PersonaProfile | null): Array<string> {
-  // Words saved before validation existed (or written around the app) are checked again here.
-  const words = usableCallWords(persona?.callWords ?? []).map((word) =>
-    word.trim().toLowerCase(),
-  );
-  return [...new Set(words)].filter(Boolean);
-}
-
 /** A `carmen_personas` row's fields as stored. */
 export interface PersonaRowFields {
   builtin_key: string | null;

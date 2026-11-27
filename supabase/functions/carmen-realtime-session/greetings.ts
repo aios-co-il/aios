@@ -1,19 +1,11 @@
 import type { MiniMeGender } from "../_shared/carmen/minime-gender.ts";
+import type { PersonaSpeaker } from "../_shared/carmen/persona-speaker.ts";
 
 /**
- * Who opens the call: the effective character's name (null for Carmen
- * herself, who keeps her unnamed lines) and the gender her verbs take.
+ * Who opens the call: the session's character (its name and gender), or null
+ * for Carmen herself, who keeps her unnamed, feminine lines.
  */
-export type GreetingCharacter = {
-  name: string | null;
-  gender: MiniMeGender;
-};
-
-/** Carmen herself: no name in the line, feminine verbs. */
-export const CARMEN_GREETER: GreetingCharacter = {
-  name: null,
-  gender: "female",
-};
+export type Greeter = Pick<PersonaSpeaker, "persona" | "gender"> | null;
 
 /**
  * Lines any character can say: short and without a gendered verb, since the
@@ -38,11 +30,12 @@ const LISTENING: Record<MiniMeGender, string> = {
  * the neutral ones, the listening line in its gender, and for a character
  * other than Carmen one line that names it.
  */
-export function connectedGreetings(
-  character: GreetingCharacter,
-): Array<string> {
-  const named = character.name ? [`${character.name} כאן. מה צריך?`] : [];
-  return [...NEUTRAL_GREETINGS, LISTENING[character.gender], ...named];
+export function connectedGreetings(greeter: Greeter): Array<string> {
+  if (!greeter) {
+    return [...NEUTRAL_GREETINGS, LISTENING.female];
+  }
+  const named = `${greeter.persona.displayName} כאן. מה צריך?`;
+  return [...NEUTRAL_GREETINGS, LISTENING[greeter.gender], named];
 }
 
 /**
@@ -50,10 +43,10 @@ export function connectedGreetings(
  * the same words; [random] returns a number in [0, 1), like `Math.random`.
  */
 export function pickGreeting(
-  character: GreetingCharacter = CARMEN_GREETER,
+  greeter: Greeter = null,
   random: () => number = Math.random,
 ): string {
-  const lines = connectedGreetings(character);
+  const lines = connectedGreetings(greeter);
   const index = Math.floor(random() * lines.length);
   return lines[Math.min(index, lines.length - 1)];
 }

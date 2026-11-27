@@ -82,7 +82,7 @@ ${run.relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).j
   // ─── Mood / persona modulation (swappable tone layer) ───
   {
     const moodPrompt = agentMoodPrompt(
-      run.callerPersona?.mood ?? run.agent.mood,
+      run.callerPersona?.persona.mood ?? run.agent.mood,
       run.agent.id,
     );
 

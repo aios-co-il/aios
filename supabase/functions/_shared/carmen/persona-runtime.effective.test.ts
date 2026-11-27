@@ -19,8 +19,8 @@ describe("resolveEffectivePersona", () => {
     });
 
     assertEquals(await resolveEffectivePersona(client, "t1", "u1"), {
-      key: "aios",
-      persona: BUILTIN_PERSONAS.aios,
+      picked: { key: "aios", persona: BUILTIN_PERSONAS.aios, chosenBy: "user" },
+      look: "orbs",
     });
   });
 
@@ -31,8 +31,12 @@ describe("resolveEffectivePersona", () => {
     });
 
     assertEquals(await resolveEffectivePersona(client, "t1", "u1"), {
-      key: "minime",
-      persona: BUILTIN_PERSONAS.minime,
+      picked: {
+        key: "minime",
+        persona: BUILTIN_PERSONAS.minime,
+        chosenBy: "organization",
+      },
+      look: "minime",
     });
   });
 
@@ -56,20 +60,26 @@ describe("resolveEffectivePersona", () => {
 
     const effective = await resolveEffectivePersona(client, "t1", "u1");
 
-    assertEquals(effective?.persona.displayName, "של הארגון");
+    assertEquals(effective.picked?.persona.displayName, "של הארגון");
   });
 
-  it("is Carmen herself (null) with no pick and a style that is not the Mini Me", async () => {
+  it("is Carmen herself in the organization's look with no pick and a style that is not the Mini Me", async () => {
     const client = db({
       carmen_persona_choices: noPick,
       tenant_settings: {
-        data: { setting_value: { style: "orbs" } },
+        data: { setting_value: { style: "character" } },
         error: null,
       },
     });
 
-    assertEquals(await resolveEffectivePersona(client, "t1", "u1"), null);
-    assertEquals(await resolveEffectivePersona(client, null, "u1"), null);
+    assertEquals(await resolveEffectivePersona(client, "t1", "u1"), {
+      picked: null,
+      look: "character",
+    });
+    assertEquals(await resolveEffectivePersona(client, null, "u1"), {
+      picked: null,
+      look: "orbs",
+    });
   });
 
   it("reads a failed pick lookup as no pick and still falls back", async () => {
@@ -82,7 +92,7 @@ describe("resolveEffectivePersona", () => {
       resolveEffectivePersona(client, "t1", "u1"),
     );
 
-    assertEquals(result?.key, "minime");
+    assertEquals(result.picked?.key, "minime");
     assertStringIncludes(logged, "[persona] choice lookup failed");
   });
 

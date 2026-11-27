@@ -80,9 +80,10 @@ import { USE_BRAIN_PICK } from "./carmen/brain-engine/stored-pick.ts";
 import {
   ORG_PERSONA_FIELD,
   type PersonaSource,
+  callWordsOf,
   loadPersona,
 } from "./carmen/persona-runtime.ts";
-import { type PersonaProfile, callWordsOf } from "./carmen/personas.ts";
+import type { PersonaProfile } from "./carmen/personas.ts";
 import {
   DEFAULT_ASSISTANT_NAME,
   orgAssistantName,

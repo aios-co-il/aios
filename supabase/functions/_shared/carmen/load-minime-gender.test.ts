@@ -1,15 +1,12 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
 import { describe, it } from "jsr:@std/testing@1/bdd";
-import {
-  createFakeDb,
-  fakeClient,
-} from "../meeting-bot/fake-db.test-fixture.ts";
+import { fakeSupabase } from "../testing/fake-supabase.ts";
 import { withConsoleErrors } from "../testing/console-errors.ts";
 import { loadMiniMeGender } from "./load-minime-gender.ts";
 
 /** A database holding one user's profile. */
 function dbWithProfile(profile: Record<string, unknown>) {
-  return fakeClient(createFakeDb({ profiles: [{ id: "user-1", ...profile }] }));
+  return fakeSupabase({ profiles: [{ id: "user-1", ...profile }] });
 }
 
 describe("loadMiniMeGender", () => {
@@ -26,17 +23,7 @@ describe("loadMiniMeGender", () => {
   });
 
   it("is male when the profile cannot be read, and logs why", async () => {
-    const failing = {
-      from: () => {
-        const query = {
-          select: () => query,
-          eq: () => query,
-          maybeSingle: () =>
-            Promise.resolve({ data: null, error: { message: "down" } }),
-        };
-        return query;
-      },
-    };
+    const failing = fakeSupabase({}, { failing: { profiles: "down" } });
 
     const { result, logged } = await withConsoleErrors(() =>
       loadMiniMeGender(failing, "user-1"),
