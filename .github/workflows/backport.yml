@@ -1,0 +1,185 @@
+# Opens a develop backport PR when a hotfix merges into main
+
+name: Backport hotfix to develop
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  backport:
+    name: Cherry-pick onto develop
+    if: github.event.pull_request.merged == true && github.event.pull_request.head.ref != 'develop'
+    runs-on: ubuntu-latest
+    # On the job, not the workflow: skipped events (closed unmerged, release PRs) must not
+    # take the pending slot from a hotfix run. One group, so two merges close together add
+    # to the same backport PR one after the other instead of racing to open separate ones.
+    concurrency:
+      group: backport
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ github.event.pull_request.number }}
+      PR_URL: ${{ github.event.pull_request.html_url }}
+      # One rolling branch and PR carries every hotfix until a human merges it.
+      BRANCH: backport/main-hotfixes
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Require the backport app
+        env:
+          APP_ID: ${{ vars.RELEASE_APP_ID }}
+          APP_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+        run: |
+          if [ -z "$APP_ID" ] || [ -z "$APP_KEY" ]; then
+            echo "::error title=Backport app missing::Variable RELEASE_APP_ID or secret RELEASE_APP_PRIVATE_KEY is not set, so no backport PR can be opened. Port $PR_URL by hand."
+            exit 1
+          fi
+
+      - uses: actions/create-github-app-token@v2
+        id: app
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Skip when develop already has every main change
+        id: missing
+        run: |
+          # Exit 1 means "commits missing". Any other failure (a failed fetch) must stop the job.
+          status=0
+          scripts/main-missing-from.sh origin/develop > missing.txt || status=$?
+          case "$status" in
+            0)
+              echo "todo=false" >> "$GITHUB_OUTPUT"
+              echo "develop already has every main change"
+              ;;
+            1)
+              echo "todo=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error title=Could not compare main with develop::scripts/main-missing-from.sh exited $status"
+              exit "$status"
+              ;;
+          esac
+
+      - name: Find the open backport PR
+        id: existing
+        if: steps.missing.outputs.todo == 'true'
+        run: |
+          number=$(gh pr list --base develop --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+
+      - name: Cherry-pick the missing main commits onto the backport branch
+        id: pick
+        if: steps.missing.outputs.todo == 'true'
+        env:
+          OPEN_PR: ${{ steps.existing.outputs.number }}
+        run: |
+          set -o pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # The script lists the main commits develop still lacks (oldest first), and counts a
+          # squash-merged port as present, so it decides which commits to pick.
+          shas=$(awk '/^  / {print $1}' missing.txt)
+          if [ -n "$OPEN_PR" ]; then
+            # Add to the open PR: only commits its branch does not carry yet.
+            git switch -c "$BRANCH" "origin/$BRANCH"
+            status=0
+            scripts/main-missing-from.sh "origin/$BRANCH" > on-branch.txt || status=$?
+            if [ "$status" -gt 1 ]; then
+              echo "::error title=Could not compare main with the backport branch::scripts/main-missing-from.sh exited $status"
+              exit "$status"
+            fi
+            not_on_branch=$(awk '/^  / {print $1}' on-branch.txt)
+            shas=$(printf '%s\n' "$shas" | grep -Fx -f <(printf '%s\n' "$not_on_branch") || true)
+            if [ -z "$shas" ]; then
+              echo "result=covered" >> "$GITHUB_OUTPUT"
+              echo "Backport PR #$OPEN_PR already carries every missing main commit."
+              exit 0
+            fi
+          else
+            if [ -z "$shas" ]; then
+              echo "::error title=Nothing to cherry-pick::main-missing-from.sh reported missing commits but listed none."
+              exit 1
+            fi
+            git switch -c "$BRANCH" origin/develop
+          fi
+          # Subjects of the commits to port, in order, for the conflict prompt.
+          # shellcheck disable=SC2086
+          git log --no-walk=unsorted --format='%H%x09%s' $shas |
+            jq -R -s '[split("\n")[] | select(. != "") | split("\t") | {sha: .[0], subject: (.[1:] | join("\t"))}]' > commits.json
+          for sha in $shas; do
+            if ! git cherry-pick -x "$sha"; then
+              git diff --name-only --diff-filter=U > conflicts.txt
+              git cherry-pick --abort
+              echo "result=conflict" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "result=clean" >> "$GITHUB_OUTPUT"
+
+      - name: Open or update the backport PR
+        if: steps.pick.outputs.result == 'clean'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          OPEN_PR: ${{ steps.existing.outputs.number }}
+        run: |
+          # checkout stored the read-only workflow token as an extraheader, which git sends
+          # ahead of any credential helper. Drop it so the push goes out as the app and CI runs.
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          gh auth setup-git
+          if [ -n "$OPEN_PR" ]; then
+            git push origin "$BRANCH"
+          else
+            # No backport PR is open here, so a leftover branch from an earlier run is stale.
+            git push origin --delete "$BRANCH" 2>/dev/null || true
+            git push origin "$BRANCH"
+            printf 'Backports main hotfixes to develop, made by `git cherry-pick -x`.\n\nA human queues this PR. `Check develop has main` stays red until it merges, and the next release is blocked until then. Hotfixes that merge to main before then are added to this PR; each commit keeps a `(cherry picked from commit ...)` line naming its main commit.\n' > body.md
+            gh pr create --base develop --head "$BRANCH" --title "ci(backport): port main hotfixes to develop [AIO-145]" --body-file body.md
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.pick.outputs.result == 'conflict'
+        with:
+          node-version: "24"
+
+      - name: Comment on the hotfix PR when the cherry-pick conflicts
+        if: steps.pick.outputs.result == 'conflict'
+        env:
+          OPEN_PR: ${{ steps.existing.outputs.number }}
+        run: |
+          existing=""
+          if [ -n "$OPEN_PR" ]; then
+            existing="https://github.com/$GITHUB_REPOSITORY/pull/$OPEN_PR"
+          fi
+          jq -R -s --arg repo "$GITHUB_REPOSITORY" --arg pr "$PR_URL" --arg existing "$existing" --slurpfile commits commits.json '{
+              kind: "backport-conflict",
+              repo: $repo,
+              hotfixPr: $pr,
+              commits: $commits[0],
+              conflictingFiles: [split("\n")[] | select(. != "")]
+            } + (if $existing != "" then {existingBackportPr: $existing} else {} end)' conflicts.txt > prompt-input.json
+          node scripts/agent-prompt/print-agent-prompt.ts prompt-input.json > prompt.txt
+          {
+            echo "The automatic backport to \`develop\` stopped on a merge conflict, so the hotfix was not added to a backport PR. The next release is blocked until the hotfix is ported."
+            echo
+            echo "Give this prompt to your coding agent:"
+            echo
+            echo '```text'
+            cat prompt.txt
+            echo
+            echo '```'
+          } > comment.md
+          gh pr comment "$PR" --body-file comment.md
+          echo "::error title=Backport conflict::Cherry-pick of $PR_URL conflicts with develop. A prompt for your coding agent is in a comment on the hotfix PR."
+          exit 1
