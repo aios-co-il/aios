@@ -26,7 +26,7 @@ import { format } from "date-fns";
 import { SupplierInvoiceFileLink } from "./SupplierInvoiceFileLink";
 import {
   deleteSupplierInvoice,
-  removeSupplierInvoiceFile,
+  removeOrphanedSupplierInvoiceFile,
   uploadSupplierInvoiceFile,
 } from "./supplierInvoiceFiles";
 
@@ -155,7 +155,7 @@ export function SupplierInvoicesDialog({
       });
       if (error) {
         if (filePath) {
-          await removeSupplierInvoiceFile(filePath);
+          await removeOrphanedSupplierInvoiceFile(filePath);
         }
         throw error;
       }

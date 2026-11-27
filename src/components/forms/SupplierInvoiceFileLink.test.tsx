@@ -2,18 +2,6 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { withTestQuery } from "@/test/withTestQuery";
-
-const mocks = vi.hoisted(() => ({
-  sign: vi.fn(),
-  toastError: vi.fn(),
-}));
-
-vi.mock("./supplierInvoiceFiles", () => ({
-  signSupplierInvoiceUrl: mocks.sign,
-}));
-
-vi.mock("sonner", () => ({ toast: { error: mocks.toastError } }));
-
 import { SupplierInvoiceFileLink } from "./SupplierInvoiceFileLink";
 
 const OPEN = "פתיחת קובץ החשבונית";
@@ -100,3 +88,14 @@ describe("SupplierInvoiceFileLink", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 });
+
+const mocks = vi.hoisted(() => ({
+  sign: vi.fn(),
+  toastError: vi.fn(),
+}));
+
+vi.mock("./supplierInvoiceFiles", () => ({
+  signSupplierInvoiceUrl: mocks.sign,
+}));
+
+vi.mock("sonner", () => ({ toast: { error: mocks.toastError } }));

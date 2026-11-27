@@ -1,37 +1,4 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-
-const mocks = vi.hoisted(() => {
-  const calls: Array<string> = [];
-  const eq = vi.fn(async (_column: string, id: string) => {
-    calls.push(`delete row ${id}`);
-    return { error: null as { message: string } | null };
-  });
-  const upload = vi.fn(async (path: string) => {
-    calls.push(`upload ${path}`);
-    return { error: null as { message: string } | null };
-  });
-  const remove = vi.fn(async (paths: Array<string>) => {
-    calls.push(`remove ${paths.join(",")}`);
-    return { error: null as { message: string } | null };
-  });
-  const createSignedUrl = vi.fn(async () => ({
-    data: { signedUrl: "https://signed.example/invoice" } as {
-      signedUrl: string;
-    } | null,
-    error: null as { message: string } | null,
-  }));
-  const bucket = vi.fn(() => ({ upload, remove, createSignedUrl }));
-
-  return { calls, eq, upload, remove, createSignedUrl, bucket };
-});
-
-vi.mock("@/integrations/supabase/client", () => ({
-  supabase: {
-    from: () => ({ delete: () => ({ eq: mocks.eq }) }),
-    storage: { from: mocks.bucket },
-  },
-}));
-
 import {
   deleteSupplierInvoice,
   signSupplierInvoiceUrl,
@@ -59,7 +26,7 @@ describe("supplier invoice files", () => {
   });
 
   test("a refused upload is an error, not a path", async () => {
-    mocks.upload.mockResolvedValueOnce({ error: { message: "denied" } });
+    mocks.upload.mockResolvedValueOnce({ error: DENIED });
 
     await expect(
       uploadSupplierInvoiceFile(
@@ -67,7 +34,7 @@ describe("supplier invoice files", () => {
         "supplier-1",
         new File([], "a.pdf"),
       ),
-    ).rejects.toEqual({ message: "denied" });
+    ).rejects.toEqual(DENIED);
   });
 
   test("a file opens through a one-minute link", async () => {
@@ -101,11 +68,11 @@ describe("supplier invoice files", () => {
   });
 
   test("an invoice whose row was not deleted keeps its file", async () => {
-    mocks.eq.mockResolvedValueOnce({ error: { message: "denied" } });
+    mocks.eq.mockResolvedValueOnce({ error: DENIED });
 
     await expect(
       deleteSupplierInvoice({ id: "invoice-1", file_path: "tenant-1/1.pdf" }),
-    ).rejects.toEqual({ message: "denied" });
+    ).rejects.toEqual(DENIED);
     expect(mocks.remove).not.toHaveBeenCalled();
   });
 
@@ -115,11 +82,61 @@ describe("supplier invoice files", () => {
     expect(mocks.calls).toEqual(["delete row invoice-1"]);
   });
 
-  test("a file storage did not remove is an error", async () => {
-    mocks.remove.mockResolvedValueOnce({ error: { message: "denied" } });
+  test("a file storage did not remove is logged; the invoice is still deleted", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.remove.mockResolvedValueOnce({ error: DENIED });
 
-    await expect(
-      deleteSupplierInvoice({ id: "invoice-1", file_path: "tenant-1/1.pdf" }),
-    ).rejects.toEqual({ message: "denied" });
+    await deleteSupplierInvoice({
+      id: "invoice-1",
+      file_path: "tenant-1/1.pdf",
+    });
+
+    expect(logged).toHaveBeenCalledWith(
+      "Supplier invoice file was not removed:",
+      "tenant-1/1.pdf",
+      DENIED,
+    );
   });
 });
+
+const DENIED = { message: "denied" };
+
+type StorageError = { message: string } | null;
+
+type Signed = { data: { signedUrl: string } | null; error: StorageError };
+
+const mocks = vi.hoisted(() => {
+  const calls: Array<string> = [];
+  const eq = vi.fn(
+    async (_column: string, id: string): Promise<{ error: StorageError }> => {
+      calls.push(`delete row ${id}`);
+      return { error: null };
+    },
+  );
+  const upload = vi.fn(
+    async (path: string): Promise<{ error: StorageError }> => {
+      calls.push(`upload ${path}`);
+      return { error: null };
+    },
+  );
+  const remove = vi.fn(
+    async (paths: Array<string>): Promise<{ error: StorageError }> => {
+      calls.push(`remove ${paths.join(",")}`);
+      return { error: null };
+    },
+  );
+  const createSignedUrl = vi.fn(async (): Promise<Signed> => ({
+    data: { signedUrl: "https://signed.example/invoice" },
+    error: null,
+  }));
+  const bucket = vi.fn(() => ({ upload, remove, createSignedUrl }));
+
+  return { calls, eq, upload, remove, createSignedUrl, bucket };
+});
+
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    from: () => ({ delete: () => ({ eq: mocks.eq }) }),
+    storage: { from: mocks.bucket },
+  },
+}));

@@ -42,10 +42,24 @@ export async function signSupplierInvoiceUrl(path: string): Promise<string> {
 }
 
 /** Removes an invoice file from storage. */
-export async function removeSupplierInvoiceFile(path: string): Promise<void> {
+async function removeSupplierInvoiceFile(path: string): Promise<void> {
   const { error } = await supabase.storage.from(BUCKET).remove([path]);
   if (error) {
     throw error;
+  }
+}
+
+/**
+ * Removes a file whose invoice is gone or was never written. A failure is
+ * logged, not thrown: the invoice's own outcome is what the caller reports.
+ */
+export async function removeOrphanedSupplierInvoiceFile(
+  path: string,
+): Promise<void> {
+  try {
+    await removeSupplierInvoiceFile(path);
+  } catch (error) {
+    console.error("Supplier invoice file was not removed:", path, error);
   }
 }
 
@@ -61,6 +75,6 @@ export async function deleteSupplierInvoice(
     throw error;
   }
   if (invoice.file_path) {
-    await removeSupplierInvoiceFile(invoice.file_path);
+    await removeOrphanedSupplierInvoiceFile(invoice.file_path);
   }
 }
