@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import {
   deleteSupplierInvoice,
+  isRejectedWrite,
   signSupplierInvoiceUrl,
   uploadSupplierInvoiceFile,
 } from "./supplierInvoiceFiles";
@@ -96,6 +97,17 @@ describe("supplier invoice files", () => {
       "tenant-1/1.pdf",
       DENIED,
     );
+  });
+
+  test("only a refusal from the server counts as a rejected write", () => {
+    expect([0, 201, 403, 409, 500, 504].map(isRejectedWrite)).toEqual([
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+    ]);
   });
 });
 

@@ -9,6 +9,23 @@ import {
 
 const OPEN_LABEL = "פתיחת קובץ החשבונית";
 
+/** A file to open, and the tab that was opened for it at the click. */
+type OpenRequest = { path: string; tab: Window | null };
+
+/**
+ * Shows the file in the tab opened at the click. Browsers block a tab opened
+ * after the wait for the link, so the tab comes first and the link second.
+ */
+function showInTab(tab: Window | null, url: string) {
+  if (!tab) {
+    window.open(url, "_blank", "noopener,noreferrer");
+
+    return;
+  }
+  tab.opener = null;
+  tab.location.replace(url);
+}
+
 /**
  * Opens an invoice's file. A row with a path gets a fresh one-minute link on
  * each click; a row from before paths were kept still has its stored link.
@@ -19,11 +36,12 @@ export function SupplierInvoiceFileLink({
   invoice: SupplierInvoiceFile;
 }) {
   const openFile = useMutation({
-    mutationFn: signSupplierInvoiceUrl,
-    onSuccess: (url) => {
-      window.open(url, "_blank", "noopener,noreferrer");
+    mutationFn: ({ path }: OpenRequest) => signSupplierInvoiceUrl(path),
+    onSuccess: (url, { tab }) => {
+      showInTab(tab, url);
     },
-    onError: (error) => {
+    onError: (error, { tab }) => {
+      tab?.close();
       console.error("supplier invoice file open failed:", error);
       toast.error("לא הצלחנו לפתוח את קובץ החשבונית");
     },
@@ -37,7 +55,9 @@ export function SupplierInvoiceFileLink({
         size="icon"
         aria-label={OPEN_LABEL}
         disabled={openFile.isPending}
-        onClick={() => openFile.mutate(filePath)}
+        onClick={() =>
+          openFile.mutate({ path: filePath, tab: window.open("", "_blank") })
+        }
       >
         <Download className="h-4 w-4 text-primary" />
       </Button>

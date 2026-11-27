@@ -7,6 +7,18 @@ const BUCKET = "supplier-invoices";
 /** How long a link opened from a click lives. */
 const OPEN_URL_SECONDS = 60;
 
+const HTTP_CLIENT_ERROR_MIN = 400;
+const HTTP_SERVER_ERROR_MIN = 500;
+
+/**
+ * True when the server answered a write and refused it, so no row exists.
+ * A lost answer or a server fault leaves the outcome unknown: the row may
+ * exist, and its file must stay.
+ */
+export function isRejectedWrite(status: number): boolean {
+  return status >= HTTP_CLIENT_ERROR_MIN && status < HTTP_SERVER_ERROR_MIN;
+}
+
 /** The part of an invoice row that says where its file is. */
 export type SupplierInvoiceFile = Pick<
   Tables<"supplier_invoices">,
