@@ -26,6 +26,7 @@ import { format } from "date-fns";
 import { SupplierInvoiceFileLink } from "./SupplierInvoiceFileLink";
 import {
   deleteSupplierInvoice,
+  isRejectedWrite,
   removeOrphanedSupplierInvoiceFile,
   uploadSupplierInvoiceFile,
 } from "./supplierInvoiceFiles";
@@ -141,20 +142,22 @@ export function SupplierInvoicesDialog({
         ? await uploadSupplierInvoiceFile(tenantId, supplier.id, file)
         : null;
 
-      const { error } = await supabase.from("supplier_invoices").insert({
-        tenant_id: tenantId,
-        supplier_id: supplier.id,
-        invoice_name: invoiceName,
-        invoice_amount: parseFloat(invoiceAmount),
-        invoice_date: invoiceDate || null,
-        invoice_month: invoiceMonth,
-        file_path: filePath,
-        file_name: file?.name ?? null,
-        ai_extracted: isExtracting ? false : !!file,
-        notes: notes || null,
-      });
+      const { error, status } = await supabase
+        .from("supplier_invoices")
+        .insert({
+          tenant_id: tenantId,
+          supplier_id: supplier.id,
+          invoice_name: invoiceName,
+          invoice_amount: parseFloat(invoiceAmount),
+          invoice_date: invoiceDate || null,
+          invoice_month: invoiceMonth,
+          file_path: filePath,
+          file_name: file?.name ?? null,
+          ai_extracted: isExtracting ? false : !!file,
+          notes: notes || null,
+        });
       if (error) {
-        if (filePath) {
+        if (filePath && isRejectedWrite(status)) {
           await removeOrphanedSupplierInvoiceFile(filePath);
         }
         throw error;
