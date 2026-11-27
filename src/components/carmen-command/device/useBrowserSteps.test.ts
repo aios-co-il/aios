@@ -31,6 +31,7 @@ function renderSteps(panel: PanelChannel | null) {
         first: FIRST,
         offered: ["browser_read_page"],
         since: 0,
+        onTimeout: vi.fn(),
         continueRun,
         ...overrides,
       });

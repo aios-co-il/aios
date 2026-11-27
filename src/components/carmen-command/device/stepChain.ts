@@ -2,7 +2,13 @@ import {
   DEVICE_STEPS_PER_MESSAGE,
   type DeviceActionReply,
 } from "@functions/_shared/carmen/device/contract.ts";
-import { type PanelChannel, runPanelStep, STEP_WAIT_MS } from "./panelStep";
+import type { PanelClaimFailure } from "@functions/_shared/carmen/device/panel-envelope.ts";
+import {
+  isClaimFailure,
+  type PanelChannel,
+  runPanelStep,
+  STEP_WAIT_MS,
+} from "./panelStep";
 
 /** What a continuation request told the chat about the run. */
 export type ContinuedReply = {
@@ -12,8 +18,9 @@ export type ContinuedReply = {
   unavailable: boolean;
 };
 
-/** How a chain of browser steps ended. */
-export type StepChainEnd = "answered" | "unavailable" | "stopped" | "limit";
+/** How a chain of browser steps ended; a claim failure names why the panel could not take the step. */
+export type StepChainEnd =
+  "answered" | "unavailable" | "stopped" | "limit" | PanelClaimFailure;
 
 export type StepChainDeps = {
   panel: PanelChannel;
@@ -25,6 +32,8 @@ export type StepChainDeps = {
   continueRun: (actionId: string) => Promise<ContinuedReply>;
   /** The step the chat waits on the panel for, or null once the wait ends. */
   onWaiting: (actionId: string | null) => void;
+  /** The panel said nothing within the wait; called before the run continues. */
+  onTimeout: () => void;
   waitMs?: number;
 };
 
@@ -36,6 +45,11 @@ export type StepChainDeps = {
  * After a Stop the run continues only once the stop is recorded, so the server answers with
  * the stop line instead of a model turn; if the stop could not be recorded, nothing more is
  * sent and the step closes on the server with the next typed message.
+ *
+ * A step the panel could not claim ends the chain at once and continues nothing: the row is
+ * still pending, so the server would refuse the continuation; it expires, or the next typed
+ * message closes it. A panel that says nothing within the wait is reported (`onTimeout`)
+ * and the run continues, so the server closes the step as expired and answers.
  */
 export async function runBrowserSteps(
   first: DeviceActionReply,
@@ -54,6 +68,12 @@ export async function runBrowserSteps(
     steps += 1;
 
     const waited = await waitForPanel(action.action_id, deps);
+    if (isClaimFailure(waited)) {
+      return waited;
+    }
+    if (waited === "timeout") {
+      deps.onTimeout();
+    }
     if (waited === "stopped" && !(await deps.stopRecorded())) {
       return "stopped";
     }

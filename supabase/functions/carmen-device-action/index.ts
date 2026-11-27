@@ -3,16 +3,15 @@
  * action with the user's session. See handler.ts.
  */
 import { requireAuth } from "../_shared/security.ts";
-import { serviceClient, userClient } from "../_shared/supabase-clients.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 import { type DeviceActionDeps, handleDeviceAction } from "./handler.ts";
 
 Deno.serve((req) => handleDeviceAction(req, liveDeps()));
 
-/** The caller's identity, a client that reads as them, and the service client for the guarded writes. */
+/** The caller's identity and the service client for the reads and the guarded writes. */
 function liveDeps(): DeviceActionDeps {
   return {
     caller: requireAuth,
-    userDb: userClient,
     serviceDb: serviceClient,
     now: () => new Date(),
   };

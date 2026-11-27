@@ -56,12 +56,17 @@ export function actionRow(overrides: FakeRow = {}): FakeRow {
   };
 }
 
+/** Me and my colleague, both members of TENANT and nothing else. */
+const MEMBERS: Array<FakeRow> = [
+  { tenant_id: TENANT, user_id: ME },
+  { tenant_id: TENANT, user_id: COLLEAGUE },
+];
+
 /**
  * Tables holding one action, the run's other `steps`, the given stops and trusted sites,
- * and deps over them: each caller reads only their own rows. `failing` names a table whose
- * queries fail. `callerReads` is a row the
- * caller's own read returns whatever the table holds: row-level security gone wrong, or a
- * row that changed after it was read.
+ * who belongs to which org (`members`, by default me and my colleague in TENANT) and the
+ * super admins, and deps over them. `failing` names a table whose queries fail
+ * (`super_admins` fails `is_super_admin`).
  */
 export function world(
   action: FakeRow = actionRow(),
@@ -69,26 +74,21 @@ export function world(
     stops?: Array<FakeRow>;
     steps?: Array<FakeRow>;
     trusted?: Array<FakeRow>;
+    members?: Array<FakeRow>;
+    superAdmins?: Array<string>;
     failing?: string;
-    callerReads?: FakeRow;
   } = {},
 ) {
   const tables: FakeTables = {
     carmen_device_actions: [action, ...(options.steps ?? [])],
     carmen_run_cancellations: options.stops ?? [],
     carmen_device_trusted_sites: options.trusted ?? [],
+    tenant_users: options.members ?? MEMBERS,
+    super_admins: (options.superAdmins ?? []).map((user_id) => ({ user_id })),
   };
   const deps: DeviceActionDeps = {
     caller: (req) =>
       Promise.resolve(callerOf(req.headers.get("Authorization") ?? "")),
-    userDb: (authorization) =>
-      options.callerReads
-        ? fakeDb({ carmen_device_actions: [options.callerReads] })
-        : fakeDb(
-            tables,
-            (row) => row.user_id === USER_BY_TOKEN[authorization],
-            options.failing,
-          ),
     serviceDb: () => fakeDb(tables, undefined, options.failing),
     now: () => NOW,
   };
