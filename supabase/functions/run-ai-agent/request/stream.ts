@@ -1,13 +1,14 @@
+import type { DbClient } from "../../_shared/supabase-clients.ts";
+import type { AgentRequestBody } from "./types.ts";
+import type { Surface } from "../surface.ts";
+import type { RunInputs } from "../run/contracts.ts";
+
 import type { BackgroundRuntime } from "../background-runtime.ts";
 import { corsHeaders } from "../runtime.ts";
 import { handleRunAgent } from "../run/handle.ts";
 import { createReplyRecorder } from "../../_shared/carmen/background-reply.ts";
 import { parseReplyKey } from "../../_shared/carmen/background-reply.ts";
 import { saveCarmenReply } from "../../_shared/carmen/background-reply.ts";
-import type {
-  AgentStreamInput,
-  AgentStreamDependencies,
-} from "./stream-types.ts";
 
 declare const EdgeRuntime: BackgroundRuntime;
 
@@ -140,4 +141,19 @@ interface FinalRunPayload {
   output?: unknown;
   tools_used?: unknown;
   error?: unknown;
+}
+
+export interface AgentStreamInput {
+  req: Request;
+  supabase: DbClient;
+  bodyJson: AgentRequestBody;
+  surface: Surface;
+  authKind: string;
+  brainEngine?: RunInputs["brainEngine"];
+  internalTail?: RunInputs["internalTail"];
+}
+
+export interface AgentStreamDependencies {
+  handleRunAgent: typeof handleRunAgent;
+  saveCarmenReply: typeof saveCarmenReply;
 }

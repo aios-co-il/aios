@@ -3,7 +3,9 @@ import { loadCarmenAgent } from "../../_shared/carmen/load-carmen-agent.ts";
 import type { Json } from "../../_shared/database.types.ts";
 import { executeApprovedDirectTool } from "./execute-approved.ts";
 import { json } from "./response.ts";
-import type { DirectToolBody, DirectToolDependencies } from "./types.ts";
+import type { DirectToolRequest } from "./types.ts";
+import type { RunBody } from "../run/contracts.ts";
+import type { ToolExecutor } from "../tool-execution/route.ts";
 import { resolveDirectCaller } from "./caller.ts";
 import { executeTool } from "../tool-execution/execute.ts";
 import { asUuidOrNull } from "../../_shared/uuid.ts";
@@ -138,4 +140,12 @@ export async function handleDirectTool(
       result: { error: String((e as Error | null)?.message ?? e) },
     });
   }
+}
+
+export interface DirectToolBody extends Pick<RunBody, "tenant_id" | "user_id"> {
+  direct_tool?: DirectToolRequest | null;
+}
+
+export interface DirectToolDependencies {
+  executeTool: ToolExecutor;
 }

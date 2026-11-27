@@ -1,7 +1,7 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { handleDirectTool } from "./handle.ts";
 import { executorClient } from "../executors/executor-client.test-fixture.ts";
-import type { DirectToolDependencies } from "./types.ts";
+import type { DirectToolDependencies } from "./handle.ts";
 
 const USER = "22222222-2222-4222-8222-222222222222";
 
