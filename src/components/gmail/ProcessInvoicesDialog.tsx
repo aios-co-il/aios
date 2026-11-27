@@ -149,11 +149,14 @@ export function ProcessInvoicesDialog({
     },
     onSuccess: (savedKeys, rows) => {
       setResults((previous) =>
-        previous.map((result) =>
-          result.partId && savedKeys.includes(gmailInvoiceKey(result))
-            ? { ...result, saved: true }
-            : result,
-        ),
+        previous.map((result) => {
+          const { messageId, partId } = result;
+          const wasSaved =
+            partId !== undefined &&
+            savedKeys.includes(gmailInvoiceKey({ messageId, partId }));
+
+          return wasSaved ? { ...result, saved: true } : result;
+        }),
       );
       if (savedKeys.length > 0) {
         toast.success(`${savedKeys.length} חשבוניות נשמרו בהצלחה!`);
