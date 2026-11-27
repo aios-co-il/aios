@@ -17,29 +17,31 @@ vi.mock("@/integrations/supabase/client", () => {
   return { supabase: { from: () => chain } };
 });
 
-const row = (over: Partial<WorkshopListRow>): WorkshopListRow => ({
-  id: "item-1",
-  title: "פרויקט",
-  status: "draft",
-  client_id: "client-1",
-  client_name: "לקוח א",
-  department_hint: null,
-  has_board: false,
-  project_type: null,
-  target_channel: null,
-  track: null,
-  stage_type: null,
-  has_copy: false,
-  has_creative: false,
-  has_seo_plan: false,
-  updated_at: "2026-10-26T10:00:00Z",
-  format: null,
-  workshop_edit: false,
-  ...over,
-});
+function row(over: Partial<WorkshopListRow>): WorkshopListRow {
+  return {
+    id: "item-1",
+    title: "פרויקט",
+    status: "draft",
+    client_id: "client-1",
+    client_name: "לקוח א",
+    department_hint: null,
+    has_board: false,
+    project_type: null,
+    target_channel: null,
+    track: null,
+    stage_type: null,
+    has_copy: false,
+    has_creative: false,
+    has_seo_plan: false,
+    updated_at: "2026-10-26T10:00:00Z",
+    format: null,
+    workshop_edit: false,
+    ...over,
+  };
+}
 
-const renderControl = (item: WorkshopListRow) =>
-  render(
+function renderControl(item: WorkshopListRow) {
+  return render(
     <TooltipProvider delayDuration={0}>
       <WorkshopAssignControl
         tenantId="tenant-1"
@@ -48,6 +50,7 @@ const renderControl = (item: WorkshopListRow) =>
       />
     </TooltipProvider>,
   );
+}
 
 test("an assigned SEO project's picker is disabled and says why", async () => {
   renderControl(row({ department_hint: "seo" }));
@@ -77,7 +80,7 @@ test("copy, creative and unassigned SEO projects can be assigned", () => {
 
 test("picking the client the project already has assigns nothing", async () => {
   const onAssign = vi.fn();
-  const pick = async (item: WorkshopListRow) => {
+  async function pick(item: WorkshopListRow) {
     const { unmount } = render(
       <TooltipProvider>
         <WorkshopAssignControl
@@ -94,7 +97,7 @@ test("picking the client the project already has assigns nothing", async () => {
       screen.getAllByRole("button", { name: /ללא לקוח/ }).at(-1) as HTMLElement,
     );
     unmount();
-  };
+  }
   await pick(row({ client_id: null, client_name: null }));
   expect(onAssign).not.toHaveBeenCalled();
   await pick(row({ department_hint: "copy" }));

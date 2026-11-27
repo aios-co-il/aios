@@ -48,13 +48,13 @@ export function StoryboardGrid({
       return;
     }
     // On document, so it runs before the session column's window listener (Escape closes it).
-    const onKey = (event: KeyboardEvent) => {
+    function onKey(event: KeyboardEvent) {
       if (event.key !== "Escape" || event.defaultPrevented) {
         return;
       }
       event.preventDefault();
       onSelectRef.current(null);
-    };
+    }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [selectedId]);

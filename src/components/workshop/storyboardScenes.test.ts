@@ -17,21 +17,23 @@ import {
   type WorkshopArtifact,
 } from "./workshopFeedModel";
 
-const row = (over: Partial<SceneRow> = {}): SceneRow => ({
-  id: "s1",
-  position: 1,
-  title: "פתיחה",
-  overlay_text: "כבר החלפת 8 קמפיינרים?",
-  voiceover_text: "",
-  motion_prompt: " slow push in ",
-  duration_s: "3.5",
-  status: "draft",
-  still_asset_id: null,
-  clip_asset_id: null,
-  clip_stale: false,
-  meta: {},
-  ...over,
-});
+function row(over: Partial<SceneRow> = {}): SceneRow {
+  return {
+    id: "s1",
+    position: 1,
+    title: "פתיחה",
+    overlay_text: "כבר החלפת 8 קמפיינרים?",
+    voiceover_text: "",
+    motion_prompt: " slow push in ",
+    duration_s: "3.5",
+    status: "draft",
+    still_asset_id: null,
+    clip_asset_id: null,
+    clip_stale: false,
+    meta: {},
+    ...over,
+  };
+}
 
 test("a scene's state follows its picture, its clip and its run", () => {
   expect(sceneState(row())).toBe("no_picture");
@@ -137,7 +139,9 @@ test("the film's frame is the project's format, Reels when it has none", () => {
 });
 
 test("the scenes tab counts scenes and exists even without scene pages", () => {
-  const page = (folder: string) => ({ folder }) as unknown as WorkshopArtifact;
+  function page(folder: string) {
+    return { folder } as unknown as WorkshopArtifact;
+  }
   expect(folderTabs([page("copy")], 0).map((tab) => tab.folder)).toStrictEqual([
     "copy",
   ]);

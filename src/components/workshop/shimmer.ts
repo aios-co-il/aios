@@ -41,5 +41,6 @@ export const ASPECT_RATIOS: Record<string, number> = {
   "16:9": 16 / 9,
 };
 
-export const aspectRatioOf = (format: unknown, fallback = "4:5") =>
-  ASPECT_RATIOS[String(format)] ?? ASPECT_RATIOS[fallback];
+export function aspectRatioOf(format: unknown, fallback = "4:5") {
+  return ASPECT_RATIOS[String(format)] ?? ASPECT_RATIOS[fallback];
+}

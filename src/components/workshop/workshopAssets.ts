@@ -23,7 +23,7 @@ const SECTIONS: Array<{ key: AssetSection["key"]; label: string }> = [
   { key: "file", label: "קבצים" },
 ];
 
-const sectionOf = (asset: WorkshopAsset): AssetSection["key"] => {
+function sectionOf(asset: WorkshopAsset): AssetSection["key"] {
   if (asset.source === "client") {
     return "client";
   }
@@ -37,7 +37,7 @@ const sectionOf = (asset: WorkshopAsset): AssetSection["key"] => {
     return "text";
   }
   return "file";
-};
+}
 
 /** The assets tab's sections in a fixed order; empty sections are left out. */
 export function groupAssets(assets: Array<WorkshopAsset>): Array<AssetSection> {
@@ -51,12 +51,17 @@ export function groupAssets(assets: Array<WorkshopAsset>): Array<AssetSection> {
 }
 
 /** Only a picture with an https link can steer generation. */
-export const canBeReference = (asset: WorkshopAsset) =>
-  asset.asset_type === "image" && /^https:\/\/\S+$/i.test(asset.url ?? "");
+export function canBeReference(asset: WorkshopAsset) {
+  return (
+    asset.asset_type === "image" && /^https:\/\/\S+$/i.test(asset.url ?? "")
+  );
+}
 
-export const referenceCount = (assets: Array<WorkshopAsset>) =>
-  assets.filter((asset) => canBeReference(asset) && asset.use_as_reference)
-    .length;
+export function referenceCount(assets: Array<WorkshopAsset>) {
+  return assets.filter(
+    (asset) => canBeReference(asset) && asset.use_as_reference,
+  ).length;
+}
 
 /** Storage path for a file the user adds: ASCII only, unique by time. */
 export function assetStoragePath(

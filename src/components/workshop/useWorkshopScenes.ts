@@ -29,13 +29,16 @@ import {
   type StoryboardScene,
 } from "./storyboardScenes";
 
-export const scenesQueryKey = (
+export function scenesQueryKey(
   tenantId: string | undefined,
   projectId: string | null,
-) => ["workshop-scenes", tenantId, projectId] as const;
+) {
+  return ["workshop-scenes", tenantId, projectId] as const;
+}
 
-const isStoragePath = (url: string | null): url is string =>
-  !!url && !/^(https?:|data:|blob:)/i.test(url);
+function isStoragePath(url: string | null): url is string {
+  return !!url && !/^(https?:|data:|blob:)/i.test(url);
+}
 
 async function loadScenes(
   tenantId: string,
@@ -105,7 +108,9 @@ export function useWorkshopScenes(
       return;
     }
     const queryKey = scenesQueryKey(tenantId, projectId);
-    const refresh = () => void queryClient.invalidateQueries({ queryKey });
+    function refresh() {
+      return void queryClient.invalidateQueries({ queryKey });
+    }
     const channel = supabase
       .channel(`workshop-scenes-${projectId}`)
       .on(

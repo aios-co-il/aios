@@ -19,22 +19,24 @@ vi.mock("@/integrations/supabase/client", () => ({
 const BRIEF =
   "סרטון לכרמן\n\nפרטים שנוספו לבריף:\nקצב: מהיר\nפונט: Heebo, טקסט גדול";
 
-const page = (over: Partial<WorkshopArtifact>): WorkshopArtifact => ({
-  id: "page-1",
-  item_id: "item-1",
-  kind: "brief",
-  folder: "",
-  title: "סרטון לכרמן",
-  status: "ready",
-  url: null,
-  thumb_url: null,
-  meta: {},
-  created_at: "2026-11-04T10:00:00Z",
-  ...over,
-});
+function page(over: Partial<WorkshopArtifact>): WorkshopArtifact {
+  return {
+    id: "page-1",
+    item_id: "item-1",
+    kind: "brief",
+    folder: "",
+    title: "סרטון לכרמן",
+    status: "ready",
+    url: null,
+    thumb_url: null,
+    meta: {},
+    created_at: "2026-11-04T10:00:00Z",
+    ...over,
+  };
+}
 
-const feed = (artifacts: Array<WorkshopArtifact>, openChat = vi.fn()) =>
-  withTestQuery(
+function feed(artifacts: Array<WorkshopArtifact>, openChat = vi.fn()) {
+  return withTestQuery(
     <WorkshopFeed
       artifacts={artifacts}
       loading={false}
@@ -46,6 +48,7 @@ const feed = (artifacts: Array<WorkshopArtifact>, openChat = vi.fn()) =>
       openChat={openChat}
     />,
   );
+}
 
 describe("WorkshopFeed", () => {
   // jsdom has no scrollIntoView: the feed scrolls to its end, so the test lends one and takes it back.

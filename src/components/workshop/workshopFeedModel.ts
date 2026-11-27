@@ -38,8 +38,9 @@ export function pageTypeOf(kind: ArtifactKind): PageType {
 }
 
 /** A reference can be a picture or a film; the file says which. */
-export const referenceIsVideo = (artifact: WorkshopArtifact) =>
-  /\.(mp4|mov|webm)(\?|$)/i.test(artifact.url ?? "");
+export function referenceIsVideo(artifact: WorkshopArtifact) {
+  return /\.(mp4|mov|webm)(\?|$)/i.test(artifact.url ?? "");
+}
 
 export function pageTypeFor(artifact: WorkshopArtifact): PageType {
   if (artifact.kind === "reference") {
@@ -101,8 +102,9 @@ export function pagesIn(
     : ordered.filter((artifact) => artifact.folder === folder);
 }
 
-export const foldersOf = (artifacts: Array<WorkshopArtifact>) =>
-  folderTree(artifacts);
+export function foldersOf(artifacts: Array<WorkshopArtifact>) {
+  return folderTree(artifacts);
+}
 
 /** The folder whose tab shows the storyboard grid (FOLDER_BY_KIND.storyboard). */
 export const SCENES_FOLDER = "video/scenes";
@@ -138,27 +140,31 @@ export function shouldFollow(
   return following && nextCount > previousCount;
 }
 
-const isStoragePath = (url: string | null): url is string =>
-  !!url && !/^(https?:|data:|blob:)/i.test(url);
+function isStoragePath(url: string | null): url is string {
+  return !!url && !/^(https?:|data:|blob:)/i.test(url);
+}
 
 /** Files in the private creative-video bucket are stored as paths and need a signed link to show. */
-export const storagePathsIn = (artifacts: Array<WorkshopArtifact>) => [
-  ...new Set(
-    artifacts.flatMap((a) => [a.url, a.thumb_url]).filter(isStoragePath),
-  ),
-];
+export function storagePathsIn(artifacts: Array<WorkshopArtifact>) {
+  return [
+    ...new Set(
+      artifacts.flatMap((a) => [a.url, a.thumb_url]).filter(isStoragePath),
+    ),
+  ];
+}
 
-export const withSignedUrls = (
+export function withSignedUrls(
   artifacts: Array<WorkshopArtifact>,
   signed: Record<string, string>,
-): Array<WorkshopArtifact> =>
-  artifacts.map((a) => ({
+): Array<WorkshopArtifact> {
+  return artifacts.map((a) => ({
     ...a,
     url: isStoragePath(a.url) ? (signed[a.url] ?? null) : a.url,
     thumb_url: isStoragePath(a.thumb_url)
       ? (signed[a.thumb_url] ?? null)
       : a.thumb_url,
   }));
+}
 
 /** The project's own main format, read from the brief page Carmen wrote when she opened it. */
 export function projectFormat(artifacts: Array<WorkshopArtifact>): string {
@@ -175,8 +181,9 @@ const CLIP_ENGINE: Record<string, string> = {
   mock: "מנוע התצוגה החינמי",
 };
 
-const engineName = (value: unknown) =>
-  typeof value === "string" ? (CLIP_ENGINE[value] ?? value) : "";
+function engineName(value: unknown) {
+  return typeof value === "string" ? (CLIP_ENGINE[value] ?? value) : "";
+}
 
 /** When the worker could not use the chosen engine for a clip, the page says what it used instead. */
 export function fallbackNote(artifact: WorkshopArtifact): string | null {

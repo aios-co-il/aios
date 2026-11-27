@@ -30,7 +30,7 @@ export function SceneEditForm({
   onCancel: () => void;
   onSave: () => void;
 }) {
-  const onKeyDown = (event: KeyboardEvent) => {
+  function onKeyDown(event: KeyboardEvent) {
     if (event.key === "Escape") {
       // Handled here, so the board (unselect) and the chat column (close) leave it alone.
       event.preventDefault();
@@ -39,38 +39,42 @@ export function SceneEditForm({
       event.preventDefault();
       onSave();
     }
-  };
+  }
   const id = useId();
-  const field = (
+  function field(
     key: keyof SceneDraft,
     label: string,
     rows: number,
     hint: string,
-  ) => (
-    <div className="space-y-1">
-      <label htmlFor={`${id}-${key}`} className="block text-xs font-medium">
-        {label}
-      </label>
-      <Textarea
-        id={`${id}-${key}`}
-        rows={rows}
-        value={draft[key]}
-        maxLength={SCENE_TEXT_LIMITS[key]}
-        aria-describedby={hint ? `${id}-${key}-hint` : undefined}
-        onChange={(event) => onChange({ ...draft, [key]: event.target.value })}
-        onKeyDown={onKeyDown}
-        className="min-h-0 resize-y bg-background text-sm leading-snug"
-      />
-      {hint ? (
-        <p
-          id={`${id}-${key}-hint`}
-          className="text-[11px] text-muted-foreground"
-        >
-          {hint}
-        </p>
-      ) : null}
-    </div>
-  );
+  ) {
+    return (
+      <div className="space-y-1">
+        <label htmlFor={`${id}-${key}`} className="block text-xs font-medium">
+          {label}
+        </label>
+        <Textarea
+          id={`${id}-${key}`}
+          rows={rows}
+          value={draft[key]}
+          maxLength={SCENE_TEXT_LIMITS[key]}
+          aria-describedby={hint ? `${id}-${key}-hint` : undefined}
+          onChange={(event) =>
+            onChange({ ...draft, [key]: event.target.value })
+          }
+          onKeyDown={onKeyDown}
+          className="min-h-0 resize-y bg-background text-sm leading-snug"
+        />
+        {hint ? (
+          <p
+            id={`${id}-${key}-hint`}
+            className="text-[11px] text-muted-foreground"
+          >
+            {hint}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
   return (
     <form
       aria-label={`עריכת הטקסט של סצנה ${scene.number}`}

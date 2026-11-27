@@ -34,12 +34,12 @@ export function PageEditForm({
   // Narration longer than its beat runs past it in the film; the save tool refuses it too.
   const overlong =
     draft.kind === "script" ? overlongBeats(draft.beats) : new Map();
-  const save = () => {
+  function save() {
     if (overlong.size === 0) {
       onSave(draft);
     }
-  };
-  const onKeyDown = (event: KeyboardEvent) => {
+  }
+  function onKeyDown(event: KeyboardEvent) {
     if (event.key === "Escape") {
       // Handled here, so the board (unselect) and the chat column (close) leave it alone.
       event.preventDefault();
@@ -48,8 +48,8 @@ export function PageEditForm({
       event.preventDefault();
       save();
     }
-  };
-  const setBeat = (index: number, key: BeatText, value: string) => {
+  }
+  function setBeat(index: number, key: BeatText, value: string) {
     if (draft.kind !== "script") {
       return;
     }
@@ -59,7 +59,7 @@ export function PageEditForm({
         at === index ? { ...beat, [key]: value } : beat,
       ),
     });
-  };
+  }
   return (
     <form
       aria-label="עריכת העמוד"

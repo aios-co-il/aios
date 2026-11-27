@@ -91,11 +91,11 @@ function RecorderPanel({
 }) {
   const recorder = useNarrationRecorder(GUIDE_MAX_SECONDS);
   const script = narrationScript(scenes);
-  const sendRecording = () => {
+  function sendRecording() {
     if (recorder.recording) {
       send.mutate(recorder.recording);
     }
-  };
+  }
   return (
     <DialogContent
       dir="rtl"

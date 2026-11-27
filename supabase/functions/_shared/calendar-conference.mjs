@@ -501,7 +501,7 @@ export async function updateExistingCalendarEvent({
         );
         appliedConference = "zoom";
       } else {
-        zoom_available = zoom?.configured === false ? false : true;
+        zoom_available = zoom?.configured !== false;
         zoom_status = zoom?.error || zoomUnavailableMessage();
         if (!existingUrl) {
           patch.conferenceData = buildMeetConferenceData();

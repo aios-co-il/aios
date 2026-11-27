@@ -25,12 +25,16 @@ export function MagicShimmer({
   const canvas = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    const el = box.current;
-    const cv = canvas.current;
-    const ctx = cv?.getContext("2d");
-    if (!el || !cv || !ctx) {
+    const maybeEl = box.current;
+    const maybeCv = canvas.current;
+    const maybeCtx = maybeCv?.getContext("2d");
+    if (!maybeEl || !maybeCv || !maybeCtx) {
       return;
     }
+    // Function declarations below do not keep the null narrowing above.
+    const el: HTMLDivElement = maybeEl;
+    const cv: HTMLCanvasElement = maybeCv;
+    const ctx: CanvasRenderingContext2D = maybeCtx;
     const still = window.matchMedia?.(
       "(prefers-reduced-motion: reduce)",
     ).matches;
@@ -39,7 +43,7 @@ export function MagicShimmer({
     let width = 0;
     let height = 0;
 
-    const draw = (now: number) => {
+    function draw(now: number) {
       const t = now / 1000;
       const step = CELL + GAP;
       const cols = Math.max(1, Math.floor(width / step));
@@ -62,18 +66,18 @@ export function MagicShimmer({
           ctx.fill();
         }
       }
-    };
+    }
 
-    const loop = (now: number) => {
+    function loop(now: number) {
       raf = requestAnimationFrame(loop);
       if (now - last < FRAME_MS) {
         return;
       }
       last = now;
       draw(now);
-    };
+    }
 
-    const resize = () => {
+    function resize() {
       const dpr = window.devicePixelRatio || 1;
       width = el.clientWidth;
       height = el.clientHeight;
@@ -81,7 +85,7 @@ export function MagicShimmer({
       cv.height = Math.round(height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       draw(performance.now());
-    };
+    }
 
     const observer = new ResizeObserver(resize);
     observer.observe(el);

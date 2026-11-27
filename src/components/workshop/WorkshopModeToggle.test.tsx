@@ -25,8 +25,9 @@ vi.mock("@/integrations/supabase/client", () => {
   return { supabase: { from: () => chain, rpc: mocks.rpc } };
 });
 
-const pressed = (name: string) =>
-  screen.getByRole("button", { name }).getAttribute("aria-pressed");
+function pressed(name: string) {
+  return screen.getByRole("button", { name }).getAttribute("aria-pressed");
+}
 
 describe("WorkshopModeToggle", () => {
   beforeEach(() => {

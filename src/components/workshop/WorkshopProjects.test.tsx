@@ -4,26 +4,28 @@ import { expect, test, vi } from "vitest";
 import { WorkshopProjects } from "./WorkshopProjects";
 import { groupProjects, type WorkshopListRow } from "./workshopProjectList";
 
-const row = (over: Partial<WorkshopListRow>): WorkshopListRow => ({
-  id: "x",
-  title: null,
-  status: "draft",
-  client_id: null,
-  client_name: null,
-  department_hint: null,
-  has_board: true,
-  project_type: null,
-  target_channel: null,
-  track: null,
-  stage_type: null,
-  has_copy: false,
-  has_creative: false,
-  has_seo_plan: false,
-  updated_at: "2026-10-26T10:00:00Z",
-  format: null,
-  workshop_edit: false,
-  ...over,
-});
+function row(over: Partial<WorkshopListRow>): WorkshopListRow {
+  return {
+    id: "x",
+    title: null,
+    status: "draft",
+    client_id: null,
+    client_name: null,
+    department_hint: null,
+    has_board: true,
+    project_type: null,
+    target_channel: null,
+    track: null,
+    stage_type: null,
+    has_copy: false,
+    has_creative: false,
+    has_seo_plan: false,
+    updated_at: "2026-10-26T10:00:00Z",
+    format: null,
+    workshop_edit: false,
+    ...over,
+  };
+}
 
 /** Project actions that resolve at once, recorded by vi.fn. */
 function actions() {

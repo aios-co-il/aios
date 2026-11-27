@@ -12,7 +12,7 @@ vi.mock("@/components/marketing/departments/creative/videoScenesStore", () => ({
     Object.fromEntries(paths.map((path) => [path, `https://signed/${path}`])),
 }));
 vi.mock("@/integrations/supabase/client", () => {
-  const query = () => {
+  function query() {
     const chain: Record<string, unknown> = {};
     for (const name of ["select", "eq", "order", "in", "delete"]) {
       chain[name] = () => chain;
@@ -20,7 +20,7 @@ vi.mock("@/integrations/supabase/client", () => {
     chain.then = (resolve: (value: unknown) => unknown) =>
       resolve({ data: mocks.rows, error: null });
     return chain;
-  };
+  }
   const channel = {
     on: () => channel,
     subscribe: () => channel,
@@ -42,18 +42,20 @@ vi.mock("@/integrations/supabase/client", () => {
   };
 });
 
-const page = (id: string, url: string) => ({
-  id,
-  item_id: "p-1",
-  kind: "scene_still",
-  folder: "video/scenes",
-  title: "סצנה 1",
-  status: "ready",
-  url,
-  thumb_url: url,
-  meta: {},
-  created_at: "2026-10-27T10:00:00Z",
-});
+function page(id: string, url: string) {
+  return {
+    id,
+    item_id: "p-1",
+    kind: "scene_still",
+    folder: "video/scenes",
+    title: "סצנה 1",
+    status: "ready",
+    url,
+    thumb_url: url,
+    meta: {},
+    created_at: "2026-10-27T10:00:00Z",
+  };
+}
 
 test("a scene page of the user's own upload shows it through a signed link", async () => {
   // workshop_edit_from_assets keeps the upload's address in the private entity-attachments bucket.
@@ -67,9 +69,11 @@ test("a scene page of the user's own upload shows it through a signed link", asy
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>
-  );
+  function wrapper({ children }: { children: ReactNode }) {
+    return (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+  }
   const { result } = renderHook(() => useWorkshopArtifacts("t-1", "p-1"), {
     wrapper,
   });

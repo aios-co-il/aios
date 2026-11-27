@@ -9,13 +9,14 @@ import {
 } from "../../../supabase/functions/_shared/workshop/departments.ts";
 import { useWorkshopClientCard } from "./useWorkshopClientCard";
 
-const siteHref = (url: string) =>
-  /^https?:\/\//i.test(url) ? url : `https://${url}`;
+function siteHref(url: string) {
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
 
-const shortDate = (value: string) => {
+function shortDate(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : format(date, "d.M");
-};
+}
 
 function Block({ title, children }: { title: string; children: ReactNode }) {
   return (

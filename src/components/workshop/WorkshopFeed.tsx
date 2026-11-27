@@ -90,12 +90,12 @@ export function WorkshopFeed({
     .find((page) => page.kind === "storyboard")?.id;
 
   // A scene stays picked only while its card is on screen.
-  const openFolder = (next: string | null) => {
+  function openFolder(next: string | null) {
     setFolder(next);
     if (next !== SCENES_FOLDER) {
       storyboard?.onSelect(null);
     }
-  };
+  }
 
   useEffect(() => {
     if (shouldFollow(seen.current, shown, following)) {
@@ -110,13 +110,13 @@ export function WorkshopFeed({
     seen.current = 0;
   }, [artifacts[0]?.item_id]);
 
-  const onScroll = () => {
+  function onScroll() {
     const el = scroller.current;
     if (!el) {
       return;
     }
     setFollowing(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
-  };
+  }
 
   return (
     <div className="relative flex h-full min-h-0 flex-col bg-muted/30">

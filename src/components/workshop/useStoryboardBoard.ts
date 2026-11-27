@@ -38,12 +38,12 @@ export function useStoryboardBoard({
   // A scene that left the storyboard (Carmen replaced it) is no longer picked.
   const selectedScene = list.find((scene) => scene.id === sceneId) ?? null;
 
-  const select = (scene: StoryboardScene | null) => {
+  function select(scene: StoryboardScene | null) {
     setSceneId(scene?.id ?? null);
     if (scene) {
       onPickScene();
     }
-  };
+  }
 
   const storyboard: StoryboardGridProps = {
     scenes: list,

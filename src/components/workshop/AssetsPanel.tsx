@@ -59,12 +59,13 @@ export function AssetsPanel({
   const sections = groupAssets(assets);
   const referencesFull = referenceCount(assets) >= MAX_USER_REFERENCES;
 
-  const refresh = () =>
-    queryClient.invalidateQueries({
+  function refresh() {
+    return queryClient.invalidateQueries({
       queryKey: workshopAssetsKey(tenantId, projectId),
     });
+  }
 
-  const insert = async (owner: string, row: NewAsset) => {
+  async function insert(owner: string, row: NewAsset) {
     const { error } = await supabase.from("workshop_assets").insert({
       tenant_id: owner,
       item_id: projectId,
@@ -74,7 +75,7 @@ export function AssetsPanel({
     if (error) {
       throw error;
     }
-  };
+  }
 
   const change = useMutation({
     mutationFn: ({ task }: { task: () => Promise<void>; failure: string }) =>
@@ -83,13 +84,13 @@ export function AssetsPanel({
     onError: (_error, { failure }) => toast.error(failure),
   });
   const busy = change.isPending;
-  const run = (task: (owner: string) => Promise<void>, failure: string) => {
+  function run(task: (owner: string) => Promise<void>, failure: string) {
     if (tenantId) {
       change.mutate({ task: () => task(tenantId), failure });
     }
-  };
+  }
 
-  const upload = (files: FileList | null) => {
+  function upload(files: FileList | null) {
     if (!files?.length) {
       return;
     }
@@ -123,9 +124,9 @@ export function AssetsPanel({
         input.current.value = "";
       }
     }, "ההעלאה נכשלה");
-  };
+  }
 
-  const addLink = () => {
+  function addLink() {
     const url = normalizeLink(link);
     if (!url) {
       toast.error("הקישור לא תקין");
@@ -141,9 +142,9 @@ export function AssetsPanel({
       setLinkTitle("");
       setAdding(null);
     }, "לא הצלחנו להוסיף את הקישור");
-  };
+  }
 
-  const addText = () => {
+  function addText() {
     const body = text.trim();
     if (!body) {
       return;
@@ -158,10 +159,10 @@ export function AssetsPanel({
       setTextTitle("");
       setAdding(null);
     }, "לא הצלחנו לשמור את הבריף");
-  };
+  }
 
-  const toggleReference = (asset: WorkshopAsset) =>
-    run(async () => {
+  function toggleReference(asset: WorkshopAsset) {
+    return run(async () => {
       const { error } = await supabase
         .from("workshop_assets")
         .update({ use_as_reference: !asset.use_as_reference })
@@ -170,9 +171,10 @@ export function AssetsPanel({
         throw error;
       }
     }, "לא הצלחנו לעדכן את הרפרנס");
+  }
 
-  const remove = (asset: WorkshopAsset) =>
-    run(async () => {
+  function remove(asset: WorkshopAsset) {
+    return run(async () => {
       const { error } = await supabase
         .from("workshop_assets")
         .delete()
@@ -184,6 +186,7 @@ export function AssetsPanel({
         await supabase.storage.from(ASSET_BUCKET).remove([asset.storage_path]);
       }
     }, "לא הצלחנו להסיר את הנכס");
+  }
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-5">

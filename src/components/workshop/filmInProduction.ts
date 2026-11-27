@@ -4,9 +4,11 @@
  */
 const FILM_IN_PRODUCTION = "55006";
 
-export const isFilmInProduction = (error: unknown) =>
-  (error as { code?: string } | null)?.code === FILM_IN_PRODUCTION;
+export function isFilmInProduction(error: unknown) {
+  return (error as { code?: string } | null)?.code === FILM_IN_PRODUCTION;
+}
 
 /** What the user reads when a change waits for the production: "את הטקסט", "את הסטוריבורד". */
-export const filmInProductionMessage = (what: string) =>
-  `הסרט בהפקה עכשיו. אפשר לשנות ${what} כשההפקה מסתיימת.`;
+export function filmInProductionMessage(what: string) {
+  return `הסרט בהפקה עכשיו. אפשר לשנות ${what} כשההפקה מסתיימת.`;
+}

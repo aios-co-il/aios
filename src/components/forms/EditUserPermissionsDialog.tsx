@@ -90,7 +90,7 @@ export function EditUserPermissionsDialog({
       // ברירת מחדל: כל המודולים כבויים
       const permissionsMap: Record<string, boolean> = {};
       allModules.forEach((module) => {
-        permissionsMap[module.id] = isOwnerInTenant ? true : false;
+        permissionsMap[module.id] = !!isOwnerInTenant;
       });
 
       // דריסה עם הערכים מה-DB

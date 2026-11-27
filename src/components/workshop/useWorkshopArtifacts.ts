@@ -38,14 +38,15 @@ const COLUMNS =
   "id,item_id,kind,folder,title,status,url,thumb_url,meta,created_at";
 
 /** A page of the user's own upload links to the private entity-attachments bucket: signed to show. */
-const withViewableUploads = (rows: Array<WorkshopArtifact>) =>
-  Promise.all(
+function withViewableUploads(rows: Array<WorkshopArtifact>) {
+  return Promise.all(
     rows.map(async (row) => ({
       ...row,
       url: await resolveCreativeImageUrl(row.url),
       thumb_url: await resolveCreativeImageUrl(row.thumb_url),
     })),
   );
+}
 
 /** The pages of one project, kept live: a page Carmen adds arrives without a refresh. */
 export function useWorkshopArtifacts(

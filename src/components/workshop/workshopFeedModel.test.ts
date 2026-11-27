@@ -13,19 +13,21 @@ import {
   type WorkshopArtifact,
 } from "./workshopFeedModel.ts";
 
-const page = (over: Partial<WorkshopArtifact>): WorkshopArtifact => ({
-  id: "a",
-  item_id: "i",
-  kind: "image",
-  folder: "images",
-  title: "",
-  status: "ready",
-  url: null,
-  thumb_url: null,
-  meta: {},
-  created_at: "2026-10-24T10:00:00Z",
-  ...over,
-});
+function page(over: Partial<WorkshopArtifact>): WorkshopArtifact {
+  return {
+    id: "a",
+    item_id: "i",
+    kind: "image",
+    folder: "images",
+    title: "",
+    status: "ready",
+    url: null,
+    thumb_url: null,
+    meta: {},
+    created_at: "2026-10-24T10:00:00Z",
+    ...over,
+  };
+}
 
 test("each kind of artifact gets the right kind of page", () => {
   expect(pageTypeFor(page({ kind: "brief" }))).toBe("brief");

@@ -9,8 +9,9 @@ import {
 
 const WAIT_NOTE_MIN = 5;
 
-const waitedMinutes = (artifact: WorkshopArtifact) =>
-  (Date.now() - Date.parse(artifact.created_at)) / 60_000;
+function waitedMinutes(artifact: WorkshopArtifact) {
+  return (Date.now() - Date.parse(artifact.created_at)) / 60_000;
+}
 
 /** One board page as the user sees it: a picture, a film, a sound, the brief or text. */
 export function PageBody({

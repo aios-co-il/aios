@@ -8,19 +8,21 @@ import {
   type WorkshopAsset,
 } from "./workshopAssets.ts";
 
-const asset = (over: Partial<WorkshopAsset>): WorkshopAsset => ({
-  id: "a",
-  asset_type: "image",
-  source: "user",
-  title: "x",
-  url: "https://f/x.png",
-  storage_path: null,
-  text: null,
-  use_as_reference: false,
-  meta: {},
-  created_at: "2026-10-24T10:00:00Z",
-  ...over,
-});
+function asset(over: Partial<WorkshopAsset>): WorkshopAsset {
+  return {
+    id: "a",
+    asset_type: "image",
+    source: "user",
+    title: "x",
+    url: "https://f/x.png",
+    storage_path: null,
+    text: null,
+    use_as_reference: false,
+    meta: {},
+    created_at: "2026-10-24T10:00:00Z",
+    ...over,
+  };
+}
 
 test("assets group into fixed sections with the client's first", () => {
   const sections = groupAssets([
