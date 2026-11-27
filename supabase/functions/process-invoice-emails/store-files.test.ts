@@ -36,6 +36,18 @@ const PAYLOAD = {
       filename: "invite.ics",
       body: { attachmentId: "att-ics" },
     },
+    {
+      partId: "4",
+      mimeType: "text/html",
+      filename: "page.pdf",
+      body: { attachmentId: "att-html" },
+    },
+    {
+      partId: "5",
+      mimeType: "image/svg+xml",
+      filename: "logo.svg",
+      body: { attachmentId: "att-svg" },
+    },
   ],
 };
 
@@ -77,7 +89,7 @@ Deno.test(
   () => {
     assertEquals(
       invoiceAttachments(PAYLOAD).map((attachment) => attachment.partId),
-      ["1.1", "2"],
+      ["1.1", "2", "4", "5"],
     );
   },
 );
@@ -134,6 +146,34 @@ Deno.test(
     );
     assertEquals(uploads.length, 1);
     assertMatch(uploads[0].path, /\.jpg$/);
+    assertEquals(uploads[0].contentType, "image/jpeg");
+  },
+);
+
+Deno.test(
+  "the stored type comes from our list, never from the sender",
+  async () => {
+    const { bucket, uploads } = fakeBucket();
+    const silenced = console.error;
+    console.error = () => undefined;
+
+    const stored = await withRuntime({ env: {}, fetch: fakeGmail() }, () =>
+      storeInvoiceFiles(bucket, "token", TENANT, [
+        { messageId: "m1", partId: "4" },
+        { messageId: "m1", partId: "5" },
+      ]),
+    ).finally(() => {
+      console.error = silenced;
+    });
+
+    assertEquals(
+      uploads.map((upload) => upload.contentType),
+      ["application/pdf"],
+    );
+    assertEquals(
+      stored.map((file) => "error" in file),
+      [false, true],
+    );
   },
 );
 

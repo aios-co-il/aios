@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { removeSupplierInvoiceFile } from "@/components/forms/supplierInvoiceFiles";
+import { removeOrphanedSupplierInvoiceFile } from "@/components/forms/supplierInvoiceFiles";
 import { supabase } from "@/integrations/supabase/client";
 
 /** A reviewed row the user chose to save as a supplier invoice. */
@@ -99,11 +99,7 @@ async function insertInvoice(
     return true;
   }
   console.error("Gmail invoice was not saved:", error);
-  try {
-    await removeSupplierInvoiceFile(filePath);
-  } catch (removeError) {
-    console.error("Unsaved Gmail invoice file was not removed:", removeError);
-  }
+  await removeOrphanedSupplierInvoiceFile(filePath);
 
   return false;
 }

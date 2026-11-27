@@ -19,17 +19,24 @@ export type FileToStore = { messageId: string; partId: string };
 export type StoredFile = FileToStore &
   ({ filePath: string } | { error: string });
 
-const EXTENSION_BY_TYPE: Record<string, string> = {
-  "application/pdf": "pdf",
-  "image/png": "png",
-  "image/jpeg": "jpg",
-  "image/gif": "gif",
-  "image/webp": "webp",
-  "image/tiff": "tiff",
-  "image/bmp": "bmp",
-};
+/** The file kinds an invoice may be stored as, each with its extension. */
+const STORED_KINDS = [
+  { contentType: "application/pdf", extension: "pdf" },
+  { contentType: "image/png", extension: "png" },
+  { contentType: "image/jpeg", extension: "jpg" },
+  { contentType: "image/gif", extension: "gif" },
+  { contentType: "image/webp", extension: "webp" },
+  { contentType: "image/tiff", extension: "tiff" },
+  { contentType: "image/bmp", extension: "bmp" },
+];
 
-const SAFE_EXTENSION = /\.([a-z0-9]{1,5})$/i;
+/** Extensions a name may carry for a kind above, besides the kind's own. */
+const EXTENSION_ALIASES = new Map([
+  ["jpeg", "jpg"],
+  ["tif", "tiff"],
+]);
+
+const NAME_EXTENSION = /\.([a-z0-9]+)$/i;
 
 /**
  * Copies the chosen attachments from Gmail into the tenant's invoice folder.
@@ -80,9 +87,13 @@ async function storeInvoiceFile(
     file.messageId,
     attachment.attachmentId,
   );
-  const filePath = `${tenantId}/gmail-invoices/${crypto.randomUUID()}.${fileExtension(attachment)}`;
+  const kind = storedKind(attachment);
+  if (!kind) {
+    throw new Error("The attachment is not a PDF or a supported picture");
+  }
+  const filePath = `${tenantId}/gmail-invoices/${crypto.randomUUID()}.${kind.extension}`;
   const { error } = await bucket.upload(filePath, bytes, {
-    contentType: attachment.mimeType,
+    contentType: kind.contentType,
   });
   if (error) {
     throw new Error(`Invoice file upload failed: ${error.message}`);
@@ -91,14 +102,18 @@ async function storeInvoiceFile(
   return filePath;
 }
 
-/** A storage-safe extension: from the type, else from the name. The full name stays on the invoice row. */
-function fileExtension(attachment: {
-  filename: string;
-  mimeType: string;
-}): string {
-  const fromName = SAFE_EXTENSION.exec(attachment.filename)?.[1];
+/**
+ * The kind the file is stored as: by its type when that is a kind we keep,
+ * else by its name's extension. The sender never picks the stored type
+ * freely, and anything else is not stored. The full name stays on the row.
+ */
+function storedKind(attachment: { filename: string; mimeType: string }) {
+  const named = NAME_EXTENSION.exec(attachment.filename)?.[1]?.toLowerCase();
+  const extension = named ? (EXTENSION_ALIASES.get(named) ?? named) : null;
 
   return (
-    EXTENSION_BY_TYPE[attachment.mimeType] ?? fromName?.toLowerCase() ?? "bin"
+    STORED_KINDS.find((kind) => kind.contentType === attachment.mimeType) ??
+    STORED_KINDS.find((kind) => kind.extension === extension) ??
+    null
   );
 }

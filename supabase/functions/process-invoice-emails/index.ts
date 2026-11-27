@@ -95,6 +95,10 @@ serve(async (req) => {
     const accessToken = await refreshTokenIfNeeded(serviceClient, tokenData);
     const request = invoiceRequestSchema.safeParse(await req.json());
     if (!request.success) {
+      console.warn(
+        "process-invoice-emails: invalid request fields:",
+        request.error.issues.map((issue) => issue.path.join(".")),
+      );
       throw new Error("Missing messageIds or tenantId");
     }
     const { tenantId } = request.data;

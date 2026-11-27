@@ -1,22 +1,4 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-
-const mocks = vi.hoisted(() => ({
-  invoke: vi.fn(),
-  insert: vi.fn(),
-  removeFile: vi.fn(),
-}));
-
-vi.mock("@/integrations/supabase/client", () => ({
-  supabase: {
-    functions: { invoke: mocks.invoke },
-    from: () => ({ insert: mocks.insert }),
-  },
-}));
-
-vi.mock("@/components/forms/supplierInvoiceFiles", () => ({
-  removeSupplierInvoiceFile: mocks.removeFile,
-}));
-
 import {
   saveGmailInvoices,
   type GmailInvoiceToSave,
@@ -124,3 +106,20 @@ describe("saveGmailInvoices", () => {
     expect(mocks.insert).not.toHaveBeenCalled();
   });
 });
+
+const mocks = vi.hoisted(() => ({
+  invoke: vi.fn(),
+  insert: vi.fn(),
+  removeFile: vi.fn(),
+}));
+
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    functions: { invoke: mocks.invoke },
+    from: () => ({ insert: mocks.insert }),
+  },
+}));
+
+vi.mock("@/components/forms/supplierInvoiceFiles", () => ({
+  removeOrphanedSupplierInvoiceFile: mocks.removeFile,
+}));
