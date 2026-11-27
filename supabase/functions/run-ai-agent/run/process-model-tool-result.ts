@@ -1,4 +1,4 @@
-import type { ToolResultMetadata } from "../tool-result-metadata.ts";
+import { toolResultMetadata } from "../tool-result-metadata.ts";
 import type { RunState } from "./state.ts";
 import { isWorkshopTool } from "../../_shared/workshop-tools.ts";
 import { ROLE_PERSONA } from "../../_shared/workshop/roles.ts";
@@ -18,7 +18,7 @@ export function processModelToolResult(
   tools: RoundToolState,
 ): void {
   const { toolName, toolArgs, result } = execution;
-  const metadata = result as ToolResultMetadata | null | undefined;
+  const metadata = toolResultMetadata(result);
   run.toolLog.push({ tool: toolName, args: toolArgs, result });
   tools.toolResults.push({
     role: "tool",
@@ -93,9 +93,7 @@ export function processModelToolResult(
     toolName === REFRESH_PULSE_TOOL_NAME &&
     run.pulseRefreshRoute.digestShortcut
   ) {
-    tools.pulseDigestShortcut = buildPulseRefreshDigestReply(
-      result as Parameters<typeof buildPulseRefreshDigestReply>[0],
-    );
+    tools.pulseDigestShortcut = buildPulseRefreshDigestReply(metadata ?? null);
   }
 
   // A workshop question or budget request is sent to the user exactly as the server

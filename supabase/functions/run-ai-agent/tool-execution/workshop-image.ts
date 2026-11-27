@@ -15,8 +15,6 @@ export async function executeWorkshopImage(
 ) {
   const [prompt, format, references, engine] = imageArgs;
   const {
-    SUPABASE_URL,
-    SUPABASE_SERVICE_ROLE_KEY,
     tenantId,
     supabase,
     userId,
@@ -31,17 +29,12 @@ export async function executeWorkshopImage(
   } = context;
 
   // Each picture in its own request: several made here ran past the CPU limit.
-  const remote = await remoteAdImage(
-    SUPABASE_URL,
-    SUPABASE_SERVICE_ROLE_KEY,
-    tenantId,
-    {
-      prompt,
-      aspect_ratio: format,
-      reference_urls: references,
-      engine,
-    },
-  );
+  const remote = await remoteAdImage(supabase, tenantId, {
+    prompt,
+    aspect_ratio: format,
+    reference_urls: references,
+    engine,
+  });
 
   if (!("missing" in remote && remote.missing)) {
     return remote;

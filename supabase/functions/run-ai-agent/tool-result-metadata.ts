@@ -1,5 +1,5 @@
 /**
- * Fields existing callers inspect on opaque executor results. A metadata assertion is
+ * Fields existing callers inspect on opaque executor results. The metadata type is
  * only a view: the original result is returned and recorded without normalization.
  */
 export interface ToolResultMetadata {
@@ -16,4 +16,11 @@ export interface ToolResultMetadata {
   ui_action?: unknown;
   workshop?: unknown;
   image_url?: unknown;
+}
+
+/** Narrows the metadata view without changing the original executor result. */
+export function toolResultMetadata(
+  result: unknown,
+): ToolResultMetadata | undefined {
+  return typeof result === "object" && result !== null ? result : undefined;
 }

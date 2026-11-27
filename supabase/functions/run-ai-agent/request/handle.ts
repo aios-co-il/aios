@@ -40,7 +40,7 @@ export async function handleRequestWithDependencies(
   try {
     bodyJson = (await req.json()) as AgentRequestBody;
   } catch {
-    /* ignore */
+    console.error("[AGENT] request JSON parsing failed");
   }
 
   // Never trust a browser-supplied identity. A user JWT runs as that user, without

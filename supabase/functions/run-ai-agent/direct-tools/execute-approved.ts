@@ -1,4 +1,4 @@
-import type { ToolResultMetadata } from "../tool-result-metadata.ts";
+import { toolResultMetadata } from "../tool-result-metadata.ts";
 import type { Json } from "../../_shared/database.types.ts";
 import { resolveDirectCaller } from "./caller.ts";
 import { asUuidOrNull } from "../../_shared/uuid.ts";
@@ -52,11 +52,17 @@ export async function executeApprovedDirectTool(
       null,
       { outOfBand: true },
     );
-    const metadata = result as ToolResultMetadata | null | undefined;
+    const metadata = toolResultMetadata(result);
     failed = !!metadata?.error || !!metadata?.pending_approval;
   } catch (e) {
     failed = true;
-    result = { error: String((e as Error | null)?.message ?? e) };
+    const message =
+      e !== null &&
+      (typeof e === "object" || typeof e === "function") &&
+      "message" in e
+        ? e.message
+        : undefined;
+    result = { error: String(message ?? e) };
   }
 
   await supabase
@@ -66,6 +72,7 @@ export async function executeApprovedDirectTool(
       approved_by: asUuidOrNull(req.approved_by) || row.requested_by,
       approved_at: row.approved_at || new Date().toISOString(),
       executed_at: new Date().toISOString(),
+      // Generated JSON column boundary; AIO-528 tracks validation of stored approval payloads.
       execution_result: result as Json,
     })
     .eq("id", row.id);

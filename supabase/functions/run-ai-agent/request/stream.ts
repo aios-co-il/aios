@@ -3,14 +3,12 @@ import type { AgentRequestBody } from "./types.ts";
 import type { Surface } from "../surface.ts";
 import type { RunInputs } from "../run/contracts.ts";
 
-import type { BackgroundRuntime } from "../background-runtime.ts";
+import type {} from "../../_shared/edge-runtime.d.ts";
 import { corsHeaders } from "../runtime.ts";
 import { handleRunAgent } from "../run/handle.ts";
 import { createReplyRecorder } from "../../_shared/carmen/background-reply.ts";
 import { parseReplyKey } from "../../_shared/carmen/background-reply.ts";
 import { saveCarmenReply } from "../../_shared/carmen/background-reply.ts";
-
-declare const EdgeRuntime: BackgroundRuntime;
 
 /** Continues the turn and reply recording even when the SSE writer disconnects. */
 export function createAgentStream(

@@ -1,6 +1,6 @@
 import { landingRepoFromEnv } from "../../_shared/workshop/landing/repo-env.ts";
 import { executeWorkshopImage } from "./workshop-image.ts";
-import type { BackgroundRuntime } from "../background-runtime.ts";
+import type {} from "../../_shared/edge-runtime.d.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type { ToolExecutor } from "./route.ts";
 import { executeWorkshopTool } from "../../_shared/workshop-tools.ts";
@@ -13,8 +13,6 @@ import { importWebImage } from "../../_shared/workshop/tools/add-assets.ts";
 import { sceneEngineFor } from "../../_shared/workshop/scene-engine-for.ts";
 import { videoConnectionsFor } from "../../_shared/workshop/video-connections.ts";
 import { connectedSceneEngines } from "../../_shared/workshop/engine-choice.ts";
-
-declare const EdgeRuntime: BackgroundRuntime;
 
 /** Applies the existing workshop dependencies and recursive image fallback. */
 export function executeWorkshopRoute(

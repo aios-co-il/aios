@@ -12,7 +12,9 @@ export async function fastLaneTarget(
     try {
       return { ...(await resolveLLMTarget(supabase, tenantId, label)), label };
     } catch {
-      /* no key for this provider: try the next */
+      console.error("[AGENT] fast-lane target resolution failed", {
+        model: label,
+      });
     }
   }
 
