@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { removeOrphanedSupplierInvoiceFile } from "@/components/forms/supplierInvoiceFiles";
+import {
+  isRejectedWrite,
+  removeOrphanedSupplierInvoiceFile,
+} from "@/components/forms/supplierInvoiceFiles";
 import { supabase } from "@/integrations/supabase/client";
 
 /** A reviewed row the user chose to save as a supplier invoice. */
@@ -77,13 +80,16 @@ export async function saveGmailInvoices(
   return saved;
 }
 
-/** Writes one invoice; on failure removes its file and returns false. */
+/**
+ * Writes one invoice and returns whether it was saved. The file is removed
+ * only when the server refused the row; after a lost answer the row may exist.
+ */
 async function insertInvoice(
   tenantId: string,
   invoice: GmailInvoiceToSave,
   filePath: string,
 ): Promise<boolean> {
-  const { error } = await supabase.from("supplier_invoices").insert({
+  const { error, status } = await supabase.from("supplier_invoices").insert({
     tenant_id: tenantId,
     supplier_id: invoice.supplierId,
     invoice_name: invoice.invoiceName,
@@ -99,7 +105,9 @@ async function insertInvoice(
     return true;
   }
   console.error("Gmail invoice was not saved:", error);
-  await removeOrphanedSupplierInvoiceFile(filePath);
+  if (isRejectedWrite(status)) {
+    await removeOrphanedSupplierInvoiceFile(filePath);
+  }
 
   return false;
 }

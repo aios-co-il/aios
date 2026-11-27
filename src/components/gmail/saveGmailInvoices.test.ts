@@ -26,7 +26,7 @@ describe("saveGmailInvoices", () => {
     vi.clearAllMocks();
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     mocks.insert.mockResolvedValue({ error: null });
-    mocks.removeFile.mockResolvedValue(undefined);
+    mocks.removeFile.mockResolvedValue({ error: null });
   });
 
   test("files are stored for the saved rows only, then each invoice gets its path", async () => {
@@ -89,11 +89,32 @@ describe("saveGmailInvoices", () => {
       },
       error: null,
     });
-    mocks.insert.mockResolvedValue({ error: { message: "denied" } });
+    mocks.insert.mockResolvedValue({
+      error: { message: "denied" },
+      status: 403,
+    });
 
     const saved = await saveGmailInvoices(TENANT, [invoice("1")]);
 
-    expect(mocks.removeFile).toHaveBeenCalledWith("tenant-1/a.pdf");
+    expect(mocks.removeFile).toHaveBeenCalledWith(["tenant-1/a.pdf"]);
+    expect(saved).toEqual([]);
+  });
+
+  test("a row whose answer was lost keeps its file", async () => {
+    mocks.invoke.mockResolvedValue({
+      data: {
+        results: [{ messageId: "m1", partId: "1", filePath: "tenant-1/a.pdf" }],
+      },
+      error: null,
+    });
+    mocks.insert.mockResolvedValue({
+      error: { message: "Failed to fetch" },
+      status: 0,
+    });
+
+    const saved = await saveGmailInvoices(TENANT, [invoice("1")]);
+
+    expect(mocks.removeFile).not.toHaveBeenCalled();
     expect(saved).toEqual([]);
   });
 
@@ -117,9 +138,6 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     functions: { invoke: mocks.invoke },
     from: () => ({ insert: mocks.insert }),
+    storage: { from: () => ({ remove: mocks.removeFile }) },
   },
-}));
-
-vi.mock("@/components/forms/supplierInvoiceFiles", () => ({
-  removeOrphanedSupplierInvoiceFile: mocks.removeFile,
 }));
