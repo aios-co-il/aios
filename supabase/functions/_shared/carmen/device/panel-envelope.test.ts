@@ -3,11 +3,13 @@ import { bodyUuid } from "../../agent-runs/body-id.ts";
 import { DEVICE_TOOL_NAMES } from "./contract.ts";
 import {
   claimsPanelNamespace,
+  PANEL_CLAIM_FAILURES,
   PANEL_MESSAGE,
   PANEL_MESSAGE_NAMESPACE,
   PANEL_PROTOCOL_VERSION,
   panelActionRef,
   panelCapabilities,
+  panelClaimFailed,
   panelSignal,
   panelTabContext,
   parsePanelMessage,
@@ -190,6 +192,37 @@ Deno.test("panel envelope", async (t) => {
       assertStrictEquals(parsePanelMessage(data), null);
     }
   });
+
+  await t.step(
+    "a failed claim keeps its id and a known reason, and nothing else",
+    () => {
+      for (const reason of PANEL_CLAIM_FAILURES) {
+        const message = panelClaimFailed(ACTION_ID, reason);
+
+        assertEquals(parsePanelMessage({ ...message, detail: "x" }), {
+          type: "carmen:claim-failed",
+          v: 1,
+          action_id: ACTION_ID,
+          reason,
+        });
+      }
+      for (const data of [
+        { reason: "expired" },
+        { reason: undefined },
+        { reason: "refused", action_id: "1" },
+      ]) {
+        assertStrictEquals(
+          parsePanelMessage({
+            type: PANEL_MESSAGE.claimFailed,
+            v: PANEL_PROTOCOL_VERSION,
+            action_id: ACTION_ID,
+            ...data,
+          }),
+          null,
+        );
+      }
+    },
+  );
 
   await t.step("tells a message of this namespace from a foreign one", () => {
     assertStrictEquals(claimsPanelNamespace({ type: "carmen:action" }), true);

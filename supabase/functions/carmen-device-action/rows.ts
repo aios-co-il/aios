@@ -1,8 +1,8 @@
 /**
- * The statements on `carmen_device_actions`. The read runs as the caller, so row-level
- * security decides whose row it is and whether they still belong to its org. Each write
- * runs with the service role and is one guarded UPDATE keyed by that row's id, org and user,
- * so of two requests racing for a row only one finds it in the state it needs.
+ * The statements on `carmen_device_actions`, all with the service role. The read finds the
+ * row by its id; caller-action.ts then decides whether the caller may take it. Each write
+ * is one guarded UPDATE keyed by that row's id, org and user, so of two requests racing for
+ * a row only one finds it in the state it needs.
  */
 import type { DeviceCardRule } from "../_shared/carmen/device/card-rule.ts";
 import type { DeviceActionStatus } from "../_shared/carmen/device/contract.ts";
@@ -14,9 +14,12 @@ import type { AnyToolResult } from "../_shared/carmen/device-result-check.ts";
 
 export type ActionDb = Pick<DbClient, "from">;
 
+/** The service client the handler uses: the tables, and `is_super_admin` for the caller's access. */
+export type ServiceDb = Pick<DbClient, "from" | "rpc">;
+
 type ActionRow = Database["public"]["Tables"]["carmen_device_actions"]["Row"];
 
-/** What the caller's own read of an action returns. */
+/** What the read of an action returns. */
 export type OwnAction = Pick<
   ActionRow,
   "id" | "tenant_id" | "user_id" | "run_id" | "tool"
@@ -35,12 +38,12 @@ const PENDING = "pending" satisfies DeviceActionStatus;
 const CLAIMED = "claimed" satisfies DeviceActionStatus;
 const CANCELLED = "cancelled" satisfies DeviceActionStatus;
 
-/** The action as the caller may read it, or null when row-level security shows them none. */
-export async function readOwnAction(
-  userDb: ActionDb,
+/** The action with this id, whoever's it is, or null when there is none. */
+export async function readAction(
+  serviceDb: ActionDb,
   id: string,
 ): Promise<OwnAction | null> {
-  const { data, error } = await userDb
+  const { data, error } = await serviceDb
     .from(TABLE)
     .select("id, tenant_id, user_id, run_id, tool")
     .eq("id", id)

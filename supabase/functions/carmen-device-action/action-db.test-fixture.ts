@@ -1,4 +1,4 @@
-import type { ActionDb } from "./rows.ts";
+import type { ServiceDb } from "./rows.ts";
 
 export type FakeRow = Record<string, unknown>;
 export type FakeTables = Record<string, Array<FakeRow>>;
@@ -23,7 +23,7 @@ export function fakeDb(
   tables: FakeTables,
   visible: (row: FakeRow) => boolean = () => true,
   failing?: string | ((table: string, equals: FakeRow) => boolean),
-): ActionDb {
+): ServiceDb {
   /** One query on a table. */
   function from(table: string) {
     const filters = [visible];
@@ -138,7 +138,20 @@ export function fakeDb(
     return query;
   }
 
-  // The fake implements only the calls its users make (rows.ts, run-stop.ts and
-  // run-ai-agent/device-turn), so it is not the full client type.
-  return { from } as unknown as ActionDb;
+  /** `is_super_admin` answers from the `super_admins` table's `user_id`s; no other function is faked. */
+  function rpc(name: string, args: { _user_id?: string }) {
+    if (name !== "is_super_admin") {
+      return Promise.resolve({ data: null, error: { message: `no ${name}` } });
+    }
+    if (failing === "super_admins") {
+      return Promise.resolve({ data: null, error: { message: "boom" } });
+    }
+    const admins = tables.super_admins ?? [];
+    const data = admins.some((admin) => admin.user_id === args._user_id);
+    return Promise.resolve({ data, error: null });
+  }
+
+  // The fake implements only the calls its users make (rows.ts, caller-action.ts,
+  // run-stop.ts and run-ai-agent/device-turn), so it is not the full client type.
+  return { from, rpc } as unknown as ServiceDb;
 }

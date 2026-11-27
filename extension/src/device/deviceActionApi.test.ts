@@ -119,25 +119,45 @@ describe("deviceActionApi", () => {
     });
   });
 
-  it("answers a refused claim, a missing session and a network failure without throwing", async () => {
-    expect(
-      (await apiAnswering(404, { error: "not_available" }).api.claim(ID)).ok,
-    ).toBe(false);
-    expect((await apiAnswering(200, {}, null).api.claim(ID)).ok).toBe(false);
-
-    const failing = deviceActionApi({
+  it("names why a claim failed, without throwing", async () => {
+    const refused = apiAnswering(404, { error: "not_available" });
+    const noSession = apiAnswering(200, {}, null);
+    const rejectedSession = apiAnswering(401, { error: "unauthorized" });
+    const serverError = apiAnswering(500, { error: "failed" });
+    const offline = deviceActionApi({
       supabaseUrl: "https://api.example",
       publishableKey: "publishable",
       accessToken: async () => "user-token",
       fetch: vi.fn(async () => Promise.reject(new Error("offline"))),
     });
-    expect((await failing.claim(ID)).ok).toBe(false);
+
+    expect(await refused.api.claim(ID)).toMatchObject({
+      ok: false,
+      failure: "refused",
+    });
+    expect(await noSession.api.claim(ID)).toMatchObject({
+      ok: false,
+      failure: "signed_out",
+    });
+    expect(noSession.fetch).not.toHaveBeenCalled();
+    expect(await rejectedSession.api.claim(ID)).toMatchObject({
+      ok: false,
+      failure: "signed_out",
+    });
+    expect(await serverError.api.claim(ID)).toMatchObject({
+      ok: false,
+      failure: "failed",
+    });
+    expect(await offline.claim(ID)).toMatchObject({
+      ok: false,
+      failure: "failed",
+    });
   });
 
   it("refuses a claim whose tool is not a device tool", async () => {
     const { api } = apiAnswering(200, { tool: "send_whatsapp" });
 
-    expect((await api.claim(ID)).ok).toBe(false);
+    expect(await api.claim(ID)).toMatchObject({ ok: false, failure: "failed" });
   });
 
   it("retries a completion once after a network failure or a server error, never after a refusal", async () => {

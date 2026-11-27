@@ -38,6 +38,17 @@ describe("runPanelStep", () => {
     ).resolves.toBe("result");
   });
 
+  it("ends at once on the panel's failed claim for that step, and posts no cancel", async () => {
+    const { panel, deliverClaimFailure } = fakePanel();
+    const wait = runPanelStep(panel, ACTION_ID, new AbortController().signal);
+
+    deliverClaimFailure(NEXT_ACTION_ID, "refused");
+    deliverClaimFailure(ACTION_ID, "signed_out");
+
+    await expect(wait).resolves.toBe("signed_out");
+    expect(panel.postCancel).not.toHaveBeenCalled();
+  });
+
   it("ends the wait itself when the panel posts nothing, and drops the step", async () => {
     const { panel, deliverResult } = fakePanel();
     const wait = runPanelStep(panel, ACTION_ID, new AbortController().signal);

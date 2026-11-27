@@ -4,6 +4,7 @@ import {
   PANEL_MESSAGE,
   panelActionRef,
   panelCapabilities,
+  panelClaimFailed,
   panelSignal,
   panelTabContext,
 } from "@functions/_shared/carmen/device/panel-envelope.ts";
@@ -279,6 +280,20 @@ describe("useExtensionPanel: browser steps", () => {
     unsubscribe?.();
     deliver(resultMessage, PANEL_ORIGIN, parent);
     expect(listener).toHaveBeenCalledOnce();
+  });
+
+  it("hands a failed claim and its reason to its listeners only from the panel", () => {
+    const parent = frameThePage(PANEL_ORIGIN);
+    const { result } = renderHook(() => useExtensionPanel());
+    const listener = vi.fn();
+    result.current.panel?.onClaimFailed(listener);
+    const failed = panelClaimFailed(ACTION_ID, "refused");
+
+    deliver(failed, "https://evil.example.com", parent);
+    expect(listener).not.toHaveBeenCalled();
+
+    deliver(failed, PANEL_ORIGIN, parent);
+    expect(listener).toHaveBeenCalledExactlyOnceWith(ACTION_ID, "refused");
   });
 
   it("treats an action message from the panel as nothing", () => {
