@@ -14356,6 +14356,7 @@ export type Database = {
           ai_extracted: boolean
           created_at: string
           file_name: string | null
+          file_path: string | null
           file_url: string | null
           id: string
           invoice_amount: number
@@ -14370,6 +14371,7 @@ export type Database = {
           ai_extracted?: boolean
           created_at?: string
           file_name?: string | null
+          file_path?: string | null
           file_url?: string | null
           id?: string
           invoice_amount?: number
@@ -14384,6 +14386,7 @@ export type Database = {
           ai_extracted?: boolean
           created_at?: string
           file_name?: string | null
+          file_path?: string | null
           file_url?: string | null
           id?: string
           invoice_amount?: number
