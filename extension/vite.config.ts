@@ -4,7 +4,7 @@ import {
   resolveBuildEnvironment,
   type BuildEnvironment,
 } from "./build/environment";
-import { manifestPlugin } from "./build/manifest";
+import { BACKGROUND_WORKER, manifestPlugin } from "./build/manifest";
 
 export default defineConfig(({ mode }) => {
   const environment = resolveBuildEnvironment(mode);
@@ -35,6 +35,14 @@ export default defineConfig(({ mode }) => {
           popup: resolve(__dirname, "popup.html"),
           recorder: resolve(__dirname, "recorder.html"),
           sidepanel: resolve(__dirname, "sidepanel.html"),
+          background: resolve(__dirname, "src/background.ts"),
+        },
+        // The manifest names the service worker's file, so it keeps a fixed name.
+        output: {
+          entryFileNames: (chunk) =>
+            chunk.name === "background"
+              ? BACKGROUND_WORKER
+              : "assets/[name]-[hash].js",
         },
       },
     },

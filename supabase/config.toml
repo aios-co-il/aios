@@ -19,6 +19,8 @@ additional_redirect_urls = [
   "https://*.vercel.app/**",
   # Carmen Android app, Staging variant: Google sign-in returns here (mobile/carmen-android).
   "carmen-aios-staging://auth/**",
+  # Chrome extension, Staging build: Google sign-in returns here (extension/build/extensionKey.ts).
+  "https://cenboedhooldhjnjeaeifdakocglmbba.chromiumapp.org/auth",
 ]
 
 [auth.external.google]
@@ -52,8 +54,14 @@ project_id = "zvoijyneresvkadpprel"
 
 [remotes.production.auth]
 site_url = "https://aios.co.il"
-# carmen-aios://: the Carmen Android app (Production variant) returns here after Google sign-in.
-additional_redirect_urls = ["https://aios.co.il", "https://*.aios.co.il", "carmen-aios://auth/**"]
+# carmen-aios://: the Carmen Android app (Production variant) returns here after Google sign-in;
+# chromiumapp.org: the Chrome extension's Production build (extension/build/extensionKey.ts).
+additional_redirect_urls = [
+  "https://aios.co.il",
+  "https://*.aios.co.il",
+  "carmen-aios://auth/**",
+  "https://mcbbbameikghbbjfjgofafahfilhnhpb.chromiumapp.org/auth",
+]
 
 [remotes.production.auth.mfa.totp]
 enroll_enabled = true
@@ -85,6 +93,7 @@ additional_redirect_urls = [
   "http://127.0.0.1:*/**",
   "https://*.vercel.app/**",
   "carmen-aios-staging://auth/**",
+  "https://cenboedhooldhjnjeaeifdakocglmbba.chromiumapp.org/auth",
 ]
 
 [remotes.develop.auth.sms.twilio]

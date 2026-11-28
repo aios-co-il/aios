@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   PANEL_MESSAGE,
@@ -10,40 +10,13 @@ import {
 } from "@functions/_shared/carmen/device/panel-envelope.ts";
 import { EXTENSION_ORIGINS } from "./extensionOrigins";
 import { useExtensionPanel } from "./useExtensionPanel";
+import { deliver, frameThePage } from "./useExtensionPanel.test-fixture";
 
 const PANEL_ORIGIN = EXTENSION_ORIGINS[0];
 const TAB = {
   url: "https://example.com/pricing?coupon=1#top",
   title: "Pricing",
 };
-
-/** Stands in for the window that frames the page; records what the page posts to it. */
-function frameThePage(parentOrigin: string | undefined) {
-  const parent = { postMessage: vi.fn() };
-
-  vi.spyOn(window, "parent", "get").mockReturnValue(
-    parent as unknown as Window,
-  );
-  Object.defineProperty(window.location, "ancestorOrigins", {
-    configurable: true,
-    value: parentOrigin ? [parentOrigin] : undefined,
-  });
-
-  return parent;
-}
-
-/** Delivers a message to the page as the browser would. */
-function deliver(data: unknown, origin: string, source: unknown) {
-  act(() => {
-    window.dispatchEvent(
-      new MessageEvent("message", {
-        data,
-        origin,
-        source: source as MessageEventSource,
-      }),
-    );
-  });
-}
 
 describe("useExtensionPanel: the shared tab", () => {
   let warn: ReturnType<typeof vi.spyOn>;

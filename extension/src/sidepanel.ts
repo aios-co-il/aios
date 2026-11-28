@@ -17,6 +17,7 @@ import { capabilitiesMessage } from "./device/capabilities";
 import { dropSiteGrants } from "./device/chromeDevice";
 import { panelReadActions } from "./device/panelDevice";
 import { routeSiteMessage } from "./device/siteMessage";
+import { checkSiteUser } from "./panelUserNotice";
 import { supabase } from "./supabase";
 import { loadTenants, preferredTenant } from "./tenants";
 
@@ -111,8 +112,12 @@ async function followSharedTab(): Promise<void> {
   await syncTabSharing();
 }
 
-/** The site's chat has mounted: say ready, then what this panel can do and which tab it sees. */
-function onHello(): void {
+/**
+ * The site's chat has mounted: say ready, then what this panel can do and which tab it
+ * sees, and flag an extension signed in as another user than the site.
+ */
+function onHello(siteUserId: string | undefined): void {
+  checkSiteUser(siteUserId);
   // A mounted chat may hold another conversation, and a grant lasts one (plan §2 decision
   // 6); a switch inside a mounted chat sends no signal yet (AIO-656).
   void dropSiteGrants();

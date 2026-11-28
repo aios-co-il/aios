@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { GOOGLE_REDIRECT_PATH } from "../src/googleSignIn.ts";
 import type { EnvironmentName } from "./environment";
 
 /**
@@ -25,6 +26,14 @@ export function extensionOrigins(): Array<string> {
   return Object.values(EXTENSION_PUBLIC_KEYS).map(
     (publicKey) => `chrome-extension://${extensionId(publicKey)}`,
   );
+}
+
+/**
+ * Where Supabase returns Google sign-in to this build: what chrome.identity.getRedirectURL
+ * gives it, and what the environment's Auth redirect list in supabase/config.toml allows.
+ */
+export function authRedirectUrl(name: EnvironmentName): string {
+  return `https://${extensionId(EXTENSION_PUBLIC_KEYS[name])}.chromiumapp.org/${GOOGLE_REDIRECT_PATH}`;
 }
 
 /**

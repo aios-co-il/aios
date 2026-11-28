@@ -164,6 +164,13 @@ input[type="checkbox"] {
   font-size: 12px;
 }
 
+/* Between the Google button and the email form in the popup. */
+.divider {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 .footer {
   display: flex;
   justify-content: space-between;

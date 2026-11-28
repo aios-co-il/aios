@@ -143,6 +143,8 @@ Supabase Staging already allows `https://*.vercel.app/**` as redirect URLs. Goog
 
 **Workaround:** email + password on Staging works if Google is not configured yet.
 
+The Chrome extension signs in with the same Google provider and returns to its `chromiumapp.org` address, listed per project in `supabase/config.toml` (`extension/README.md`, "התחברות עם Google").
+
 Branch protection on `main` / `develop` is a GitHub settings change; the freshness and shared-agency guards must be required. Local checkouts still need Staging variables before running the frontend.
 
 ## Video render workers

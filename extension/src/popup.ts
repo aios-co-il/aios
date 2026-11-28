@@ -1,3 +1,4 @@
+import { takeStoredGoogleFailure, wireGoogleSignIn } from "./popupGoogle";
 import { supabase } from "./supabase";
 import { loadTenants, preferredTenant, type TenantOption } from "./tenants";
 
@@ -141,6 +142,7 @@ async function initMain() {
   } = await supabase.auth.getSession();
   if (!session) {
     show("login");
+    showError(loginError, await takeStoredGoogleFailure());
     return;
   }
 
@@ -195,6 +197,10 @@ loginEl.addEventListener("submit", async (e) => {
   }
   await initMain();
 });
+
+wireGoogleSignIn(el<HTMLButtonElement>("google-btn"), initMain, (message) =>
+  showError(loginError, message),
+);
 
 el<HTMLButtonElement>("logout-btn").addEventListener("click", async () => {
   await supabase.auth.signOut();

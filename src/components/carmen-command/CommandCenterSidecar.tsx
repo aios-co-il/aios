@@ -1,4 +1,5 @@
 import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useRef, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { CarmenChatBar, CarmenChatBarHandle } from "./CarmenChatBar";
@@ -40,8 +41,9 @@ export function CommandCenterSidecar({
   const contextMetadata = useSystemFixContext();
   const tenantId = contextMetadata.tenant_id ?? null;
   // Framed by the Chrome extension's side panel, the chat sends the tab beside it instead,
-  // and may run browser steps through the panel.
-  const extension = useExtensionPanel();
+  // and may run browser steps through the panel, which checks it is signed in as this user.
+  const { userId } = useCurrentUser();
+  const extension = useExtensionPanel(userId);
   const brain = useBrainChannel(tenantId);
   // The workshop board's open project: the chat shows its automatic / semi-automatic switch.
   const workshopProjectId = useOpenWorkshopProject();

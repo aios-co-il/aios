@@ -22,5 +22,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false,
+    // Google sign-in returns a one-time code, exchanged with the verifier kept in this storage.
+    flowType: "pkce",
   },
 });
