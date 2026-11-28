@@ -256,11 +256,9 @@ import { landingRepoFromEnv } from "../_shared/workshop/landing/repo-env.ts";
 import { workshopVoiceSample } from "../_shared/workshop/voice-sample.ts";
 
 import { callerAddressLine } from "../_shared/carmen/user-address.ts";
-import {
-  type PersonaSource,
-  loadPersona,
-  personaPromptSection,
-} from "../_shared/carmen/persona-runtime.ts";
+import type { PersonaSource } from "../_shared/carmen/persona-runtime.ts";
+import { loadPersonaSpeaker } from "../_shared/carmen/persona-speaker.ts";
+import { personaPromptSection } from "../_shared/carmen/persona-prompt.ts";
 
 import { sceneEngineFor } from "../_shared/workshop/scene-engine-for.ts";
 import { connectedSceneEngines } from "../_shared/workshop/engine-choice.ts";
@@ -1681,14 +1679,14 @@ async function tryFastLane(
   turn: FastLaneRequest,
 ): Promise<Response | null> {
   const startedAt = Date.now();
-  const [target, brief, addressLine, persona] = await Promise.all([
+  const [target, brief, addressLine, speaker] = await Promise.all([
     fastLaneTarget(supabase, turn.tenantId),
     fastLaneBriefScope(supabase, turn.caller).then((scope) =>
       loadOrgBrief(supabase, turn.tenantId, new Date(), scope),
     ),
     callerAddressLine(supabase, turn.userId, turn.callerName),
     // The fast lane answers only as Carmen, so the caller's character applies here too.
-    loadPersona(supabase, turn.tenantId, turn.personaSource),
+    loadPersonaSpeaker(supabase, turn.tenantId, turn.personaSource),
   ]);
   if (!target) {
     return null;
@@ -1696,9 +1694,9 @@ async function tryFastLane(
   const answer = await answerFast({
     target,
     instructions: fastLaneInstructions({
-      agentName: persona?.displayName ?? turn.agentName,
-      addressLine: persona
-        ? addressLine + personaPromptSection(persona)
+      agentName: speaker?.persona.displayName ?? turn.agentName,
+      addressLine: speaker
+        ? addressLine + personaPromptSection(speaker)
         : addressLine,
       brief,
       now: new Date(),

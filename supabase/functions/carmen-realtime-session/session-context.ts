@@ -22,11 +22,12 @@ import {
   pulseBriefInstructions,
 } from "./pulse-brief.ts";
 import { buildVoiceInstructions } from "./voice-instructions.ts";
+import { personaPromptSection } from "../_shared/carmen/persona-prompt.ts";
 import {
-  loadCallerPersona,
-  personaPromptSection,
-} from "../_shared/carmen/persona-runtime.ts";
-import type { PersonaProfile } from "../_shared/carmen/personas.ts";
+  type PersonaSpeaker,
+  loadPersonaSpeaker,
+} from "../_shared/carmen/persona-speaker.ts";
+import { pickGreeting } from "./greetings.ts";
 import { agentMoodPrompt } from "../_shared/carmen/agent-mood.ts";
 import { voiceBriefScope } from "./voice-scope.ts";
 
@@ -39,8 +40,12 @@ export type SessionContext = {
   lastConversation: LastConversation | null;
   /** The latest campaign pulse for the clients the caller may hear about. */
   pulseBrief: PulseBrief | null;
-  /** The character the caller picked (AIO-570), or null to stay Carmen. */
-  persona: PersonaProfile | null;
+  /**
+   * The caller's effective character (AIO-570) with its gender: their pick,
+   * else the organization's; null to stay Carmen. It writes the prompt section
+   * and says the greeting.
+   */
+  speaker: PersonaSpeaker | null;
 };
 
 /** Loads what both voice providers speak from; each part falls back on its own. */
@@ -57,26 +62,26 @@ export async function loadSessionContext(
       orgBrief: null,
       lastConversation: null,
       pulseBrief: null,
-      persona: null,
+      speaker: null,
     };
   }
   // The caller hears only the clients the brain would show them (manager: whole org).
   const scope = await voiceBriefScope(db, userId, agent.tenantId);
-  const [pronunciations, orgBrief, lastConversation, pulseBrief, persona] =
+  const [pronunciations, orgBrief, lastConversation, pulseBrief, speaker] =
     await Promise.all([
       loadPronunciations(db, agent.tenantId),
       loadOrgBrief(db, agent.tenantId, new Date(), scope),
       loadLastConversation(db, userId, agent.tenantId),
       loadPulseBrief(db, agent.tenantId, scope),
-      loadCallerPersona(db, agent.tenantId, userId),
+      loadPersonaSpeaker(db, agent.tenantId, { kind: "effective", userId }),
     ]);
   return {
-    agent: withPersonaMood(agent, persona),
+    agent: withPersonaMood(agent, speaker),
     pronunciations,
     orgBrief,
     lastConversation,
     pulseBrief,
-    persona,
+    speaker,
   };
 }
 
@@ -87,7 +92,7 @@ export function sessionInstructions(
 ): string {
   return [
     buildVoiceInstructions(context.agent?.profile ?? null, addressLine),
-    context.persona ? personaPromptSection(context.persona).trim() : "",
+    context.speaker ? personaPromptSection(context.speaker).trim() : "",
     context.orgBrief ? orgBriefInstructions(context.orgBrief) : "",
     context.pulseBrief ? pulseBriefInstructions(context.pulseBrief) : "",
     context.lastConversation
@@ -99,19 +104,25 @@ export function sessionInstructions(
     .join("\n");
 }
 
+/** The call's opening line, said by the session's character (ElevenLabs `first_message`, OpenAI `greeting`). */
+export function sessionGreeting(context: SessionContext): string {
+  return pickGreeting(context.speaker);
+}
+
 /** The picked character's mood replaces Carmen's own for this caller. */
 function withPersonaMood(
   agent: VoiceAgent,
-  persona: PersonaProfile | null,
+  speaker: PersonaSpeaker | null,
 ): VoiceAgent {
-  if (!persona?.mood) {
+  const mood = speaker?.persona.mood;
+  if (!mood) {
     return agent;
   }
   return {
     ...agent,
     profile: {
       ...agent.profile,
-      moodPrompt: agentMoodPrompt(persona.mood, agent.tenantId),
+      moodPrompt: agentMoodPrompt(mood, agent.tenantId),
     },
   };
 }

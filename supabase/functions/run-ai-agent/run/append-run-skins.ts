@@ -1,7 +1,5 @@
-import {
-  loadPersona,
-  personaPromptSection,
-} from "../../_shared/carmen/persona-runtime.ts";
+import { loadPersonaSpeaker } from "../../_shared/carmen/persona-speaker.ts";
+import { personaPromptSection } from "../../_shared/carmen/persona-prompt.ts";
 import type { RunState } from "./state.ts";
 import { buildSkillsBlockBySlug } from "../../_shared/skills/registry.ts";
 import { activeSkinBlock } from "../../_shared/carmen/active-skin.ts";
@@ -71,7 +69,11 @@ export async function appendRunSkins(
     run.callerName,
   );
   run.callerPersona = run.isCarmenAgent
-    ? await loadPersona(run.supabase, run.resolvedTenantId, run.personaSource)
+    ? await loadPersonaSpeaker(
+        run.supabase,
+        run.resolvedTenantId,
+        run.personaSource,
+      )
     : null;
 
   if (run.callerPersona) {

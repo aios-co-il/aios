@@ -1,7 +1,16 @@
-import { assertStringIncludes } from "jsr:@std/assert@1";
+import {
+  assert,
+  assertNotMatch,
+  assertStringIncludes,
+} from "jsr:@std/assert@1";
 import { userAddressLine } from "../_shared/carmen/user-address.ts";
-import { sessionInstructions } from "./session-context.ts";
+import {
+  type SessionContext,
+  sessionGreeting,
+  sessionInstructions,
+} from "./session-context.ts";
 import { BUILTIN_PERSONAS } from "../_shared/carmen/personas.ts";
+import { connectedGreetings } from "./greetings.ts";
 
 Deno.test("sessionInstructions", async (t) => {
   await t.step(
@@ -14,7 +23,7 @@ Deno.test("sessionInstructions", async (t) => {
           orgBrief: null,
           lastConversation: null,
           pulseBrief: null,
-          persona: null,
+          speaker: null,
         },
         userAddressLine("דוד", "male"),
       );
@@ -31,7 +40,7 @@ Deno.test("sessionInstructions", async (t) => {
         orgBrief: null,
         lastConversation: null,
         pulseBrief: null,
-        persona: null,
+        speaker: null,
       },
       userAddressLine(null, null),
     );
@@ -51,7 +60,7 @@ Deno.test("sessionInstructions", async (t) => {
           turns: [{ role: "user", content: "מה העלות לליד במטא?" }],
         },
         pulseBrief: null,
-        persona: null,
+        speaker: null,
       },
       "",
     );
@@ -67,11 +76,57 @@ Deno.test("sessionInstructions", async (t) => {
         orgBrief: null,
         lastConversation: null,
         pulseBrief: null,
-        persona: BUILTIN_PERSONAS.minime,
+        speaker: {
+          key: "minime",
+          persona: BUILTIN_PERSONAS.minime,
+          chosenBy: "user",
+          gender: "female",
+        },
       },
       "",
     );
-    assertStringIncludes(text, 'כ"מיני מי"');
+    assertStringIncludes(text, 'הדמות שהמשתמש בחר עבורך היא "מיני מי"');
     assertStringIncludes(text, "אני מיני מי");
   });
+});
+
+/** A session with nothing loaded but the Mini Me in `gender`, or Carmen for null. */
+function withMiniMe(gender: "male" | "female" | null): SessionContext {
+  return {
+    agent: null,
+    pronunciations: [],
+    orgBrief: null,
+    lastConversation: null,
+    pulseBrief: null,
+    speaker: gender
+      ? {
+          key: "minime",
+          persona: BUILTIN_PERSONAS.minime,
+          chosenBy: "organization",
+          gender,
+        }
+      : null,
+  };
+}
+
+Deno.test("a male character speaks of himself in the masculine", () => {
+  const male = sessionInstructions(withMiniMe("male"), "");
+  const female = sessionInstructions(withMiniMe("female"), "");
+  const carmen = sessionInstructions(withMiniMe(null), "");
+
+  assertStringIncludes(male, "דבר על עצמך בלשון זכר");
+  assertStringIncludes(male, 'הדמות שהארגון בחר עבורך היא "מיני מי"');
+  assertNotMatch(female, /דבר על עצמך בלשון זכר/);
+  assertNotMatch(carmen, /דבר על עצמך בלשון זכר/);
+});
+
+Deno.test("the greeting is said by the session's character", () => {
+  const miniMe = withMiniMe("male");
+  const miniMeLines = connectedGreetings(miniMe.speaker);
+  const carmenLines = connectedGreetings(null);
+
+  for (let i = 0; i < 50; i++) {
+    assert(miniMeLines.includes(sessionGreeting(miniMe)));
+    assert(carmenLines.includes(sessionGreeting(withMiniMe(null))));
+  }
 });

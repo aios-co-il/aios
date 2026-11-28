@@ -6,6 +6,7 @@ import { chooseElevenLabsVoice } from "../_shared/carmen/voices/elevenlabs-voice
 import {
   loadCallerAddress,
   loadSessionContext,
+  sessionGreeting,
   sessionInstructions,
 } from "./session-context.ts";
 
@@ -35,6 +36,8 @@ export async function elevenLabsReply(
     elevenLabsConfig((name) => Deno.env.get(name)),
     sessionInstructions(context, await loadCallerAddress(callerId)),
     chooseElevenLabsVoice(request.voice, context.agent?.voice ?? null),
+    fetch,
+    sessionGreeting(context),
   );
   return result.ok
     ? { status: 200, body: result.session }
