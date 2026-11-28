@@ -5,6 +5,7 @@ import { withGoogleToken } from "../../_shared/google-oauth/integration-tokens.t
 import { serviceClient } from "../../_shared/supabase-clients.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
 import { googleResolveClientCustomerId } from "../../_shared/client-report-sync.ts";
+import { assertCallerCanAccessGoogleCustomer } from "./client-ad-links.ts";
 import { readGoogleAdsCampaignRow } from "../tool-contracts-admin.ts";
 
 type ListGoogleCampaignsArgs = {
@@ -14,12 +15,12 @@ type ListGoogleCampaignsArgs = {
   status?: "ENABLED" | "PAUSED" | "REMOVED" | "ALL";
 };
 
-/** Preserves the existing list_google_campaigns executor and side-effect order. */
+/** Runs the list_google_campaigns tool after checking the caller can reach the client. */
 export async function executeListGoogleCampaigns(
   args: ListGoogleCampaignsArgs,
   context: ToolExecutionContext,
 ) {
-  const { supabase, accessibleTenantIds, callerScope } = context;
+  const { supabase, accessibleTenantIds, callerScope, callerRole } = context;
 
   let customerId = args.customer_id
     ? String(args.customer_id).replace(/-/g, "")
@@ -37,6 +38,14 @@ export async function executeListGoogleCampaigns(
   }
   if (!customerId) {
     return { error: "customer_id או client_id נדרש" };
+  }
+  if (args.customer_id) {
+    await assertCallerCanAccessGoogleCustomer(
+      supabase,
+      customerId,
+      callerScope,
+      callerRole,
+    );
   }
 
   const { data: storedGadsInteg, error: gadsError } = await supabase

@@ -1,5 +1,10 @@
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
+import { metaAccountLinksToClient } from "./client-ad-links.ts";
+import { resolveClientTenantId } from "./client-tenant.ts";
+import { FB_GRAPH_VERSION } from "./meta-api-version.ts";
+import { readMetaResponse } from "../meta-response.ts";
+import { fbGetToken } from "./meta-token.ts";
 
 type FacebookCampaignMutationArgs = {
   client_id?: string;
@@ -11,7 +16,7 @@ type FacebookCampaignMutationArgs = {
   name_suffix?: string;
 };
 
-/** Preserves the existing duplicate_facebook_campaign executor and side-effect order. */
+/** Queues Facebook campaign mutations; duplicate_facebook_campaign first checks the campaign belongs to the client. */
 export async function executeFacebookCampaignMutation(
   args: FacebookCampaignMutationArgs,
   context: ToolExecutionContext,
@@ -34,6 +39,16 @@ export async function executeFacebookCampaignMutation(
   );
   if (!args.campaign_id) {
     return { error: "campaign_id נדרש" };
+  }
+  if (
+    name === "duplicate_facebook_campaign" &&
+    !(await campaignBelongsToClient(
+      context,
+      args.campaign_id,
+      args.client_id ?? "",
+    ))
+  ) {
+    return { error: "הקמפיין לא שייך ללקוח הזה — אי אפשר לשכפל אותו" };
   }
   if (
     name === "toggle_facebook_campaign" &&
@@ -95,4 +110,38 @@ export async function executeFacebookCampaignMutation(
     instruction_for_carmen:
       'הצג למשתמש בקצרה מה את עומדת לעשות ובקש אישור: "לאשר? (כן/לא)". אל תבצעי כלום עד שיגיע אישור — קוראת ל-execute_pending_approval רק אחרי תשובה חיובית.',
   };
+}
+
+/**
+ * Whether the campaign's ad account is linked to the client. Toggle and budget
+ * approvals are checked when they run (carmen-fb-tools); a duplicate approval
+ * runs through fb-campaign-control, which does not, so it is checked here.
+ */
+async function campaignBelongsToClient(
+  context: ToolExecutionContext,
+  campaignId: string,
+  clientId: string,
+): Promise<boolean> {
+  const { supabase, tenantId } = context;
+  const tokenTenant = await resolveClientTenantId(supabase, clientId, tenantId);
+  const token =
+    (await fbGetToken(supabase, tokenTenant)) ??
+    (tokenTenant === tenantId ? null : await fbGetToken(supabase, tenantId));
+  if (!token) {
+    return false;
+  }
+
+  const res = await fetch(
+    `https://graph.facebook.com/${FB_GRAPH_VERSION}/${encodeURIComponent(campaignId)}?fields=account_id`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  const campaign = await readMetaResponse(res);
+  if (!campaign.ok || campaign.value?.error) {
+    return false;
+  }
+  return metaAccountLinksToClient(
+    supabase,
+    campaign.value?.account_id,
+    clientId,
+  );
 }
