@@ -108,6 +108,12 @@ export function NotesWithAttachments({
       if (!arr.length) {
         return;
       }
+      // Storage policy: files live at {tenant}/{task}/ and only viewers of
+      // that task read them, so a file needs a saved task first.
+      if (!taskId) {
+        toast.error("שמרו את המשימה לפני צירוף קבצים");
+        return;
+      }
       setUploading(true);
       const added: Array<TaskAttachment> = [];
       try {
@@ -117,7 +123,7 @@ export function NotesWithAttachments({
             continue;
           }
           const safe = sanitize(file.name);
-          const path = `${tenantId}/${taskId || "draft"}/${Date.now()}_${safe}`;
+          const path = `${tenantId}/${taskId}/${Date.now()}_${safe}`;
           const { error } = await supabase.storage
             .from("task-attachments")
             .upload(path, file, { contentType: file.type });
