@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { isCarmenAppWebView } from "@/lib/carmenAppWebView";
 
 /** Tenants the user belongs to, plus a handler that switches the active one. */
 export function useUserTenants(userId: string | null | undefined) {
@@ -31,16 +32,19 @@ export function useUserTenants(userId: string | null | undefined) {
       return;
     }
     try {
-      await supabase.from("user_active_tenant").upsert(
-        {
-          user_id: userId,
-          tenant_id: tenantId,
-          updated_at: new Date().toISOString(),
-        },
-        {
-          onConflict: "user_id",
-        },
-      );
+      // The Carmen Android app's web view switches by URL only, never the website's organization.
+      if (!isCarmenAppWebView()) {
+        await supabase.from("user_active_tenant").upsert(
+          {
+            user_id: userId,
+            tenant_id: tenantId,
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "user_id",
+          },
+        );
+      }
 
       const { data: tenantData } = await supabase
         .from("tenants")

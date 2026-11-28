@@ -18078,6 +18078,12 @@ export type Database = {
         Returns: number
       }
       carmen_normalize_staff_phone: { Args: { value: string }; Returns: string }
+      carmen_org_avatar_style: {
+        Args: { p_tenant_id: string }
+        Returns: {
+          setting_value: Json
+        }[]
+      }
       carmen_query_system_graph: {
         Args: { p_depth?: number; p_limit?: number; p_query: string }
         Returns: {
@@ -18124,6 +18130,15 @@ export type Database = {
       carmen_round_try_lease: {
         Args: { p_seconds?: number; p_tenant_id: string }
         Returns: boolean
+      }
+      carmen_save_voice_conversation: {
+        Args: {
+          p_conversation_id?: string
+          p_messages: Json
+          p_tenant_id: string
+          p_title?: string
+        }
+        Returns: string
       }
       carmen_send_activation: {
         Args: { p_integration: string; p_phone: string; p_tenant: string }

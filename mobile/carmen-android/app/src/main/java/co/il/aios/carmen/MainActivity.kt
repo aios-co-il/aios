@@ -24,6 +24,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var status: TextView
     private lateinit var listenSwitch: SwitchCompat
     private lateinit var portrait: CarmenPortrait
+    private lateinit var organizationPicker: OrganizationPicker
     private var afterPermission: (() -> Unit)? = null
 
     private val refresh = object : Runnable {
@@ -63,6 +64,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<android.view.View>(R.id.home_portrait_frame).setOnClickListener {
             withMic { WakeWordService.talk(this) }
         }
+        // The app's own organization; a pick re-reads what belongs to it, as a visit does.
+        organizationPicker = OrganizationPicker(this, findViewById(R.id.home_organization_button), ::showPortrait)
         listenSwitch.setOnClickListener { toggleListening(listenSwitch.isChecked) }
         findViewById<Button>(R.id.chat_button).setOnClickListener {
             startActivity(Intent(this, ChatActivity::class.java))
@@ -80,13 +83,10 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         WakeWordService.resumeIfEnabled(this)
-        // Re-read Carmen's style on every visit: it may have changed on the web meanwhile.
-        val portraitView = findViewById<android.widget.ImageView>(R.id.home_portrait)
-        CarmenLook.showPortrait(portraitView)
-        val account = AiosAccount(this)
-        CarmenLook.refresh(this, account) { CarmenLook.showPortrait(portraitView) }
-        // The voice may have been picked on the web meanwhile; the next call speaks in it.
-        VoicePreference(this, account).refresh()
+        organizationPicker.render()
+        showPortrait()
+        // Carmen's style and the stored voice may have changed on the web; the next call speaks in it.
+        OrganizationPicker.refreshFor(this, AiosAccount(this), ::showPortrait) {}
         portrait.start()
         handler.post(refresh)
     }
@@ -95,6 +95,11 @@ class MainActivity : AppCompatActivity() {
         handler.removeCallbacks(refresh)
         portrait.stop()
         super.onPause()
+    }
+
+    /** Carmen's portrait in the organization's style as last read. */
+    private fun showPortrait() {
+        CarmenLook.showPortrait(findViewById(R.id.home_portrait))
     }
 
     private fun toggleListening(on: Boolean) {

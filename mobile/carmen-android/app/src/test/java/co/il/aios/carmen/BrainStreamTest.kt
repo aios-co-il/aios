@@ -2,6 +2,7 @@ package co.il.aios.carmen
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -55,5 +56,14 @@ class BrainStreamTest {
         assertTrue(stream.accept("""data: {"type":"token","content":"יש לך 3 לקוחות"}"""))
         assertEquals("יש לך 3 לקוחות", stream.partial())
         assertFalse(stream.accept("""data: {"type":"done","success":true}"""))
+    }
+
+    @Test
+    fun `a conversation is continued only in its own organization`() {
+        val conversation = OrgConversation(tenantId = "org-p", id = "conv-1")
+
+        assertEquals("conv-1", conversation.idIn("org-p"))
+        // After the app moved to another organization, the old id is never sent with the new tenant.
+        assertNull(conversation.idIn("org-m"))
     }
 }

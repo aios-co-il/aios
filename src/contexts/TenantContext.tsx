@@ -9,6 +9,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { isCarmenAppWebView } from "@/lib/carmenAppWebView";
 
 interface TenantContextType {
   currentTenantId: string | null;
@@ -186,6 +187,12 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!currentTenantId) {
       setIsActiveTenantDbSynced(false);
+      return;
+    }
+    // The Carmen Android app keeps its own organization: its web view uses the
+    // URL's tenant and never moves the website's organization on other devices.
+    if (isCarmenAppWebView()) {
+      setIsActiveTenantDbSynced(true);
       return;
     }
 

@@ -5,6 +5,12 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
+/** A server conversation and the organization it belongs to. */
+data class OrgConversation(val tenantId: String, val id: String) {
+    /** The conversation's id when the request is in its organization, else null (a new conversation). */
+    fun idIn(tenant: String): String? = id.takeIf { tenant == tenantId }
+}
+
 /**
  * Carmen's full brain (`run-ai-agent`), called as the signed-in user — the same call the
  * Command Center's live voice makes for its `ask_carmen` tool, so tenant scoping and
@@ -12,8 +18,12 @@ import java.util.concurrent.TimeUnit
  */
 class CarmenBrain(private val account: AiosAccount) {
 
-    /** The server conversation this session's questions went to, once the first answer arrives. */
-    @Volatile var conversationId: String? = null
+    /**
+     * The server conversation this session's questions went to, once the first answer arrives,
+     * with the organization it is in: after the app moves to another organization it is never
+     * sent again ([OrgConversation.idIn]).
+     */
+    @Volatile var conversation: OrgConversation? = null
         private set
 
     /** The question being answered now, so the chat's stop button can stop it. */
@@ -36,7 +46,7 @@ class CarmenBrain(private val account: AiosAccount) {
         val session = runCatching { account.session() }.getOrElse { return "שגיאת התחברות למערכת." }
         if (pictures.any { !ChatPictures.inOwnFolder(session.userId, it.path) }) return PICTURES_OF_ANOTHER_ACCOUNT
         val run = java.util.UUID.randomUUID().toString().also { runId = it }
-        val body = requestBody(text, session.tenantId, conversationId, run, history, pictures)
+        val body = requestBody(text, session.tenantId, conversation?.idIn(session.tenantId), run, history, pictures)
         return runCatching {
             account.callFunction("run-ai-agent", body, streamingHttp).use { response ->
                 val source = response.body?.source()
@@ -51,7 +61,7 @@ class CarmenBrain(private val account: AiosAccount) {
                         onPartial(stream.partial())
                     }
                 }
-                stream.conversationId?.let { conversationId = it }
+                stream.conversationId?.let { conversation = OrgConversation(session.tenantId, it) }
                 stream.answer()
             }
         }.getOrElse { "לא הצלחתי לגשת למערכת כרגע: ${it.message.orEmpty().take(120)}" }

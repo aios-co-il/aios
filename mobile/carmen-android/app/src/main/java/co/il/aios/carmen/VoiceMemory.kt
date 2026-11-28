@@ -2,6 +2,7 @@ package co.il.aios.carmen
 
 import org.json.JSONArray
 import org.json.JSONObject
+import org.json.JSONTokener
 
 /** What was said in one voice conversation, in order: the user's words and Carmen's. */
 class VoiceTranscript {
@@ -39,17 +40,21 @@ class VoiceTranscript {
 
 /**
  * Keeps a finished voice conversation in Carmen's memory. The full transcript goes to the
- * user's conversation row (the one her brain answered in during the call, or a new one),
- * then `carmen-learn-from-session` turns it into memory, as the web chat does when a chat ends.
- * Without this only the questions relayed to her brain were stored, so she forgot the call.
+ * user's conversation row (the one her brain answered in during the call, or a new one) in the
+ * app's organization, then `carmen-learn-from-session` turns it into memory, as the web chat
+ * does when a chat ends. Without this only the questions relayed to her brain were stored, so
+ * she forgot the call. The row is written through `carmen_save_voice_conversation`, which checks
+ * membership in that organization, since the table's policies accept only the one the website
+ * has open.
  */
 class VoiceMemory(private val account: AiosAccount, private val log: EventLog) {
 
     /** Blocking: call off the main thread. Failures are logged, never thrown. */
-    fun save(transcript: VoiceTranscript, conversationId: String?) {
+    fun save(transcript: VoiceTranscript, conversation: OrgConversation?) {
         if (!transcript.worthSaving()) return
         runCatching {
-            val id = conversationId?.also { update(it, transcript) } ?: insert(transcript)
+            val tenantId = account.session().tenantId
+            val id = account.saveVoiceConversation(saveRequest(tenantId, transcript, conversation?.idIn(tenantId)))
             account.callFunction("carmen-learn-from-session", JSONObject().put("ai_conversation_id", id)).use { response ->
                 if (!response.isSuccessful) log.record(EventLog.Event.ERROR, "Voice memory learn: HTTP ${response.code}")
             }
@@ -57,22 +62,20 @@ class VoiceMemory(private val account: AiosAccount, private val log: EventLog) {
         }.onFailure { log.record(EventLog.Event.ERROR, "Voice memory: ${it.message.orEmpty().take(160)}") }
     }
 
-    private fun update(conversationId: String, transcript: VoiceTranscript) {
-        val rows = account.restWrite(
-            "PATCH",
-            "ai_conversations?id=eq.$conversationId",
-            JSONObject().put("messages", transcript.messages()),
-        )
-        if (rows.length() == 0) throw IllegalStateException("conversation $conversationId not found")
-    }
+    companion object {
+        /**
+         * The arguments of `carmen_save_voice_conversation`: the transcript in [tenantId], replacing
+         * the messages of [conversationId] when the call has one, else a new titled conversation.
+         */
+        fun saveRequest(tenantId: String, transcript: VoiceTranscript, conversationId: String?): JSONObject {
+            val body = JSONObject().put("p_tenant_id", tenantId).put("p_messages", transcript.messages())
+            return if (conversationId != null) body.put("p_conversation_id", conversationId) else body.put("p_title", transcript.title())
+        }
 
-    private fun insert(transcript: VoiceTranscript): String {
-        val session = account.session()
-        val row = JSONObject()
-            .put("user_id", session.userId)
-            .put("tenant_id", session.tenantId)
-            .put("title", transcript.title())
-            .put("messages", transcript.messages())
-        return account.restWrite("POST", "ai_conversations", row).getJSONObject(0).getString("id")
+        /** The conversation id in the function's reply (a JSON string). Throws on anything else. */
+        fun conversationId(reply: String): String {
+            val id = runCatching { JSONTokener(reply).nextValue() }.getOrNull() as? String
+            return id?.takeIf { it.isNotBlank() } ?: throw IllegalStateException("no conversation id in ${reply.take(80)}")
+        }
     }
 }

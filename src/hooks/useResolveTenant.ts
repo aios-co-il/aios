@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { isCarmenAppWebView } from "@/lib/carmenAppWebView";
 
 /**
  * Resolve a tenant slug for a user, with persistence to user_active_tenant if needed
@@ -71,6 +72,10 @@ export async function resolveTenantSlug(
       const candidateTenantId = candidate?.tenant_id as string | undefined;
 
       if (candidateSlug && candidateTenantId) {
+        if (isCarmenAppWebView()) {
+          // The Carmen Android app's web view never moves the website's organization.
+          return candidateSlug;
+        }
         // Persist as active for next time
         await (supabase as any).from("user_active_tenant").upsert(
           {

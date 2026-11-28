@@ -48,6 +48,18 @@
     <string name="counters">זיהויים: %1$d · הפעלות שווא שסומנו: %2$d · זיהויים שנחסמו (כפולים): %3$d\nהתראה במסך מלא מותרת: %4$s</string>
     <string name="yes">כן</string>
     <string name="no">לא — יש לאשר בהגדרות</string>
+    <!-- The app's own organization (OrganizationPicker), independent of the website's. -->
+    <string name="organization_title">ארגון באפליקציה</string>
+    <string name="organization_note">כרמן בטלפון עובדת בארגון שבוחרים כאן, בלי קשר לארגון שפתוח באתר.</string>
+    <string name="organization_current">ארגון: %1$s</string>
+    <string name="organization_unknown">ארגון: בחירה</string>
+    <string name="organization_loading">טוענת ארגונים…</string>
+    <string name="organization_load_failed">לא הצלחתי לטעון את הארגונים: %1$s</string>
+    <string name="organization_saved">מהשיחה הבאה כרמן עובדת בארגון: %1$s</string>
+    <string name="organization_save_failed">הארגון לא הוחלף: %1$s</string>
+    <string name="organization_during_call">אי אפשר להחליף ארגון באמצע שיחה</string>
+    <string name="organization_during_answer">אי אפשר להחליף ארגון בזמן שכרמן עונה</string>
+    <string name="organization_not_member">אינך חבר בארגון הזה</string>
     <string name="voice_title">הקול של כרמן</string>
     <string name="voice_default">קול: ברירת המחדל של כרמן</string>
     <string name="voice_default_option">ברירת המחדל של כרמן</string>
