@@ -3,11 +3,14 @@ import { Download } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
+  OPEN_URL_SECONDS,
   signSupplierInvoiceUrl,
   type SupplierInvoiceFile,
 } from "./supplierInvoiceFiles";
 
 const OPEN_LABEL = "פתיחת קובץ החשבונית";
+
+const MS_PER_SECOND = 1000;
 
 /** A file to open, and the tab that was opened for it at the click. */
 type OpenRequest = { path: string; tab: Window | null };
@@ -15,10 +18,18 @@ type OpenRequest = { path: string; tab: Window | null };
 /**
  * Shows the file in the tab opened at the click. Browsers block a tab opened
  * after the wait for the link, so the tab comes first and the link second.
+ * When the browser blocked that tab, the user gets a button instead: a new
+ * click is the only thing the browser lets open a tab.
  */
 function showInTab(tab: Window | null, url: string) {
   if (!tab) {
-    window.open(url, "_blank", "noopener,noreferrer");
+    toast.info("הדפדפן חסם את פתיחת הקובץ", {
+      duration: OPEN_URL_SECONDS * MS_PER_SECOND,
+      action: {
+        label: "פתיחת הקובץ",
+        onClick: () => window.open(url, "_blank", "noopener,noreferrer"),
+      },
+    });
 
     return;
   }

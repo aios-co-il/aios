@@ -5,7 +5,7 @@ import type { Tables } from "@/integrations/supabase/types";
 const BUCKET = "supplier-invoices";
 
 /** How long a link opened from a click lives. */
-const OPEN_URL_SECONDS = 60;
+export const OPEN_URL_SECONDS = 60;
 
 const HTTP_CLIENT_ERROR_MIN = 400;
 const HTTP_SERVER_ERROR_MIN = 500;
@@ -62,23 +62,34 @@ async function removeSupplierInvoiceFile(path: string): Promise<void> {
 }
 
 /**
- * Removes a file whose invoice is gone or was never written. A failure is
- * logged, not thrown: the invoice's own outcome is what the caller reports.
+ * Removes a file whose invoice is gone or was never written, and returns
+ * whether it was removed. A failure is logged, not thrown: the invoice's own
+ * outcome is what the caller reports.
  */
 export async function removeOrphanedSupplierInvoiceFile(
   path: string,
-): Promise<void> {
+): Promise<boolean> {
   try {
     await removeSupplierInvoiceFile(path);
+
+    return true;
   } catch (error) {
     console.error("Supplier invoice file was not removed:", path, error);
+
+    return false;
   }
 }
 
-/** Deletes an invoice row, then its file, so no file outlives its invoice. */
+/** What deleting an invoice left behind. */
+export type DeletedSupplierInvoice = { fileLeftInStorage: boolean };
+
+/**
+ * Deletes an invoice row, then its file, so no file outlives its invoice.
+ * The result says when the row is gone but its file could not be removed.
+ */
 export async function deleteSupplierInvoice(
   invoice: Pick<Tables<"supplier_invoices">, "id" | "file_path">,
-): Promise<void> {
+): Promise<DeletedSupplierInvoice> {
   const { error } = await supabase
     .from("supplier_invoices")
     .delete()
@@ -86,7 +97,10 @@ export async function deleteSupplierInvoice(
   if (error) {
     throw error;
   }
-  if (invoice.file_path) {
-    await removeOrphanedSupplierInvoiceFile(invoice.file_path);
+  if (!invoice.file_path) {
+    return { fileLeftInStorage: false };
   }
+  const removed = await removeOrphanedSupplierInvoiceFile(invoice.file_path);
+
+  return { fileLeftInStorage: !removed };
 }
