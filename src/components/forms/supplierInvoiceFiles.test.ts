@@ -57,11 +57,12 @@ describe("supplier invoice files", () => {
   });
 
   test("deleting an invoice removes its row, then its file", async () => {
-    await deleteSupplierInvoice({
+    const deleted = await deleteSupplierInvoice({
       id: "invoice-1",
       file_path: "tenant-1/supplier-1/1.pdf",
     });
 
+    expect(deleted).toEqual({ fileLeftInStorage: false });
     expect(mocks.calls).toEqual([
       "delete row invoice-1",
       "remove tenant-1/supplier-1/1.pdf",
@@ -78,20 +79,25 @@ describe("supplier invoice files", () => {
   });
 
   test("an invoice without a file deletes only its row", async () => {
-    await deleteSupplierInvoice({ id: "invoice-1", file_path: null });
+    const deleted = await deleteSupplierInvoice({
+      id: "invoice-1",
+      file_path: null,
+    });
 
+    expect(deleted).toEqual({ fileLeftInStorage: false });
     expect(mocks.calls).toEqual(["delete row invoice-1"]);
   });
 
-  test("a file storage did not remove is logged; the invoice is still deleted", async () => {
+  test("a file storage did not remove is logged and reported; the invoice is still deleted", async () => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.remove.mockResolvedValueOnce({ error: DENIED });
 
-    await deleteSupplierInvoice({
+    const deleted = await deleteSupplierInvoice({
       id: "invoice-1",
       file_path: "tenant-1/1.pdf",
     });
 
+    expect(deleted).toEqual({ fileLeftInStorage: true });
     expect(logged).toHaveBeenCalledWith(
       "Supplier invoice file was not removed:",
       "tenant-1/1.pdf",

@@ -80,10 +80,15 @@ export function SupplierInvoicesDialog({
 
   const deleteMutation = useMutation({
     mutationFn: deleteSupplierInvoice,
-    onSuccess: () => {
+    onSuccess: ({ fileLeftInStorage }) => {
       queryClient.invalidateQueries({
         queryKey: ["supplier-invoices", supplier?.id, tenantId],
       });
+      if (fileLeftInStorage) {
+        toast.warning("החשבונית נמחקה, אך הקובץ שלה לא הוסר מהאחסון");
+
+        return;
+      }
       toast.success("החשבונית נמחקה");
     },
     onError: () => toast.error("שגיאה במחיקת חשבונית"),

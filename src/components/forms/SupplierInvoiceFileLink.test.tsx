@@ -41,7 +41,7 @@ describe("SupplierInvoiceFileLink", () => {
     );
   });
 
-  test("a browser that blocked the tab still gets the signed link", async () => {
+  test("a browser that blocked the tab offers a button that opens the signed link", async () => {
     const user = userEvent.setup();
     const open = vi.fn(() => null);
     vi.stubGlobal("open", open);
@@ -55,12 +55,18 @@ describe("SupplierInvoiceFileLink", () => {
 
     await user.click(screen.getByRole("button", { name: OPEN }));
 
-    await waitFor(() =>
-      expect(open).toHaveBeenCalledWith(
-        "https://signed.example/invoice",
-        "_blank",
-        "noopener,noreferrer",
-      ),
+    await waitFor(() => expect(mocks.toastInfo).toHaveBeenCalled());
+    const [message, options] = mocks.toastInfo.mock.calls[0];
+    expect(message).toBe("הדפדפן חסם את פתיחת הקובץ");
+    expect(options.duration).toBe(60_000);
+    expect(open).toHaveBeenCalledTimes(1);
+
+    options.action.onClick();
+
+    expect(open).toHaveBeenLastCalledWith(
+      "https://signed.example/invoice",
+      "_blank",
+      "noopener,noreferrer",
     );
   });
 
@@ -131,6 +137,11 @@ type Signed = {
   error: Error | null;
 };
 
+type BlockedTabToast = {
+  duration: number;
+  action: { label: string; onClick: () => void };
+};
+
 /** A stand-in for the tab the click opens. */
 function fakeTab(): {
   opener: object | null;
@@ -147,11 +158,16 @@ const mocks = vi.hoisted(() => {
   }));
   const bucket = vi.fn(() => ({ createSignedUrl }));
 
-  return { createSignedUrl, bucket, toastError: vi.fn() };
+  const toastInfo =
+    vi.fn<(message: string, options: BlockedTabToast) => void>();
+
+  return { createSignedUrl, bucket, toastError: vi.fn(), toastInfo };
 });
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { storage: { from: mocks.bucket } },
 }));
 
-vi.mock("sonner", () => ({ toast: { error: mocks.toastError } }));
+vi.mock("sonner", () => ({
+  toast: { error: mocks.toastError, info: mocks.toastInfo },
+}));
